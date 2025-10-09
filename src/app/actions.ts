@@ -771,10 +771,7 @@ async function checkEndDayEarly(gameId: string) {
     const allPlayersVoted = alivePlayers.every(p => !!p.votedFor);
     
     if (allPlayersVoted) {
-        // A small delay to let AI votes register visually
-        setTimeout(async () => {
-            await processVotes(gameId);
-        }, 500);
+        await processVotes(gameId);
     }
 }
 
