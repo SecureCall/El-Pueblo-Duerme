@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { GameEvent, Player } from '@/types';

@@ -67,9 +67,12 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
               <CardFooter className="p-0 pt-3 flex flex-col items-center gap-1">
                 <p className="font-semibold text-center truncate w-full">{player.displayName}</p>
                 {!player.isAlive && (
-                    <div className="flex items-center gap-1 text-sm text-destructive">
-                        <SkullIcon className="h-4 w-4" />
-                        <span>Eliminado</span>
+                    <div className="flex items-center gap-1 text-xs text-destructive flex-col">
+                        <div className="flex items-center gap-1">
+                         <SkullIcon className="h-4 w-4" />
+                         <span>Eliminado</span>
+                        </div>
+                        <span className="font-bold uppercase">{player.role}</span>
                     </div>
                 )}
               </CardFooter>
