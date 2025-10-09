@@ -12,7 +12,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { HomeIcon } from 'lucide-react';
 import { 
-    WolfIcon, VillagerIcon, DoctorIcon, SeerIcon, HunterIcon, CupidIcon, GuardianIcon, GhostIcon, PriestIcon, VirginiaWoolfIcon, LeperIcon, PrinceIcon, LycanthropeIcon, RiverMermaidIcon, LookoutIcon, TroublemakerIcon, SilencerIcon, TwinIcon, SeerApprenticeIcon, ElderLeaderIcon, HechiceraIcon, WolfCubIcon, SeekerFairyIcon, CursedIcon, SleepingFairyIcon, ShapeshifterIcon, DrunkManIcon, CultLeaderIcon, FishermanIcon, VampireIcon, WitchIcon, BansheeIcon 
+    WolfIcon, VillagerIcon, DoctorIcon, SeerIcon, HunterIcon, CupidIcon, GuardianIcon, PriestIcon, PrinceIcon, LycanthropeIcon, TwinIcon, HechiceraIcon, WolfCubIcon, CursedIcon
 } from '@/components/icons';
 import { cn } from '@/lib/utils';
 
@@ -30,14 +30,14 @@ const aldeanosRoles = [
         Icon: GuardianIcon,
         color: 'text-blue-300',
         description:
-            'Cada noche, eliges a un jugador para protegerlo. Ese jugador no podrá ser asesinado por los lobos. Solo puedes protegerte a ti mismo una vez por partida.',
+            'Cada noche, eliges a un jugador para protegerlo. Ese jugador no podrá ser asesinado por los lobos. No puedes protegerte a ti mismo.',
     },
     {
         name: 'Vidente',
         Icon: SeerIcon,
         color: 'text-blue-300',
         description:
-            'Cada noche, eliges a un jugador y el juego te revelará si es un lobo, un aldeano o un rol especial. Tu información es crucial, pero revelarte te convierte en un objetivo.',
+            'Cada noche, eliges a un jugador y el juego te revelará si es un lobo o no. El licántropo se ve como lobo. Tu información es crucial, pero revelarte te convierte en un objetivo.',
     },
     {
         name: 'Doctor',
@@ -51,7 +51,7 @@ const aldeanosRoles = [
         Icon: PriestIcon,
         color: 'text-blue-300',
         description:
-            'Cada noche, otorgas una bendición a un jugador, protegiéndolo de cualquier tipo de ataque (lobos, hechizos, etc.). Puedes bendecirte a ti mismo una vez por partida.',
+            'Cada noche, otorgas una bendición a un jugador, protegiéndolo de cualquier tipo de ataque. Puedes bendecirte a ti mismo una vez por partida.',
     },
     {
         name: 'Gemelas',
@@ -88,41 +88,6 @@ const aldeanosRoles = [
         description:
             'Eres un aldeano, pero si la Vidente te investiga, te verá como un Hombre Lobo. Tu reto es convencer a todos de tu inocencia a pesar de las pruebas en tu contra.',
     },
-     {
-        name: 'Leprosa',
-        Icon: LeperIcon,
-        color: 'text-blue-300',
-        description:
-            'No tienes acción nocturna. Sin embargo, si eres asesinada por los lobos, tu enfermedad les impide atacar en la noche siguiente.',
-    },
-    {
-        name: 'Fantasma',
-        Icon: GhostIcon,
-        color: 'text-blue-300',
-        description:
-            'Si mueres, puedes enviar un único mensaje escrito a un jugador vivo a través del máster (el juego). No puedes revelar roles directamente.',
-    },
-     {
-        name: 'Vigía',
-        Icon: LookoutIcon,
-        color: 'text-blue-300',
-        description:
-            'Puedes intentar espiar cuando los lobos se despiertan. Si lo logras sin que te descubran, sabrás quiénes son. Si te ven, mueres. No puede jugar si hay una Vidente.',
-    },
-    {
-        name: 'Aprendiz de Vidente',
-        Icon: SeerApprenticeIcon,
-        color: 'text-blue-300',
-        description:
-            'Mientras la Vidente viva, eres un aldeano normal. Si la Vidente muere, tú te conviertes en la nueva Vidente y adquieres su habilidad nocturna.',
-    },
-    {
-        name: 'Anciana Líder',
-        Icon: ElderLeaderIcon,
-        color: 'text-blue-300',
-        description:
-            'Cada noche eliges a un jugador para expulsarlo temporalmente. Esa persona no podrá usar sus habilidades durante la noche siguiente.',
-    }
 ];
 
 const lobosRoles = [
@@ -157,98 +122,7 @@ const especialesRoles = [
         description:
             'La primera noche, eliges a dos jugadores para que se "enamoren". Si uno de ellos muere, el otro morirá instantáneamente de desamor. Los enamorados ganan si son los únicos dos supervivientes.',
     },
-    {
-        name: 'Virginia Woolf',
-        Icon: VirginiaWoolfIcon,
-        color: 'text-purple-400',
-        description:
-            'Solo te despiertas la primera noche para elegir a un jugador. Si mueres en cualquier momento, la persona que elegiste también morirá automáticamente contigo.',
-    },
-    {
-        name: 'Sirena del Río',
-        Icon: RiverMermaidIcon,
-        color: 'text-purple-400',
-        description:
-            'La primera noche, hechizas a un jugador. La segunda noche, os reconocéis. A partir de entonces, ese jugador está obligado a votar siempre lo mismo que tú en los juicios.',
-    },
-    {
-        name: 'Alborotadora',
-        Icon: TroublemakerIcon,
-        color: 'text-purple-400',
-        description:
-            'Una vez por partida, puedes elegir a dos jugadores para que peleen. Ambos serán eliminados inmediatamente. Eliges cuándo usar este poder.',
-    },
-    {
-        name: 'Silenciadora',
-        Icon: SilencerIcon,
-        color: 'text-purple-400',
-        description:
-            'Cada noche, eliges a un jugador para silenciarlo. Esa persona no podrá hablar durante todo el día siguiente, lo que le impedirá debatir y defenderse.',
-    },
-    {
-        name: 'Hada Buscadora',
-        Icon: SeekerFairyIcon,
-        color: 'text-red-400',
-        description:
-            'Tu equipo son los lobos. Cada noche buscas a la Hada Durmiente. Si la encuentras, se unirá al bando de los lobos. Una vez juntas, podréis lanzar una maldición mortal una vez por partida.',
-    },
-    {
-        name: 'Hada Durmiente',
-        Icon: SleepingFairyIcon,
-        color: 'text-blue-400',
-        description:
-            'Empiezas como aldeana. Si el Hada Buscadora te encuentra, te conviertes a la locura y te unes al bando de los lobos, ganando nuevos poderes junto a ella.',
-    },
-    {
-        name: 'Cambiaformas',
-        Icon: ShapeshifterIcon,
-        color: 'text-green-400',
-        description:
-            'La primera noche, eliges a un jugador. Si esa persona muere, tú adoptas su rol y su equipo, sea cual sea, para el resto de la partida.',
-    },
-    {
-        name: 'Hombre Ebrio',
-        Icon: DrunkManIcon,
-        color: 'text-green-400',
-        description:
-            'Ganas la partida si consigues que te eliminen, ya sea por votación del pueblo o por ataque de los lobos. Tu objetivo es morir.',
-    },
-    {
-        name: 'Líder del Culto',
-        Icon: CultLeaderIcon,
-        color: 'text-green-400',
-        description:
-            'Cada noche, conviertes a un jugador a tu culto. Ganas la partida si todos los jugadores vivos forman parte de tu culto.',
-    },
-    {
-        name: 'Pescador',
-        Icon: FishermanIcon,
-        color: 'text-green-400',
-        description:
-            'Cada noche, subes a un jugador a tu barco. Ganas si logras subir a todos los aldeanos. Si intentas subir a un lobo, mueres.',
-    },
-    {
-        name: 'Vampiro',
-        Icon: VampireIcon,
-        color: 'text-green-400',
-        description:
-            'Cada noche, chupas la sangre de un jugador. Si chupas la sangre de la misma persona tres veces, esta muere. Ganas si consigues asesinar a 3 jugadores de esta forma.',
-    },
-    {
-        name: 'Bruja',
-        Icon: WitchIcon,
-        color: 'text-green-400',
-        description:
-            'Cada noche, buscas a la Vidente. Si la encuentras, los lobos la eliminarán y tú te unirás a su bando, protegida de sus ataques.',
-    },
-    {
-        name: 'Banshee',
-        Icon: BansheeIcon,
-        color: 'text-green-400',
-        description:
-            'Una vez por partida, lanzas un grito sobre un jugador. Si ese jugador muere esa noche o al día siguiente, puedes lanzar un segundo grito en otra noche. Si aciertas las dos veces, ganas la partida.',
-    },
-]
+];
 
 
 const RoleSection = ({ title, roles, teamColor }: { title: string, roles: typeof aldeanosRoles, teamColor: string }) => (
@@ -334,9 +208,9 @@ export default function HowToPlayPage() {
                             </p>
                         </div>
                          <div>
-                            <h3 className="font-bold text-green-400">Para los Roles Especiales (Solitarios):</h3>
+                            <h3 className="font-bold text-pink-400">Para los Enamorados:</h3>
                             <p className="text-muted-foreground">
-                                Algunos roles tienen sus propias condiciones de victoria, como el Hombre Ebrio que debe morir o el Líder del Culto que debe convertir a todos. ¡Lee bien tu carta!
+                                Si Cupido os ha unido, vuestro objetivo es ser los únicos supervivientes, sin importar vuestro bando original.
                             </p>
                         </div>
                     </CardContent>
@@ -371,7 +245,7 @@ export default function HowToPlayPage() {
                 
                 <RoleSection title="El Pueblo (Equipo Azul)" roles={aldeanosRoles} teamColor="text-blue-400" />
                 <RoleSection title="Los Lobos (Equipo Rojo)" roles={lobosRoles} teamColor="text-destructive" />
-                <RoleSection title="Roles Especiales (Solitarios / Otros)" roles={especialesRoles} teamColor="text-green-400" />
+                <RoleSection title="Roles Especiales" roles={especialesRoles} teamColor="text-pink-400" />
 
                 <div className="text-center pt-4">
                     <Button asChild>
@@ -385,6 +259,3 @@ export default function HowToPlayPage() {
         </div>
     );
 }
-
-
-    

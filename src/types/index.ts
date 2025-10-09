@@ -21,26 +21,6 @@ export type PlayerRole =
   "werewolf" |
   "wolf_cub" |
   "cursed" |
-  // Unused for now
-  "ghost" |
-  "virginia_woolf" |
-  "leper" |
-  "river_mermaid" |
-  "lookout" |
-  "troublemaker" |
-  "silencer" |
-  "seer_apprentice" |
-  "elder_leader" |
-  "seeker_fairy" |
-  "sleeping_fairy" |
-  // Especiales (Verde/Morado)
-  "shapeshifter" |
-  "drunk_man" |
-  "cult_leader" |
-  "fisherman" |
-  "vampire" |
-  "witch" |
-  "banshee" |
   null;
 
 
@@ -131,5 +111,3 @@ export type TakeAITurnOutput = {
     reasoning: string;
     action: string;
 };
-
-    
