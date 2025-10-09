@@ -1,5 +1,36 @@
 
 import type { SVGProps } from 'react';
+import { Shield, Ghost, Sparkles, BookHeart, User, Crown, Siren, Eye, Zap, VolumeX, Users2, BookCopy, ChevronsRight, HeartHandshake, FlaskConical, BriefcaseMedical, CircleUser, Fingerprint, Anchor, Droplets, UserRoundX, Ear } from 'lucide-react';
+
+
+export const GuardianIcon = Shield;
+export const GhostIcon = Ghost;
+export const PriestIcon = Sparkles;
+export const VirginiaWoolfIcon = BookHeart;
+export const LeperIcon = User;
+export const PrinceIcon = Crown;
+export const LycanthropeIcon = Fingerprint;
+export const RiverMermaidIcon = Siren;
+export const LookoutIcon = Eye;
+export const TroublemakerIcon = Zap;
+export const SilencerIcon = VolumeX;
+export const TwinIcon = Users2;
+export const SeerApprenticeIcon = BookCopy;
+export const ElderLeaderIcon = ChevronsRight;
+export const HechiceraIcon = FlaskConical;
+export const WolfCubIcon = User;
+export const SeekerFairyIcon = Sparkles;
+export const CursedIcon = User;
+export const SleepingFairyIcon = Sparkles;
+export const ShapeshifterIcon = User;
+export const DrunkManIcon = User;
+export const CultLeaderIcon = Users;
+export const FishermanIcon = Anchor;
+export const VampireIcon = Droplets;
+export const WitchIcon = UserRoundX;
+export const BansheeIcon = Ear;
+export const Users = Users2;
+
 
 export function WolfIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -91,3 +122,4 @@ export function SkullIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+

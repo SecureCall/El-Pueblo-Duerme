@@ -11,53 +11,263 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { HomeIcon } from 'lucide-react';
-import { WolfIcon, VillagerIcon, DoctorIcon, SeerIcon, HunterIcon, CupidIcon } from '@/components/icons';
+import { 
+    WolfIcon, VillagerIcon, DoctorIcon, SeerIcon, HunterIcon, CupidIcon, GuardianIcon, GhostIcon, PriestIcon, VirginiaWoolfIcon, LeperIcon, PrinceIcon, LycanthropeIcon, RiverMermaidIcon, LookoutIcon, TroublemakerIcon, SilencerIcon, TwinIcon, SeerApprenticeIcon, ElderLeaderIcon, HechiceraIcon, WolfCubIcon, SeekerFairyIcon, CursedIcon, SleepingFairyIcon, ShapeshifterIcon, DrunkManIcon, CultLeaderIcon, FishermanIcon, VampireIcon, WitchIcon, BansheeIcon 
+} from '@/components/icons';
 import { cn } from '@/lib/utils';
 
-const roles = [
-    {
-        name: 'Hombre Lobo',
-        Icon: WolfIcon,
-        color: 'text-destructive',
-        description:
-            'Tu misión es asesinar a todos los aldeanos sin ser descubierto. Cada noche, junto a tus compañeros lobos, eliges en secreto a un aldeano para eliminarlo. Durante el día, tu objetivo es hacerte pasar por un aldeano inocente y desviar las sospechas.',
-    },
+
+const aldeanosRoles = [
     {
         name: 'Aldeano',
         Icon: VillagerIcon,
-        color: 'text-primary-foreground/80',
+        color: 'text-blue-300',
         description:
-            'Formas la mayoría del pueblo. Tu objetivo es sobrevivir y eliminar a los lobos. No tienes habilidades especiales nocturnas. Tu poder reside en tu capacidad de observación, debate y voto durante el día para identificar y linchar a los hombres lobo.',
+            'No tienes poderes especiales. Tu misión es observar, razonar y participar en los juicios para descubrir a los lobos. Tu voto es tu mayor poder.',
     },
     {
-        name: 'Doctor',
-        Icon: DoctorIcon,
-        color: 'text-green-400',
+        name: 'Guardián',
+        Icon: GuardianIcon,
+        color: 'text-blue-300',
         description:
-            'Cada noche, puedes elegir a un jugador (incluido tú mismo) para protegerlo. Si los lobos atacan a esa persona, sobrevivirá. No puedes elegir a la misma persona dos noches seguidas.',
+            'Cada noche, eliges a un jugador para protegerlo. Ese jugador no podrá ser asesinado por los lobos. Solo puedes protegerte a ti mismo una vez por partida.',
     },
     {
         name: 'Vidente',
         Icon: SeerIcon,
-        color: 'text-blue-400',
+        color: 'text-blue-300',
         description:
-            'Cada noche, tienes el poder de señalar a un jugador y el juego te revelará su verdadera identidad (si es lobo o no). Tu información es crucial para guiar a los aldeanos.',
+            'Cada noche, eliges a un jugador y el juego te revelará si es un lobo, un aldeano o un rol especial. Tu información es crucial, pero revelarte te convierte en un objetivo.',
+    },
+    {
+        name: 'Sacerdote',
+        Icon: PriestIcon,
+        color: 'text-blue-300',
+        description:
+            'Cada noche, otorgas una bendición a un jugador, protegiéndolo de cualquier tipo de ataque (lobos, hechizos, etc.). Puedes bendecirte a ti mismo una vez por partida.',
+    },
+    {
+        name: 'Gemelas',
+        Icon: TwinIcon,
+        color: 'text-blue-300',
+        description:
+            'La primera noche, os despertáis para reconoceros. Empiezas la partida con una aliada de confianza, lo que es una gran ventaja estratégica.',
     },
     {
         name: 'Cazador',
         Icon: HunterIcon,
-        color: 'text-yellow-500',
+        color: 'text-blue-300',
         description:
-            'Si eres eliminado (ya sea por los lobos en la noche o por votación durante el día), tienes un último acto de venganza: puedes disparar y eliminar a otro jugador inmediatamente.',
+            'Si eres eliminado (de día o de noche), tienes un último acto: puedes disparar y eliminar a otro jugador inmediatamente.',
     },
+    {
+        name: 'Hechicera',
+        Icon: HechiceraIcon,
+        color: 'text-blue-300',
+        description:
+            'Tienes una poción de veneno (para eliminar a un jugador por la noche) y una poción de protección (para salvar a un jugador atacado). Puedes usar cada una una vez por partida.',
+    },
+    {
+        name: 'Príncipe',
+        Icon: PrinceIcon,
+        color: 'text-blue-300',
+        description:
+            'No puedes ser eliminado por la votación del pueblo. Si recibes la mayoría de votos, revelas tu carta y sobrevives, pero te conviertes en un objetivo claro para los lobos.',
+    },
+     {
+        name: 'Licántropo',
+        Icon: LycanthropeIcon,
+        color: 'text-blue-300',
+        description:
+            'Eres un aldeano, pero si la Vidente te investiga, te verá como un Hombre Lobo. Tu reto es convencer a todos de tu inocencia a pesar de las pruebas en tu contra.',
+    },
+     {
+        name: 'Leprosa',
+        Icon: LeperIcon,
+        color: 'text-blue-300',
+        description:
+            'No tienes acción nocturna. Sin embargo, si eres asesinada por los lobos, tu enfermedad les impide atacar en la noche siguiente.',
+    },
+    {
+        name: 'Fantasma',
+        Icon: GhostIcon,
+        color: 'text-blue-300',
+        description:
+            'Si mueres, puedes enviar un único mensaje escrito a un jugador vivo a través del máster (el juego). No puedes revelar roles directamente.',
+    },
+     {
+        name: 'Vigía',
+        Icon: LookoutIcon,
+        color: 'text-blue-300',
+        description:
+            'Puedes intentar espiar cuando los lobos se despiertan. Si lo logras sin que te descubran, sabrás quiénes son. Si te ven, mueres. No puede jugar si hay una Vidente.',
+    },
+    {
+        name: 'Aprendiz de Vidente',
+        Icon: SeerApprenticeIcon,
+        color: 'text-blue-300',
+        description:
+            'Mientras la Vidente viva, eres un aldeano normal. Si la Vidente muere, tú te conviertes en la nueva Vidente y adquieres su habilidad nocturna.',
+    },
+    {
+        name: 'Anciana Líder',
+        Icon: ElderLeaderIcon,
+        color: 'text-blue-300',
+        description:
+            'Cada noche eliges a un jugador para expulsarlo temporalmente. Esa persona no podrá usar sus habilidades durante la noche siguiente.',
+    }
+];
+
+const lobosRoles = [
+     {
+        name: 'Hombre Lobo',
+        Icon: WolfIcon,
+        color: 'text-destructive',
+        description:
+            'Cada noche, junto a tus compañeros lobos, eliges en secreto a un aldeano para eliminarlo. Durante el día, tu objetivo es hacerte pasar por un aldeano inocente.',
+    },
+    {
+        name: 'Cría de Lobo',
+        Icon: WolfCubIcon,
+        color: 'text-destructive',
+        description:
+            'Actúas como un Hombre Lobo normal. Sin embargo, si eres eliminado, la noche siguiente a tu muerte los lobos podrán devorar a dos jugadores en lugar de uno.',
+    },
+    {
+        name: 'Maldito',
+        Icon: CursedIcon,
+        color: 'text-destructive',
+        description:
+            'Empiezas como un aldeano. No tienes acciones. Sin embargo, si los lobos te atacan, no mueres, sino que te transformas en un Hombre Lobo y te unes a su equipo.',
+    },
+];
+
+const especialesRoles = [
     {
         name: 'Cupido',
         Icon: CupidIcon,
         color: 'text-pink-400',
         description:
-            'En la primera noche, eliges a dos jugadores para que se "enamoren". Si uno de esos dos jugadores muere, el otro morirá instantáneamente de desamor. Los enamorados tienen su propia condición de victoria: ganan si son los únicos dos supervivientes.',
+            'La primera noche, eliges a dos jugadores para que se "enamoren". Si uno de ellos muere, el otro morirá instantáneamente de desamor. Los enamorados ganan si son los únicos dos supervivientes.',
     },
-];
+    {
+        name: 'Virginia Woolf',
+        Icon: VirginiaWoolfIcon,
+        color: 'text-purple-400',
+        description:
+            'Solo te despiertas la primera noche para elegir a un jugador. Si mueres en cualquier momento, la persona que elegiste también morirá automáticamente contigo.',
+    },
+    {
+        name: 'Sirena del Río',
+        Icon: RiverMermaidIcon,
+        color: 'text-purple-400',
+        description:
+            'La primera noche, hechizas a un jugador. La segunda noche, os reconocéis. A partir de entonces, ese jugador está obligado a votar siempre lo mismo que tú en los juicios.',
+    },
+    {
+        name: 'Alborotadora',
+        Icon: TroublemakerIcon,
+        color: 'text-purple-400',
+        description:
+            'Una vez por partida, puedes elegir a dos jugadores para que peleen. Ambos serán eliminados inmediatamente. Eliges cuándo usar este poder.',
+    },
+    {
+        name: 'Silenciadora',
+        Icon: SilencerIcon,
+        color: 'text-purple-400',
+        description:
+            'Cada noche, eliges a un jugador para silenciarlo. Esa persona no podrá hablar durante todo el día siguiente, lo que le impedirá debatir y defenderse.',
+    },
+    {
+        name: 'Hada Buscadora',
+        Icon: SeekerFairyIcon,
+        color: 'text-red-400',
+        description:
+            'Tu equipo son los lobos. Cada noche buscas a la Hada Durmiente. Si la encuentras, se unirá al bando de los lobos. Una vez juntas, podréis lanzar una maldición mortal una vez por partida.',
+    },
+    {
+        name: 'Hada Durmiente',
+        Icon: SleepingFairyIcon,
+        color: 'text-blue-400',
+        description:
+            'Empiezas como aldeana. Si el Hada Buscadora te encuentra, te conviertes a la locura y te unes al bando de los lobos, ganando nuevos poderes junto a ella.',
+    },
+    {
+        name: 'Cambiaformas',
+        Icon: ShapeshifterIcon,
+        color: 'text-green-400',
+        description:
+            'La primera noche, eliges a un jugador. Si esa persona muere, tú adoptas su rol y su equipo, sea cual sea, para el resto de la partida.',
+    },
+    {
+        name: 'Hombre Ebrio',
+        Icon: DrunkManIcon,
+        color: 'text-green-400',
+        description:
+            'Ganas la partida si consigues que te eliminen, ya sea por votación del pueblo o por ataque de los lobos. Tu objetivo es morir.',
+    },
+    {
+        name: 'Líder del Culto',
+        Icon: CultLeaderIcon,
+        color: 'text-green-400',
+        description:
+            'Cada noche, conviertes a un jugador a tu culto. Ganas la partida si todos los jugadores vivos forman parte de tu culto.',
+    },
+    {
+        name: 'Pescador',
+        Icon: FishermanIcon,
+        color: 'text-green-400',
+        description:
+            'Cada noche, subes a un jugador a tu barco. Ganas si logras subir a todos los aldeanos. Si intentas subir a un lobo, mueres.',
+    },
+    {
+        name: 'Vampiro',
+        Icon: VampireIcon,
+        color: 'text-green-400',
+        description:
+            'Cada noche, chupas la sangre de un jugador. Si chupas la sangre de la misma persona tres veces, esta muere. Ganas si consigues asesinar a 3 jugadores de esta forma.',
+    },
+    {
+        name: 'Bruja',
+        Icon: WitchIcon,
+        color: 'text-green-400',
+        description:
+            'Cada noche, buscas a la Vidente. Si la encuentras, los lobos la eliminarán y tú te unirás a su bando, protegida de sus ataques.',
+    },
+    {
+        name: 'Banshee',
+        Icon: BansheeIcon,
+        color: 'text-green-400',
+        description:
+            'Una vez por partida, lanzas un grito sobre un jugador. Si ese jugador muere esa noche o al día siguiente, puedes lanzar un segundo grito en otra noche. Si aciertas las dos veces, ganas la partida.',
+    },
+]
+
+
+const RoleSection = ({ title, roles, teamColor }: { title: string, roles: typeof aldeanosRoles, teamColor: string }) => (
+    <Card className="bg-card/80">
+        <CardHeader>
+            <CardTitle className={cn("font-headline text-3xl", teamColor)}>{title}</CardTitle>
+        </CardHeader>
+        <CardContent>
+            <Accordion type="single" collapsible className="w-full">
+                {roles.map(({ name, Icon, color, description }) => (
+                    <AccordionItem value={name} key={name}>
+                        <AccordionTrigger className={cn("text-xl font-bold hover:no-underline", color)}>
+                            <div className="flex items-center gap-4">
+                                <Icon className="h-8 w-8" />
+                                <span>{name}</span>
+                            </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="text-base text-muted-foreground pl-14">
+                            {description}
+                        </AccordionContent>
+                    </AccordionItem>
+                ))}
+            </Accordion>
+        </CardContent>
+    </Card>
+);
 
 export default function HowToPlayPage() {
     const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
@@ -91,10 +301,10 @@ export default function HowToPlayPage() {
                     </CardHeader>
                     <CardContent className="space-y-4 text-lg text-muted-foreground">
                         <p>
-                            Pueblo Duerme es un juego de misterio, engaño y supervivencia. Al inicio de la partida, el juego te asignará un rol secreto. Es fundamental que no reveles tu rol a nadie; el misterio es la clave de la diversión.
+                           Pueblo Duerme es un juego de misterio y engaño donde se te asignará un rol secreto. Es fundamental que no lo reveles; el misterio es la clave.
                         </p>
                         <p>
-                            Cuando el juego anuncie "Pueblo, duerme", la fase de noche comenzará. Durante esta fase, solo podrás actuar cuando el juego te lo indique según tu rol.
+                            Cuando el juego anuncie "Pueblo, duerme", comenzará la fase de noche. Deberás cerrar los ojos (simbólicamente) y solo actuar cuando tu rol sea llamado. El silencio durante esta fase es crucial.
                         </p>
                     </CardContent>
                 </Card>
@@ -105,21 +315,21 @@ export default function HowToPlayPage() {
                     </CardHeader>
                     <CardContent className="space-y-4 text-lg">
                         <div>
-                            <h3 className="font-bold text-blue-400">Para los Aldeanos:</h3>
+                            <h3 className="font-bold text-blue-400">Para los Aldeanos (Equipo Azul):</h3>
                             <p className="text-muted-foreground">
-                                Debéis descubrir y eliminar a todos los Hombres Lobo que se esconden entre vosotros. ¡La supervivencia del pueblo depende de vuestra astucia!
+                                Vuestro objetivo es descubrir y eliminar a todos los Hombres Lobo mediante las votaciones del día. ¡La supervivencia del pueblo depende de vuestra astucia!
                             </p>
                         </div>
                         <div>
-                            <h3 className="font-bold text-destructive">Para los Hombres Lobo:</h3>
+                            <h3 className="font-bold text-destructive">Para los Lobos (Equipo Rojo):</h3>
                             <p className="text-muted-foreground">
-                                Vuestro objetivo es eliminar aldeanos cada noche hasta que vuestro número iguale o supere al de los aldeanos restantes. La noche es vuestra aliada.
+                                Vuestra misión es asesinar a los aldeanos cada noche hasta que vuestro número iguale o supere al de los aldeanos restantes. La noche es vuestra aliada.
                             </p>
                         </div>
                          <div>
-                            <h3 className="font-bold text-pink-400">Para los Enamorados:</h3>
+                            <h3 className="font-bold text-green-400">Para los Roles Especiales (Solitarios):</h3>
                             <p className="text-muted-foreground">
-                                Si Cupido os ha unido, vuestro objetivo es ser los únicos dos supervivientes de la partida, sin importar vuestros bandos originales.
+                                Algunos roles tienen sus propias condiciones de victoria, como el Hombre Ebrio que debe morir o el Líder del Culto que debe convertir a todos. ¡Lee bien tu carta!
                             </p>
                         </div>
                     </CardContent>
@@ -133,58 +343,29 @@ export default function HowToPlayPage() {
                         <div className="space-y-2">
                             <h3 className="text-2xl font-bold text-primary">1. Fase de Noche</h3>
                             <p className="text-muted-foreground text-base">
-                                El juego pedirá a todos que "duerman". Luego, irá activando a los roles especiales en secreto para que realicen sus acciones:
+                                El pueblo "duerme". El juego irá activando a los roles con habilidades nocturnas en secreto para que realicen sus acciones a través de la interfaz. Los lobos eligen a su víctima, la vidente investiga, el doctor protege, etc.
                             </p>
-                            <ul className="list-disc list-inside pl-4 text-muted-foreground text-base space-y-1">
-                                <li><strong className='text-pink-400'>Cupido:</strong> (Solo en la primera noche) Elige a dos enamorados.</li>
-                                <li><strong className='text-destructive'>Hombres Lobo:</strong> Se reconocen entre ellos y eligen a una víctima para eliminar.</li>
-                                <li><strong className='text-blue-400'>Vidente:</strong> Elige a un jugador para descubrir su verdadera identidad (lobo o no).</li>
-                                <li><strong className='text-green-400'>Doctor:</strong> Elige a un jugador para protegerlo del ataque de los lobos.</li>
-                            </ul>
-                            <p className="text-muted-foreground text-base pt-2">Durante esta fase, el silencio es crucial. Indica tus acciones de forma clara en la interfaz cuando sea tu turno.</p>
                         </div>
                          <div className="space-y-2">
                             <h3 className="text-2xl font-bold text-yellow-300">2. Fase de Día</h3>
                              <p className="text-muted-foreground text-base">
-                                El pueblo "despierta". El juego anunciará quién ha sido eliminado durante la noche (si el Doctor no lo ha evitado). Esa persona revela su rol y queda fuera del juego, convirtiéndose en un espectador.
-                            </p>
-                            <p className='text-muted-foreground text-base'>
-                                A continuación, se abre un debate. Los jugadores vivos discuten, acusan y se defienden para intentar adivinar quiénes son los lobos. El tiempo para debatir es limitado.
+                                El pueblo "despierta". El juego anunciará quién ha sido eliminado durante la noche. Tras esto, se abre un debate donde los jugadores vivos discuten y acusan para intentar adivinar quiénes son los lobos. El tiempo para debatir es limitado.
                             </p>
                         </div>
                         <div className="space-y-2">
                             <h3 className="text-2xl font-bold text-red-400">3. Fase de Votación</h3>
                              <p className="text-muted-foreground text-base">
-                                Tras el debate, llega el juicio. Cada jugador vivo vota por alguien que crea que es un hombre lobo. El jugador con más votos es "linchado", revela su rol y queda eliminado del juego. Si el <strong className='text-yellow-500'>Cazador</strong> es eliminado en esta fase, podrá usar su habilidad final.
+                                Tras el debate, cada jugador vivo vota por alguien que crea que es un hombre lobo. El jugador con más votos es "linchado", revela su rol y queda eliminado.
                             </p>
                         </div>
                         <p className="text-center italic pt-4 text-base">El ciclo de noche y día se repite hasta que uno de los bandos cumpla su objetivo de victoria.</p>
                     </CardContent>
                 </Card>
+                
+                <RoleSection title="El Pueblo (Equipo Azul)" roles={aldeanosRoles} teamColor="text-blue-400" />
+                <RoleSection title="Los Lobos (Equipo Rojo)" roles={lobosRoles} teamColor="text-destructive" />
+                <RoleSection title="Roles Especiales (Solitarios / Otros)" roles={especialesRoles} teamColor="text-green-400" />
 
-                <Card className="bg-card/80">
-                    <CardHeader>
-                        <CardTitle className="font-headline text-3xl">Roles Especiales</CardTitle>
-                        <CardDescription>Conoce las habilidades de cada personaje.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <Accordion type="single" collapsible className="w-full">
-                            {roles.map(({ name, Icon, color, description }) => (
-                                <AccordionItem value={name} key={name}>
-                                    <AccordionTrigger className={cn("text-xl font-bold hover:no-underline", color)}>
-                                        <div className="flex items-center gap-4">
-                                            <Icon className="h-8 w-8" />
-                                            <span>{name}</span>
-                                        </div>
-                                    </AccordionTrigger>
-                                    <AccordionContent className="text-base text-muted-foreground pl-14">
-                                        {description}
-                                    </AccordionContent>
-                                </AccordionItem>
-                            ))}
-                        </Accordion>
-                    </CardContent>
-                </Card>
                 <div className="text-center pt-4">
                     <Button asChild>
                         <Link href="/">
@@ -197,3 +378,4 @@ export default function HowToPlayPage() {
         </div>
     );
 }
+

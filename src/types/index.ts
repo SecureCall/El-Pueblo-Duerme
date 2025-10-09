@@ -4,7 +4,43 @@ import { z } from 'zod';
 
 export type GameStatus = "waiting" | "in_progress" | "finished";
 export type GamePhase = "role_reveal" | "night" | "day" | "voting" | "hunter_shot" | "finished";
-export type PlayerRole = "werewolf" | "villager" | "seer" | "doctor" | "hunter" | "cupid" | null;
+export type PlayerRole = 
+  // Aldeanos (Azul)
+  "villager" | 
+  "seer" | 
+  "doctor" | 
+  "hunter" | 
+  "cupid" |
+  "guardian" |
+  "ghost" |
+  "priest" |
+  "virginia_woolf" |
+  "leper" |
+  "prince" |
+  "lycanthrope" |
+  "river_mermaid" |
+  "lookout" |
+  "troublemaker" |
+  "silencer" |
+  "twin" |
+  "seer_apprentice" |
+  "elder_leader" |
+  "cursed" | // Starts as villager
+  "sleeping_fairy" | // Starts as villager
+  // Lobos (Rojo)
+  "werewolf" |
+  "wolf_cub" |
+  "seeker_fairy" |
+  // Especiales (Verde/Morado)
+  "shapeshifter" |
+  "drunk_man" |
+  "cult_leader" |
+  "fisherman" |
+  "vampire" |
+  "witch" |
+  "banshee" |
+  null;
+
 
 export interface Game {
   id: string;
