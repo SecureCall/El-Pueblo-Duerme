@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Game, Player, GameEvent } from "@/types";
@@ -196,3 +197,5 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     </div>
   );
 }
+
+  

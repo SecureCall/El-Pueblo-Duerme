@@ -182,7 +182,7 @@ export async function startGame(gameId: string, creatorId: string) {
 
         const playersQuery = query(collection(db, 'players'), where('gameId', '==', gameId));
         const playersSnap = await getDocs(playersQuery);
-        const players = playersSnap.docs.map(doc => doc.data() as Player);
+        const players = playersSnap.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
 
         const humanPlayerCount = players.length;
         let finalPlayers = [...players];
@@ -799,4 +799,4 @@ async function checkEndDayEarly(gameId: string) {
     }
 }
 
-    
+  
