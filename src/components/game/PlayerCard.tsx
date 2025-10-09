@@ -29,7 +29,7 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
         hash = ((hash << 5) - hash) + char;
         hash = hash & hash; // Convert to 32bit integer
     }
-    const totalAvatars = 12; // Should match number of avatars in placeholder-images.json
+    const totalAvatars = 16; // Should match number of avatars in placeholder-images.json
     return (Math.abs(hash) % totalAvatars) + 1;
   }
   
