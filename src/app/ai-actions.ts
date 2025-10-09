@@ -16,7 +16,7 @@ async function getPlayerRef(gameId: string, userId: string) {
 
 // Helper to convert Firestore Timestamps to something JSON-serializable (ISO strings)
 const toJSONCompatible = (obj: any): any => {
-    if (!obj) return obj;
+    if (obj === null || obj === undefined) return obj;
     if (typeof obj.toDate === 'function') {
         return obj.toDate().toISOString();
     }
@@ -99,13 +99,20 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
                     break;
                 case 'HEAL':
                      if (phase === 'night' && ai.role === 'doctor' && isValidTarget(targetId)) {
-                         const targetPlayerRef = await getPlayerRef(game.id, targetId);
-                         if (targetPlayerRef) {
-                            const targetPlayerDoc = await getDoc(targetPlayerRef);
-                             if (targetPlayerDoc.exists() && targetPlayerDoc.data().lastHealedRound !== game.currentRound - 1) {
-                                await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'doctor_heal', targetId });
-                             }
+                        const targetPlayerDoc = await getDoc(doc(db, 'players', players.find(p => p.userId === targetId)!.id));
+                         if (targetPlayerDoc.exists() && targetPlayerDoc.data().lastHealedRound !== game.currentRound - 1) {
+                            await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'doctor_heal', targetId });
                          }
+                    }
+                    break;
+                case 'POISON':
+                    if (phase === 'night' && ai.role === 'hechicera' && isValidTarget(targetId) && !ai.potions?.poison) {
+                        await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'hechicera_poison', targetId });
+                    }
+                    break;
+                case 'SAVE':
+                    if (phase === 'night' && ai.role === 'hechicera' && isValidTarget(targetId) && !ai.potions?.save) {
+                        await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'hechicera_save', targetId });
                     }
                     break;
                 case 'VOTE':
