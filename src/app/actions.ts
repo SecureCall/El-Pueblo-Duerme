@@ -246,10 +246,20 @@ export async function startGame(gameId: string, creatorId: string) {
         }
         
         const newRoles = generateRoles(finalPlayers.length, game.settings);
+        const assignedPlayers = finalPlayers.map((player, index) => ({
+            ...player,
+            role: newRoles[index],
+        }));
 
-        finalPlayers.forEach((player, index) => {
+        const twinUserIds = assignedPlayers.filter(p => p.role === 'twin').map(p => p.userId);
+        if (twinUserIds.length === 2) {
+            batch.update(gameRef, { twins: twinUserIds });
+        }
+
+
+        assignedPlayers.forEach((player) => {
             const playerRef = doc(db, 'players', player.id);
-            batch.update(playerRef, { role: newRoles[index] });
+            batch.update(playerRef, { role: player.role });
         });
 
         batch.update(gameRef, {
@@ -679,6 +689,12 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
     if (!targetPlayerSnap.exists()) {
       throw new Error("Jugador objetivo no encontrado.");
     }
+    
+    const gameDoc = await getDoc(doc(db, 'games', gameId));
+    if (!gameDoc.exists()) {
+      throw new Error("Game not found");
+    }
+    const game = gameDoc.data() as Game;
 
     const targetPlayer = targetPlayerSnap.data() as Player;
     const isWerewolf = targetPlayer.role === 'werewolf' || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope);

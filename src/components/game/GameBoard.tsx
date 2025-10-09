@@ -13,7 +13,7 @@ import { processNight, processVotes } from "@/app/actions";
 import { runAIActions } from "@/app/ai-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
-import { HeartIcon, Moon, Sun } from "lucide-react";
+import { HeartIcon, Moon, Sun, Users2 } from "lucide-react";
 import { HunterShot } from "./HunterShot";
 import { GameChronicle } from "./GameChronicle";
 import { PhaseTimer } from "./PhaseTimer";
@@ -118,7 +118,18 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
   const isLover = !!game.lovers?.includes(currentPlayer.userId);
   const otherLoverId = isLover ? game.lovers!.find(id => id !== currentPlayer.userId) : null;
   const otherLover = otherLoverId ? players.find(p => p.userId === otherLoverId) : null;
-  const highlightedPlayers = otherLover ? [{ userId: otherLover.userId, color: 'rgba(255, 105, 180, 0.7)' }] : [];
+  
+  const isTwin = currentPlayer.role === 'twin' && !!game.twins?.includes(currentPlayer.userId);
+  const otherTwinId = isTwin ? game.twins!.find(id => id !== currentPlayer.userId) : null;
+  const otherTwin = otherTwinId ? players.find(p => p.userId === otherTwinId) : null;
+
+  const highlightedPlayers = [];
+  if (otherLover) {
+    highlightedPlayers.push({ userId: otherLover.userId, color: 'rgba(255, 105, 180, 0.7)' });
+  }
+  if (otherTwin) {
+    highlightedPlayers.push({ userId: otherTwin.userId, color: 'rgba(135, 206, 250, 0.7)' });
+  }
 
 
   return (
@@ -152,6 +163,17 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
             <div className="flex items-center justify-center gap-3 text-pink-300">
               <HeartIcon className="h-5 w-5" />
               <p>Estás enamorado de {otherLover.isAlive ? otherLover.displayName : `${otherLover.displayName} (fallecido)`}. Vuestro destino está unido.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {isTwin && otherTwin && (
+        <Card className="bg-blue-900/30 border-blue-400/50">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-center gap-3 text-blue-300">
+              <Users2 className="h-5 w-5" />
+              <p>Tu gemelo/a es {otherTwin.isAlive ? otherTwin.displayName : `${otherTwin.displayName} (fallecido)`}. Sois aliados hasta el final.</p>
             </div>
           </CardContent>
         </Card>

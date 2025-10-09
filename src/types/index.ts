@@ -59,7 +59,7 @@ export interface Game {
     // Basic roles
     seer: boolean;
     doctor: boolean;
-there: boolean;
+    hunter: boolean;
     cupid: boolean;
     // Expanded roles
     hechicera: boolean;
@@ -69,6 +69,7 @@ there: boolean;
   };
   phaseEndsAt?: Timestamp;
   lovers?: [string, string];
+  twins?: [string, string];
   pendingHunterShot?: string; // userId of the hunter who needs to shoot
 }
 
