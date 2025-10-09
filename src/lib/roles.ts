@@ -71,7 +71,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         name: "Hechicera",
         description: "Tienes una poción para salvar a la víctima de los lobos y otra para envenenar a un jugador. Puedes usar cada una una vez por partida.",
         atmosphere: "El poder de la vida y la muerte está en tus manos.",
-        image: "/roles/Witch.png", 
+        image: "/roles/hechicera.png", 
         color: "text-purple-400",
         bgImageId: "role-bg-werewolf" 
     },

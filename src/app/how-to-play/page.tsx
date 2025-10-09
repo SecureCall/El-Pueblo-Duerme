@@ -5,143 +5,73 @@ import {
     AccordionItem,
     AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { HomeIcon, User, Shield, Sparkles, Crown, Fingerprint, Users2, Heart, FlaskConical, Crosshair, BotIcon, BriefcaseMedical } from 'lucide-react';
+import { HomeIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { roleDetails } from '@/lib/roles';
+import type { PlayerRole } from '@/types';
 
 
-const aldeanosRoles = [
-    {
-        name: 'Aldeano',
-        Icon: User,
-        color: 'text-blue-300',
-        description:
-            'No tienes poderes especiales. Tu misión es observar, razonar y participar en los juicios para descubrir a los lobos. Tu voto es tu mayor poder.',
-    },
-    {
-        name: 'Guardián',
-        Icon: Shield,
-        color: 'text-blue-300',
-        description:
-            'Cada noche, eliges a un jugador para protegerlo. Ese jugador no podrá ser asesinado por los lobos. No puedes protegerte a ti mismo.',
-    },
-    {
-        name: 'Vidente',
-        Icon: Fingerprint,
-        color: 'text-blue-300',
-        description:
-            'Cada noche, eliges a un jugador y el juego te revelará si es un lobo o no. El licántropo se ve como lobo. Tu información es crucial, pero revelarte te convierte en un objetivo.',
-    },
-    {
-        name: 'Doctor',
-        Icon: BriefcaseMedical,
-        color: 'text-green-300',
-        description:
-            'Cada noche, puedes proteger a un jugador del ataque de los lobos. No puedes proteger a la misma persona dos noches seguidas.'
-    },
-    {
-        name: 'Sacerdote',
-        Icon: Sparkles,
-        color: 'text-blue-300',
-        description:
-            'Cada noche, otorgas una bendición a un jugador, protegiéndolo de cualquier tipo de ataque. Puedes bendecirte a ti mismo una vez por partida.',
-    },
-    {
-        name: 'Gemelas',
-        Icon: Users2,
-        color: 'text-blue-300',
-        description:
-            'La primera noche, os despertáis para reconoceros. Empiezas la partida con una aliada de confianza, lo que es una gran ventaja estratégica.',
-    },
-    {
-        name: 'Cazador',
-        Icon: Crosshair,
-        color: 'text-blue-300',
-        description:
-            'Si eres eliminado (de día o de noche), tienes un último acto: puedes disparar y eliminar a otro jugador inmediatamente.',
-    },
-    {
-        name: 'Hechicera',
-        Icon: FlaskConical,
-        color: 'text-blue-300',
-        description:
-            'Tienes una poción de veneno (para eliminar a un jugador por la noche) y una poción de protección (para salvar a un jugador atacado). Puedes usar cada una una vez por partida.',
-    },
-    {
-        name: 'Príncipe',
-        Icon: Crown,
-        color: 'text-blue-300',
-        description:
-            'No puedes ser eliminado por la votación del pueblo. Si recibes la mayoría de votos, revelas tu carta y sobrevives, pero te conviertes en un objetivo claro para los lobos.',
-    },
-     {
-        name: 'Licántropo',
-        Icon: Fingerprint,
-        color: 'text-blue-300',
-        description:
-            'Eres un aldeano, pero si la Vidente te investiga, te verá como un Hombre Lobo. Tu reto es convencer a todos de tu inocencia a pesar de las pruebas en tu contra.',
-    },
+const aldeanoRoleKeys: NonNullable<PlayerRole>[] = [
+    'villager',
+    'guardian',
+    'seer',
+    'doctor',
+    'priest',
+    'twin',
+    'hunter',
+    'hechicera',
+    'prince',
+    'lycanthrope',
 ];
 
-const lobosRoles = [
-     {
-        name: 'Hombre Lobo',
-        Icon: BotIcon,
-        color: 'text-destructive',
-        description:
-            'Cada noche, junto a tus compañeros lobos, eliges en secreto a un aldeano para eliminarlo. Durante el día, tu objetivo es hacerte pasar por un aldeano inocente.',
-    },
-    {
-        name: 'Cría de Lobo',
-        Icon: BotIcon,
-        color: 'text-destructive',
-        description:
-            'Actúas como un Hombre Lobo normal. Sin embargo, si eres eliminado, la noche siguiente a tu muerte los lobos podrán devorar a dos jugadores en lugar de uno.',
-    },
-    {
-        name: 'Maldito',
-        Icon: User,
-        color: 'text-orange-500',
-        description:
-            'Empiezas como un aldeano. No tienes acciones. Sin embargo, si los lobos te atacan, no mueres, sino que te transformas en un Hombre Lobo y te unes a su equipo.',
-    },
+const loboRoleKeys: NonNullable<PlayerRole>[] = [
+    'werewolf',
+    'wolf_cub',
+    'cursed',
 ];
 
-const especialesRoles = [
-    {
-        name: 'Cupido',
-        Icon: Heart,
-        color: 'text-pink-400',
-        description:
-            'La primera noche, eliges a dos jugadores para que se "enamoren". Si uno de ellos muere, el otro morirá instantáneamente de desamor. Los enamorados ganan si son los únicos dos supervivientes.',
-    },
+const especialRoleKeys: NonNullable<PlayerRole>[] = [
+    'cupid',
 ];
 
 
-const RoleSection = ({ title, roles, teamColor }: { title: string, roles: typeof aldeanosRoles, teamColor: string }) => (
+const RoleSection = ({ title, roleKeys, teamColor }: { title: string, roleKeys: NonNullable<PlayerRole>[], teamColor: string }) => (
     <Card className="bg-card/80">
         <CardHeader>
             <CardTitle className={cn("font-headline text-3xl", teamColor)}>{title}</CardTitle>
         </CardHeader>
         <CardContent>
             <Accordion type="single" collapsible className="w-full">
-                {roles.map(({ name, Icon, color, description }) => (
-                    <AccordionItem value={name} key={name}>
-                        <AccordionTrigger className={cn("text-xl font-bold hover:no-underline", color)}>
-                            <div className="flex items-center gap-4">
-                                <Icon className="h-8 w-8" />
-                                <span>{name}</span>
-                            </div>
-                        </AccordionTrigger>
-                        <AccordionContent className="text-base text-muted-foreground pl-14">
-                            {description}
-                        </AccordionContent>
-                    </AccordionItem>
-                ))}
+                {roleKeys.map((roleKey) => {
+                    const details = roleDetails[roleKey];
+                    if (!details) return null;
+                    return (
+                        <AccordionItem value={details.name} key={details.name}>
+                            <AccordionTrigger className={cn("text-xl font-bold hover:no-underline", details.color)}>
+                                <div className="flex items-center gap-4">
+                                    <div className="relative h-10 w-10">
+                                        <Image
+                                            src={details.image}
+                                            alt={details.name}
+                                            fill
+                                            className="object-contain"
+                                            unoptimized
+                                        />
+                                    </div>
+                                    <span>{details.name}</span>
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="text-base text-muted-foreground pl-20">
+                                {details.description}
+                            </AccordionContent>
+                        </AccordionItem>
+                    );
+                })}
             </Accordion>
         </CardContent>
     </Card>
@@ -240,9 +170,9 @@ export default function HowToPlayPage() {
                     </CardContent>
                 </Card>
                 
-                <RoleSection title="El Pueblo (Equipo Azul)" roles={aldeanosRoles} teamColor="text-blue-400" />
-                <RoleSection title="Los Lobos (Equipo Rojo)" roles={lobosRoles} teamColor="text-destructive" />
-                <RoleSection title="Roles Especiales" roles={especialesRoles} teamColor="text-pink-400" />
+                <RoleSection title="El Pueblo (Equipo Azul)" roleKeys={aldeanoRoleKeys} teamColor="text-blue-400" />
+                <RoleSection title="Los Lobos (Equipo Rojo)" roleKeys={loboRoleKeys} teamColor="text-destructive" />
+                <RoleSection title="Roles Especiales" roleKeys={especialRoleKeys} teamColor="text-pink-400" />
 
                 <div className="text-center pt-4">
                     <Button asChild>
