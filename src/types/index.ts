@@ -25,12 +25,13 @@ export type PlayerRole =
   "twin" |
   "seer_apprentice" |
   "elder_leader" |
-  "cursed" | // Starts as villager
-  "sleeping_fairy" | // Starts as villager
+  "hechicera" |
   // Lobos (Rojo)
   "werewolf" |
   "wolf_cub" |
   "seeker_fairy" |
+  "cursed" |
+  "sleeping_fairy" |
   // Especiales (Verde/Morado)
   "shapeshifter" |
   "drunk_man" |
@@ -54,11 +55,17 @@ export interface Game {
   currentRound: number;
   settings: {
     werewolves: number;
+    fillWithAI: boolean;
+    // Basic roles
     seer: boolean;
     doctor: boolean;
     hunter: boolean;
     cupid: boolean;
-    fillWithAI: boolean;
+    // Expanded roles
+    hechicera?: boolean;
+    lycanthrope?: boolean;
+    prince?: boolean;
+    twin?: boolean;
   };
   phaseEndsAt?: Timestamp;
   lovers?: [string, string];

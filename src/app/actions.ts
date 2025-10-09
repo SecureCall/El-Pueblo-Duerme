@@ -46,7 +46,7 @@ export async function createGame(
   displayName: string,
   gameName: string,
   maxPlayers: number,
-  fillWithAI: boolean
+  settings: Omit<Game['settings'], 'werewolves'>
 ) {
   const gameId = generateGameId();
   const gameRef = doc(db, "games", gameId);
@@ -64,12 +64,8 @@ export async function createGame(
     createdAt: Timestamp.now(),
     currentRound: 0,
     settings: {
+      ...settings,
       werewolves: werewolfCount,
-      seer: true,
-      doctor: true,
-      hunter: true,
-      cupid: true,
-      fillWithAI,
     },
   };
 
@@ -140,20 +136,47 @@ export async function joinGame(
 const generateRoles = (playerCount: number, settings: Game['settings']) => {
     const roles: Player['role'][] = [];
     
+    // Add werewolves
     for (let i = 0; i < settings.werewolves; i++) {
         roles.push('werewolf');
     }
+
+    // Add special roles based on settings
     if (settings.seer) roles.push('seer');
     if (settings.doctor) roles.push('doctor');
     if (settings.hunter) roles.push('hunter');
     if (settings.cupid) roles.push('cupid');
+    if (settings.hechicera) roles.push('hechicera');
+    if (settings.lycanthrope) roles.push('lycanthrope');
+    if (settings.prince) roles.push('prince');
+    if (settings.twin) {
+      roles.push('twin');
+      roles.push('twin'); // Add the second twin
+    }
     
+    // Fill remaining spots with villagers
     while (roles.length < playerCount) {
         roles.push('villager');
     }
+
+    // If we have too many roles (e.g. many special roles selected for a small game),
+    // we need to prioritize. This is a simple priority, could be improved.
+    // For now, let's just slice it to the player count. A better way would be to disable
+    // role selection if it exceeds player count.
+    const finalRoles = roles.slice(0, playerCount);
+
+    // Ensure we have at least one werewolf if roles were cut.
+    if (!finalRoles.includes('werewolf') && playerCount > 0) {
+        const villagerIndex = finalRoles.findIndex(r => r === 'villager');
+        if (villagerIndex !== -1) {
+            finalRoles[villagerIndex] = 'werewolf';
+        } else {
+            finalRoles[0] = 'werewolf';
+        }
+    }
     
     // Shuffle roles
-    return roles.sort(() => Math.random() - 0.5);
+    return finalRoles.sort(() => Math.random() - 0.5);
 };
 
 const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
@@ -339,7 +362,7 @@ async function killPlayer(
   const killedPlayerIds: string[] = [playerId];
   let hunterTriggeredId: string | null = null;
   
-  if (playerToKill.role === 'hunter') {
+  if (playerToKill.role === 'hunter' && gameData.settings.hunter) {
     hunterTriggeredId = playerId;
   } else {
     const playerRef = doc(db, 'players', playerToKill.id);
@@ -350,7 +373,7 @@ async function killPlayer(
     const otherLoverId = gameData.lovers.find(id => id !== playerId)!;
     const otherLoverPlayer = playersData.find(p => p.userId === otherLoverId);
     if (otherLoverPlayer && otherLoverPlayer.isAlive) {
-      if (otherLoverPlayer.role === 'hunter') {
+      if (otherLoverPlayer.role === 'hunter' && gameData.settings.hunter) {
          hunterTriggeredId = otherLoverId;
       } else {
         const otherLoverRef = doc(db, 'players', otherLoverPlayer.id);
@@ -759,13 +782,17 @@ async function checkEndNightEarly(gameId: string) {
         werewolves.forEach(w => requiredPlayerIds.add(w.userId));
     }
 
-    const seer = alivePlayers.find(p => p.role === 'seer');
-    if (seer) requiredPlayerIds.add(seer.userId);
+    if (game.settings.seer) {
+        const seer = alivePlayers.find(p => p.role === 'seer');
+        if (seer) requiredPlayerIds.add(seer.userId);
+    }
     
-    const doctor = alivePlayers.find(p => p.role === 'doctor');
-    if (doctor) requiredPlayerIds.add(doctor.userId);
+    if (game.settings.doctor) {
+        const doctor = alivePlayers.find(p => p.role === 'doctor');
+        if (doctor) requiredPlayerIds.add(doctor.userId);
+    }
     
-    if (game.currentRound === 1) {
+    if (game.currentRound === 1 && game.settings.cupid) {
         const cupid = alivePlayers.find(p => p.role === 'cupid');
         if (cupid) requiredPlayerIds.add(cupid.userId);
     }

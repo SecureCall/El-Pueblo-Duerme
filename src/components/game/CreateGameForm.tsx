@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useForm } from "react-hook-form";
@@ -5,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { FlaskConical, Crown, Fingerprint, Users2, Loader2, HelpCircle } from "lucide-react";
 
 import { useGameSession } from "@/hooks/use-game-session";
 import { createGame } from "@/app/actions";
@@ -24,13 +25,34 @@ import { Slider } from "@/components/ui/slider";
 import { Card, CardContent } from "../ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "../ui/switch";
+import { Label } from "../ui/label";
+import { Checkbox } from "../ui/checkbox";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 
 const FormSchema = z.object({
   gameName: z.string().min(3, { message: "El nombre de la partida debe tener al menos 3 caracteres." }).max(30),
   displayName: z.string().min(2, { message: "Tu nombre debe tener al menos 2 caracteres." }).max(20),
   maxPlayers: z.number().min(4).max(20),
   fillWithAI: z.boolean(),
+  // Basic roles
+  seer: z.boolean(),
+  doctor: z.boolean(),
+  hunter: z.boolean(),
+  cupid: z.boolean(),
+  // Expanded roles
+  hechicera: z.boolean(),
+  lycanthrope: z.boolean(),
+  prince: z.boolean(),
+  twin: z.boolean(),
 });
+
+const specialRoles = [
+  { id: 'hechicera', label: 'Hechicera', Icon: FlaskConical, description: 'Usa una poción de vida y una de muerte.' },
+  { id: 'prince', label: 'Príncipe', Icon: Crown, description: 'Inmune a ser linchado por votación.' },
+  { id: 'lycanthrope', label: 'Licántropo', Icon: Fingerprint, description: 'Un aldeano que la vidente ve como lobo.' },
+  { id: 'twin', label: 'Gemelas', Icon: Users2, description: 'Dos jugadores que se conocen y son aliados.' },
+] as const;
+
 
 export function CreateGameForm() {
   const router = useRouter();
@@ -45,18 +67,35 @@ export function CreateGameForm() {
       displayName: displayName || "",
       maxPlayers: 8,
       fillWithAI: true,
+      seer: true,
+      doctor: true,
+      hunter: false,
+      cupid: false,
+      hechicera: false,
+      lycanthrope: false,
+      prince: false,
+      twin: false,
     },
   });
 
   async function onSubmit(data: z.infer<typeof FormSchema>) {
     setIsSubmitting(true);
     setDisplayName(data.displayName);
+
+    const { gameName, displayName: pName, maxPlayers, fillWithAI, ...roles } = data;
+
+    const gameSettings = {
+        fillWithAI,
+        werewolves: Math.max(1, Math.floor(data.maxPlayers / 5)),
+        ...roles
+    };
+    
     const response = await createGame(
       userId,
-      data.displayName,
-      data.gameName,
-      data.maxPlayers,
-      data.fillWithAI
+      pName,
+      gameName,
+      maxPlayers,
+      gameSettings
     );
     
     if (response.gameId) {
@@ -65,7 +104,7 @@ export function CreateGameForm() {
       toast({
         variant: "destructive",
         title: "Error al crear la partida",
-        description: "Hubo un problema al crear la partida. Por favor, inténtalo de nuevo.",
+        description: response.error || "Hubo un problema al crear la partida. Por favor, inténtalo de nuevo.",
       });
       setIsSubmitting(false);
     }
@@ -74,6 +113,7 @@ export function CreateGameForm() {
   return (
     <Card className="w-full bg-card/80 border-border/50 backdrop-blur-sm">
       <CardContent className="p-6">
+        <TooltipProvider>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 text-left">
             <FormField
@@ -121,6 +161,45 @@ export function CreateGameForm() {
                 </FormItem>
               )}
             />
+
+            <div>
+              <Label className="text-base">Roles Especiales</Label>
+              <FormDescription>Selecciona los roles que quieres incluir en la partida.</FormDescription>
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                  {specialRoles.map(role => (
+                    <FormField
+                      key={role.id}
+                      control={form.control}
+                      name={role.id}
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 bg-background/50">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <div className="space-y-1 leading-none">
+                            <FormLabel className="flex items-center gap-2">
+                              <role.Icon className="h-4 w-4" />
+                              {role.label}
+                               <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{role.description}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </FormLabel>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+                  ))}
+              </div>
+            </div>
+
             <FormField
               control={form.control}
               name="fillWithAI"
@@ -141,11 +220,13 @@ export function CreateGameForm() {
                 </FormItem>
               )}
             />
+
             <Button type="submit" className="w-full font-bold text-lg" disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="animate-spin" /> : "Crear y Unirse"}
             </Button>
           </form>
         </Form>
+        </TooltipProvider>
       </CardContent>
     </Card>
   );
