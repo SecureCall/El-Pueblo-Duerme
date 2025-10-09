@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { Game, Player, GameEvent } from "@/types";
@@ -40,11 +39,11 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
   useEffect(() => {
     // Only the creator should trigger AI actions to avoid multiple executions
     if (game.creator === currentPlayer.userId) {
-      if (game.phase === 'night' || game.phase === 'day' || game.phase === 'hunter_shot') {
-         runAIActions(game.id, game.phase);
+      if ((game.phase === 'night' || game.phase === 'day' || game.phase === 'hunter_shot') && game.settings.fillWithAI) {
+        //  runAIActions(game.id, game.phase);
       }
     }
-  }, [game.phase, game.id, game.creator, currentPlayer.userId, game.currentRound]);
+  }, [game.phase, game.id, game.creator, currentPlayer.userId, game.currentRound, game.settings.fillWithAI]);
 
   const handleAcknowledgeRole = async () => {
     setShowRole(false);
@@ -197,9 +196,3 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     </div>
   );
 }
-
-    
-
-    
-
-    
