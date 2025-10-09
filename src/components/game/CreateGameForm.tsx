@@ -69,13 +69,14 @@ const FormSchema = z.object({
 });
 
 const specialRoles = [
+  { id: 'seer', label: 'Vidente', Icon: Eye, description: 'Descubre el rol de un jugador cada noche.' },
+  { id: 'doctor', label: 'Doctor', Icon: Shield, description: 'Protege a un jugador del ataque de los lobos.' },
   { id: 'hechicera', label: 'Hechicera', Icon: FlaskConical, description: 'Usa una poción de vida y una de muerte.' },
+  { id: 'hunter', label: 'Cazador', Icon: User, description: 'Al morir, puede llevarse a otro jugador consigo.' },
   { id: 'prince', label: 'Príncipe', Icon: Crown, description: 'Inmune a ser linchado por votación.' },
   { id: 'lycanthrope', label: 'Licántropo', Icon: Fingerprint, description: 'Un aldeano que la vidente ve como lobo.' },
   { id: 'twin', label: 'Gemelas', Icon: Users2, description: 'Dos jugadores que se conocen y son aliados.' },
   { id: 'cupid', label: 'Cupido', Icon: Heart, description: 'Enamora a dos jugadores la primera noche.' },
-  { id: 'doctor', label: 'Doctor', Icon: Shield, description: 'Protege a un jugador del ataque de los lobos.' },
-  { id: 'hunter', label: 'Cazador', Icon: User, description: 'Al morir, puede llevarse a otro jugador consigo.' },
 ] as const;
 
 
@@ -94,12 +95,12 @@ export function CreateGameForm() {
       fillWithAI: true,
       seer: true,
       doctor: true,
-      hunter: false,
-      cupid: false,
-      hechicera: false,
-      lycanthrope: false,
-      prince: false,
-      twin: false,
+      hunter: true,
+      cupid: true,
+      hechicera: true,
+      lycanthrope: true,
+      prince: true,
+      twin: true,
       guardian: false,
       ghost: false,
       priest: false,
@@ -278,3 +279,5 @@ export function CreateGameForm() {
     </Card>
   );
 }
+
+    
