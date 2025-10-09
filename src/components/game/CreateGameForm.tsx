@@ -77,6 +77,7 @@ const specialRoles = [
   { id: 'lycanthrope', label: 'Licántropo', Icon: Fingerprint, description: 'Un aldeano que la vidente ve como lobo.' },
   { id: 'twin', label: 'Gemelas', Icon: Users2, description: 'Dos jugadores que se conocen y son aliados.' },
   { id: 'cupid', label: 'Cupido', Icon: Heart, description: 'Enamora a dos jugadores la primera noche.' },
+  { id: 'guardian', label: 'Guardián', Icon: Shield, description: 'Protege a un jugador del ataque de los lobos. No puede protegerse a sí mismo.' },
 ] as const;
 
 
@@ -101,7 +102,7 @@ export function CreateGameForm() {
       lycanthrope: true,
       prince: true,
       twin: true,
-      guardian: false,
+      guardian: true,
       ghost: false,
       priest: false,
       virginia_woolf: false,

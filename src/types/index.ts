@@ -112,7 +112,7 @@ export interface Player {
   }
 }
 
-export type NightActionType = "werewolf_kill" | "seer_check" | "doctor_heal" | "cupid_enchant" | "hechicera_poison" | "hechicera_save";
+export type NightActionType = "werewolf_kill" | "seer_check" | "doctor_heal" | "cupid_enchant" | "hechicera_poison" | "hechicera_save" | "guardian_protect";
 
 export interface NightAction {
     gameId: string;

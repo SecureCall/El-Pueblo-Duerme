@@ -15,7 +15,7 @@ export const TakeAITurnInputSchema = z.object({
 
 export const TakeAITurnOutputSchema = z.object({
     reasoning: z.string().describe("Your step-by-step thought process to arrive at this action."),
-    action: z.string().describe("The action to take. Format: 'TYPE:TARGET_ID' or 'TYPE'. Examples: 'VOTE:player123', 'KILL:player456', 'HEAL:player789', 'CHECK:playerABC', 'SHOOT:playerXYZ', 'POISON:player111', 'SAVE:player222'. If no action is possible, return 'NONE'."),
+    action: z.string().describe("The action to take. Format: 'TYPE:TARGET_ID' or 'TYPE'. Examples: 'VOTE:player123', 'KILL:player456', 'HEAL:player789', 'CHECK:playerABC', 'SHOOT:playerXYZ', 'POISON:player111', 'SAVE:player222', 'PROTECT:player333'. If no action is possible, return 'NONE'."),
 });
 
 export async function takeAITurn(input: TakeAITurnInput): Promise<TakeAITurnOutput> {
@@ -36,6 +36,7 @@ Analiza el estado actual del juego y decide la mejor acción a tomar. Piensa pas
 - Hombres Lobo: Ganan si igualan o superan en número a los aldeanos.
 - Vidente: Cada noche, puede descubrir la verdadera identidad (lobo o no) de un jugador. El Licántropo se ve como lobo.
 - Doctor: Cada noche, puede proteger a un jugador de ser eliminado. No puede proteger a la misma persona dos noches seguidas.
+- Guardián: Cada noche, puede proteger a un jugador. No puede protegerse a sí mismo.
 - Cazador: Si es eliminado, puede disparar y eliminar a otro jugador.
 - Cupido: En la primera noche, elige a dos enamorados. Si uno muere, el otro también. Ganan si son los únicos supervivientes.
 - Hechicera: Tiene una poción de veneno (para matar) y una de salvación. Puede usar cada una una vez por partida. La de salvación se usa sobre un jugador para protegerlo esa noche del ataque del lobo.
@@ -73,6 +74,7 @@ Basado en toda la información, y especialmente en tu identidad y rol dentro de 
         - **SHOOT**: cazador al morir.
         - **POISON**: hechicera, usar veneno.
         - **SAVE**: hechicera, usar poción de salvación.
+        - **PROTECT**: guardián por la noche.
     - **TARGET_ID** debe ser el userId de un jugador vivo.
     - Si no tienes ninguna acción válida o posible, devuelve 'NONE'.
 

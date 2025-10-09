@@ -153,6 +153,7 @@ const generateRoles = (playerCount: number, settings: Game['settings']) => {
       roles.push('twin');
       roles.push('twin'); // Add the second twin
     }
+    if (settings.guardian) roles.push('guardian');
     
     // Fill remaining spots with villagers
     while (roles.length < playerCount) {
@@ -304,6 +305,10 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
         if (player.potions?.save) {
             return { success: false, error: "Ya has usado tu poción de salvación." };
         }
+    }
+
+    if (action.actionType === 'guardian_protect' && action.targetId === action.playerId) {
+        return { success: false, error: "No puedes protegerte a ti mismo." };
     }
     
     // Check for existing action for this player and round to prevent duplicates
@@ -527,6 +532,7 @@ export async function processNight(gameId: string) {
             let killedByPoisonId: string | null = null;
             let savedByDoctorId: string | null = null;
             let savedByHechiceraId: string | null = null;
+            let savedByGuardianId: string | null = null;
             let nightKillResult: { killedIds: string[], hunterId: string | null } = { killedIds: [], hunterId: null };
 
             const doctorAction = actions.find(a => a.actionType === 'doctor_heal');
@@ -535,6 +541,9 @@ export async function processNight(gameId: string) {
             const hechiceraSaveAction = actions.find(a => a.actionType === 'hechicera_save');
             if (hechiceraSaveAction) savedByHechiceraId = hechiceraSaveAction.targetId;
             
+            const guardianAction = actions.find(a => a.actionType === 'guardian_protect');
+            if (guardianAction) savedByGuardianId = guardianAction.targetId;
+
             const werewolfVotes = actions.filter(a => a.actionType === 'werewolf_kill');
             if (werewolfVotes.length > 0) {
                 const voteCounts = werewolfVotes.reduce((acc, vote) => {
@@ -564,7 +573,7 @@ export async function processNight(gameId: string) {
             }
 
             let messages: string[] = [];
-            const finalSavedPlayerId = savedByDoctorId || savedByHechiceraId;
+            const finalSavedPlayerId = savedByDoctorId || savedByHechiceraId || savedByGuardianId;
             
             // Process werewolf attack
             if (killedByWerewolfId && killedByWerewolfId !== finalSavedPlayerId) {
@@ -879,6 +888,11 @@ async function checkEndNightEarly(gameId: string) {
         if (doctor) requiredPlayerIds.add(doctor.userId);
     }
     
+    if (game.settings.guardian) {
+        const guardian = alivePlayers.find(p => p.role === 'guardian');
+        if (guardian) requiredPlayerIds.add(guardian.userId);
+    }
+
     if (game.currentRound === 1 && game.settings.cupid) {
         const cupid = alivePlayers.find(p => p.role === 'cupid');
         if (cupid) requiredPlayerIds.add(cupid.userId);

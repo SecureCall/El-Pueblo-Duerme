@@ -105,6 +105,11 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
                          }
                     }
                     break;
+                case 'PROTECT': // This could be used for Guardian
+                     if (phase === 'night' && ai.role === 'guardian' && isValidTarget(targetId) && targetId !== ai.userId) {
+                        await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'guardian_protect', targetId });
+                    }
+                    break;
                 case 'POISON':
                     if (phase === 'night' && ai.role === 'hechicera' && isValidTarget(targetId) && !ai.potions?.poison) {
                         await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'hechicera_poison', targetId });

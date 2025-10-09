@@ -64,6 +64,10 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             // toast({ variant: 'destructive', title: 'Regla de la Hechicera', description: 'No puedes usar la poción de salvación en ti misma.' });
             // return;
         }
+        if (currentPlayer.role === 'guardian' && player.userId === currentPlayer.userId) {
+            toast({ variant: 'destructive', title: 'Regla del Guardián', description: 'No puedes protegerte a ti mismo.' });
+            return;
+        }
 
 
         setSelectedPlayerIds(prev => {
@@ -85,6 +89,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             case 'werewolf': return 'werewolf_kill';
             case 'seer': return 'seer_check';
             case 'doctor': return 'doctor_heal';
+            case 'guardian': return 'guardian_protect';
             case 'cupid': return 'cupid_enchant';
             case 'hechicera':
                 if (hechiceraAction === 'poison') return 'hechicera_poison';
@@ -117,6 +122,10 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                 toast({ variant: 'destructive', title: 'Regla del Doctor', description: 'No puedes proteger a la misma persona dos noches seguidas.' });
                 return;
             }
+        }
+        if (actionType === 'guardian_protect' && selectedPlayerIds[0] === currentPlayer.userId) {
+             toast({ variant: 'destructive', title: 'Regla del Guardián', description: 'No puedes protegerte a ti mismo.' });
+             return;
         }
 
         setIsSubmitting(true);
@@ -163,6 +172,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             case 'werewolf': return 'Elige a un aldeano para eliminar.';
             case 'seer': return 'Elige a un jugador para descubrir su identidad.';
             case 'doctor': return 'Elige a un jugador para proteger esta noche.';
+            case 'guardian': return 'Elige a un jugador para proteger esta noche.';
             case 'cupid': return game.currentRound === 1 ? 'Elige a dos jugadores para que se enamoren.' : 'Tu flecha ya ha unido dos corazones.';
             case 'hechicera': return (hasPoison || hasSavePotion) ? 'Elige una poción y un objetivo.' : 'Has usado todas tus pociones.';
             default: return 'No tienes acciones esta noche. Espera al amanecer.';
@@ -222,6 +232,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         currentPlayer.role === 'werewolf' || 
         currentPlayer.role === 'seer' || 
         currentPlayer.role === 'doctor' ||
+        currentPlayer.role === 'guardian' ||
         isCupidFirstNight ||
         (isHechicera && (hasPoison || hasSavePotion))
     );
