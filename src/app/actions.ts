@@ -210,6 +210,13 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
       ...action,
       createdAt: Timestamp.now(),
     });
+
+    if (action.actionType === 'doctor_heal') {
+        const targetPlayerRef = doc(db, 'players', `${action.targetId}_${action.gameId}`);
+        await updateDoc(targetPlayerRef, {
+            lastHealedRound: action.round
+        });
+    }
     
     // After submitting an action, check if the night can end early
     await checkEndNightEarly(action.gameId);

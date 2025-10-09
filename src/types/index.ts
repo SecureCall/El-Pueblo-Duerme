@@ -34,6 +34,7 @@ export interface Player {
   votedFor: string | null; // userId
   displayName: string;
   joinedAt: Timestamp;
+  lastHealedRound?: number;
 }
 
 export type NightActionType = "werewolf_kill" | "seer_check" | "doctor_heal" | "cupid_enchant";

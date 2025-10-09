@@ -30,8 +30,13 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
 
     const handlePlayerSelect = (player: Player) => {
         if (hasSubmitted || !player.isAlive) return;
+
+        // Role-specific selection logic
         if (currentPlayer.role === 'werewolf' && player.role === 'werewolf') return;
-        if (currentPlayer.role === 'doctor' && player.userId === currentPlayer.userId) return; // Simplified rule: doctor can't self-heal
+        if (currentPlayer.role === 'doctor' && player.lastHealedRound === game.currentRound - 1) {
+            toast({ variant: 'destructive', title: 'Regla del Doctor', description: 'No puedes proteger a la misma persona dos noches seguidas.' });
+            return;
+        }
 
         setSelectedPlayerIds(prev => {
             if (prev.includes(player.userId)) {
@@ -161,7 +166,6 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                         <PlayerGrid 
                             players={players.filter(p => {
                                 if (currentPlayer.role === 'seer' && p.userId === currentPlayer.userId) return false;
-                                if (currentPlayer.role === 'doctor' && p.userId === currentPlayer.userId) return false;
                                 if (currentPlayer.role === 'werewolf') return p.role !== 'werewolf';
                                 return true;
                             })}
