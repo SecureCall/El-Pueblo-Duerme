@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from 'react';
-import type { Game, Player, NightActionType } from '@/types';
+import type { Game, Player, NightActionType, PlayerRole } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
-import { submitNightAction } from '@/app/actions';
+import { submitNightAction, getSeerResult } from '@/app/actions';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { WolfIcon } from '../icons';
+import { SeerResult } from './SeerResult';
 
 interface NightActionsProps {
     game: Game;
@@ -21,6 +22,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
+    const [seerResult, setSeerResult] = useState<{ targetName: string; isWerewolf: boolean; } | null>(null);
     const { toast } = useToast();
 
     const handlePlayerSelect = (player: Player) => {
@@ -32,7 +34,6 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         if ((currentPlayer.role === 'seer' || currentPlayer.role === 'doctor') && player.userId === currentPlayer.userId) {
              // Allow self-selection for seer/doctor
         }
-
 
         setSelectedPlayerId(player.userId);
     };
@@ -63,14 +64,27 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             actionType: actionType,
             targetId: selectedPlayerId,
         });
-        setIsSubmitting(false);
 
         if (result.success) {
             setSubmitted(true);
             toast({ title: 'Acción registrada.', description: 'Tu decisión ha sido guardada.' });
+
+            if (currentPlayer.role === 'seer') {
+                const seerResultData = await getSeerResult(game.id, currentPlayer.userId, selectedPlayerId);
+                if (seerResultData.success) {
+                    setSeerResult({
+                        targetName: seerResultData.targetName!,
+                        isWerewolf: seerResultData.isWerewolf!,
+                    });
+                } else {
+                     toast({ variant: 'destructive', title: 'Error del Vidente', description: seerResultData.error });
+                }
+            }
+
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
+        setIsSubmitting(false);
     };
     
     const otherWerewolves = currentPlayer.role === 'werewolf' 
@@ -106,6 +120,10 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
 
     const canPerformAction = currentPlayer.role === 'werewolf' || currentPlayer.role === 'seer' || currentPlayer.role === 'doctor';
 
+    if (seerResult) {
+        return <SeerResult targetName={seerResult.targetName} isWerewolf={seerResult.isWerewolf} />;
+    }
+
     return (
         <Card className="mt-8 bg-card/80">
             <CardHeader>
@@ -122,6 +140,8 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                     <>
                         <PlayerGrid 
                             players={players.filter(p => {
+                                // Seer can't check themselves
+                                if (currentPlayer.role === 'seer' && p.userId === currentPlayer.userId) return false;
                                 // Werewolves can't target other werewolves
                                 if (currentPlayer.role === 'werewolf') return p.role !== 'werewolf';
                                 return true;

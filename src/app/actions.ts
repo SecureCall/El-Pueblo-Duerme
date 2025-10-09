@@ -440,3 +440,34 @@ export async function processVotes(gameId: string) {
         return { error: "Hubo un problema al procesar la votación." };
     }
 }
+
+export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
+  try {
+    const seerPlayerRef = doc(db, 'players', `${seerId}_${gameId}`);
+    const seerPlayerSnap = await getDoc(seerPlayerRef);
+
+    if (!seerPlayerSnap.exists() || seerPlayerSnap.data()?.role !== 'seer') {
+      throw new Error("No eres el vidente.");
+    }
+    
+    const targetPlayerRef = doc(db, 'players', `${targetId}_${gameId}`);
+    const targetPlayerSnap = await getDoc(targetPlayerRef);
+
+    if (!targetPlayerSnap.exists()) {
+      throw new Error("Jugador objetivo no encontrado.");
+    }
+
+    const targetPlayer = targetPlayerSnap.data() as Player;
+    const isWerewolf = targetPlayer.role === 'werewolf';
+
+    return { 
+        success: true, 
+        isWerewolf, 
+        targetName: targetPlayer.displayName 
+    };
+
+  } catch (error: any) {
+    console.error("Error getting seer result: ", error);
+    return { success: false, error: error.message };
+  }
+}
