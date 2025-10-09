@@ -18,6 +18,7 @@ import {
   increment,
   runTransaction,
   Transaction,
+  orderBy,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Game, Player, NightAction, GameEvent } from "@/types";
