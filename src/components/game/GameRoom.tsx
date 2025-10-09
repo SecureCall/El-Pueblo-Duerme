@@ -15,7 +15,7 @@ import { PlaceHolderImages } from "@/lib/placeholder-images";
 
 export function GameRoom({ gameId }: { gameId: string }) {
   const { userId, displayName, setDisplayName, isSessionLoaded } = useGameSession();
-  const { game, players, loading, error } = useGameState(gameId);
+  const { game, players, events, loading, error } = useGameState(gameId);
   const [isJoining, setIsJoining] = useState(false);
   const { toast } = useToast();
 
@@ -74,7 +74,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
             return <GameLobby game={game} players={players} isCreator={game.creator === userId} />;
         case 'in_progress':
         case 'finished':
-            return <GameBoard game={game} players={players} currentPlayer={currentPlayer} />;
+            return <GameBoard game={game} players={players} currentPlayer={currentPlayer} events={events} />;
         default:
             return <p>Estado de la partida desconocido.</p>;
     }
@@ -92,7 +92,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
         />
       )}
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
-      <div className="relative z-10 w-full">
+      <div className="relative z-10 w-full flex items-center justify-center">
         {renderContent()}
       </div>
     </div>

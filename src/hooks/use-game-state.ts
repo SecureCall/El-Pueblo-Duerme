@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { doc, onSnapshot, collection, query, where, QuerySnapshot, DocumentData, DocumentSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, QuerySnapshot, DocumentData, DocumentSnapshot, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Game, Player } from '@/types';
+import type { Game, Player, GameEvent } from '@/types';
 
 export const useGameState = (gameId: string) => {
   const [game, setGame] = useState<Game | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [events, setEvents] = useState<GameEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,7 +21,6 @@ export const useGameState = (gameId: string) => {
 
     setLoading(true);
 
-    // Listener for the game document
     const gameRef = doc(db, 'games', gameId);
     const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
@@ -38,7 +38,6 @@ export const useGameState = (gameId: string) => {
         setLoading(false);
     });
 
-    // Listener for the players collection
     const playersQuery = query(collection(db, 'players'), where('gameId', '==', gameId));
     const unsubscribePlayers = onSnapshot(playersQuery, (snapshot: QuerySnapshot<DocumentData>) => {
       const playersData = snapshot.docs.map(doc => doc.data() as Player);
@@ -46,15 +45,27 @@ export const useGameState = (gameId: string) => {
     }, (err) => {
         console.error("Error fetching players:", err);
         setError("Error al cargar los jugadores.");
-        setLoading(false);
+    });
+    
+    const eventsQuery = query(
+        collection(db, 'game_events'), 
+        where('gameId', '==', gameId),
+        orderBy('createdAt', 'desc')
+    );
+    const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot: QuerySnapshot<DocumentData>) => {
+        const eventsData = snapshot.docs.map(doc => doc.data() as GameEvent);
+        setEvents(eventsData);
+    }, (err) => {
+        console.error("Error fetching events:", err);
     });
 
-    // Cleanup function
+
     return () => {
       unsubscribeGame();
       unsubscribePlayers();
+      unsubscribeEvents();
     };
   }, [gameId]);
 
-  return { game, players, loading, error };
+  return { game, players, events, loading, error };
 };
