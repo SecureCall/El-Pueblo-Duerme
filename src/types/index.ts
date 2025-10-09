@@ -84,9 +84,13 @@ export interface Player {
   joinedAt: Timestamp;
   lastHealedRound?: number;
   isAI?: boolean;
+  potions?: {
+    poison?: number, // round it was used
+    save?: number, // round it was used
+  }
 }
 
-export type NightActionType = "werewolf_kill" | "seer_check" | "doctor_heal" | "cupid_enchant";
+export type NightActionType = "werewolf_kill" | "seer_check" | "doctor_heal" | "cupid_enchant" | "hechicera_poison";
 
 export interface NightAction {
     gameId: string;

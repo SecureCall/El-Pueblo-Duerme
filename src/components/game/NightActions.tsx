@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -8,7 +9,7 @@ import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
 import { submitNightAction, getSeerResult, submitCupidAction } from '@/app/actions';
 import { Loader2, Heart } from 'lucide-react';
-import { WolfIcon } from '../icons';
+import { WolfIcon, HechiceraIcon } from '../icons';
 import { SeerResult } from './SeerResult';
 import { useNightActions } from '@/hooks/use-night-actions';
 
@@ -26,6 +27,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
     const { hasSubmitted } = useNightActions(game.id, game.currentRound, currentPlayer.userId);
 
     const isCupidFirstNight = currentPlayer.role === 'cupid' && game.currentRound === 1;
+    const isHechiceraWithPoison = currentPlayer.role === 'hechicera' && !currentPlayer.potions?.poison;
     const selectionLimit = isCupidFirstNight ? 2 : 1;
 
     const handlePlayerSelect = (player: Player) => {
@@ -58,6 +60,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             case 'seer': return 'seer_check';
             case 'doctor': return 'doctor_heal';
             case 'cupid': return 'cupid_enchant';
+            case 'hechicera': return 'hechicera_poison';
             default: return null;
         }
     }
@@ -116,6 +119,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             case 'seer': return 'Elige a un jugador para descubrir su identidad.';
             case 'doctor': return 'Elige a un jugador para proteger esta noche.';
             case 'cupid': return game.currentRound === 1 ? 'Elige a dos jugadores para que se enamoren.' : 'Tu flecha ya ha unido dos corazones.';
+            case 'hechicera': return isHechiceraWithPoison ? 'Elige a un jugador para usar tu poción de veneno.' : 'Ya no te quedan pociones de veneno.';
             default: return 'No tienes acciones esta noche. Espera al amanecer.';
         }
     }
@@ -137,12 +141,36 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             </div>
         )
     }
+    
+    const renderHechiceraInfo = () => {
+        if (currentPlayer.role !== 'hechicera') return null;
+
+        return (
+            <div className="mb-4 text-center flex justify-center items-center gap-4 text-sm text-muted-foreground">
+                <div className='flex items-center gap-1'>
+                    <HechiceraIcon className="h-4 w-4" />
+                    <span>Poción de Veneno:</span>
+                    <span className={currentPlayer.potions?.poison ? 'text-destructive' : 'text-green-400'}>
+                         {currentPlayer.potions?.poison ? 'Usada' : 'Disponible'}
+                    </span>
+                </div>
+                 <div className='flex items-center gap-1'>
+                    <HechiceraIcon className="h-4 w-4" />
+                    <span>Poción de Salvación:</span>
+                    <span className={currentPlayer.potions?.save ? 'text-destructive' : 'text-green-400'}>
+                         {currentPlayer.potions?.save ? 'Usada' : 'Próximamente'}
+                    </span>
+                </div>
+            </div>
+        )
+    }
 
     const canPerformAction = (
         currentPlayer.role === 'werewolf' || 
         currentPlayer.role === 'seer' || 
         currentPlayer.role === 'doctor' ||
-        isCupidFirstNight
+        isCupidFirstNight ||
+        isHechiceraWithPoison
     );
 
     if (seerResult) {
@@ -157,6 +185,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             </CardHeader>
             <CardContent>
                 {renderWerewolfInfo()}
+                {renderHechiceraInfo()}
                 {hasSubmitted ? (
                      <div className="text-center py-8">
                         <p className="text-lg text-primary">Has realizado tu acción. Espera a que amanezca.</p>
@@ -165,7 +194,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                     <>
                         <PlayerGrid 
                             players={players.filter(p => {
-                                if (currentPlayer.role === 'seer' && p.userId === currentPlayer.userId) return false;
+                                if (p.userId === currentPlayer.userId) return false;
                                 if (currentPlayer.role === 'werewolf') return p.role !== 'werewolf';
                                 return true;
                             })}

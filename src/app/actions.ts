@@ -46,7 +46,7 @@ export async function createGame(
   displayName: string,
   gameName: string,
   maxPlayers: number,
-  settings: Omit<Game['settings'], 'werewolves'>
+  settings: Game['settings']
 ) {
   const gameId = generateGameId();
   const gameRef = doc(db, "games", gameId);
@@ -64,8 +64,8 @@ export async function createGame(
     createdAt: Timestamp.now(),
     currentRound: 0,
     settings: {
-      ...settings,
-      werewolves: werewolfCount,
+        ...settings,
+        werewolves: werewolfCount,
     },
   };
 
@@ -206,12 +206,11 @@ export async function startGame(gameId: string, creatorId: string) {
         const playersSnap = await getDocs(playersQuery);
         const players = playersSnap.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
 
-        const humanPlayerCount = players.length;
         let finalPlayers = [...players];
         let finalPlayerIds = players.map(p => p.userId);
 
-        if (game.settings.fillWithAI && humanPlayerCount < game.maxPlayers) {
-            const aiPlayerCount = game.maxPlayers - humanPlayerCount;
+        if (game.settings.fillWithAI && finalPlayers.length < game.maxPlayers) {
+            const aiPlayerCount = game.maxPlayers - finalPlayers.length;
             const availableAINames = AI_NAMES.filter(name => !players.some(p => p.displayName === name));
 
             for (let i = 0; i < aiPlayerCount; i++) {
@@ -281,14 +280,24 @@ export async function startGame(gameId: string, creatorId: string) {
 export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 'round'> & { round: number }) {
   try {
     const actionRef = collection(db, 'night_actions');
+    const playerRef = await getPlayerRef(action.gameId, action.playerId);
+    if (!playerRef) throw new Error("Player not found");
+    const playerDoc = await getDoc(playerRef);
+    const player = playerDoc.data() as Player;
 
     if (action.actionType === 'doctor_heal') {
         const targetPlayerRef = await getPlayerRef(action.gameId, action.targetId);
         if (targetPlayerRef) {
-            const playerDoc = await getDoc(targetPlayerRef);
-            if(playerDoc.exists() && playerDoc.data().lastHealedRound === action.round - 1) {
+            const targetDoc = await getDoc(targetPlayerRef);
+            if(targetDoc.exists() && targetDoc.data().lastHealedRound === action.round - 1) {
                 return { success: false, error: "No puedes proteger a la misma persona dos noches seguidas." };
             }
+        }
+    }
+    
+    if (action.actionType === 'hechicera_poison') {
+        if (player.potions?.poison) {
+            return { success: false, error: "Ya has usado tu poción de veneno." };
         }
     }
     
@@ -300,9 +309,9 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
     );
     const existingActions = await getDocs(q);
     
+    const batch = writeBatch(db);
     // If an action already exists, overwrite it (useful for werewolves changing vote)
     if (!existingActions.empty) {
-        const batch = writeBatch(db);
         existingActions.forEach(doc => {
             // Only delete if it's the same type of action being submitted
             // or if it's a werewolf kill vote (so they can change their mind)
@@ -310,10 +319,10 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
                batch.delete(doc.ref);
             }
         });
-        await batch.commit();
     }
     
-    await addDoc(actionRef, {
+    const newActionRef = doc(collection(db, 'night_actions'));
+    batch.set(newActionRef, {
       ...action,
       createdAt: Timestamp.now(),
     });
@@ -321,11 +330,19 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
     if (action.actionType === 'doctor_heal') {
         const targetPlayerRef = await getPlayerRef(action.gameId, action.targetId);
         if (targetPlayerRef) {
-            await updateDoc(targetPlayerRef, {
+            batch.update(targetPlayerRef, {
                 lastHealedRound: action.round
             });
         }
     }
+
+    if (action.actionType === 'hechicera_poison') {
+       batch.update(playerRef, {
+           "potions.poison": action.round
+       });
+    }
+
+    await batch.commit();
     
     await checkEndNightEarly(action.gameId);
 
@@ -493,8 +510,10 @@ export async function processNight(gameId: string) {
             const actionsSnap = await transaction.get(actionsQuery); 
             const actions = actionsSnap.docs.map(doc => doc.data() as NightAction);
 
-            let killedPlayerId: string | null = null;
+            let killedByWerewolfId: string | null = null;
+            let killedByPoisonId: string | null = null;
             let savedPlayerId: string | null = null;
+            let nightKillResult: { killedIds: string[], hunterId: string | null } = { killedIds: [], hunterId: null };
 
             const doctorAction = actions.find(a => a.actionType === 'doctor_heal');
             if (doctorAction) savedPlayerId = doctorAction.targetId;
@@ -518,19 +537,39 @@ export async function processNight(gameId: string) {
                 }
                 
                 if (mostVotedPlayerIds.length > 0) {
-                    killedPlayerId = mostVotedPlayerIds[Math.floor(Math.random() * mostVotedPlayerIds.length)];
+                    killedByWerewolfId = mostVotedPlayerIds[Math.floor(Math.random() * mostVotedPlayerIds.length)];
                 }
             }
 
-            let eventLogMessage = "La noche transcurre en un inquietante silencio.";
-            let nightKillResult: { killedIds: string[], hunterId: string | null } = { killedIds: [], hunterId: null };
+            const poisonAction = actions.find(a => a.actionType === 'hechicera_poison');
+            if (poisonAction) {
+                killedByPoisonId = poisonAction.targetId;
+            }
 
-            if (killedPlayerId && killedPlayerId !== savedPlayerId) {
-                const killedPlayer = playersData.find(p => p.userId === killedPlayerId)!;
-                eventLogMessage = `${killedPlayer.displayName} fue atacado en la noche y no ha sobrevivido.`;
+            let messages: string[] = [];
+            
+            // Process werewolf attack
+            if (killedByWerewolfId && killedByWerewolfId !== savedPlayerId) {
+                const killedPlayer = playersData.find(p => p.userId === killedByWerewolfId)!;
+                messages.push(`${killedPlayer.displayName} fue atacado en la noche.`);
                 nightKillResult = await killPlayer(transaction, gameId, killedPlayer.userId, game, playersData);
-            } else if (killedPlayerId && killedPlayerId === savedPlayerId) {
-                eventLogMessage = "Se escuchó un grito en la noche, ¡pero el doctor llegó justo a tiempo!";
+            } else if (killedByWerewolfId && killedByWerewolfId === savedPlayerId) {
+                messages.push("Se escuchó un grito en la noche, ¡pero el doctor llegó justo a tiempo para salvar a alguien!");
+            }
+
+            // Process poison attack
+            if (killedByPoisonId && killedByPoisonId !== killedByWerewolfId && killedByPoisonId !== savedPlayerId) {
+                 const killedPlayer = playersData.find(p => p.userId === killedByPoisonId)!;
+                 messages.push(`${killedPlayer.displayName} ha muerto misteriosamente, víctima de un veneno.`);
+                 const poisonKillResult = await killPlayer(transaction, gameId, killedPlayer.userId, game, playersData);
+                 // If the first kill triggered a hunter, we shouldn't overwrite it. The second hunter shot resolves sequentially.
+                 if (!nightKillResult.hunterId) {
+                     nightKillResult = poisonKillResult;
+                 }
+            }
+
+            if (messages.length === 0) {
+                messages.push("La noche transcurre en un inquietante silencio.");
             }
             
             const logRef = doc(collection(db, 'game_events'));
@@ -538,8 +577,12 @@ export async function processNight(gameId: string) {
                 gameId,
                 round: game.currentRound,
                 type: 'night_result',
-                message: eventLogMessage,
-                data: { killedPlayerId: nightKillResult.killedIds.length > 0 ? killedPlayerId : null, savedPlayerId },
+                message: messages.join(' '),
+                data: { 
+                    killedByWerewolfId: (killedByWerewolfId && killedByWerewolfId !== savedPlayerId) ? killedByWerewolfId : null,
+                    killedByPoisonId: (killedByPoisonId && killedByPoisonId !== killedByWerewolfId && killedByPoisonId !== savedPlayerId) ? killedByPoisonId : null,
+                    savedPlayerId 
+                },
                 createdAt: Timestamp.now(),
             });
 
@@ -615,7 +658,7 @@ export async function processVotes(gameId: string) {
             let eventMessage: string;
             let voteKillResult: { killedIds: string[], hunterId: string | null } = { killedIds: [], hunterId: null };
 
-            const lynchedPlayerIsPrince = async (playerId: string) => {
+            const lynchedPlayerIsPrince = (playerId: string) => {
                 const player = playersData.find(p => p.userId === playerId);
                 return player?.role === 'prince' && game.settings.prince;
             };
@@ -624,7 +667,7 @@ export async function processVotes(gameId: string) {
                 lynchedPlayerId = mostVotedPlayerIds[0];
                 const lynchedPlayer = playersData.find(p => p.userId === lynchedPlayerId)!;
                 
-                if (await lynchedPlayerIsPrince(lynchedPlayerId)) {
+                if (lynchedPlayerIsPrince(lynchedPlayerId)) {
                     eventMessage = `${lynchedPlayer.displayName} ha sido sentenciado, pero revela su identidad como ¡el Príncipe! y sobrevive a la votación.`;
                     lynchedPlayerId = null; // Prevent killing
                 } else {
@@ -821,6 +864,13 @@ async function checkEndNightEarly(gameId: string) {
     if (game.currentRound === 1 && game.settings.cupid) {
         const cupid = alivePlayers.find(p => p.role === 'cupid');
         if (cupid) requiredPlayerIds.add(cupid.userId);
+    }
+    
+    if (game.settings.hechicera) {
+        const hechicera = alivePlayers.find(p => p.role === 'hechicera');
+        if (hechicera && (!hechicera.potions?.poison || !hechicera.potions?.save)) {
+             requiredPlayerIds.add(hechicera.userId);
+        }
     }
     
     const submittedPlayerIds = new Set(submittedActions.map(a => a.playerId));
