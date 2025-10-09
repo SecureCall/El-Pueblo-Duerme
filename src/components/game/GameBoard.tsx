@@ -75,7 +75,7 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
   }
 
   const isHunterWaitingToShoot = game.phase === 'hunter_shot' && game.pendingHunterShot === currentPlayer.userId;
-  if (isHunterWaitingToShoot && currentPlayer.isAlive) { // The hunter is technically alive until they shoot
+  if (isHunterWaitingToShoot) {
       const alivePlayers = players.filter(p => p.isAlive && p.userId !== currentPlayer.userId);
       return <HunterShot game={game} currentPlayer={currentPlayer} players={alivePlayers} />;
   }
@@ -196,5 +196,7 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     </div>
   );
 }
+
+    
 
     
