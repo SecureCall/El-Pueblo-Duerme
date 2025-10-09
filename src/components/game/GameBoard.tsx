@@ -82,7 +82,7 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
   const isLover = !!game.lovers?.includes(currentPlayer.userId);
   const otherLoverId = isLover ? game.lovers!.find(id => id !== currentPlayer.userId) : null;
   const otherLover = otherLoverId ? players.find(p => p.userId === otherLoverId) : null;
-  const highlightedPlayers = otherLover ? [{ userId: otherLover.userId, color: '#FF69B4' }] : [];
+  const highlightedPlayers = otherLover ? [{ userId: otherLover.userId, color: 'rgba(255, 105, 180, 0.7)' }] : [];
 
 
   return (
@@ -96,6 +96,17 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
       </Card>
       
       <PlayerGrid players={players} highlightedPlayers={highlightedPlayers} />
+
+      {isLover && otherLover && (
+        <Card className="bg-pink-900/30 border-pink-400/50">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-center gap-3 text-pink-300">
+              <HeartIcon className="h-5 w-5" />
+              <p>Estás enamorado de {otherLover.isAlive ? otherLover.displayName : `${otherLover.displayName} (fallecido)`}. Vuestro destino está unido.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {game.phase === 'night' && currentPlayer.isAlive && (
         <NightActions game={game} players={alivePlayers} currentPlayer={currentPlayer} />
@@ -111,20 +122,14 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
         />
       )}
        
-       {game.phase !== 'night' && game.phase !== 'role_reveal' && (
+       { !currentPlayer.isAlive && game.status === 'in_progress' && (
          <Card className="mt-8 bg-card/80">
             <CardHeader>
-              <CardTitle className="font-headline text-2xl">Tu Estatus</CardTitle>
+              <CardTitle className="font-headline text-2xl">Has Sido Eliminado</CardTitle>
             </CardHeader>
             <CardContent>
-                <p>Eres un <span className="font-bold">{currentPlayer.role}</span>.</p>
-                {isLover && otherLover && (
-                  <div className="flex items-center gap-2 mt-2 text-pink-400">
-                    <HeartIcon className="h-5 w-5" />
-                    <p>Estás enamorado de {otherLover.isAlive ? otherLover.displayName : `${otherLover.displayName} (fallecido)`}.</p>
-                  </div>
-                )}
-                 {!currentPlayer.isAlive && <p className="text-destructive font-bold mt-2">Has sido eliminado.</p>}
+                <p>Tu rol era: <span className="font-bold">{currentPlayer.role}</span>.</p>
+                <p className="text-destructive font-bold mt-2">Ahora eres un espectador. No puedes hablar ni votar.</p>
             </CardContent>
          </Card>
        )}

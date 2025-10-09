@@ -31,17 +31,17 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
   const avatarId = getAvatarId(player.userId);
   const avatarImage = PlaceHolderImages.find((img) => img.id === `avatar-${avatarId}`);
 
-  const cardStyle = highlightColor ? { boxShadow: `0 0 12px 3px ${highlightColor}` } : {};
+  const cardStyle = highlightColor ? { boxShadow: `0 0 15px 4px ${highlightColor}` } : {};
 
   return (
     <Card
       className={cn(
         "flex flex-col items-center justify-center p-4 transition-all duration-300",
         !player.isAlive ? "bg-muted/30 grayscale opacity-60" : "bg-card/80",
-        isClickable && "cursor-pointer hover:scale-105 hover:bg-card/100",
+        isClickable && player.isAlive && "cursor-pointer hover:scale-105 hover:bg-card/100",
         isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
       )}
-      onClick={onClick}
+      onClick={player.isAlive ? onClick : undefined}
       style={cardStyle}
     >
       <CardContent className="p-0">

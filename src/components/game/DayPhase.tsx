@@ -25,7 +25,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
     const { toast } = useToast();
 
     const hasVoted = !!currentPlayer.votedFor;
-    const allPlayersVoted = players.every(p => !!p.votedFor || !p.isAlive);
+    const allPlayersVoted = players.filter(p => p.isAlive).every(p => !!p.votedFor);
 
     useEffect(() => {
         if (allPlayersVoted && currentPlayer.userId === game.creator && game.status === 'in_progress' && game.phase === 'day') {
@@ -76,7 +76,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                 )}
 
                 {loverDeathEvents.map(event => (
-                    <Alert key={event.createdAt.toMillis()} variant="destructive" className='mb-4 bg-destructive/10'>
+                    <Alert key={event.createdAt.toMillis()} variant="destructive" className='mb-4 bg-destructive/20 border-destructive/50'>
                         <HeartCrack className="h-4 w-4" />
                         <AlertTitle>¡Una tragedia de amor!</AlertTitle>
                         <AlertDescription>
@@ -98,7 +98,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                             players={players.filter(p => p.userId !== currentPlayer.userId)}
                             onPlayerClick={handlePlayerSelect}
                             clickable={true}
-                            selectedPlayerId={selectedPlayerId}
+                            selectedPlayerIds={selectedPlayerId ? [selectedPlayerId] : []}
                         />
                         <Button 
                             className="w-full mt-6 text-lg" 
