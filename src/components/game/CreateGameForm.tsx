@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -22,11 +23,13 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Card, CardContent } from "../ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { Switch } from "../ui/switch";
 
 const FormSchema = z.object({
   gameName: z.string().min(3, { message: "El nombre de la partida debe tener al menos 3 caracteres." }).max(30),
   displayName: z.string().min(2, { message: "Tu nombre debe tener al menos 2 caracteres." }).max(20),
   maxPlayers: z.number().min(4).max(20),
+  fillWithAI: z.boolean(),
 });
 
 export function CreateGameForm() {
@@ -41,6 +44,7 @@ export function CreateGameForm() {
       gameName: "Partida de Pueblo Duerme",
       displayName: displayName || "",
       maxPlayers: 8,
+      fillWithAI: true,
     },
   });
 
@@ -51,7 +55,8 @@ export function CreateGameForm() {
       userId,
       data.displayName,
       data.gameName,
-      data.maxPlayers
+      data.maxPlayers,
+      data.fillWithAI
     );
     
     if (response.gameId) {
@@ -113,6 +118,26 @@ export function CreateGameForm() {
                     />
                   </FormControl>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="fillWithAI"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background/50">
+                  <div className="space-y-0.5">
+                    <FormLabel>Llenar con IA</FormLabel>
+                    <FormDescription>
+                      Rellena los huecos con bots si no se unen suficientes jugadores.
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />

@@ -20,6 +20,7 @@ export interface Game {
     doctor: boolean;
     hunter: boolean;
     cupid: boolean;
+    fillWithAI: boolean;
   };
   phaseEndsAt?: Timestamp;
   lovers?: [string, string];
@@ -35,6 +36,7 @@ export interface Player {
   displayName: string;
   joinedAt: Timestamp;
   lastHealedRound?: number;
+  isAI?: boolean;
 }
 
 export type NightActionType = "werewolf_kill" | "seer_check" | "doctor_heal" | "cupid_enchant";

@@ -34,7 +34,8 @@ export async function createGame(
   userId: string,
   displayName: string,
   gameName: string,
-  maxPlayers: number
+  maxPlayers: number,
+  fillWithAI: boolean
 ) {
   const gameId = generateGameId();
   const gameRef = doc(db, "games", gameId);
@@ -57,6 +58,7 @@ export async function createGame(
       doctor: true,
       hunter: true,
       cupid: true,
+      fillWithAI,
     },
   };
 
@@ -141,8 +143,12 @@ const generateRoles = (playerCount: number, settings: Game['settings']) => {
     return roles.sort(() => Math.random() - 0.5);
 };
 
+const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
+
 export async function startGame(gameId: string, creatorId: string) {
     const gameRef = doc(db, 'games', gameId);
+    const batch = writeBatch(db);
+
     const gameSnap = await getDoc(gameRef);
 
     if (!gameSnap.exists()) {
@@ -163,15 +169,45 @@ export async function startGame(gameId: string, creatorId: string) {
     const playersSnap = await getDocs(playersQuery);
     const players = playersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as Player }));
 
-    if (players.length < 3) { // Minimum players to start
+    const humanPlayerCount = players.length;
+    let finalPlayers = [...players];
+
+    if (game.settings.fillWithAI && humanPlayerCount < game.maxPlayers) {
+        const aiPlayerCount = game.maxPlayers - humanPlayerCount;
+        const availableAINames = AI_NAMES.filter(name => !players.some(p => p.displayName === name));
+
+        for (let i = 0; i < aiPlayerCount; i++) {
+            const aiUserId = `ai_${Date.now()}_${i}`;
+            const aiName = availableAINames[i % availableAINames.length] || `Bot ${i + 1}`;
+            
+            const aiPlayerData: Player = {
+                userId: aiUserId,
+                gameId: gameId,
+                role: null,
+                isAlive: true,
+                votedFor: null,
+                displayName: aiName,
+                joinedAt: Timestamp.now(),
+                isAI: true,
+            };
+
+            const aiPlayerRef = doc(db, 'players', `${aiUserId}_${gameId}`);
+            batch.set(aiPlayerRef, aiPlayerData);
+            finalPlayers.push({ id: aiPlayerRef.id, ...aiPlayerData });
+        }
+        
+        batch.update(gameRef, {
+            players: finalPlayers.map(p => p.userId),
+        });
+    }
+
+    if (finalPlayers.length < 3) { // Minimum players to start
       return { error: 'Se necesitan al menos 3 jugadores para comenzar.' };
     }
 
-    const newRoles = generateRoles(players.length, game.settings);
+    const newRoles = generateRoles(finalPlayers.length, game.settings);
 
-    const batch = writeBatch(db);
-
-    players.forEach((player, index) => {
+    finalPlayers.forEach((player, index) => {
         const playerRef = doc(db, 'players', player.id);
         batch.update(playerRef, { role: newRoles[index] });
     });
@@ -633,19 +669,21 @@ async function checkEndNightEarly(gameId: string) {
     const submittedActions = nightActionsSnap.docs.map(a => a.data() as NightAction);
 
     const requiredPlayerIds = new Set<string>();
-    const werewolves = alivePlayers.filter(p => p.role === 'werewolf');
+    const activePlayersWithRoles = alivePlayers.filter(p => !p.isAI);
+
+    const werewolves = activePlayersWithRoles.filter(p => p.role === 'werewolf');
     if (werewolves.length > 0) {
         werewolves.forEach(w => requiredPlayerIds.add(w.userId));
     }
 
-    const seer = alivePlayers.find(p => p.role === 'seer');
+    const seer = activePlayersWithRoles.find(p => p.role === 'seer');
     if (seer) requiredPlayerIds.add(seer.userId);
     
-    const doctor = alivePlayers.find(p => p.role === 'doctor');
+    const doctor = activePlayersWithRoles.find(p => p.role === 'doctor');
     if (doctor) requiredPlayerIds.add(doctor.userId);
     
     if (game.currentRound === 1) {
-        const cupid = alivePlayers.find(p => p.role === 'cupid');
+        const cupid = activePlayersWithRoles.find(p => p.role === 'cupid');
         if (cupid) requiredPlayerIds.add(cupid.userId);
     }
     
