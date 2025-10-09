@@ -6,24 +6,6 @@ import { z } from 'zod';
 import { TakeAITurnInputSchema, TakeAITurnOutputSchema, TakeAITurnInput, TakeAITurnOutput } from '@/types';
 import { Timestamp } from 'firebase/firestore';
 
-// Helper to convert Firestore Timestamps to something JSON-serializable (ISO strings)
-const toJSONCompatible = (obj: any): any => {
-    if (!obj) return obj;
-    if (obj instanceof Timestamp) {
-        return obj.toDate().toISOString();
-    }
-    if (Array.isArray(obj)) {
-        return obj.map(toJSONCompatible);
-    }
-    if (typeof obj === 'object') {
-        const newObj: { [key: string]: any } = {};
-        for (const key in obj) {
-            newObj[key] = toJSONCompatible(obj[key]);
-        }
-        return newObj;
-    }
-    return obj;
-};
 
 export async function takeAITurn(input: TakeAITurnInput): Promise<TakeAITurnOutput> {
     return takeAITurnFlow(input);
@@ -46,29 +28,20 @@ Analiza el estado actual del juego y decide la mejor acción a tomar. Piensa pas
 - Cazador: Si es eliminado, puede disparar y eliminar a otro jugador.
 - Cupido: En la primera noche, elige a dos enamorados. Si uno muere, el otro también. Los enamorados ganan si son los únicos dos supervivientes, sin importar sus bandos.
 
-**ESTADO ACTUAL DEL JUEGO:**
-- Partida: {{{JSONstringify game}}}
-- Fase Actual: {{game.phase}}
-- Ronda Actual: {{game.currentRound}}
-- Todos los Jugadores: {{{JSONstringify players}}}
-- Historial de Eventos: {{{JSONstringify events}}}
+**ESTADO ACTUAL DEL JUEGO (en formato JSON):**
+- Partida: {{{game}}}
+- Todos los Jugadores: {{{players}}}
+- Historial de Eventos: {{{events}}}
 
 **TU IDENTIDAD:**
-- Eres el jugador: {{{JSONstringify currentPlayer}}}
-- Tu Rol: {{currentPlayer.role}}
-
-**JUGADORES VIVOS:**
-{{#each players}}
-{{#if this.isAlive}}
-- {{this.displayName}} (ID: {{this.userId}})
-{{/if}}
-{{/each}}
+- Eres el jugador: {{{currentPlayer}}}
 
 **TAREA:**
-Basado en toda la información, decide tu acción.
+Basado en toda la información, y especialmente en tu identidad y rol dentro de 'currentPlayer', decide tu acción para la fase actual.
 
 1.  **Razonamiento (piensa paso a paso):**
     - ¿Cuál es mi rol y mi objetivo?
+    - ¿En qué fase estamos (noche/día)?
     - ¿Qué ha pasado en las rondas anteriores? ¿Quién murió? ¿Quién votó a quién?
     - ¿Hay algún jugador sospechoso? ¿Por qué?
     - ¿Hay algún jugador que parezca inocente o que sea valioso para mi equipo?
@@ -78,8 +51,7 @@ Basado en toda la información, decide tu acción.
     - Basado en tu razonamiento, elige una acción.
     - El formato DEBE ser \`TYPE:TARGET_ID\`.
     - **TYPEs válidos:** VOTE (votar durante el día), KILL (hombres lobo por la noche), HEAL (doctor por la noche), CHECK (vidente por la noche), SHOOT (cazador al morir).
-    - **TARGET_ID** debe ser el ID del jugador objetivo de la lista de jugadores vivos.
-    - Si estás enamorado y tu amante muere, mueres de desamor, no hay acción que tomar.
+    - **TARGET_ID** debe ser el userId de un jugador vivo.
     - Si no tienes ninguna acción válida o posible, devuelve 'NONE'.
 
 **EJEMPLO DE RESPUESTA:**

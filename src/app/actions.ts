@@ -778,7 +778,7 @@ async function checkEndDayEarly(gameId: string) {
     }
 }
 
-// Helper to convert Firestore Timestamps to ISO strings for JSON serialization
+// Helper to convert Firestore Timestamps to something JSON-serializable (ISO strings)
 const toJSONCompatible = (obj: any): any => {
     if (!obj) return obj;
     if (obj instanceof Timestamp) {
@@ -827,10 +827,10 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
             const serializableCurrentPlayer = toJSONCompatible(ai);
 
             const aiInput: TakeAITurnInput = {
-                game: serializableGame,
-                players: serializablePlayers,
-                events: serializableEvents,
-                currentPlayer: serializableCurrentPlayer,
+                game: JSON.stringify(serializableGame),
+                players: JSON.stringify(serializablePlayers),
+                events: JSON.stringify(serializableEvents),
+                currentPlayer: JSON.stringify(serializableCurrentPlayer),
             };
 
             const aiResult = await takeAITurn(aiInput);
