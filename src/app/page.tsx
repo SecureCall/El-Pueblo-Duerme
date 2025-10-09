@@ -28,7 +28,7 @@ export default function Home() {
           width={250}
           height={250}
           priority
-          className='rounded-full'
+          className="rounded-full"
         />
         <h1 className="font-headline text-6xl md:text-8xl font-bold tracking-tight text-shadow-lg shadow-black/50">
           El Pueblo Duerme
