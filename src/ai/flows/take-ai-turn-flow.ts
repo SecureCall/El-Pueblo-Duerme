@@ -15,7 +15,7 @@ export const TakeAITurnInputSchema = z.object({
 
 export const TakeAITurnOutputSchema = z.object({
     reasoning: z.string().describe("Your step-by-step thought process to arrive at this action."),
-    action: z.string().describe("The action to take. Format: 'TYPE:TARGET_ID' or 'TYPE'. Examples: 'VOTE:player123', 'KILL:player456', 'HEAL:player789', 'CHECK:playerABC', 'SHOOT:playerXYZ', 'POISON:player111', 'SAVE:player222', 'PROTECT:player333'. If no action is possible, return 'NONE'."),
+    action: z.string().describe("The action to take. Format: 'TYPE:TARGET_ID' or 'TYPE:TARGET_ID1|TARGET_ID2' or 'TYPE'. Examples: 'VOTE:player123', 'KILL:player456', 'KILL:player456|player789', 'HEAL:player789', 'CHECK:playerABC', 'SHOOT:playerXYZ', 'POISON:player111', 'SAVE:player222', 'PROTECT:player333'. If no action is possible, return 'NONE'."),
 });
 
 export async function takeAITurn(input: TakeAITurnInput): Promise<TakeAITurnOutput> {
@@ -43,6 +43,7 @@ Analiza el estado actual del juego y decide la mejor acción a tomar. Piensa pas
 - Príncipe: Si es el más votado para ser linchado, sobrevive revelando su identidad. No puede ser linchado por votación.
 - Gemelas: Dos jugadoras que se conocen y saben que son aliadas desde el principio.
 - Licántropo: Un aldeano que es visto como lobo por la Vidente.
+- Cría de Lobo: Si es eliminado, la noche siguiente los lobos pueden matar a dos jugadores.
 
 **ESTADO ACTUAL DEL JUEGO (en formato JSON):**
 - Partida: {{{game}}}
@@ -62,10 +63,11 @@ Basado en toda la información, y especialmente en tu identidad y rol dentro de 
     - ¿Hay algún jugador sospechoso? ¿Por qué?
     - ¿Hay algún jugador que parezca inocente o que sea valioso para mi equipo (ej. mi gemelo/a, mi enamorado/a)?
     - ¿Cuál es la jugada más estratégica que puedo hacer AHORA MISMO? (ej. como Hechicera, ¿es mejor guardar mis pociones o usarlas ahora?).
+    - Como Hombre Lobo, si la Cría de Lobo ha muerto y tenemos dos asesinatos (`wolfCubRevengeRound`), debo seleccionar dos objetivos.
 
 2.  **Acción:**
     - Basado en tu razonamiento, elige UNA SOLA acción.
-    - El formato DEBE ser \`TYPE:TARGET_ID\` o \`TYPE\`.
+    - El formato DEBE ser \`TYPE:TARGET_ID\`, \`TYPE:TARGET_ID1|TARGET_ID2\` (para la venganza de la Cría de Lobo) o \`TYPE\`.
     - **TYPEs válidos:**
         - **VOTE**: votar durante el día.
         - **KILL**: hombres lobo por la noche.
@@ -82,6 +84,12 @@ Basado en toda la información, y especialmente en tu identidad y rol dentro de 
 {
   "reasoning": "Soy la Hechicera. En el día, el Jugador X defendió a un lobo conocido, así que es muy sospechoso. Usaré mi poción de veneno en él esta noche para eliminar una amenaza clara. Guardaré mi poción de salvación para más adelante, cuando sepa quién es la vidente o el doctor.",
   "action": "POISON:playerX_id"
+}
+
+**EJEMPLO DE RESPUESTA (LOBO CON VENGANZA DE CRIA):**
+{
+  "reasoning": "Somos los lobos y la cría fue eliminada en la última ronda. Ahora tenemos dos asesinatos. El Jugador A es un vidente confirmado y el Jugador B ha estado votando en nuestra contra consistentemente. Los eliminaremos a ambos.",
+  "action": "KILL:playerA_id|playerB_id"
 }
 
 Ahora, proporciona tu razonamiento y acción para el estado actual del juego.`

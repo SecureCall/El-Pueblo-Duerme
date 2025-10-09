@@ -85,10 +85,15 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
             const isValidTarget = (id: string | undefined): id is string => {
                 return !!id && alivePlayers.some(p => p.userId === id);
             }
+            
+             const isValidMultiTarget = (ids: string | undefined): ids is string => {
+                if (!ids) return false;
+                return ids.split('|').every(id => isValidTarget(id));
+            }
 
             switch(actionType) {
                 case 'KILL':
-                    if (phase === 'night' && ai.role === 'werewolf' && isValidTarget(targetId)) {
+                    if (phase === 'night' && (ai.role === 'werewolf' || ai.role === 'wolf_cub') && isValidMultiTarget(targetId)) {
                         await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'werewolf_kill', targetId });
                     }
                     break;

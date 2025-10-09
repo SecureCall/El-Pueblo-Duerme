@@ -140,6 +140,9 @@ const generateRoles = (playerCount: number, settings: Game['settings']) => {
     for (let i = 0; i < settings.werewolves; i++) {
         roles.push('werewolf');
     }
+    
+    // Add wolf cub if enabled
+    if (settings.wolf_cub) roles.push('wolf_cub');
 
     // Add special roles based on settings
     if (settings.seer) roles.push('seer');
@@ -167,7 +170,8 @@ const generateRoles = (playerCount: number, settings: Game['settings']) => {
     const finalRoles = roles.slice(0, playerCount);
 
     // Ensure we have at least one werewolf if roles were cut.
-    if (!finalRoles.includes('werewolf') && playerCount > 0) {
+    const hasWolfRole = finalRoles.some(r => r === 'werewolf' || r === 'wolf_cub');
+    if (!hasWolfRole && playerCount > 0) {
         const villagerIndex = finalRoles.findIndex(r => r === 'villager');
         if (villagerIndex !== -1) {
             finalRoles[villagerIndex] = 'werewolf';
@@ -408,6 +412,10 @@ async function killPlayer(
   
   if (playerToKill.role === 'hunter' && gameData.settings.hunter) {
     hunterTriggeredId = playerId;
+  } else if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) {
+    transaction.update(doc(db, 'games', gameId), { wolfCubRevengeRound: gameData.currentRound + 1 });
+    const playerRef = doc(db, 'players', playerToKill.id);
+    transaction.update(playerRef, { isAlive: false });
   } else {
     const playerRef = doc(db, 'players', playerToKill.id);
     transaction.update(playerRef, { isAlive: false });
@@ -455,8 +463,8 @@ async function checkGameOver(gameId: string, transaction: Transaction): Promise<
     const players = playersSnap.docs.map(doc => doc.data() as Player);
 
     const alivePlayers = players.filter(p => p.isAlive);
-    const aliveWerewolves = alivePlayers.filter(p => p.isAlive && p.role === 'werewolf');
-    const aliveVillagers = alivePlayers.filter(p => p.isAlive && p.role !== 'werewolf');
+    const aliveWerewolves = alivePlayers.filter(p => p.isAlive && (p.role === 'werewolf' || p.role === 'wolf_cub'));
+    const aliveVillagers = alivePlayers.filter(p => p.isAlive && p.role !== 'werewolf' && p.role !== 'wolf_cub');
 
     let gameOver = false;
     let message = "";
@@ -528,12 +536,12 @@ export async function processNight(gameId: string) {
             const actionsSnap = await transaction.get(actionsQuery); 
             const actions = actionsSnap.docs.map(doc => doc.data() as NightAction);
 
-            let killedByWerewolfId: string | null = null;
+            const killedByWerewolfIds: string[] = [];
             let killedByPoisonId: string | null = null;
             let savedByDoctorId: string | null = null;
             let savedByHechiceraId: string | null = null;
             let savedByGuardianId: string | null = null;
-            let nightKillResult: { killedIds: string[], hunterId: string | null } = { killedIds: [], hunterId: null };
+            let nightKillResults: { killedIds: string[], hunterId: string | null }[] = [];
 
             const doctorAction = actions.find(a => a.actionType === 'doctor_heal');
             if (doctorAction) savedByDoctorId = doctorAction.targetId;
@@ -547,7 +555,11 @@ export async function processNight(gameId: string) {
             const werewolfVotes = actions.filter(a => a.actionType === 'werewolf_kill');
             if (werewolfVotes.length > 0) {
                 const voteCounts = werewolfVotes.reduce((acc, vote) => {
-                    acc[vote.targetId] = (acc[vote.targetId] || 0) + 1;
+                    // Handle single and double votes
+                    const targets = vote.targetId.split('|');
+                    targets.forEach(targetId => {
+                        if(targetId) acc[targetId] = (acc[targetId] || 0) + 1;
+                    });
                     return acc;
                 }, {} as Record<string, number>);
 
@@ -562,8 +574,13 @@ export async function processNight(gameId: string) {
                     }
                 }
                 
-                if (mostVotedPlayerIds.length > 0) {
-                    killedByWerewolfId = mostVotedPlayerIds[Math.floor(Math.random() * mostVotedPlayerIds.length)];
+                // If there's a tie, randomly select among the tied players.
+                // If wolf cub revenge is active, wolves select 2 players.
+                const killCount = game.wolfCubRevengeRound === game.currentRound ? 2 : 1;
+                while (killedByWerewolfIds.length < killCount && mostVotedPlayerIds.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * mostVotedPlayerIds.length);
+                    const killedId = mostVotedPlayerIds.splice(randomIndex, 1)[0];
+                    killedByWerewolfIds.push(killedId);
                 }
             }
 
@@ -573,32 +590,35 @@ export async function processNight(gameId: string) {
             }
 
             let messages: string[] = [];
-            const finalSavedPlayerId = savedByDoctorId || savedByHechiceraId || savedByGuardianId;
+            const finalSavedPlayerIds = [savedByDoctorId, savedByHechiceraId, savedByGuardianId].filter(Boolean) as string[];
             
-            // Process werewolf attack
-            if (killedByWerewolfId && killedByWerewolfId !== finalSavedPlayerId) {
-                const killedPlayer = playersData.find(p => p.userId === killedByWerewolfId)!;
-                messages.push(`${killedPlayer.displayName} fue atacado en la noche.`);
-                nightKillResult = await killPlayer(transaction, gameId, killedPlayer.userId, game, playersData);
-            } else if (killedByWerewolfId && killedByWerewolfId === finalSavedPlayerId) {
-                messages.push("Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!");
+            // Process werewolf attacks
+            for (const killedId of killedByWerewolfIds) {
+                if (finalSavedPlayerIds.includes(killedId)) {
+                    messages.push("Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!");
+                } else {
+                    const killedPlayer = playersData.find(p => p.userId === killedId)!;
+                    messages.push(`${killedPlayer.displayName} fue atacado en la noche.`);
+                    const result = await killPlayer(transaction, gameId, killedPlayer.userId, game, playersData);
+                    nightKillResults.push(result);
+                }
             }
 
             // Process poison attack
-            if (killedByPoisonId && killedByPoisonId !== killedByWerewolfId && killedByPoisonId !== finalSavedPlayerId) {
+            if (killedByPoisonId && !killedByWerewolfIds.includes(killedByPoisonId) && !finalSavedPlayerIds.includes(killedByPoisonId)) {
                  const killedPlayer = playersData.find(p => p.userId === killedByPoisonId)!;
                  messages.push(`${killedPlayer.displayName} ha muerto misteriosamente, víctima de un veneno.`);
-                 const poisonKillResult = await killPlayer(transaction, gameId, killedPlayer.userId, game, playersData);
-                 // If the first kill triggered a hunter, we shouldn't overwrite it. The second hunter shot resolves sequentially.
-                 if (!nightKillResult.hunterId) {
-                     nightKillResult = poisonKillResult;
-                 }
+                 const result = await killPlayer(transaction, gameId, killedPlayer.userId, game, playersData);
+                 nightKillResults.push(result);
             }
 
             if (messages.length === 0) {
                 messages.push("La noche transcurre en un inquietante silencio.");
             }
             
+            const killedWerewolfTargets = killedByWerewolfIds.filter(id => !finalSavedPlayerIds.includes(id));
+            const killedPoisonTarget = (killedByPoisonId && !killedByWerewolfIds.includes(killedByPoisonId) && !finalSavedPlayerIds.includes(killedByPoisonId)) ? killedByPoisonId : null;
+
             const logRef = doc(collection(db, 'game_events'));
             transaction.set(logRef, {
                 gameId,
@@ -606,16 +626,18 @@ export async function processNight(gameId: string) {
                 type: 'night_result',
                 message: messages.join(' '),
                 data: { 
-                    killedByWerewolfId: (killedByWerewolfId && killedByWerewolfId !== finalSavedPlayerId) ? killedByWerewolfId : null,
-                    killedByPoisonId: (killedByPoisonId && killedByPoisonId !== killedByWerewolfId && killedByPoisonId !== finalSavedPlayerId) ? killedByPoisonId : null,
-                    savedPlayerId: finalSavedPlayerId
+                    killedByWerewolfIds: killedWerewolfTargets,
+                    killedByPoisonId: killedPoisonTarget,
+                    savedPlayerIds: finalSavedPlayerIds,
                 },
                 createdAt: Timestamp.now(),
             });
+            
+            const triggeredHunterId = nightKillResults.map(r => r.hunterId).find(id => id !== null);
+            if (triggeredHunterId) return; 
 
-            if (nightKillResult.hunterId) return; 
-
-            if (nightKillResult.killedIds.length > 0) {
+            const anyKills = nightKillResults.some(r => r.killedIds.length > 0);
+            if (anyKills) {
                  const isGameOver = await checkGameOver(gameId, transaction);
                  if (isGameOver) return;
             }
@@ -624,7 +646,12 @@ export async function processNight(gameId: string) {
                 transaction.update(playerDoc.ref, { votedFor: null });
             });
 
-            transaction.update(gameRef, { phase: 'day' });
+            const nextPhaseUpdate: {phase: Game['phase'], wolfCubRevengeRound?: number} = { phase: 'day' };
+            if (game.wolfCubRevengeRound === game.currentRound) {
+                nextPhaseUpdate.wolfCubRevengeRound = 0; // Reset revenge
+            }
+
+            transaction.update(gameRef, nextPhaseUpdate);
         });
         return { success: true };
     } catch (error) {
@@ -767,7 +794,7 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
     const game = gameDoc.data() as Game;
 
     const targetPlayer = targetPlayerSnap.data() as Player;
-    const isWerewolf = targetPlayer.role === 'werewolf' || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope);
+    const isWerewolf = targetPlayer.role === 'werewolf' || targetPlayer.role === 'wolf_cub' || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope);
 
     return { 
         success: true, 
@@ -873,7 +900,7 @@ async function checkEndNightEarly(gameId: string) {
 
     const requiredPlayerIds = new Set<string>();
 
-    const werewolves = alivePlayers.filter(p => p.role === 'werewolf');
+    const werewolves = alivePlayers.filter(p => p.role === 'werewolf' || p.role === 'wolf_cub');
     if (werewolves.length > 0) {
         werewolves.forEach(w => requiredPlayerIds.add(w.userId));
     }

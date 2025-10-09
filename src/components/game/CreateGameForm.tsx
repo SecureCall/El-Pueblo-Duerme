@@ -29,6 +29,7 @@ import { Switch } from "../ui/switch";
 import { Label } from "../ui/label";
 import { Checkbox } from "../ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
+import { WolfIcon } from "../icons";
 
 const FormSchema = z.object({
   gameName: z.string().min(3, { message: "El nombre de la partida debe tener al menos 3 caracteres." }).max(30),
@@ -78,6 +79,7 @@ const specialRoles = [
   { id: 'twin', label: 'Gemelas', Icon: Users2, description: 'Dos jugadores que se conocen y son aliados.' },
   { id: 'cupid', label: 'Cupido', Icon: Heart, description: 'Enamora a dos jugadores la primera noche.' },
   { id: 'guardian', label: 'Guardián', Icon: Shield, description: 'Protege a un jugador del ataque de los lobos. No puede protegerse a sí mismo.' },
+  { id: 'wolf_cub', label: 'Cría de Lobo', Icon: WolfIcon, description: 'Si muere, los lobos matan a dos la noche siguiente.' },
 ] as const;
 
 
@@ -280,5 +282,3 @@ export function CreateGameForm() {
     </Card>
   );
 }
-
-    

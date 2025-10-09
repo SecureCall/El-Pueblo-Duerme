@@ -8,11 +8,12 @@ import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
 import { submitNightAction, getSeerResult, submitCupidAction } from '@/app/actions';
-import { Loader2, Heart, FlaskConical, Shield } from 'lucide-react';
+import { Loader2, Heart, FlaskConical, Shield, AlertTriangle } from 'lucide-react';
 import { WolfIcon } from '../icons';
 import { SeerResult } from './SeerResult';
 import { useNightActions } from '@/hooks/use-night-actions';
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 
 interface NightActionsProps {
     game: Game;
@@ -33,6 +34,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
 
     const isCupidFirstNight = currentPlayer.role === 'cupid' && game.currentRound === 1;
     const isHechicera = currentPlayer.role === 'hechicera';
+    const isWerewolfTeam = currentPlayer.role === 'werewolf' || currentPlayer.role === 'wolf_cub';
     
     // Check if potions have been used in any previous round or this round
     const hasUsedPoison = !!currentPlayer.potions?.poison;
@@ -40,6 +42,8 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
 
     const hasPoison = isHechicera && !hasUsedPoison;
     const hasSavePotion = isHechicera && !hasUsedSave;
+    
+    const wolfCubRevengeActive = game.wolfCubRevengeRound === game.currentRound;
 
     useEffect(() => {
         // Default to 'save' if poison is used
@@ -48,13 +52,13 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         }
     }, [isHechicera, hasPoison, hasSavePotion]);
     
-    const selectionLimit = isCupidFirstNight ? 2 : 1;
+    const selectionLimit = isCupidFirstNight || wolfCubRevengeActive ? 2 : 1;
 
     const handlePlayerSelect = (player: Player) => {
         if (hasSubmitted || !player.isAlive) return;
 
         // Role-specific selection logic
-        if (currentPlayer.role === 'werewolf' && player.role === 'werewolf') return;
+        if (isWerewolfTeam && (player.role === 'werewolf' || player.role === 'wolf_cub')) return;
         if (currentPlayer.role === 'doctor' && player.lastHealedRound === game.currentRound - 1) {
             toast({ variant: 'destructive', title: 'Regla del Doctor', description: 'No puedes proteger a la misma persona dos noches seguidas.' });
             return;
@@ -80,13 +84,16 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             if (selectionLimit === 1) {
                 return [player.userId];
             }
-            return [prev[1], player.userId];
+             // For selectionLimit > 1, this replaces the oldest selection
+            return [...prev.slice(1), player.userId];
         });
     };
 
     const getActionType = (): NightActionType | null => {
         switch (currentPlayer.role) {
-            case 'werewolf': return 'werewolf_kill';
+            case 'werewolf':
+            case 'wolf_cub':
+                return 'werewolf_kill';
             case 'seer': return 'seer_check';
             case 'doctor': return 'doctor_heal';
             case 'guardian': return 'guardian_protect';
@@ -139,7 +146,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                 round: game.currentRound,
                 playerId: currentPlayer.userId,
                 actionType: actionType,
-                targetId: selectedPlayerIds[0],
+                targetId: selectedPlayerIds.join('|'),
             });
         }
 
@@ -163,13 +170,15 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         }
     };
     
-    const otherWerewolves = currentPlayer.role === 'werewolf' 
-        ? players.filter(p => p.role === 'werewolf' && p.userId !== currentPlayer.userId) 
+    const otherWerewolves = isWerewolfTeam
+        ? players.filter(p => (p.role === 'werewolf' || p.role === 'wolf_cub') && p.userId !== currentPlayer.userId) 
         : [];
     
     const getActionPrompt = () => {
         switch (currentPlayer.role) {
-            case 'werewolf': return 'Elige a un aldeano para eliminar.';
+            case 'werewolf':
+            case 'wolf_cub':
+                return wolfCubRevengeActive ? '¡Venganza! Elegid a dos aldeanos para eliminar.' : 'Elige a un aldeano para eliminar.';
             case 'seer': return 'Elige a un jugador para descubrir su identidad.';
             case 'doctor': return 'Elige a un jugador para proteger esta noche.';
             case 'guardian': return 'Elige a un jugador para proteger esta noche.';
@@ -180,10 +189,19 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
     }
 
     const renderWerewolfInfo = () => {
-        if (currentPlayer.role !== 'werewolf') return null;
+        if (!isWerewolfTeam) return null;
 
         return (
             <div className="mb-4 text-center">
+                 {wolfCubRevengeActive && (
+                    <Alert variant="destructive" className="mb-4 bg-destructive/20 border-destructive text-destructive-foreground">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertTitle>¡Venganza de la Cría de Lobo!</AlertTitle>
+                        <AlertDescription>
+                            La cría de lobo ha muerto. Esta noche, podéis matar a dos jugadores.
+                        </AlertDescription>
+                    </Alert>
+                )}
                 <p>Tus compañeros lobos:</p>
                 <div className="flex justify-center gap-4 mt-2">
                     {otherWerewolves.length > 0 ? otherWerewolves.map(wolf => (
@@ -229,7 +247,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
     }
 
     const canPerformAction = (
-        currentPlayer.role === 'werewolf' || 
+        isWerewolfTeam || 
         currentPlayer.role === 'seer' || 
         currentPlayer.role === 'doctor' ||
         currentPlayer.role === 'guardian' ||
@@ -258,20 +276,22 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                     <>
                         <PlayerGrid 
                             players={players.filter(p => {
-                                if (p.userId === currentPlayer.userId && hechiceraAction === 'save') return true;
                                 if (isCupidFirstNight) return true;
-                                if (p.userId === currentPlayer.userId) return false;
-                                if (currentPlayer.role === 'werewolf') return p.role !== 'werewolf';
+                                if (isWerewolfTeam) return p.role !== 'werewolf' && p.role !== 'wolf_cub';
+                                if (p.userId === currentPlayer.userId) {
+                                    // Allow self-selection only for Hechicera with save potion
+                                    return currentPlayer.role === 'hechicera' && hechiceraAction === 'save';
+                                }
                                 return true;
                             })}
                             onPlayerClick={handlePlayerSelect}
                             clickable={true}
                             selectedPlayerIds={selectedPlayerIds}
                         />
-                         {isCupidFirstNight && (
+                         {(isCupidFirstNight || wolfCubRevengeActive) && (
                             <div className="flex justify-center items-center gap-4 mt-4">
                                 <span className='text-lg'>{players.find(p => p.userId === selectedPlayerIds[0])?.displayName || '?'}</span>
-                                <Heart className="h-6 w-6 text-pink-400" />
+                                {isCupidFirstNight ? <Heart className="h-6 w-6 text-pink-400" /> : <span className='text-destructive font-bold'>&</span>}
                                 <span className='text-lg'>{players.find(p => p.userId === selectedPlayerIds[1])?.displayName || '?'}</span>
                             </div>
                         )}

@@ -93,6 +93,7 @@ export interface Game {
   lovers?: [string, string];
   twins?: [string, string];
   pendingHunterShot?: string; // userId of the hunter who needs to shoot
+  wolfCubRevengeRound?: number; // The round where werewolves get an extra kill
 }
 
 export interface Player {
@@ -119,7 +120,7 @@ export interface NightAction {
     round: number;
     playerId: string; // The player performing the action
     actionType: NightActionType;
-    targetId: string; // The player targeted by the action
+    targetId: string; // The player targeted by the action. Can be multiple for wolf cub revenge, separated by |
     createdAt: Timestamp;
 }
 
