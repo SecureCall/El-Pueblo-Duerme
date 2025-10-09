@@ -762,13 +762,15 @@ export async function processVotes(gameId: string) {
             };
 
             if (mostVotedPlayerIds.length === 1 && maxVotes > 0) {
-                lynchedPlayerId = mostVotedPlayerIds[0];
-                const lynchedPlayer = playersData.find(p => p.userId === lynchedPlayerId)!;
+                const potentialLynchedId = mostVotedPlayerIds[0];
+                const lynchedPlayer = playersData.find(p => p.userId === potentialLynchedId)!;
                 
-                if (lynchedPlayerIsPrince(lynchedPlayerId)) {
+                if (lynchedPlayerIsPrince(potentialLynchedId)) {
                     eventMessage = `${lynchedPlayer.displayName} ha sido sentenciado, pero revela su identidad como ¡el Príncipe! y sobrevive a la votación.`;
-                    lynchedPlayerId = null; // Prevent killing
+                    const playerRef = doc(db, 'players', lynchedPlayer.id);
+                    transaction.update(playerRef, { princeRevealed: true });
                 } else {
+                    lynchedPlayerId = potentialLynchedId;
                     eventMessage = `El pueblo ha decidido. ${lynchedPlayer.displayName} ha sido linchado.`;
                     voteKillResult = await killPlayer(transaction, gameId, lynchedPlayer.userId, game, playersData);
                 }
@@ -785,7 +787,7 @@ export async function processVotes(gameId: string) {
                 round: game.currentRound,
                 type: 'vote_result',
                 message: eventMessage,
-                data: { lynchedPlayerId },
+                data: { lynchedPlayerId: lynchedPlayerId }, // Log the ID of the person who would have been lynched if not for prince
                 createdAt: Timestamp.now(),
             });
             
@@ -1019,7 +1021,3 @@ async function checkEndDayEarly(gameId: string) {
         await processVotes(gameId);
     }
 }
-
-    
-
-    

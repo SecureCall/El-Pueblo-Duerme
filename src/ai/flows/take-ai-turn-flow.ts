@@ -63,10 +63,11 @@ Basado en toda la información, y especialmente en tu identidad y rol dentro de 
     - ¿En qué fase estamos (noche/día)? ¿Qué acciones puedo realizar?
     - ¿Qué ha pasado en las rondas anteriores? ¿Quién murió? ¿Quién votó a quién?
     - ¿Hay algún jugador sospechoso? ¿Por qué?
-    - ¿Hay algún jugador que parezca inocente o que sea valioso para mi equipo (ej. mi gemelo/a, mi enamorado/a)?
+    - ¿Hay algún jugador que parezca inocente o que sea valioso para mi equipo (ej. mi gemelo/a, mi enamorado/a, el príncipe revelado)?
     - ¿Cuál es la jugada más estratégica que puedo hacer AHORA MISMO? (ej. como Hechicera, ¿es mejor guardar mis pociones o usarlas ahora?).
     - Como Hombre Lobo, si la Cría de Lobo ha muerto y tenemos dos asesinatos (`wolfCubRevengeRound`), debo seleccionar dos objetivos.
     - Como Cupido, en la ronda 1, debo elegir a dos jugadores para enamorar. Una buena estrategia es elegirme a mí y a otro jugador.
+    - Como Príncipe, no tengo acciones nocturnas, solo un efecto pasivo durante la votación diurna.
 
 2.  **Acción:**
     - Basado en tu razonamiento, elige UNA SOLA acción.
@@ -113,5 +114,3 @@ const takeAITurnFlow = ai.defineFlow(
         return output!;
     }
 );
-
-    

@@ -9,7 +9,7 @@ import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { SkullIcon } from "../icons";
 import { Badge } from "../ui/badge";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
-import { Bot } from "lucide-react";
+import { Bot, Crown } from "lucide-react";
 
 interface PlayerCardProps {
   player: Player;
@@ -58,6 +58,9 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
               {player.isAI && (
                 <Bot className="absolute -top-2 -left-2 z-10 h-5 w-5 text-muted-foreground" />
               )}
+              {player.princeRevealed && (
+                 <Crown className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-10 h-5 w-5 text-yellow-400" />
+              )}
               <CardContent className="p-0">
                 <Avatar className="h-20 w-20 border-2 border-border">
                   <AvatarImage src={avatarImage?.imageUrl} data-ai-hint={avatarImage?.imageHint} />
@@ -83,6 +86,11 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
                 <p>Votos de: {votes.join(', ')}</p>
             </TooltipContent>
         )}
+         {player.princeRevealed && (
+             <TooltipContent>
+                <p>¡Príncipe revelado! Inmune al linchamiento.</p>
+            </TooltipContent>
+         )}
       </Tooltip>
     </TooltipProvider>
   );
