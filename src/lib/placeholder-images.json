@@ -7,6 +7,42 @@
       "imageHint": "night forest"
     },
     {
+      "id": "role-bg-werewolf",
+      "description": "A full moon in a dark sky, seen through tree branches.",
+      "imageUrl": "https://images.unsplash.com/photo-1532077970815-6a37833f1134?q=80&w=1974&auto=format&fit=crop",
+      "imageHint": "full moon"
+    },
+    {
+      "id": "role-bg-seer",
+      "description": "A mystical eye symbol glowing in a starry nebula.",
+      "imageUrl": "https://images.unsplash.com/photo-1614917732296-3847a92c429d?q=80&w=2070&auto=format&fit=crop",
+      "imageHint": "mystic eye"
+    },
+    {
+      "id": "role-bg-doctor",
+      "description": "An old leather doctor's bag with medical instruments.",
+      "imageUrl": "https://images.unsplash.com/photo-1629114622135-3c819307c89d?q=80&w=1964&auto=format&fit=crop",
+      "imageHint": "doctor bag"
+    },
+    {
+      "id": "role-bg-villager",
+      "description": "A quaint, quiet medieval village square at dusk.",
+      "imageUrl": "https://images.unsplash.com/photo-1599834519946-d2d483447954?q=80&w=1974&auto=format&fit=crop",
+      "imageHint": "village square"
+    },
+    {
+      "id": "role-bg-hunter",
+      "description": "A person walking down a path in a misty forest.",
+      "imageUrl": "https://images.unsplash.com/photo-1494950343335-849ba625a593?q=80&w=2070&auto=format&fit=crop",
+      "imageHint": "forest path"
+    },
+    {
+      "id": "role-bg-cupid",
+      "description": "A classic bow with an arrow that has a heart-shaped tip.",
+      "imageUrl": "https://images.unsplash.com/photo-1518979919128-a895a66635c4?q=80&w=1974&auto=format&fit=crop",
+      "imageHint": "cupid bow"
+    },
+    {
       "id": "avatar-1",
       "description": "Avatar placeholder 1",
       "imageUrl": "https://picsum.photos/seed/avatar1/200/200",
