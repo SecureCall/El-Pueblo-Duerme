@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -22,7 +23,7 @@ export function HunterShot({ game, players, currentPlayer }: HunterShotProps) {
     const { toast } = useToast();
 
     const handlePlayerSelect = (player: Player) => {
-        if (!player.isAlive) return;
+        if (!player.isAlive || player.userId === currentPlayer.userId) return;
         setSelectedPlayerId(player.userId);
     };
 
@@ -39,7 +40,7 @@ export function HunterShot({ game, players, currentPlayer }: HunterShotProps) {
             toast({ title: '¡Venganza cumplida!', description: 'Has disparado tu última bala.' });
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
-            setIsSubmitting(false);
+            setIsSubmitting(false); // Only re-enable on error
         }
     };
     

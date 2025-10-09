@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { updateDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { NightActions } from "./NightActions";
-import { processNight, runAIActions } from "@/app/actions";
+import { processNight, processVotes, runAIActions } from "@/app/actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { HeartIcon, Moon, Sun } from "lucide-react";
@@ -37,16 +37,17 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
 
   // Handle AI actions when phase changes
   useEffect(() => {
+    // Only the creator should trigger AI actions to avoid multiple executions
     if (game.creator === currentPlayer.userId) {
       if (game.phase === 'night' || game.phase === 'day' || game.phase === 'hunter_shot') {
-        runAIActions(game.id, game.phase);
+        setTimeout(() => runAIActions(game.id, game.phase), 1000); // Small delay
       }
     }
-  }, [game.phase, game.id, game.creator, currentPlayer.userId]);
+  }, [game.phase, game.id, game.creator, currentPlayer.userId, game.currentRound]);
 
   const handleAcknowledgeRole = async () => {
     setShowRole(false);
-    // Only the creator should trigger the phase change
+    // Only the creator should trigger the phase change to avoid race conditions
     if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId) {
         // Add a delay to allow all players to see their roles
         setTimeout(async () => {
@@ -58,8 +59,13 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
   };
   
    const handleTimerEnd = async () => {
-    if (game.phase === 'night' && game.creator === currentPlayer.userId && game.status === 'in_progress') {
+    // Only creator processes the phase end to prevent multiple executions
+    if (game.creator !== currentPlayer.userId) return;
+
+    if (game.phase === 'night' && game.status === 'in_progress') {
       await processNight(game.id);
+    } else if (game.phase === 'day' && game.status === 'in_progress') {
+      await processVotes(game.id);
     }
   };
   
@@ -68,7 +74,8 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     return <GameOver event={gameOverEvent} players={players} />;
   }
 
-  if (game.phase === 'hunter_shot' && game.pendingHunterShot === currentPlayer.userId) {
+  const isHunterWaitingToShoot = game.phase === 'hunter_shot' && game.pendingHunterShot === currentPlayer.userId;
+  if (isHunterWaitingToShoot && currentPlayer.isAlive) { // The hunter is technically alive until they shoot
       const alivePlayers = players.filter(p => p.isAlive && p.userId !== currentPlayer.userId);
       return <HunterShot game={game} currentPlayer={currentPlayer} players={alivePlayers} />;
   }
@@ -100,6 +107,12 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
           default: return null;
       }
   }
+  
+  const getTimerDuration = () => {
+      if (game.phase === 'day') return 90;
+      if (game.phase === 'night') return 45;
+      return 0;
+  }
 
   const isLover = !!game.lovers?.includes(currentPlayer.userId);
   const otherLoverId = isLover ? game.lovers!.find(id => id !== currentPlayer.userId) : null;
@@ -117,8 +130,12 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
               {getPhaseTitle()}
             </CardTitle>
           </div>
-          {game.phase === 'night' && game.status === 'in_progress' && (
-            <PhaseTimer duration={30} onTimerEnd={handleTimerEnd} gameId={game.id} round={game.currentRound} />
+          { (game.phase === 'night' || game.phase === 'day') && game.status === 'in_progress' && (
+            <PhaseTimer 
+                key={`${game.id}-${game.phase}-${game.currentRound}`}
+                duration={getTimerDuration()} 
+                onTimerEnd={handleTimerEnd}
+            />
           )}
           <div className='absolute right-4 top-1/2 -translate-y-1/2'>
             <GameChronicle events={events} />
@@ -153,8 +170,19 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
             voteEvent={voteEvent}
         />
       )}
+
+      { game.phase === 'hunter_shot' && !isHunterWaitingToShoot && (
+         <Card className="mt-8 bg-card/80">
+            <CardHeader>
+              <CardTitle className="font-headline text-2xl">¡Disparo del Cazador!</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <p>Un cazador ha caído y debe elegir su objetivo final. Esperando a que dispare...</p>
+            </CardContent>
+         </Card>
+      )}
        
-       { !currentPlayer.isAlive && game.status === 'in_progress' && (
+       { !currentPlayer.isAlive && !isHunterWaitingToShoot && game.status === 'in_progress' && (
          <Card className="mt-8 bg-card/80">
             <CardHeader>
               <CardTitle className="font-headline text-2xl">Has Sido Eliminado</CardTitle>

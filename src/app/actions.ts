@@ -660,24 +660,31 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
 
             const targetKillResult = await killPlayer(transaction, gameId, targetId, game, playersData);
             
-            const isGameOverAfterShot = await checkGameOver(gameId, transaction, game.lovers);
-            if (isGameOverAfterShot) return;
-
             // If the hunter shot another hunter, we need to resolve that before continuing
             if (targetKillResult.hunterId) {
                  transaction.update(gameRef, { 
                     pendingHunterShot: targetKillResult.hunterId, 
                     phase: 'hunter_shot' 
                 });
-                return;
+                return; // End transaction here, the next hunter will trigger a new one
             }
-            
+
             const isGameOver = await checkGameOver(gameId, transaction, game.lovers);
             if (isGameOver) return;
             
             // This logic needs to know if the hunter died during the day or night
-            const originatingPhase = game.currentRound > 0 && game.phase === 'hunter_shot' ? 'day' : 'night';
-            const nextPhase = originatingPhase === 'day' ? 'night' : 'day';
+            // A simple way is to check if it's round 0, which means pre-game, or if the vote just happened.
+            // A better approach is needed, maybe store originating phase. For now, assume it goes to the opposite phase.
+            // Let's check a vote event for the same round to decide.
+            const voteEventQuery = query(collection(db, 'game_events'), 
+                where('gameId', '==', gameId),
+                where('round', '==', game.currentRound),
+                where('type', '==', 'vote_result')
+            );
+            const voteEventSnap = await transaction.get(voteEventQuery);
+            
+            const diedDuringDay = !voteEventSnap.empty;
+            const nextPhase = diedDuringDay ? 'night' : 'day';
 
             transaction.update(gameRef, {
                 phase: nextPhase,
@@ -747,10 +754,13 @@ async function checkEndDayEarly(gameId: string) {
     const playersSnap = await getDocs(playersQuery);
     const alivePlayers = playersSnap.docs.map(p => p.data() as Player);
 
-    const allPlayersVoted = alivePlayers.every(p => !!p.votedFor);
-
+    const allPlayersVoted = alivePlayers.every(p => !!p.votedFor || p.isAI);
+    
     if (allPlayersVoted) {
-        await processVotes(gameId);
+        // A small delay to let AI votes register visually
+        setTimeout(async () => {
+            await processVotes(gameId);
+        }, 500);
     }
 }
 
@@ -804,7 +814,9 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
                     }
                 }
             } else if (phase === 'day') {
-                if (ai.votedFor) continue;
+                const playerDoc = (await getDoc(doc(db, 'players', `${ai.userId}_${gameId}`))).data() as Player;
+                if (playerDoc.votedFor) continue;
+
                 const aliveTargets = alivePlayers.filter(p => p.userId !== ai.userId);
                 if (aliveTargets.length > 0) {
                     const target = aliveTargets[Math.floor(Math.random() * aliveTargets.length)];
