@@ -9,7 +9,8 @@ import { submitNightAction, submitVote, submitHunterShot } from "./actions";
 // Helper to convert Firestore Timestamps to something JSON-serializable (ISO strings)
 const toJSONCompatible = (obj: any): any => {
     if (!obj) return obj;
-    if (obj.constructor.name === 'Timestamp') { // More robust check
+    // Changed the check to be more robust. `constructor.name` can be unreliable after minification.
+    if ('toDate' in obj && typeof obj.toDate === 'function') {
         return (obj as Timestamp).toDate().toISOString();
     }
     if (Array.isArray(obj)) {
