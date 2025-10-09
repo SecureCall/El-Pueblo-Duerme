@@ -707,29 +707,28 @@ async function checkEndNightEarly(gameId: string) {
     const submittedActions = nightActionsSnap.docs.map(a => a.data() as NightAction);
 
     const requiredPlayerIds = new Set<string>();
-    const activePlayersWithRoles = alivePlayers.filter(p => !p.isAI);
 
-    const werewolves = activePlayersWithRoles.filter(p => p.role === 'werewolf');
+    const werewolves = alivePlayers.filter(p => p.role === 'werewolf');
     if (werewolves.length > 0) {
         werewolves.forEach(w => requiredPlayerIds.add(w.userId));
     }
 
-    const seer = activePlayersWithRoles.find(p => p.role === 'seer');
+    const seer = alivePlayers.find(p => p.role === 'seer');
     if (seer) requiredPlayerIds.add(seer.userId);
     
-    const doctor = activePlayersWithRoles.find(p => p.role === 'doctor');
+    const doctor = alivePlayers.find(p => p.role === 'doctor');
     if (doctor) requiredPlayerIds.add(doctor.userId);
     
     if (game.currentRound === 1) {
-        const cupid = activePlayersWithRoles.find(p => p.role === 'cupid');
+        const cupid = alivePlayers.find(p => p.role === 'cupid');
         if (cupid) requiredPlayerIds.add(cupid.userId);
     }
     
     const submittedPlayerIds = new Set(submittedActions.map(a => a.playerId));
 
-    const allHumanActionsSubmitted = Array.from(requiredPlayerIds).every(id => submittedPlayerIds.has(id));
+    const allActionsSubmitted = Array.from(requiredPlayerIds).every(id => submittedPlayerIds.has(id));
 
-    if (allHumanActionsSubmitted) {
+    if (allActionsSubmitted) {
         await processNight(gameId);
     }
 }
@@ -744,11 +743,11 @@ async function checkEndDayEarly(gameId: string) {
 
     const playersQuery = query(collection(db, 'players'), where('gameId', '==', gameId), where('isAlive', '==', true));
     const playersSnap = await getDocs(playersQuery);
-    const aliveHumanPlayers = playersSnap.docs.map(p => p.data() as Player).filter(p => !p.isAI);
+    const alivePlayers = playersSnap.docs.map(p => p.data() as Player);
 
-    const allHumanPlayersVoted = aliveHumanPlayers.every(p => !!p.votedFor);
+    const allPlayersVoted = alivePlayers.every(p => !!p.votedFor);
 
-    if (allHumanPlayersVoted) {
+    if (allPlayersVoted) {
         await processVotes(gameId);
     }
 }
@@ -766,6 +765,10 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
         const alivePlayers = players.filter(p => p.isAlive);
 
         for (const ai of aiPlayers) {
+             const nightActionsQuery = query(collection(db, 'night_actions'), where('gameId', '==', gameId), where('round', '==', game.currentRound), where('playerId', '==', ai.userId));
+            const existingActions = await getDocs(nightActionsQuery);
+            if (!existingActions.empty) continue; // AI has already acted this round
+
             if (phase === 'night') {
                 const aliveTargets = alivePlayers.filter(p => p.userId !== ai.userId);
                 if (aliveTargets.length === 0) continue;
@@ -773,10 +776,10 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
                 switch (ai.role) {
                     case 'werewolf': {
                         const villagers = aliveTargets.filter(p => p.role !== 'werewolf');
-                        if (villagers.length > 0) {
-                            const target = villagers[Math.floor(Math.random() * villagers.length)];
-                            await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'werewolf_kill', targetId: target.userId });
-                        }
+                        const target = villagers.length > 0 
+                            ? villagers[Math.floor(Math.random() * villagers.length)]
+                            : aliveTargets[Math.floor(Math.random() * aliveTargets.length)];
+                        await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'werewolf_kill', targetId: target.userId });
                         break;
                     }
                     case 'seer': {
@@ -785,48 +788,30 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
                         break;
                     }
                     case 'doctor': {
-                        const target = aliveTargets[Math.floor(Math.random() * aliveTargets.length)];
-                        if (target.lastHealedRound !== game.currentRound - 1) {
-                            await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'doctor_heal', targetId: target.userId });
-                        } else {
-                            // Try to find another target if the first was healed last round
-                            const otherTargets = aliveTargets.filter(t => t.userId !== target.userId && t.lastHealedRound !== game.currentRound - 1);
-                            if (otherTargets.length > 0) {
-                                const newTarget = otherTargets[Math.floor(Math.random() * otherTargets.length)];
-                                await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'doctor_heal', targetId: newTarget.userId });
-                            }
-                        }
-                        break;
-                    }
-                    case 'cupid': {
-                        if (game.currentRound === 1 && aliveTargets.length >= 2) {
-                            const shuffled = aliveTargets.sort(() => 0.5 - Math.random());
-                            const target1 = shuffled[0];
-                            const target2 = shuffled[1];
-                            await submitCupidAction(gameId, ai.userId, target1.userId, target2.userId);
+                        const healableTargets = aliveTargets.filter(p => p.lastHealedRound !== game.currentRound -1);
+                        if (healableTargets.length > 0) {
+                            const target = healableTargets[Math.floor(Math.random() * healableTargets.length)];
+                             await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'doctor_heal', targetId: target.userId });
                         }
                         break;
                     }
                 }
             } else if (phase === 'day') {
-                const voteTargets = alivePlayers.filter(p => p.userId !== ai.userId);
-                if (voteTargets.length > 0) {
-                    const target = voteTargets[Math.floor(Math.random() * voteTargets.length)];
+                if (ai.votedFor) continue;
+                const aliveTargets = alivePlayers.filter(p => p.userId !== ai.userId);
+                if (aliveTargets.length > 0) {
+                    const target = aliveTargets[Math.floor(Math.random() * aliveTargets.length)];
                     await submitVote(gameId, ai.userId, target.userId);
                 }
-            } else if (phase === 'hunter_shot' && game.pendingHunterShot === ai.userId) {
-                const shotTargets = alivePlayers.filter(p => p.userId !== ai.userId);
-                if (shotTargets.length > 0) {
-                     const target = shotTargets[Math.floor(Math.random() * shotTargets.length)];
-                     await submitHunterShot(gameId, ai.userId, target.userId);
-                }
+            } else if (phase === 'hunter_shot' && ai.userId === game.pendingHunterShot) {
+                 const aliveTargets = alivePlayers.filter(p => p.userId !== ai.userId);
+                 if (aliveTargets.length > 0) {
+                    const target = aliveTargets[Math.floor(Math.random() * aliveTargets.length)];
+                    await submitHunterShot(gameId, ai.userId, target.userId);
+                 }
             }
         }
-        return { success: true };
-    } catch (error) {
-        console.error("Error running AI actions:", error);
-        return { success: false, error: "Failed to run AI actions." };
+    } catch(e) {
+        console.error("Error in AI Actions:", e);
     }
 }
-
-    
