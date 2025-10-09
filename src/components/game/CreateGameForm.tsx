@@ -248,5 +248,3 @@ export function CreateGameForm() {
     </Card>
   );
 }
-
-    

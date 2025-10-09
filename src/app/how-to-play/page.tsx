@@ -40,6 +40,13 @@ const aldeanosRoles = [
             'Cada noche, eliges a un jugador y el juego te revelará si es un lobo, un aldeano o un rol especial. Tu información es crucial, pero revelarte te convierte en un objetivo.',
     },
     {
+        name: 'Doctor',
+        Icon: DoctorIcon,
+        color: 'text-green-300',
+        description:
+            'Cada noche, puedes proteger a un jugador del ataque de los lobos. No puedes proteger a la misma persona dos noches seguidas.'
+    },
+    {
         name: 'Sacerdote',
         Icon: PriestIcon,
         color: 'text-blue-300',
