@@ -6,7 +6,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { SkullIcon } from "../icons";
+import { Skull } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { Bot, Crown } from "lucide-react";
@@ -63,7 +63,7 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
               )}
               <CardContent className="p-0">
                 <Avatar className="h-20 w-20 border-2 border-border">
-                  <AvatarImage src={avatarImage?.imageUrl} data-ai-hint={avatarImage?.imageHint} />
+                  <AvatarImage src={avatarImage?.imageUrl || '/avatar-default.png'} data-ai-hint={avatarImage?.imageHint} />
                   <AvatarFallback>{player.displayName.substring(0, 2)}</AvatarFallback>
                 </Avatar>
               </CardContent>
@@ -72,7 +72,7 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
                 {!player.isAlive && (
                     <div className="flex items-center gap-1 text-xs text-destructive flex-col">
                         <div className="flex items-center gap-1">
-                         <SkullIcon className="h-4 w-4" />
+                         <Skull className="h-4 w-4" />
                          <span>Eliminado</span>
                         </div>
                         <span className="font-bold uppercase">{player.role}</span>

@@ -1,7 +1,8 @@
+
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
-import { VillagerIcon, WolfIcon } from "../icons";
+import Image from "next/image";
 
 interface SeerResultProps {
     targetName: string;
@@ -18,13 +19,17 @@ export function SeerResult({ targetName, isWerewolf }: SeerResultProps) {
             <CardContent className="text-center space-y-4">
                 {isWerewolf ? (
                     <>
-                        <WolfIcon className="h-20 w-20 mx-auto text-destructive" />
+                        <div className="relative h-24 w-24 mx-auto">
+                            <Image src="/roles/werewolf.png" alt="Hombre Lobo" fill className="object-contain" />
+                        </div>
                         <p className="text-lg font-bold text-destructive">¡Es un Hombre Lobo!</p>
                         <p className="text-muted-foreground">La oscuridad y la malicia residen en su corazón. Debes alertar al pueblo.</p>
                     </>
                 ) : (
                     <>
-                        <VillagerIcon className="h-20 w-20 mx-auto text-primary-foreground/80" />
+                        <div className="relative h-24 w-24 mx-auto">
+                            <Image src="/roles/villager.png" alt="Aldeano" fill className="object-contain" />
+                        </div>
                         <p className="text-lg font-bold text-primary-foreground/90">Es un Aldeano Inocente.</p>
                         <p className="text-muted-foreground">No has encontrado rastro de maldad en esta persona. Debes seguir buscando.</p>
                     </>

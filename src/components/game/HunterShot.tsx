@@ -8,8 +8,8 @@ import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
 import { submitHunterShot } from '@/app/actions';
-import { Loader2 } from 'lucide-react';
-import { HunterIcon } from '../icons';
+import { Loader2, Crosshair } from 'lucide-react';
+
 
 interface HunterShotProps {
     game: Game;
@@ -49,7 +49,7 @@ export function HunterShot({ game, players, currentPlayer }: HunterShotProps) {
     return (
         <Card className="mt-8 bg-destructive/20 border-destructive w-full max-w-4xl">
             <CardHeader className="text-center">
-                <HunterIcon className="h-16 w-16 mx-auto text-destructive" />
+                <Crosshair className="h-16 w-16 mx-auto text-destructive" />
                 <CardTitle className="font-headline text-4xl text-destructive">¡Has Sido Eliminado!</CardTitle>
                 <CardDescription className='text-lg text-destructive-foreground/80'>
                     Pero como Cazador, tienes una última bala. Elige a un jugador para llevártelo contigo.

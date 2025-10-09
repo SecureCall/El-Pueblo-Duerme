@@ -5,8 +5,8 @@ import type { GameEvent, Player } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import Link from 'next/link';
-import { Milestone } from 'lucide-react';
-import { WolfIcon, VillagerIcon } from '../icons';
+import { Milestone, User, BotIcon } from 'lucide-react';
+
 
 interface GameOverProps {
     event?: GameEvent;
@@ -23,8 +23,8 @@ export function GameOver({ event, players }: GameOverProps) {
         );
     }
 
-    const werewolves = players.filter(p => p.role === 'werewolf');
-    const villagers = players.filter(p => p.role !== 'werewolf');
+    const werewolves = players.filter(p => p.role === 'werewolf' || p.role === 'wolf_cub' || p.role === 'cursed');
+    const villagers = players.filter(p => p.role !== 'werewolf' && p.role !== 'wolf_cub' && p.role !== 'cursed');
 
     return (
         <Card className="w-full max-w-2xl mx-auto text-center bg-card/90">
@@ -39,7 +39,7 @@ export function GameOver({ event, players }: GameOverProps) {
             </CardHeader>
             <CardContent className="space-y-6">
                 <div>
-                    <h3 className="text-2xl font-bold flex items-center justify-center gap-2"><WolfIcon /> Hombres Lobo</h3>
+                    <h3 className="text-2xl font-bold flex items-center justify-center gap-2"><BotIcon /> Hombres Lobo</h3>
                     <ul className="list-none p-0">
                         {werewolves.map(p => (
                             <li key={p.userId} className="text-lg text-muted-foreground">{p.displayName}</li>
@@ -47,7 +47,7 @@ export function GameOver({ event, players }: GameOverProps) {
                     </ul>
                 </div>
                  <div>
-                    <h3 className="text-2xl font-bold flex items-center justify-center gap-2"><VillagerIcon /> Pueblo</h3>
+                    <h3 className="text-2xl font-bold flex items-center justify-center gap-2"><User /> Pueblo</h3>
                     <ul className="list-none p-0">
                         {villagers.map(p => (
                              <li key={p.userId} className="text-lg text-muted-foreground">{p.displayName} ({p.role})</li>

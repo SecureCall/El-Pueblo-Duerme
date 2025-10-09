@@ -10,80 +10,77 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { HomeIcon } from 'lucide-react';
-import { 
-    WolfIcon, VillagerIcon, DoctorIcon, SeerIcon, HunterIcon, CupidIcon, GuardianIcon, PriestIcon, PrinceIcon, LycanthropeIcon, TwinIcon, HechiceraIcon, WolfCubIcon, CursedIcon
-} from '@/components/icons';
+import { HomeIcon, User, Shield, Sparkles, Crown, Fingerprint, Users2, Heart, FlaskConical, Crosshair, BotIcon, BriefcaseMedical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 
 const aldeanosRoles = [
     {
         name: 'Aldeano',
-        Icon: VillagerIcon,
+        Icon: User,
         color: 'text-blue-300',
         description:
             'No tienes poderes especiales. Tu misión es observar, razonar y participar en los juicios para descubrir a los lobos. Tu voto es tu mayor poder.',
     },
     {
         name: 'Guardián',
-        Icon: GuardianIcon,
+        Icon: Shield,
         color: 'text-blue-300',
         description:
             'Cada noche, eliges a un jugador para protegerlo. Ese jugador no podrá ser asesinado por los lobos. No puedes protegerte a ti mismo.',
     },
     {
         name: 'Vidente',
-        Icon: SeerIcon,
+        Icon: Fingerprint,
         color: 'text-blue-300',
         description:
             'Cada noche, eliges a un jugador y el juego te revelará si es un lobo o no. El licántropo se ve como lobo. Tu información es crucial, pero revelarte te convierte en un objetivo.',
     },
     {
         name: 'Doctor',
-        Icon: DoctorIcon,
+        Icon: BriefcaseMedical,
         color: 'text-green-300',
         description:
             'Cada noche, puedes proteger a un jugador del ataque de los lobos. No puedes proteger a la misma persona dos noches seguidas.'
     },
     {
         name: 'Sacerdote',
-        Icon: PriestIcon,
+        Icon: Sparkles,
         color: 'text-blue-300',
         description:
             'Cada noche, otorgas una bendición a un jugador, protegiéndolo de cualquier tipo de ataque. Puedes bendecirte a ti mismo una vez por partida.',
     },
     {
         name: 'Gemelas',
-        Icon: TwinIcon,
+        Icon: Users2,
         color: 'text-blue-300',
         description:
             'La primera noche, os despertáis para reconoceros. Empiezas la partida con una aliada de confianza, lo que es una gran ventaja estratégica.',
     },
     {
         name: 'Cazador',
-        Icon: HunterIcon,
+        Icon: Crosshair,
         color: 'text-blue-300',
         description:
             'Si eres eliminado (de día o de noche), tienes un último acto: puedes disparar y eliminar a otro jugador inmediatamente.',
     },
     {
         name: 'Hechicera',
-        Icon: HechiceraIcon,
+        Icon: FlaskConical,
         color: 'text-blue-300',
         description:
             'Tienes una poción de veneno (para eliminar a un jugador por la noche) y una poción de protección (para salvar a un jugador atacado). Puedes usar cada una una vez por partida.',
     },
     {
         name: 'Príncipe',
-        Icon: PrinceIcon,
+        Icon: Crown,
         color: 'text-blue-300',
         description:
             'No puedes ser eliminado por la votación del pueblo. Si recibes la mayoría de votos, revelas tu carta y sobrevives, pero te conviertes en un objetivo claro para los lobos.',
     },
      {
         name: 'Licántropo',
-        Icon: LycanthropeIcon,
+        Icon: Fingerprint,
         color: 'text-blue-300',
         description:
             'Eres un aldeano, pero si la Vidente te investiga, te verá como un Hombre Lobo. Tu reto es convencer a todos de tu inocencia a pesar de las pruebas en tu contra.',
@@ -93,21 +90,21 @@ const aldeanosRoles = [
 const lobosRoles = [
      {
         name: 'Hombre Lobo',
-        Icon: WolfIcon,
+        Icon: BotIcon,
         color: 'text-destructive',
         description:
             'Cada noche, junto a tus compañeros lobos, eliges en secreto a un aldeano para eliminarlo. Durante el día, tu objetivo es hacerte pasar por un aldeano inocente.',
     },
     {
         name: 'Cría de Lobo',
-        Icon: WolfCubIcon,
+        Icon: BotIcon,
         color: 'text-destructive',
         description:
             'Actúas como un Hombre Lobo normal. Sin embargo, si eres eliminado, la noche siguiente a tu muerte los lobos podrán devorar a dos jugadores en lugar de uno.',
     },
     {
         name: 'Maldito',
-        Icon: CursedIcon,
+        Icon: User,
         color: 'text-orange-500',
         description:
             'Empiezas como un aldeano. No tienes acciones. Sin embargo, si los lobos te atacan, no mueres, sino que te transformas en un Hombre Lobo y te unes a su equipo.',
@@ -117,7 +114,7 @@ const lobosRoles = [
 const especialesRoles = [
     {
         name: 'Cupido',
-        Icon: CupidIcon,
+        Icon: Heart,
         color: 'text-pink-400',
         description:
             'La primera noche, eliges a dos jugadores para que se "enamoren". Si uno de ellos muere, el otro morirá instantáneamente de desamor. Los enamorados ganan si son los únicos dos supervivientes.',

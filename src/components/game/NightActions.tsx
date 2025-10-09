@@ -8,8 +8,7 @@ import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
 import { submitNightAction, getSeerResult, submitCupidAction } from '@/app/actions';
-import { Loader2, Heart, FlaskConical, Shield, AlertTriangle } from 'lucide-react';
-import { WolfIcon, PriestIcon } from '../icons';
+import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, BotIcon, Sparkles } from 'lucide-react';
 import { SeerResult } from './SeerResult';
 import { useNightActions } from '@/hooks/use-night-actions';
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
@@ -216,7 +215,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                 <div className="flex justify-center gap-4 mt-2">
                     {otherWerewolves.length > 0 ? otherWerewolves.map(wolf => (
                         <div key={wolf.userId} className="flex flex-col items-center text-sm">
-                            <WolfIcon className="h-6 w-6 text-destructive" />
+                            <BotIcon className="h-6 w-6 text-destructive" />
                             <span>{wolf.displayName}</span>
                         </div>
                     )) : <p className='text-sm text-muted-foreground'>Estás solo esta noche.</p>}
