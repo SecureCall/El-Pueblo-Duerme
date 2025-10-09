@@ -1,3 +1,106 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "home-background",
+      "description": "A mysterious, dark, misty forest at night.",
+      "imageUrl": "https://images.unsplash.com/photo-1444703686981-a3abbc4d4fe3?q=80&w=2070&auto=format&fit=crop",
+      "imageHint": "night forest"
+    },
+    {
+      "id": "avatar-1",
+      "description": "Avatar placeholder 1",
+      "imageUrl": "https://picsum.photos/seed/avatar1/200/200",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "avatar-2",
+      "description": "Avatar placeholder 2",
+      "imageUrl": "https://picsum.photos/seed/avatar2/200/200",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "avatar-3",
+      "description": "Avatar placeholder 3",
+      "imageUrl": "https://picsum.photos/seed/avatar3/200/200",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "avatar-4",
+      "description": "Avatar placeholder 4",
+      "imageUrl": "https://picsum.photos/seed/avatar4/200/200",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "avatar-5",
+      "description": "Avatar placeholder 5",
+      "imageUrl": "https://picsum.photos/seed/avatar5/200/200",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "avatar-6",
+      "description": "Avatar placeholder 6",
+      "imageUrl": "https://picsum.photos/seed/avatar6/200/200",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "avatar-7",
+      "description": "Avatar placeholder 7",
+      "imageUrl": "https://picsum.photos/seed/avatar7/200/200",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "avatar-8",
+      "description": "Avatar placeholder 8",
+      "imageUrl": "https://picsum.photos/seed/avatar8/200/200",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "avatar-9",
+      "description": "Avatar placeholder 9",
+      "imageUrl": "https://picsum.photos/seed/avatar9/200/200",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "avatar-10",
+      "description": "Avatar placeholder 10",
+      "imageUrl": "https://picsum.photos/seed/avatar10/200/200",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "avatar-11",
+      "description": "Avatar placeholder 11",
+      "imageUrl": "https://picsum.photos/seed/avatar11/200/200",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "avatar-12",
+      "description": "Avatar placeholder 12",
+      "imageUrl": "https://picsum.photos/seed/avatar12/200/200",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "avatar-13",
+      "description": "Avatar placeholder 13",
+      "imageUrl": "https://picsum.photos/seed/avatar13/200/200",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "avatar-14",
+      "description": "Avatar placeholder 14",
+      "imageUrl": "https://picsum.photos/seed/avatar14/200/200",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "avatar-15",
+      "description": "Avatar placeholder 15",
+      "imageUrl": "https://picsum.photos/seed/avatar15/200/200",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "avatar-16",
+      "description": "Avatar placeholder 16",
+      "imageUrl": "https://picsum.photos/seed/avatar16/200/200",
+      "imageHint": "person portrait"
+    }
+  ]
 }
