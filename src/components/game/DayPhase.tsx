@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -25,7 +26,8 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
     const { toast } = useToast();
 
     const hasVoted = !!currentPlayer.votedFor;
-    const allPlayersVoted = players.filter(p => p.isAlive).every(p => !!p.votedFor);
+    const alivePlayers = players.filter(p => p.isAlive);
+    const allPlayersVoted = alivePlayers.every(p => !!p.votedFor);
 
     useEffect(() => {
         if (allPlayersVoted && currentPlayer.userId === game.creator && game.status === 'in_progress' && game.phase === 'day') {
@@ -57,6 +59,15 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
     };
     
     const votedForPlayer = players.find(p => p.userId === currentPlayer.votedFor);
+    const votesByPlayer = players.reduce((acc, player) => {
+        if (player.votedFor) {
+            if (!acc[player.votedFor]) {
+                acc[player.votedFor] = [];
+            }
+            acc[player.votedFor].push(player.displayName);
+        }
+        return acc;
+    }, {} as Record<string, string[]>);
 
     return (
         <Card className="mt-8 bg-card/80 w-full">
@@ -86,19 +97,24 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                 ))}
 
                 {hasVoted ? (
-                    <div className="text-center py-8">
+                    <div className="text-center py-4 space-y-4">
                         <p className="text-lg text-primary">
                             Has votado por {votedForPlayer?.displayName || 'alguien'}. Esperando al resto de jugadores...
                         </p>
+                        <PlayerGrid 
+                            players={alivePlayers.filter(p => p.userId !== currentPlayer.userId)}
+                            votesByPlayer={votesByPlayer}
+                        />
                     </div>
                 ) : (
                     <>
                         <p className="text-center mb-4 text-muted-foreground">Selecciona al jugador que crees que es un Hombre Lobo.</p>
                          <PlayerGrid 
-                            players={players.filter(p => p.userId !== currentPlayer.userId)}
+                            players={alivePlayers.filter(p => p.userId !== currentPlayer.userId)}
                             onPlayerClick={handlePlayerSelect}
                             clickable={true}
                             selectedPlayerIds={selectedPlayerId ? [selectedPlayerId] : []}
+                            votesByPlayer={votesByPlayer}
                         />
                         <Button 
                             className="w-full mt-6 text-lg" 

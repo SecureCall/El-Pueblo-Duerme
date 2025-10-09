@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Player } from "@/types";
@@ -6,6 +7,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { SkullIcon } from "../icons";
+import { Badge } from "../ui/badge";
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 
 interface PlayerCardProps {
   player: Player;
@@ -13,9 +16,10 @@ interface PlayerCardProps {
   isClickable?: boolean;
   isSelected?: boolean;
   highlightColor?: string;
+  votes?: string[];
 }
 
-export function PlayerCard({ player, onClick, isClickable, isSelected, highlightColor }: PlayerCardProps) {
+export function PlayerCard({ player, onClick, isClickable, isSelected, highlightColor, votes }: PlayerCardProps) {
   // Simple hash function to get a consistent avatar for a user
   const getAvatarId = (userId: string) => {
     let hash = 0;
@@ -34,31 +38,45 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
   const cardStyle = highlightColor ? { boxShadow: `0 0 15px 4px ${highlightColor}` } : {};
 
   return (
-    <Card
-      className={cn(
-        "flex flex-col items-center justify-center p-4 transition-all duration-300",
-        !player.isAlive ? "bg-muted/30 grayscale opacity-60" : "bg-card/80",
-        isClickable && player.isAlive && "cursor-pointer hover:scale-105 hover:bg-card/100",
-        isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
-      )}
-      onClick={player.isAlive ? onClick : undefined}
-      style={cardStyle}
-    >
-      <CardContent className="p-0">
-        <Avatar className="h-20 w-20 border-2 border-border">
-          <AvatarImage src={avatarImage?.imageUrl} data-ai-hint={avatarImage?.imageHint} />
-          <AvatarFallback>{player.displayName.substring(0, 2)}</AvatarFallback>
-        </Avatar>
-      </CardContent>
-      <CardFooter className="p-0 pt-3 flex flex-col items-center gap-1">
-        <p className="font-semibold text-center truncate w-full">{player.displayName}</p>
-        {!player.isAlive && (
-            <div className="flex items-center gap-1 text-sm text-destructive">
-                <SkullIcon className="h-4 w-4" />
-                <span>Eliminado</span>
-            </div>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+            <Card
+              className={cn(
+                "flex flex-col items-center justify-center p-4 transition-all duration-300 relative",
+                !player.isAlive ? "bg-muted/30 grayscale opacity-60" : "bg-card/80",
+                isClickable && player.isAlive && "cursor-pointer hover:scale-105 hover:bg-card/100",
+                isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
+              )}
+              onClick={player.isAlive ? onClick : undefined}
+              style={cardStyle}
+            >
+              {votes && votes.length > 0 && (
+                <Badge variant="destructive" className="absolute -top-2 -right-2 z-10">{votes.length}</Badge>
+              )}
+              <CardContent className="p-0">
+                <Avatar className="h-20 w-20 border-2 border-border">
+                  <AvatarImage src={avatarImage?.imageUrl} data-ai-hint={avatarImage?.imageHint} />
+                  <AvatarFallback>{player.displayName.substring(0, 2)}</AvatarFallback>
+                </Avatar>
+              </CardContent>
+              <CardFooter className="p-0 pt-3 flex flex-col items-center gap-1">
+                <p className="font-semibold text-center truncate w-full">{player.displayName}</p>
+                {!player.isAlive && (
+                    <div className="flex items-center gap-1 text-sm text-destructive">
+                        <SkullIcon className="h-4 w-4" />
+                        <span>Eliminado</span>
+                    </div>
+                )}
+              </CardFooter>
+            </Card>
+        </TooltipTrigger>
+         {votes && votes.length > 0 && (
+            <TooltipContent>
+                <p>Votos de: {votes.join(', ')}</p>
+            </TooltipContent>
         )}
-      </CardFooter>
-    </Card>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
