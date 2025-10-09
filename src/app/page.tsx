@@ -22,12 +22,12 @@ export default function Home() {
       )}
       <div className="absolute inset-0 bg-background/70 backdrop-blur-sm" />
       <main className="relative z-10 flex flex-col items-center justify-center text-center text-primary-foreground space-y-8">
-        <Image
+        {/* Usando una etiqueta <img> estándar para forzar la carga del logo */}
+        <img
           src="/logo.png"
           alt="El Pueblo Duerme Logo"
           width={250}
           height={250}
-          priority
           className="rounded-full"
         />
         <h1 className="font-headline text-6xl md:text-8xl font-bold tracking-tight text-shadow-lg shadow-black/50">
