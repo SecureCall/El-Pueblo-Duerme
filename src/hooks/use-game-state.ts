@@ -50,7 +50,7 @@ export const useGameState = (gameId: string) => {
     const eventsQuery = query(
         collection(db, 'game_events'), 
         where('gameId', '==', gameId),
-        orderBy('createdAt', 'desc')
+        orderBy('createdAt', 'asc') // Fetch in ascending order
     );
     const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot: QuerySnapshot<DocumentData>) => {
         const eventsData = snapshot.docs.map(doc => doc.data() as GameEvent);

@@ -12,7 +12,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ScrollText, SunIcon, VoteIcon, MoonIcon, Swords } from 'lucide-react'; // Assuming VoteIcon exists, otherwise use a substitute
+import { ScrollText, SunIcon, MoonIcon, Swords, Milestone } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -25,18 +25,19 @@ function getEventIcon(type: GameEvent['type']) {
         case 'night_result':
             return <MoonIcon className="h-4 w-4 text-blue-400" />;
         case 'vote_result':
-            return <SunIcon className="h-4 w-4 text-yellow-400" />; // Using Sun for day-time vote
+            return <SunIcon className="h-4 w-4 text-yellow-400" />;
         case 'lover_death':
         case 'hunter_shot':
             return <Swords className="h-4 w-4 text-destructive" />;
         case 'game_over':
-             return <Swords className="h-4 w-4 text-yellow-500" />;
+             return <Milestone className="h-4 w-4 text-yellow-500" />;
         default:
             return <ScrollText className="h-4 w-4" />;
     }
 }
 
 export function GameChronicle({ events }: GameChronicleProps) {
+  const sortedEvents = [...events].sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -54,7 +55,7 @@ export function GameChronicle({ events }: GameChronicleProps) {
         </SheetHeader>
         <ScrollArea className="h-[calc(100vh-8rem)] w-full mt-4 pr-4">
           <div className="space-y-6">
-            {events.map((event) => (
+            {sortedEvents.map((event) => (
               <div key={event.createdAt.toMillis()} className="flex items-start gap-4">
                 <div className="mt-1">{getEventIcon(event.type)}</div>
                 <div className="flex-1">
@@ -65,7 +66,7 @@ export function GameChronicle({ events }: GameChronicleProps) {
                 </div>
               </div>
             ))}
-             {events.length === 0 && (
+             {sortedEvents.length === 0 && (
                 <p className="text-center text-muted-foreground py-8">Aún no ha ocurrido nada en el pueblo.</p>
              )}
           </div>

@@ -123,23 +123,23 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
   return (
     <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
        <Card className="text-center bg-card/80">
-        <CardHeader className="flex flex-row items-center justify-between p-4 relative">
+        <CardHeader className="flex flex-row items-center justify-between p-4 pb-8 relative">
+          <div className="absolute left-4 top-1/2 -translate-y-1/2">
+             <GameChronicle events={events} />
+          </div>
           <div className="flex-1 flex justify-center items-center gap-4">
              {getPhaseIcon()}
             <CardTitle className="font-headline text-3xl">
               {getPhaseTitle()}
             </CardTitle>
           </div>
-          { (game.phase === 'night' || game.phase === 'day') && game.status === 'in_progress' && (
+           { (game.phase === 'night' || game.phase === 'day') && game.status === 'in_progress' && (
             <PhaseTimer 
                 key={`${game.id}-${game.phase}-${game.currentRound}`}
                 duration={getTimerDuration()} 
                 onTimerEnd={handleTimerEnd}
             />
           )}
-          <div className='absolute right-4 top-1/2 -translate-y-1/2'>
-            <GameChronicle events={events} />
-          </div>
         </CardHeader>
       </Card>
       

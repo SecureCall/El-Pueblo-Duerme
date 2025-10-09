@@ -5,7 +5,7 @@ import type { GameEvent, Player } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import Link from 'next/link';
-import { CrownIcon } from 'lucide-react';
+import { CrownIcon, Milestone } from 'lucide-react';
 import { WolfIcon, VillagerIcon } from '../icons';
 
 interface GameOverProps {
@@ -30,7 +30,7 @@ export function GameOver({ event, players }: GameOverProps) {
         <Card className="w-full max-w-2xl mx-auto text-center bg-card/90">
             <CardHeader>
                 <CardTitle className="font-headline text-5xl flex items-center justify-center gap-4">
-                    <CrownIcon className="h-10 w-10 text-yellow-400" />
+                    <Milestone className="h-10 w-10 text-yellow-400" />
                     Partida Terminada
                 </CardTitle>
                 <CardDescription className="text-xl text-primary pt-2">
