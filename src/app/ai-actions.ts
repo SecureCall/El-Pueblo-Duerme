@@ -16,7 +16,7 @@ async function getPlayerRef(gameId: string, userId: string) {
 
 // Helper to convert Firestore Timestamps to something JSON-serializable (ISO strings)
 const toJSONCompatible = (obj: any): any => {
-    if (obj === null || obj === undefined) return obj;
+    if (!obj) return obj;
     if (typeof obj.toDate === 'function') {
         return obj.toDate().toISOString();
     }
@@ -54,6 +54,8 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
              const nightActionsQuery = query(collection(db, 'night_actions'), where('gameId', '==', gameId), where('round', '==', game.currentRound), where('playerId', '==', ai.userId));
             const existingNightActions = await getDocs(nightActionsQuery);
             if (phase === 'night' && !existingNightActions.empty) continue;
+            
+            if (phase === 'hunter_shot' && ai.userId !== game.pendingHunterShot) continue;
 
             const playerRef = await getPlayerRef(game.id, ai.userId);
             if (!playerRef) continue;
@@ -80,21 +82,23 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
 
             if (!actionType || actionType === 'NONE') continue;
 
-            const isValidTarget = (targetId: string) => alivePlayers.some(p => p.userId === targetId);
+            const isValidTarget = (id: string | undefined): id is string => {
+                return !!id && alivePlayers.some(p => p.userId === id);
+            }
 
             switch(actionType) {
                 case 'KILL':
-                    if (phase === 'night' && ai.role === 'werewolf' && targetId && isValidTarget(targetId)) {
+                    if (phase === 'night' && ai.role === 'werewolf' && isValidTarget(targetId)) {
                         await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'werewolf_kill', targetId });
                     }
                     break;
                 case 'CHECK':
-                     if (phase === 'night' && ai.role === 'seer' && targetId && isValidTarget(targetId)) {
+                     if (phase === 'night' && ai.role === 'seer' && isValidTarget(targetId)) {
                         await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'seer_check', targetId });
                     }
                     break;
                 case 'HEAL':
-                     if (phase === 'night' && ai.role === 'doctor' && targetId && isValidTarget(targetId)) {
+                     if (phase === 'night' && ai.role === 'doctor' && isValidTarget(targetId)) {
                          const targetPlayerRef = await getPlayerRef(game.id, targetId);
                          if (targetPlayerRef) {
                             const targetPlayerDoc = await getDoc(targetPlayerRef);
@@ -105,12 +109,12 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
                     }
                     break;
                 case 'VOTE':
-                    if (phase === 'day' && targetId && isValidTarget(targetId)) {
+                    if (phase === 'day' && isValidTarget(targetId)) {
                         await submitVote(gameId, ai.userId, targetId);
                     }
                     break;
                 case 'SHOOT':
-                    if (phase === 'hunter_shot' && ai.userId === game.pendingHunterShot && targetId && isValidTarget(targetId)) {
+                    if (phase === 'hunter_shot' && ai.userId === game.pendingHunterShot && isValidTarget(targetId)) {
                         await submitHunterShot(gameId, ai.userId, targetId);
                     }
                     break;
