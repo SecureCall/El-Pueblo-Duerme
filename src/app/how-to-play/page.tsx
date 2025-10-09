@@ -108,7 +108,7 @@ const lobosRoles = [
     {
         name: 'Maldito',
         Icon: CursedIcon,
-        color: 'text-destructive',
+        color: 'text-orange-500',
         description:
             'Empiezas como un aldeano. No tienes acciones. Sin embargo, si los lobos te atacan, no mueres, sino que te transformas en un Hombre Lobo y te unes a su equipo.',
     },

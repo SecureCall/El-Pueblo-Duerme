@@ -71,8 +71,6 @@ export function DoctorIcon(props: SVGProps<SVGSVGElement>) {
       <path d="M4.93 19.07l1.41-1.41"/>
       <path d="M17.66 6.34l1.41-1.41"/>
       <circle cx="12" cy="12" r="4"/>
-      <path d="M10 12h4"/>
-      <path d="M12 10v4"/>
     </svg>
   );
 }
@@ -123,5 +121,3 @@ export function SkullIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
-
-    

@@ -8,7 +8,7 @@ import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
 import { submitNightAction, getSeerResult, submitCupidAction } from '@/app/actions';
-import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, Sparkles } from 'lucide-react';
+import { Loader2, Heart, FlaskConical, Shield, AlertTriangle } from 'lucide-react';
 import { WolfIcon, PriestIcon } from '../icons';
 import { SeerResult } from './SeerResult';
 import { useNightActions } from '@/hooks/use-night-actions';
@@ -323,5 +323,3 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         </Card>
     );
 }
-
-    

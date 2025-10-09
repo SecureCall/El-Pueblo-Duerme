@@ -128,6 +128,14 @@ const roleDetails: Partial<Record<NonNullable<Player['role']>, RoleDetail>> = {
         color: "text-yellow-200",
         bgImageId: "role-bg-seer"
     },
+    cursed: {
+        name: "Maldito",
+        description: "Empiezas como un aldeano. Si los lobos te atacan, te conviertes en uno de ellos en lugar de morir.",
+        atmosphere: "Una maldición corre por tus venas. Tu destino es incierto.",
+        Icon: WolfIcon,
+        color: "text-orange-600",
+        bgImageId: "role-bg-werewolf"
+    },
 }
 
 const defaultRoleDetail: RoleDetail = {
@@ -188,5 +196,3 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
     </div>
   );
 }
-
-    
