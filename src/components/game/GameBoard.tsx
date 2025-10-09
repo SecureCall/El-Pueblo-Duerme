@@ -46,6 +46,7 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
 
   const handleAcknowledgeRole = async () => {
     setShowRole(false);
+    // Only the creator should trigger the phase change
     if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId) {
         // Add a delay to allow all players to see their roles
         setTimeout(async () => {
