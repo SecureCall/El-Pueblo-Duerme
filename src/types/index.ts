@@ -1,5 +1,6 @@
-import { z } from 'zod';
+
 import type { Timestamp } from 'firebase/firestore';
+import { z } from 'zod';
 
 export type GameStatus = "waiting" | "in_progress" | "finished";
 export type GamePhase = "role_reveal" | "night" | "day" | "voting" | "hunter_shot" | "finished";
@@ -60,20 +61,17 @@ export interface GameEvent {
     createdAt: Timestamp;
 }
 
+// AI Input/Output Types
+// The Zod schemas are defined directly in the server action file to avoid bundling issues.
 
-// AI Schemas and Types
-export const TakeAITurnInputSchema = z.object({
-    game: z.string().describe("A JSON string representing the entire game state object."),
-    players: z.string().describe("A JSON string representing an array of all player objects in the game."),
-    events: z.string().describe("A JSON string representing an array of all game events that have occurred."),
-    currentPlayer: z.string().describe("A JSON string representing the player object for the AI that is taking its turn."),
-});
+export type TakeAITurnInput = {
+    game: string;
+    players: string;
+    events: string;
+    currentPlayer: string;
+};
 
-export type TakeAITurnInput = z.infer<typeof TakeAITurnInputSchema>;
-
-export const TakeAITurnOutputSchema = z.object({
-    reasoning: z.string().describe("Your step-by-step thought process to arrive at this action."),
-    action: z.string().describe("The action to take. Format: 'TYPE:TARGET_ID' or 'TYPE'. Examples: 'VOTE:player123', 'KILL:player456', 'HEAL:player789', 'CHECK:playerABC', 'SHOOT:playerXYZ'. If no action is possible, return 'NONE'."),
-});
-
-export type TakeAITurnOutput = z.infer<typeof TakeAITurnOutputSchema>;
+export type TakeAITurnOutput = {
+    reasoning: string;
+    action: string;
+};
