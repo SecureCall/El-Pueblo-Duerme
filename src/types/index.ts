@@ -30,6 +30,7 @@ export interface Game {
 }
 
 export interface Player {
+  id: string; // The document ID
   userId: string;
   gameId: string;
   role: PlayerRole;
@@ -75,3 +76,5 @@ export type TakeAITurnOutput = {
     reasoning: string;
     action: string;
 };
+
+    

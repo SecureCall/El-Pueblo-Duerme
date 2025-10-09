@@ -1,3 +1,4 @@
+
 "use server";
 
 import { redirect } from "next/navigation";
@@ -22,6 +23,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Game, Player, NightAction, GameEvent } from "@/types";
+import { v4 as uuidv4 } from 'uuid';
 
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -31,6 +33,14 @@ function generateGameId(length = 5) {
   }
   return result;
 }
+
+async function getPlayerRef(gameId: string, userId: string) {
+    const q = query(collection(db, 'players'), where('gameId', '==', gameId), where('userId', '==', userId));
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) return null;
+    return snapshot.docs[0].ref;
+}
+
 
 export async function createGame(
   userId: string,
@@ -66,8 +76,9 @@ export async function createGame(
 
   await setDoc(gameRef, gameData);
 
-  const playerRef = doc(db, "players", `${userId}_${gameId}`);
+  const playerRef = doc(collection(db, "players"));
   const playerData: Player = {
+    id: playerRef.id,
     userId: userId,
     gameId: gameId,
     role: null,
@@ -112,8 +123,9 @@ export async function joinGame(
     players: arrayUnion(userId),
   });
 
-  const playerRef = doc(db, "players", `${userId}_${gameId}`);
+  const playerRef = doc(collection(db, "players"));
   const playerData: Player = {
+    id: playerRef.id,
     userId: userId,
     gameId: gameId,
     role: null,
@@ -170,7 +182,7 @@ export async function startGame(gameId: string, creatorId: string) {
 
         const playersQuery = query(collection(db, 'players'), where('gameId', '==', gameId));
         const playersSnap = await getDocs(playersQuery);
-        const players = playersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as Player }));
+        const players = playersSnap.docs.map(doc => doc.data() as Player);
 
         const humanPlayerCount = players.length;
         let finalPlayers = [...players];
@@ -184,7 +196,9 @@ export async function startGame(gameId: string, creatorId: string) {
                 const aiUserId = `ai_${Date.now()}_${i}`;
                 const aiName = availableAINames[i % availableAINames.length] || `Bot ${i + 1}`;
                 
+                const aiPlayerRef = doc(collection(db, 'players'));
                 const aiPlayerData: Player = {
+                    id: aiPlayerRef.id,
                     userId: aiUserId,
                     gameId: gameId,
                     role: null,
@@ -195,9 +209,8 @@ export async function startGame(gameId: string, creatorId: string) {
                     isAI: true,
                 };
 
-                const aiPlayerRef = doc(db, 'players', `${aiUserId}_${gameId}`);
                 batch.set(aiPlayerRef, aiPlayerData);
-                finalPlayers.push({ id: aiPlayerRef.id, ...aiPlayerData });
+                finalPlayers.push(aiPlayerData);
                 finalPlayerIds.push(aiUserId);
             }
             
@@ -238,10 +251,12 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
     const actionRef = collection(db, 'night_actions');
 
     if (action.actionType === 'doctor_heal') {
-        const targetPlayerRef = doc(db, 'players', `${action.targetId}_${action.gameId}`);
-        const playerDoc = await getDoc(targetPlayerRef);
-        if(playerDoc.exists() && playerDoc.data().lastHealedRound === action.round - 1) {
-            return { success: false, error: "No puedes proteger a la misma persona dos noches seguidas." };
+        const targetPlayerRef = await getPlayerRef(action.gameId, action.targetId);
+        if (targetPlayerRef) {
+            const playerDoc = await getDoc(targetPlayerRef);
+            if(playerDoc.exists() && playerDoc.data().lastHealedRound === action.round - 1) {
+                return { success: false, error: "No puedes proteger a la misma persona dos noches seguidas." };
+            }
         }
     }
     
@@ -272,10 +287,12 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
     });
 
     if (action.actionType === 'doctor_heal') {
-        const targetPlayerRef = doc(db, 'players', `${action.targetId}_${action.gameId}`);
-        await updateDoc(targetPlayerRef, {
-            lastHealedRound: action.round
-        });
+        const targetPlayerRef = await getPlayerRef(action.gameId, action.targetId);
+        if (targetPlayerRef) {
+            await updateDoc(targetPlayerRef, {
+                lastHealedRound: action.round
+            });
+        }
     }
     
     await checkEndNightEarly(action.gameId);
@@ -326,7 +343,7 @@ async function killPlayer(
   if (playerToKill.role === 'hunter') {
     hunterTriggeredId = playerId;
   } else {
-    const playerRef = doc(db, 'players', `${playerId}_${gameId}`);
+    const playerRef = doc(db, 'players', playerToKill.id);
     transaction.update(playerRef, { isAlive: false });
   }
 
@@ -337,7 +354,7 @@ async function killPlayer(
       if (otherLoverPlayer.role === 'hunter') {
          hunterTriggeredId = otherLoverId;
       } else {
-        const otherLoverRef = doc(db, 'players', `${otherLoverId}_${gameId}`);
+        const otherLoverRef = doc(db, 'players', otherLoverPlayer.id);
         transaction.update(otherLoverRef, { isAlive: false });
         killedPlayerIds.push(otherLoverId);
       }
@@ -517,9 +534,11 @@ export async function processNight(gameId: string) {
 
 export async function submitVote(gameId: string, voterId: string, targetId: string) {
     try {
-        const playerRef = doc(db, 'players', `${voterId}_${gameId}`);
-        await updateDoc(playerRef, { votedFor: targetId });
-        await checkEndDayEarly(gameId);
+        const playerRef = await getPlayerRef(gameId, voterId);
+        if (playerRef) {
+            await updateDoc(playerRef, { votedFor: targetId });
+            await checkEndDayEarly(gameId);
+        }
         return { success: true };
     } catch (error) {
         console.error("Error submitting vote: ", error);
@@ -609,14 +628,20 @@ export async function processVotes(gameId: string) {
 
 export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
   try {
-    const seerPlayerRef = doc(db, 'players', `${seerId}_${gameId}`);
+    const seerPlayerRef = await getPlayerRef(gameId, seerId);
+    if (!seerPlayerRef) {
+        throw new Error("Seer player not found");
+    }
     const seerPlayerSnap = await getDoc(seerPlayerRef);
 
     if (!seerPlayerSnap.exists() || seerPlayerSnap.data()?.role !== 'seer') {
       throw new Error("No eres el vidente.");
     }
     
-    const targetPlayerRef = doc(db, 'players', `${targetId}_${gameId}`);
+    const targetPlayerRef = await getPlayerRef(gameId, targetId);
+     if (!targetPlayerRef) {
+        throw new Error("Target player not found");
+    }
     const targetPlayerSnap = await getDoc(targetPlayerRef);
 
     if (!targetPlayerSnap.exists()) {
@@ -656,10 +681,10 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
             const playersSnap = await transaction.get(playersQuery);
             const playersData = playersSnap.docs.map(doc => doc.data() as Player);
 
-            const hunterPlayerRef = doc(db, 'players', `${hunterId}_${gameId}`);
+            const hunterPlayer = playersData.find(p => p.userId === hunterId)!;
+            const hunterPlayerRef = doc(db, 'players', hunterPlayer.id);
             transaction.update(hunterPlayerRef, { isAlive: false });
 
-            const hunterPlayer = playersData.find(p => p.userId === hunterId)!;
             const targetPlayer = playersData.find(p => p.userId === targetId)!;
 
             const hunterEventRef = doc(collection(db, 'game_events'));
@@ -773,3 +798,5 @@ async function checkEndDayEarly(gameId: string) {
         await processVotes(gameId);
     }
 }
+
+    

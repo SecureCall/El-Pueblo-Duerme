@@ -1,3 +1,4 @@
+
 "use server";
 
 import { collection, doc, getDoc, getDocs, query, where, orderBy, type Timestamp } from "firebase/firestore";
@@ -5,6 +6,13 @@ import { db } from "@/lib/firebase";
 import type { Game, Player, GameEvent, TakeAITurnInput } from "@/types";
 import { takeAITurn } from "@/ai/flows/take-ai-turn-flow";
 import { submitNightAction, submitVote, submitHunterShot } from "./actions";
+
+async function getPlayerRef(gameId: string, userId: string) {
+    const q = query(collection(db, 'players'), where('gameId', '==', gameId), where('userId', '==', userId));
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) return null;
+    return snapshot.docs[0].ref;
+}
 
 // Helper to convert Firestore Timestamps to something JSON-serializable (ISO strings)
 const toJSONCompatible = (obj: any): any => {
@@ -47,7 +55,10 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
             const existingNightActions = await getDocs(nightActionsQuery);
             if (phase === 'night' && !existingNightActions.empty) continue;
 
-            const playerDocSnap = await getDoc(doc(db, 'players', `${ai.userId}_${gameId}`));
+            const playerRef = await getPlayerRef(game.id, ai.userId);
+            if (!playerRef) continue;
+
+            const playerDocSnap = await getDoc(playerRef);
             if (phase === 'day' && playerDocSnap.exists() && playerDocSnap.data().votedFor) continue;
 
             const serializableGame = toJSONCompatible(game);
@@ -90,9 +101,12 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
                     break;
                 case 'HEAL':
                      if (phase === 'night' && ai.role === 'doctor') {
-                         const targetPlayerDoc = await getDoc(doc(db, 'players', `${targetId}_${gameId}`));
-                         if (targetPlayerDoc.exists() && targetPlayerDoc.data().lastHealedRound !== game.currentRound - 1) {
-                            await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'doctor_heal', targetId });
+                         const targetPlayerRef = await getPlayerRef(game.id, targetId);
+                         if (targetPlayerRef) {
+                            const targetPlayerDoc = await getDoc(targetPlayerRef);
+                             if (targetPlayerDoc.exists() && targetPlayerDoc.data().lastHealedRound !== game.currentRound - 1) {
+                                await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'doctor_heal', targetId });
+                             }
                          }
                     }
                     break;
@@ -112,3 +126,5 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
         console.error("Error in AI Actions:", e);
     }
 }
+
+    
