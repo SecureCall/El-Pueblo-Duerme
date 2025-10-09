@@ -1,6 +1,6 @@
 "use server";
 
-import { collection, doc, getDoc, getDocs, query, where, orderBy, Timestamp } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, where, orderBy, type Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Game, Player, GameEvent, TakeAITurnInput } from "@/types";
 import { takeAITurn } from "@/ai/flows/take-ai-turn-flow";
@@ -9,13 +9,13 @@ import { submitNightAction, submitVote, submitHunterShot } from "./actions";
 // Helper to convert Firestore Timestamps to something JSON-serializable (ISO strings)
 const toJSONCompatible = (obj: any): any => {
     if (!obj) return obj;
-    if (obj instanceof Timestamp) {
-        return obj.toDate().toISOString();
+    if (obj.constructor.name === 'Timestamp') { // More robust check
+        return (obj as Timestamp).toDate().toISOString();
     }
     if (Array.isArray(obj)) {
         return obj.map(toJSONCompatible);
     }
-    if (typeof obj === 'object' && obj.constructor === Object) {
+    if (typeof obj === 'object' && obj !== null && obj.constructor === Object) {
         const newObj: { [key: string]: any } = {};
         for (const key in obj) {
             if (Object.prototype.hasOwnProperty.call(obj, key)) {
