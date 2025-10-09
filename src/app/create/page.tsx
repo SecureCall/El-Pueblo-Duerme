@@ -3,7 +3,7 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
 
 export default function CreateGamePage() {
-    const bgImage = PlaceHolderImages.find((img) => img.id === 'home-background');
+    const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
     return (
         <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 overflow-hidden">
             {bgImage && (

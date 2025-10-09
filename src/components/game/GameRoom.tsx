@@ -33,7 +33,9 @@ export function GameRoom({ gameId }: { gameId: string }) {
     setIsJoining(false);
   };
   
-  const bgImage = PlaceHolderImages.find((img) => img.id === 'home-background');
+  const isNight = !game || game.phase === 'night' || game.phase === 'role_reveal' || game.phase === 'hunter_shot' || game.status === 'waiting';
+  const bgImageId = isNight ? 'game-bg-night' : 'game-bg-day';
+  const bgImage = PlaceHolderImages.find((img) => img.id === bgImageId);
 
   const renderContent = () => {
     if (loading || !isSessionLoaded) {
@@ -81,14 +83,15 @@ export function GameRoom({ gameId }: { gameId: string }) {
   };
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4">
+    <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 overflow-hidden">
        {bgImage && (
         <Image
           src={bgImage.imageUrl}
           alt={bgImage.description}
           fill
-          className="object-cover z-0"
+          className="object-cover z-0 transition-opacity duration-1000"
           data-ai-hint={bgImage.imageHint}
+          key={bgImage.id}
         />
       )}
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />

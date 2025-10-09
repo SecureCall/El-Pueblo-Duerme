@@ -60,7 +60,7 @@ const roles = [
 ];
 
 export default function HowToPlayPage() {
-    const bgImage = PlaceHolderImages.find((img) => img.id === 'home-background');
+    const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
 
     return (
         <div className="relative min-h-screen w-full flex flex-col items-center p-4 overflow-y-auto">

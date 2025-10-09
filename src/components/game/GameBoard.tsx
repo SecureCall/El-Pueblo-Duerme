@@ -12,7 +12,7 @@ import { NightActions } from "./NightActions";
 import { processNight, runAIActions } from "@/app/actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
-import { HeartIcon } from "lucide-react";
+import { HeartIcon, Moon, Sun } from "lucide-react";
 import { HunterShot } from "./HunterShot";
 import { GameChronicle } from "./GameChronicle";
 import { PhaseTimer } from "./PhaseTimer";
@@ -93,6 +93,14 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     }
   }
 
+  const getPhaseIcon = () => {
+      switch(game.phase) {
+          case 'night': return <Moon className="h-8 w-8" />;
+          case 'day': return <Sun className="h-8 w-8 text-yellow-300" />;
+          default: return null;
+      }
+  }
+
   const isLover = !!game.lovers?.includes(currentPlayer.userId);
   const otherLoverId = isLover ? game.lovers!.find(id => id !== currentPlayer.userId) : null;
   const otherLover = otherLoverId ? players.find(p => p.userId === otherLoverId) : null;
@@ -103,7 +111,8 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
        <Card className="text-center bg-card/80">
         <CardHeader className="flex flex-row items-center justify-between p-4 relative">
-          <div className="flex-1">
+          <div className="flex-1 flex justify-center items-center gap-4">
+             {getPhaseIcon()}
             <CardTitle className="font-headline text-3xl">
               {getPhaseTitle()}
             </CardTitle>
@@ -111,7 +120,9 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
           {game.phase === 'night' && game.status === 'in_progress' && (
             <PhaseTimer duration={30} onTimerEnd={handleTimerEnd} gameId={game.id} round={game.currentRound} />
           )}
-          <GameChronicle events={events} />
+          <div className='absolute right-4 top-1/2 -translate-y-1/2'>
+            <GameChronicle events={events} />
+          </div>
         </CardHeader>
       </Card>
       
