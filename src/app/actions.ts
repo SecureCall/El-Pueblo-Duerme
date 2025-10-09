@@ -16,6 +16,7 @@ import {
   addDoc,
   increment,
   runTransaction,
+  Transaction,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Game, Player, NightAction, GameEvent } from "@/types";
@@ -38,7 +39,7 @@ export async function createGame(
   const gameId = generateGameId();
   const gameRef = doc(db, "games", gameId);
 
-  const werewolfCount = Math.max(1, Math.floor(maxPlayers / 4));
+  const werewolfCount = Math.max(1, Math.floor(maxPlayers / 5));
 
   const gameData: Game = {
     id: gameId,
@@ -216,39 +217,68 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
   }
 }
 
+async function checkGameOver(gameId: string, transaction: Transaction): Promise<boolean> {
+    const gameRef = doc(db, 'games', gameId);
+    const playersQuery = query(collection(db, 'players'), where('gameId', '==', gameId));
+    
+    // This needs to be a regular getDocs, not inside the transaction, because we need player roles.
+    const playersSnap = await getDocs(playersQuery);
+    const players = playersSnap.docs.map(doc => doc.data() as Player);
+
+    const alivePlayers = players.filter(p => p.isAlive);
+    const aliveWerewolves = alivePlayers.filter(p => p.role === 'werewolf');
+    const aliveVillagers = alivePlayers.filter(p => p.role !== 'werewolf');
+
+    let gameOver = false;
+    let message = "";
+
+    if (aliveWerewolves.length === 0) {
+        gameOver = true;
+        message = "¡El pueblo ha ganado! Todos los hombres lobo han sido eliminados.";
+    } else if (aliveWerewolves.length >= aliveVillagers.length) {
+        gameOver = true;
+        message = "¡Los hombres lobo han ganado! Han superado en número a los aldeanos.";
+    }
+
+    if (gameOver) {
+        transaction.update(gameRef, { status: 'finished', phase: 'finished' });
+        const logRef = doc(collection(db, 'game_events'));
+        transaction.set(logRef, {
+            gameId,
+            round: (await transaction.get(gameRef)).data()?.currentRound,
+            type: 'game_over',
+            message: message,
+            createdAt: Timestamp.now(),
+        });
+    }
+
+    return gameOver;
+}
+
 export async function processNight(gameId: string) {
     const gameRef = doc(db, 'games', gameId);
     
     try {
         await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) {
-                throw new Error("Game not found!");
-            }
+            if (!gameSnap.exists()) throw new Error("Game not found!");
             const game = gameSnap.data() as Game;
 
-            // Prevent re-processing
-            if (game.phase !== 'night') {
-                return;
-            }
+            if (game.phase !== 'night' || game.status !== 'in_progress') return;
 
             const actionsQuery = query(collection(db, 'night_actions'),
                 where('gameId', '==', gameId),
                 where('round', '==', game.currentRound)
             );
-            const actionsSnap = await getDocs(actionsQuery);
+            const actionsSnap = await getDocs(actionsQuery); // Not in transaction
             const actions = actionsSnap.docs.map(doc => doc.data() as NightAction);
 
             let killedPlayerId: string | null = null;
             let savedPlayerId: string | null = null;
 
-            // 1. Process Doctor's action
             const doctorAction = actions.find(a => a.actionType === 'doctor_heal');
-            if (doctorAction) {
-                savedPlayerId = doctorAction.targetId;
-            }
+            if (doctorAction) savedPlayerId = doctorAction.targetId;
 
-            // 2. Process Werewolves' action
             const werewolfVotes = actions.filter(a => a.actionType === 'werewolf_kill');
             if (werewolfVotes.length > 0) {
                 const voteCounts = werewolfVotes.reduce((acc, vote) => {
@@ -267,54 +297,48 @@ export async function processNight(gameId: string) {
                     }
                 }
                 
-                // In case of a tie, one of the tied players is chosen randomly.
                 if (mostVotedPlayerIds.length > 0) {
                     killedPlayerId = mostVotedPlayerIds[Math.floor(Math.random() * mostVotedPlayerIds.length)];
                 }
             }
 
             let eventLogMessage = "La noche transcurre en un inquietante silencio.";
-            const playersToUpdate: { ref: any, data: any }[] = [];
+            let playerWasKilled = false;
 
-            // 3. Determine final outcome and update player status
             if (killedPlayerId && killedPlayerId !== savedPlayerId) {
+                playerWasKilled = true;
                 const playerRef = doc(db, 'players', `${killedPlayerId}_${gameId}`);
-                playersToUpdate.push({ ref: playerRef, data: { isAlive: false } });
+                transaction.update(playerRef, { isAlive: false });
 
-                const killedPlayerSnap = await transaction.get(playerRef);
-                const killedPlayerName = killedPlayerSnap.data()?.displayName || 'Un jugador';
+                const killedPlayerDoc = await getDoc(playerRef); // Not in transaction
+                const killedPlayerName = killedPlayerDoc.data()?.displayName || 'Un jugador';
                 eventLogMessage = `${killedPlayerName} fue atacado en la noche y no ha sobrevivido.`;
             } else if (killedPlayerId && killedPlayerId === savedPlayerId) {
                 eventLogMessage = "Se escuchó un grito en la noche, ¡pero el doctor llegó justo a tiempo!";
             }
             
-            // 4. Create event log for the night's result
             const logRef = doc(collection(db, 'game_events'));
             transaction.set(logRef, {
                 gameId,
                 round: game.currentRound,
                 type: 'night_result',
                 message: eventLogMessage,
-                data: { killedPlayerId: killedPlayerId && killedPlayerId !== savedPlayerId ? killedPlayerId : null, savedPlayerId },
+                data: { killedPlayerId: playerWasKilled ? killedPlayerId : null, savedPlayerId },
                 createdAt: Timestamp.now(),
             });
 
-            // 5. Update players in transaction
-            for (const p of playersToUpdate) {
-                transaction.update(p.ref, p.data);
+            if (playerWasKilled) {
+                const isGameOver = await checkGameOver(gameId, transaction);
+                if (isGameOver) return;
             }
 
-            // 6. Reset votes for the new day
             const playersQuery = query(collection(db, 'players'), where('gameId', '==', gameId));
             const playersSnap = await getDocs(playersQuery);
             playersSnap.forEach(playerDoc => {
                 transaction.update(playerDoc.ref, { votedFor: null });
             });
 
-            // 7. Transition to next phase
-            transaction.update(gameRef, { 
-                phase: 'day',
-            });
+            transaction.update(gameRef, { phase: 'day' });
         });
         return { success: true };
     } catch (error) {
@@ -344,10 +368,10 @@ export async function processVotes(gameId: string) {
             if (!gameSnap.exists()) throw new Error("Game not found");
             const game = gameSnap.data() as Game;
 
-            if (game.phase !== 'day') return;
+            if (game.phase !== 'day' || game.status !== 'in_progress') return;
 
             const playersQuery = query(collection(db, 'players'), where('gameId', '==', gameId), where('isAlive', '==', true));
-            const playersSnap = await getDocs(playersQuery);
+            const playersSnap = await getDocs(playersQuery); // Not in transaction
             const alivePlayers = playersSnap.docs.map(doc => doc.data() as Player);
 
             const voteCounts: Record<string, number> = {};
@@ -370,12 +394,15 @@ export async function processVotes(gameId: string) {
 
             let lynchedPlayerId: string | null = null;
             let eventMessage: string;
+            let playerWasLynched = false;
 
             if (mostVotedPlayerIds.length === 1 && maxVotes > 0) {
                 lynchedPlayerId = mostVotedPlayerIds[0];
+                playerWasLynched = true;
                 const playerRef = doc(db, 'players', `${lynchedPlayerId}_${gameId}`);
-                const lynchedPlayerSnap = await transaction.get(playerRef);
-                const lynchedPlayerName = lynchedPlayerSnap.data()?.displayName || 'Alguien';
+                
+                const lynchedPlayerDoc = await getDoc(playerRef); // Not in transaction
+                const lynchedPlayerName = lynchedPlayerDoc.data()?.displayName || 'Alguien';
                 
                 transaction.update(playerRef, { isAlive: false });
                 eventMessage = `El pueblo ha decidido. ${lynchedPlayerName} ha sido linchado.`;
@@ -395,6 +422,11 @@ export async function processVotes(gameId: string) {
                 data: { lynchedPlayerId },
                 createdAt: Timestamp.now(),
             });
+            
+            if (playerWasLynched) {
+                const isGameOver = await checkGameOver(gameId, transaction);
+                if (isGameOver) return;
+            }
             
             transaction.update(gameRef, {
                 phase: 'night',

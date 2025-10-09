@@ -24,13 +24,13 @@ export function DayPhase({ game, players, currentPlayer, nightEvent }: DayPhaseP
     const { toast } = useToast();
 
     const hasVoted = !!currentPlayer.votedFor;
-    const allPlayersVoted = players.every(p => !!p.votedFor);
+    const allPlayersVoted = players.every(p => !!p.votedFor || !p.isAlive);
 
     useEffect(() => {
-        if (allPlayersVoted && currentPlayer.userId === game.creator) {
+        if (allPlayersVoted && currentPlayer.userId === game.creator && game.status === 'in_progress' && game.phase === 'day') {
             processVotes(game.id);
         }
-    }, [allPlayersVoted, currentPlayer.userId, game.creator, game.id]);
+    }, [allPlayersVoted, currentPlayer.userId, game.creator, game.id, game.status, game.phase]);
 
 
     const handlePlayerSelect = (player: Player) => {

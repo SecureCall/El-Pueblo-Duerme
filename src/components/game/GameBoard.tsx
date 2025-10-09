@@ -10,6 +10,7 @@ import { db } from "@/lib/firebase";
 import { NightActions } from "./NightActions";
 import { processNight } from "@/app/actions";
 import { DayPhase } from "./DayPhase";
+import { GameOver } from "./GameOver";
 
 interface GameBoardProps {
   game: Game;
@@ -44,21 +45,26 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
   
    useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (game.phase === 'night' && game.creator === currentPlayer.userId) {
+    if (game.phase === 'night' && game.creator === currentPlayer.userId && game.status === 'in_progress') {
         // Give players 30 seconds to perform their actions
         timer = setTimeout(async () => {
             await processNight(game.id);
         }, 30000); // 30 seconds
     }
     return () => clearTimeout(timer);
-  }, [game.phase, game.id, game.currentRound, game.creator, currentPlayer.userId]);
+  }, [game.phase, game.id, game.currentRound, game.creator, currentPlayer.userId, game.status]);
+  
+  if (game.status === 'finished') {
+    const gameOverEvent = events.find(e => e.type === 'game_over');
+    return <GameOver event={gameOverEvent} players={players} />;
+  }
 
   if (showRole && currentPlayer.role) {
     return <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />;
   }
 
   const alivePlayers = players.filter(p => p.isAlive);
-  const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound - 1);
+  const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound -1);
 
   const getPhaseTitle = () => {
