@@ -3,6 +3,7 @@ import type { SVGProps } from 'react';
 import { Shield, Ghost, Sparkles, BookHeart, User, Crown, Siren, Eye, Zap, VolumeX, Users2, BookCopy, ChevronsRight, HeartHandshake, FlaskConical, BriefcaseMedical, CircleUser, Fingerprint, Anchor, Droplets, UserRoundX, Ear } from 'lucide-react';
 
 
+export const Users = Users2;
 export const GuardianIcon = Shield;
 export const GhostIcon = Ghost;
 export const PriestIcon = Sparkles;
@@ -29,7 +30,7 @@ export const FishermanIcon = Anchor;
 export const VampireIcon = Droplets;
 export const WitchIcon = UserRoundX;
 export const BansheeIcon = Ear;
-export const Users = Users2;
+
 
 
 export function WolfIcon(props: SVGProps<SVGSVGElement>) {
@@ -122,4 +123,3 @@ export function SkullIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
-
