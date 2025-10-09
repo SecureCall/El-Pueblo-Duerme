@@ -235,6 +235,14 @@ export async function startGame(gameId: string, creatorId: string) {
 export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 'round'> & { round: number }) {
   try {
     const actionRef = collection(db, 'night_actions');
+
+    if (action.actionType === 'doctor_heal') {
+        const targetPlayerRef = doc(db, 'players', `${action.targetId}_${action.gameId}`);
+        const playerDoc = await getDoc(targetPlayerRef);
+        if(playerDoc.exists() && playerDoc.data().lastHealedRound === action.round - 1) {
+            return { success: false, error: "No puedes proteger a la misma persona dos noches seguidas." };
+        }
+    }
     
     // Check for existing action for this player and round to prevent duplicates
     const q = query(actionRef, 
@@ -264,12 +272,9 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
 
     if (action.actionType === 'doctor_heal') {
         const targetPlayerRef = doc(db, 'players', `${action.targetId}_${action.gameId}`);
-        const playerDoc = await getDoc(targetPlayerRef);
-        if(playerDoc.exists()) {
-            await updateDoc(targetPlayerRef, {
-                lastHealedRound: action.round
-            });
-        }
+        await updateDoc(targetPlayerRef, {
+            lastHealedRound: action.round
+        });
     }
     
     await checkEndNightEarly(action.gameId);
