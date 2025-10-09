@@ -88,7 +88,8 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
             
              const isValidMultiTarget = (ids: string | undefined): ids is string => {
                 if (!ids) return false;
-                return ids.split('|').every(id => isValidTarget(id) || players.some(p => p.userId === id)); // Cupid can pick self
+                // For Cupid, target can be self, who might be dead if shot.
+                return ids.split('|').every(id => players.some(p => p.userId === id));
             }
 
             switch(actionType) {
@@ -104,8 +105,8 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
                     break;
                 case 'HEAL':
                      if (phase === 'night' && ai.role === 'doctor' && isValidTarget(targetData)) {
-                        const targetPlayerDoc = await getDoc(doc(db, 'players', players.find(p => p.userId === targetData)!.id));
-                         if (targetPlayerDoc.exists() && targetPlayerDoc.data().lastHealedRound !== game.currentRound - 1) {
+                        const targetPlayer = players.find(p => p.userId === targetData);
+                         if (targetPlayer && targetPlayer.lastHealedRound !== game.currentRound - 1) {
                             await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'doctor_heal', targetId: targetData });
                          }
                     }
@@ -134,7 +135,9 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
                 case 'ENCHANT':
                     if (phase === 'night' && ai.role === 'cupid' && game.currentRound === 1 && isValidMultiTarget(targetData)) {
                         const [target1Id, target2Id] = targetData.split('|');
-                        await submitCupidAction(gameId, ai.userId, target1Id, target2Id);
+                        if (target1Id && target2Id) {
+                            await submitCupidAction(gameId, ai.userId, target1Id, target2Id);
+                        }
                     }
                     break;
                 case 'VOTE':

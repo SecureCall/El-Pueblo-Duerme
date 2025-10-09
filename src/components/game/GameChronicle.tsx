@@ -12,7 +12,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ScrollText, SunIcon, MoonIcon, Swords, Milestone } from 'lucide-react';
+import { ScrollText, SunIcon, MoonIcon, Swords, Milestone, Repeat } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -29,6 +29,8 @@ function getEventIcon(type: GameEvent['type']) {
         case 'lover_death':
         case 'hunter_shot':
             return <Swords className="h-4 w-4 text-destructive" />;
+        case 'player_transformed':
+            return <Repeat className="h-4 w-4 text-orange-400" />;
         case 'game_over':
              return <Milestone className="h-4 w-4 text-yellow-500" />;
         default:

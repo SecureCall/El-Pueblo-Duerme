@@ -765,7 +765,7 @@ export async function processVotes(gameId: string) {
                 const potentialLynchedId = mostVotedPlayerIds[0];
                 const lynchedPlayer = playersData.find(p => p.userId === potentialLynchedId)!;
                 
-                if (lynchedPlayerIsPrince(potentialLynchedId)) {
+                if (lynchedPlayerIsPrince(potentialLynchedId) && !lynchedPlayer.princeRevealed) {
                     eventMessage = `${lynchedPlayer.displayName} ha sido sentenciado, pero revela su identidad como ¡el Príncipe! y sobrevive a la votación.`;
                     const playerRef = doc(db, 'players', lynchedPlayer.id);
                     transaction.update(playerRef, { princeRevealed: true });
