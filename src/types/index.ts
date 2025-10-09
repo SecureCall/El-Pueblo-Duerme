@@ -12,23 +12,24 @@ export type PlayerRole =
   "hunter" | 
   "cupid" |
   "guardian" |
-  "ghost" |
   "priest" |
-  "virginia_woolf" |
-  "leper" |
   "prince" |
   "lycanthrope" |
-  "river_mermaid" |
-  "lookout" |
-  "troublemaker" |
-  "silencer" |
   "twin" |
-  "seer_apprentice" |
-  "elder_leader" |
   "hechicera" |
   // Lobos (Rojo)
   "werewolf" |
   "wolf_cub" |
+  // Unused for now
+  "ghost" |
+  "virginia_woolf" |
+  "leper" |
+  "river_mermaid" |
+  "lookout" |
+  "troublemaker" |
+  "silencer" |
+  "seer_apprentice" |
+  "elder_leader" |
   "seeker_fairy" |
   "cursed" |
   "sleeping_fairy" |
@@ -59,7 +60,6 @@ export interface Game {
     // Basic roles
     seer: boolean;
     doctor: boolean;
-// Roles especiales
     hunter: boolean;
     cupid: boolean;
     hechicera: boolean;
@@ -67,27 +67,8 @@ export interface Game {
     prince: boolean;
     twin: boolean;
     guardian: boolean;
-    ghost: boolean;
     priest: boolean;
-    virginia_woolf: boolean;
-    leper: boolean;
-    river_mermaid: boolean;
-    lookout: boolean;
-    troublemaker: boolean;
-    silencer: boolean;
-    seer_apprentice: boolean;
-    elder_leader: boolean;
     wolf_cub: boolean;
-    seeker_fairy: boolean;
-    cursed: boolean;
-    sleeping_fairy: boolean;
-    shapeshifter: boolean;
-    drunk_man: boolean;
-    cult_leader: boolean;
-    fisherman: boolean;
-    vampire: boolean;
-    witch: boolean;
-    banshee: boolean;
   };
   phaseEndsAt?: Timestamp;
   lovers?: [string, string];
@@ -111,9 +92,10 @@ export interface Player {
     poison?: number, // round it was used
     save?: number, // round it was used
   }
+  priestSelfHealUsed?: boolean;
 }
 
-export type NightActionType = "werewolf_kill" | "seer_check" | "doctor_heal" | "cupid_enchant" | "hechicera_poison" | "hechicera_save" | "guardian_protect";
+export type NightActionType = "werewolf_kill" | "seer_check" | "doctor_heal" | "cupid_enchant" | "hechicera_poison" | "hechicera_save" | "guardian_protect" | "priest_bless";
 
 export interface NightAction {
     gameId: string;
@@ -147,3 +129,5 @@ export type TakeAITurnOutput = {
     reasoning: string;
     action: string;
 };
+
+    

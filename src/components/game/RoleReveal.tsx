@@ -4,7 +4,7 @@
 import type { Player } from "@/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
-import { DoctorIcon, HunterIcon, SeerIcon, VillagerIcon, WolfIcon, CupidIcon, HechiceraIcon, LycanthropeIcon, PrinceIcon, TwinIcon } from "../icons";
+import { DoctorIcon, HunterIcon, SeerIcon, VillagerIcon, WolfIcon, CupidIcon, HechiceraIcon, LycanthropeIcon, PrinceIcon, TwinIcon, GuardianIcon, PriestIcon } from "../icons";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
@@ -28,6 +28,14 @@ const roleDetails: Partial<Record<NonNullable<Player['role']>, RoleDetail>> = {
         name: "Hombre Lobo",
         description: "Cada noche, tú y tus compañeros lobos elegís a un aldeano para eliminar. Durante el día, debéis haceros pasar por aldeanos inocentes.",
         atmosphere: "La luna llena es tu guía. La caza ha comenzado.",
+        Icon: WolfIcon,
+        color: "text-destructive",
+        bgImageId: "role-bg-werewolf"
+    },
+    wolf_cub: {
+        name: "Cría de Lobo",
+        description: "Eres un lobo, pero si mueres, la noche siguiente los lobos podrán matar a dos jugadores.",
+        atmosphere: "Tu pérdida desatará la furia de la manada.",
         Icon: WolfIcon,
         color: "text-destructive",
         bgImageId: "role-bg-werewolf"
@@ -104,6 +112,22 @@ const roleDetails: Partial<Record<NonNullable<Player['role']>, RoleDetail>> = {
         color: "text-blue-300",
         bgImageId: "role-bg-villager" // Placeholder
     },
+    guardian: {
+        name: "Guardián",
+        description: "Cada noche, eliges a un jugador para protegerlo. Ese jugador no podrá ser asesinado por los lobos. No puedes protegerte a ti mismo.",
+        atmosphere: "Tu escudo es la última esperanza para los inocentes.",
+        Icon: GuardianIcon,
+        color: "text-gray-300",
+        bgImageId: "role-bg-doctor"
+    },
+    priest: {
+        name: "Sacerdote",
+        description: "Cada noche, bendices a un jugador, protegiéndolo de todo mal. Solo puedes bendecirte a ti mismo una vez por partida.",
+        atmosphere: "Tu fe es un escudo impenetrable contra la oscuridad.",
+        Icon: PriestIcon,
+        color: "text-yellow-200",
+        bgImageId: "role-bg-seer"
+    },
 }
 
 const defaultRoleDetail: RoleDetail = {
@@ -164,3 +188,5 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
     </div>
   );
 }
+
+    

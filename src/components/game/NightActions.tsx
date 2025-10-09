@@ -8,8 +8,8 @@ import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
 import { submitNightAction, getSeerResult, submitCupidAction } from '@/app/actions';
-import { Loader2, Heart, FlaskConical, Shield, AlertTriangle } from 'lucide-react';
-import { WolfIcon } from '../icons';
+import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, Sparkles } from 'lucide-react';
+import { WolfIcon, PriestIcon } from '../icons';
 import { SeerResult } from './SeerResult';
 import { useNightActions } from '@/hooks/use-night-actions';
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
@@ -72,6 +72,10 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             toast({ variant: 'destructive', title: 'Regla del Guardián', description: 'No puedes protegerte a ti mismo.' });
             return;
         }
+        if (currentPlayer.role === 'priest' && player.userId === currentPlayer.userId && currentPlayer.priestSelfHealUsed) {
+            toast({ variant: 'destructive', title: 'Regla del Sacerdote', description: 'Ya te has bendecido a ti mismo una vez.' });
+            return;
+        }
 
 
         setSelectedPlayerIds(prev => {
@@ -97,6 +101,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             case 'seer': return 'seer_check';
             case 'doctor': return 'doctor_heal';
             case 'guardian': return 'guardian_protect';
+            case 'priest': return 'priest_bless';
             case 'cupid': return 'cupid_enchant';
             case 'hechicera':
                 if (hechiceraAction === 'poison') return 'hechicera_poison';
@@ -133,6 +138,10 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         if (actionType === 'guardian_protect' && selectedPlayerIds[0] === currentPlayer.userId) {
              toast({ variant: 'destructive', title: 'Regla del Guardián', description: 'No puedes protegerte a ti mismo.' });
              return;
+        }
+        if (actionType === 'priest_bless' && selectedPlayerIds[0] === currentPlayer.userId && currentPlayer.priestSelfHealUsed) {
+            toast({ variant: 'destructive', title: 'Regla del Sacerdote', description: 'Ya te has bendecido a ti mismo una vez.' });
+            return;
         }
 
         setIsSubmitting(true);
@@ -182,6 +191,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             case 'seer': return 'Elige a un jugador para descubrir su identidad.';
             case 'doctor': return 'Elige a un jugador para proteger esta noche.';
             case 'guardian': return 'Elige a un jugador para proteger esta noche.';
+            case 'priest': return 'Elige a un jugador para otorgarle tu bendición y protegerlo de todo mal.';
             case 'cupid': return game.currentRound === 1 ? 'Elige a dos jugadores para que se enamoren.' : 'Tu flecha ya ha unido dos corazones.';
             case 'hechicera': return (hasPoison || hasSavePotion) ? 'Elige una poción y un objetivo.' : 'Has usado todas tus pociones.';
             default: return 'No tienes acciones esta noche. Espera al amanecer.';
@@ -251,6 +261,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         currentPlayer.role === 'seer' || 
         currentPlayer.role === 'doctor' ||
         currentPlayer.role === 'guardian' ||
+        currentPlayer.role === 'priest' ||
         isCupidFirstNight ||
         (isHechicera && (hasPoison || hasSavePotion))
     );
@@ -279,8 +290,10 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                                 if (isCupidFirstNight) return true;
                                 if (isWerewolfTeam) return p.role !== 'werewolf' && p.role !== 'wolf_cub';
                                 if (p.userId === currentPlayer.userId) {
-                                    // Allow self-selection only for Hechicera with save potion
-                                    return currentPlayer.role === 'hechicera' && hechiceraAction === 'save';
+                                    // Allow self-selection for Hechicera (save) and Priest (once)
+                                    if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save') return true;
+                                    if (currentPlayer.role === 'priest' && !currentPlayer.priestSelfHealUsed) return true;
+                                    return false;
                                 }
                                 return true;
                             })}

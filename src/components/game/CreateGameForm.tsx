@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { FlaskConical, Crown, Fingerprint, Users2, Loader2, HelpCircle, Heart, Shield, Ghost, Sparkles, BookHeart, User, Siren, Eye, Zap, VolumeX, BookCopy, ChevronsRight, Anchor, Droplets, UserRoundX, Ear } from "lucide-react";
+import { FlaskConical, Crown, Fingerprint, Users2, Loader2, HelpCircle, Heart, Shield, Sparkles } from "lucide-react";
 
 
 import { useGameSession } from "@/hooks/use-game-session";
@@ -29,7 +29,7 @@ import { Switch } from "../ui/switch";
 import { Label } from "../ui/label";
 import { Checkbox } from "../ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
-import { WolfIcon } from "../icons";
+import { WolfIcon, HunterIcon, SeerIcon, DoctorIcon, PriestIcon } from "../icons";
 
 const FormSchema = z.object({
   gameName: z.string().min(3, { message: "El nombre de la partida debe tener al menos 3 caracteres." }).max(30),
@@ -46,39 +46,21 @@ const FormSchema = z.object({
   prince: z.boolean(),
   twin: z.boolean(),
   guardian: z.boolean(),
-  ghost: z.boolean(),
   priest: z.boolean(),
-  virginia_woolf: z.boolean(),
-  leper: z.boolean(),
-  river_mermaid: z.boolean(),
-  lookout: z.boolean(),
-  troublemaker: z.boolean(),
-  silencer: z.boolean(),
-  seer_apprentice: z.boolean(),
-  elder_leader: z.boolean(),
   wolf_cub: z.boolean(),
-  seeker_fairy: z.boolean(),
-  cursed: z.boolean(),
-  sleeping_fairy: z.boolean(),
-  shapeshifter: z.boolean(),
-  drunk_man: z.boolean(),
-  cult_leader: z.boolean(),
-  fisherman: z.boolean(),
-  vampire: z.boolean(),
-  witch: z.boolean(),
-  banshee: z.boolean(),
 });
 
 const specialRoles = [
-  { id: 'seer', label: 'Vidente', Icon: Eye, description: 'Descubre el rol de un jugador cada noche.' },
-  { id: 'doctor', label: 'Doctor', Icon: Shield, description: 'Protege a un jugador del ataque de los lobos.' },
+  { id: 'seer', label: 'Vidente', Icon: SeerIcon, description: 'Descubre el rol de un jugador cada noche.' },
+  { id: 'doctor', label: 'Doctor', Icon: DoctorIcon, description: 'Protege a un jugador del ataque de los lobos. No puede curar a la misma persona 2 noches seguidas.' },
   { id: 'hechicera', label: 'Hechicera', Icon: FlaskConical, description: 'Usa una poción de vida y una de muerte.' },
-  { id: 'hunter', label: 'Cazador', Icon: User, description: 'Al morir, puede llevarse a otro jugador consigo.' },
+  { id: 'hunter', label: 'Cazador', Icon: HunterIcon, description: 'Al morir, puede llevarse a otro jugador consigo.' },
   { id: 'prince', label: 'Príncipe', Icon: Crown, description: 'Inmune a ser linchado por votación.' },
   { id: 'lycanthrope', label: 'Licántropo', Icon: Fingerprint, description: 'Un aldeano que la vidente ve como lobo.' },
   { id: 'twin', label: 'Gemelas', Icon: Users2, description: 'Dos jugadores que se conocen y son aliados.' },
   { id: 'cupid', label: 'Cupido', Icon: Heart, description: 'Enamora a dos jugadores la primera noche.' },
   { id: 'guardian', label: 'Guardián', Icon: Shield, description: 'Protege a un jugador del ataque de los lobos. No puede protegerse a sí mismo.' },
+  { id: 'priest', label: 'Sacerdote', Icon: PriestIcon, description: 'Bendice a un jugador, protegiéndolo de cualquier ataque nocturno.' },
   { id: 'wolf_cub', label: 'Cría de Lobo', Icon: WolfIcon, description: 'Si muere, los lobos matan a dos la noche siguiente.' },
 ] as const;
 
@@ -105,27 +87,8 @@ export function CreateGameForm() {
       prince: true,
       twin: true,
       guardian: true,
-      ghost: false,
-      priest: false,
-      virginia_woolf: false,
-      leper: false,
-      river_mermaid: false,
-      lookout: false,
-      troublemaker: false,
-      silencer: false,
-      seer_apprentice: false,
-      elder_leader: false,
-      wolf_cub: false,
-      seeker_fairy: false,
-      cursed: false,
-      sleeping_fairy: false,
-      shapeshifter: false,
-      drunk_man: false,
-      cult_leader: false,
-      fisherman: false,
-      vampire: false,
-      witch: false,
-      banshee: false,
+      priest: true,
+      wolf_cub: true,
     },
   });
 
@@ -282,3 +245,5 @@ export function CreateGameForm() {
     </Card>
   );
 }
+
+    

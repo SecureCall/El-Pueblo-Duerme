@@ -157,6 +157,7 @@ const generateRoles = (playerCount: number, settings: Game['settings']) => {
       roles.push('twin'); // Add the second twin
     }
     if (settings.guardian) roles.push('guardian');
+    if (settings.priest) roles.push('priest');
     
     // Fill remaining spots with villagers
     while (roles.length < playerCount) {
@@ -314,6 +315,10 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
     if (action.actionType === 'guardian_protect' && action.targetId === action.playerId) {
         return { success: false, error: "No puedes protegerte a ti mismo." };
     }
+
+    if (action.actionType === 'priest_bless' && action.targetId === action.playerId && player.priestSelfHealUsed) {
+        return { success: false, error: "Ya te has bendecido a ti mismo una vez." };
+    }
     
     // Check for existing action for this player and round to prevent duplicates
     const q = query(actionRef, 
@@ -360,6 +365,12 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
     if (action.actionType === 'hechicera_save') {
         batch.update(playerRef, {
             "potions.save": action.round
+        });
+    }
+
+    if (action.actionType === 'priest_bless' && action.targetId === action.playerId) {
+        batch.update(playerRef, {
+            priestSelfHealUsed: true
         });
     }
 
@@ -541,6 +552,7 @@ export async function processNight(gameId: string) {
             let savedByDoctorId: string | null = null;
             let savedByHechiceraId: string | null = null;
             let savedByGuardianId: string | null = null;
+            let savedByPriestId: string | null = null;
             let nightKillResults: { killedIds: string[], hunterId: string | null }[] = [];
 
             const doctorAction = actions.find(a => a.actionType === 'doctor_heal');
@@ -551,6 +563,9 @@ export async function processNight(gameId: string) {
             
             const guardianAction = actions.find(a => a.actionType === 'guardian_protect');
             if (guardianAction) savedByGuardianId = guardianAction.targetId;
+
+            const priestAction = actions.find(a => a.actionType === 'priest_bless');
+            if (priestAction) savedByPriestId = priestAction.targetId;
 
             const werewolfVotes = actions.filter(a => a.actionType === 'werewolf_kill');
             if (werewolfVotes.length > 0) {
@@ -590,11 +605,14 @@ export async function processNight(gameId: string) {
             }
 
             let messages: string[] = [];
-            const finalSavedPlayerIds = [savedByDoctorId, savedByHechiceraId, savedByGuardianId].filter(Boolean) as string[];
-            
+            // Priest save is absolute
+            const finalSavedPlayerIds = [savedByDoctorId, savedByHechiceraId, savedByGuardianId].filter(id => id && id !== savedByPriestId).filter(Boolean) as string[];
+
             // Process werewolf attacks
             for (const killedId of killedByWerewolfIds) {
-                if (finalSavedPlayerIds.includes(killedId)) {
+                if (killedId === savedByPriestId) {
+                     messages.push("Una bendición ha protegido a un aldeano de un destino fatal.");
+                } else if (finalSavedPlayerIds.includes(killedId)) {
                     messages.push("Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!");
                 } else {
                     const killedPlayer = playersData.find(p => p.userId === killedId)!;
@@ -605,19 +623,28 @@ export async function processNight(gameId: string) {
             }
 
             // Process poison attack
-            if (killedByPoisonId && !killedByWerewolfIds.includes(killedByPoisonId) && !finalSavedPlayerIds.includes(killedByPoisonId)) {
-                 const killedPlayer = playersData.find(p => p.userId === killedByPoisonId)!;
-                 messages.push(`${killedPlayer.displayName} ha muerto misteriosamente, víctima de un veneno.`);
-                 const result = await killPlayer(transaction, gameId, killedPlayer.userId, game, playersData);
-                 nightKillResults.push(result);
+            if (killedByPoisonId && !killedByWerewolfIds.includes(killedByPoisonId)) {
+                if (killedByPoisonId === savedByPriestId) {
+                    messages.push("Una bendición ha protegido a un aldeano de un veneno mortal.");
+                } else if (finalSavedPlayerIds.includes(killedByPoisonId)) {
+                     // Technically, only priest can save from poison based on rules. But lets make save potion work too.
+                    messages.push("La poción de una hechicera ha salvado a alguien de un veneno.");
+                }
+                 else {
+                    const killedPlayer = playersData.find(p => p.userId === killedByPoisonId)!;
+                    messages.push(`${killedPlayer.displayName} ha muerto misteriosamente, víctima de un veneno.`);
+                    const result = await killPlayer(transaction, gameId, killedPlayer.userId, game, playersData);
+                    nightKillResults.push(result);
+                }
             }
 
             if (messages.length === 0) {
                 messages.push("La noche transcurre en un inquietante silencio.");
             }
             
-            const killedWerewolfTargets = killedByWerewolfIds.filter(id => !finalSavedPlayerIds.includes(id));
-            const killedPoisonTarget = (killedByPoisonId && !killedByWerewolfIds.includes(killedByPoisonId) && !finalSavedPlayerIds.includes(killedByPoisonId)) ? killedByPoisonId : null;
+            const allProtectedIds = [savedByPriestId, ...finalSavedPlayerIds];
+            const killedWerewolfTargets = killedByWerewolfIds.filter(id => !allProtectedIds.includes(id));
+            const killedPoisonTarget = (killedByPoisonId && !killedByWerewolfIds.includes(killedByPoisonId) && !allProtectedIds.includes(killedByPoisonId)) ? killedByPoisonId : null;
 
             const logRef = doc(collection(db, 'game_events'));
             transaction.set(logRef, {
@@ -628,7 +655,7 @@ export async function processNight(gameId: string) {
                 data: { 
                     killedByWerewolfIds: killedWerewolfTargets,
                     killedByPoisonId: killedPoisonTarget,
-                    savedPlayerIds: finalSavedPlayerIds,
+                    savedPlayerIds: allProtectedIds,
                 },
                 createdAt: Timestamp.now(),
             });
@@ -920,6 +947,11 @@ async function checkEndNightEarly(gameId: string) {
         if (guardian) requiredPlayerIds.add(guardian.userId);
     }
 
+    if (game.settings.priest) {
+        const priest = alivePlayers.find(p => p.role === 'priest');
+        if (priest) requiredPlayerIds.add(priest.userId);
+    }
+
     if (game.currentRound === 1 && game.settings.cupid) {
         const cupid = alivePlayers.find(p => p.role === 'cupid');
         if (cupid) requiredPlayerIds.add(cupid.userId);
@@ -970,7 +1002,5 @@ async function checkEndDayEarly(gameId: string) {
         await processVotes(gameId);
     }
 }
-
-  
 
     
