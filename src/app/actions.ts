@@ -605,12 +605,22 @@ export async function processVotes(gameId: string) {
             let eventMessage: string;
             let voteKillResult: { killedIds: string[], hunterId: string | null } = { killedIds: [], hunterId: null };
 
+            const lynchedPlayerIsPrince = async (playerId: string) => {
+                const player = playersData.find(p => p.userId === playerId);
+                return player?.role === 'prince' && game.settings.prince;
+            };
 
             if (mostVotedPlayerIds.length === 1 && maxVotes > 0) {
                 lynchedPlayerId = mostVotedPlayerIds[0];
                 const lynchedPlayer = playersData.find(p => p.userId === lynchedPlayerId)!;
-                eventMessage = `El pueblo ha decidido. ${lynchedPlayer.displayName} ha sido linchado.`;
-                voteKillResult = await killPlayer(transaction, gameId, lynchedPlayer.userId, game, playersData);
+                
+                if (await lynchedPlayerIsPrince(lynchedPlayerId)) {
+                    eventMessage = `${lynchedPlayer.displayName} ha sido sentenciado, pero revela su identidad como ¡el Príncipe! y sobrevive a la votación.`;
+                    lynchedPlayerId = null; // Prevent killing
+                } else {
+                    eventMessage = `El pueblo ha decidido. ${lynchedPlayer.displayName} ha sido linchado.`;
+                    voteKillResult = await killPlayer(transaction, gameId, lynchedPlayer.userId, game, playersData);
+                }
 
             } else if (mostVotedPlayerIds.length > 1) {
                 eventMessage = "La votación resultó en un empate. Nadie fue linchado hoy.";
@@ -671,7 +681,7 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
     }
 
     const targetPlayer = targetPlayerSnap.data() as Player;
-    const isWerewolf = targetPlayer.role === 'werewolf';
+    const isWerewolf = targetPlayer.role === 'werewolf' || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope);
 
     return { 
         success: true, 

@@ -59,13 +59,13 @@ export interface Game {
     // Basic roles
     seer: boolean;
     doctor: boolean;
-    hunter: boolean;
+there: boolean;
     cupid: boolean;
     // Expanded roles
-    hechicera?: boolean;
-    lycanthrope?: boolean;
-    prince?: boolean;
-    twin?: boolean;
+    hechicera: boolean;
+    lycanthrope: boolean;
+    prince: boolean;
+    twin: boolean;
   };
   phaseEndsAt?: Timestamp;
   lovers?: [string, string];
