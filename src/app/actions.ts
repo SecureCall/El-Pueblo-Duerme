@@ -441,8 +441,10 @@ async function killPlayer(
   return { killedIds: killedPlayerIds, hunterId: null };
 }
 
-async function checkGameOver(gameId: string, transaction: Transaction, lovers?: [string, string]): Promise<boolean> {
+async function checkGameOver(gameId: string, transaction: Transaction): Promise<boolean> {
     const gameRef = doc(db, 'games', gameId);
+    const gameData = (await transaction.get(gameRef)).data() as Game;
+
     const playersQuery = query(collection(db, 'players'), where('gameId', '==', gameId));
     
     const playersSnap = await transaction.get(playersQuery);
@@ -457,15 +459,15 @@ async function checkGameOver(gameId: string, transaction: Transaction, lovers?: 
     let winners: string[] = [];
 
     // 1. Check for Lovers' victory first, as it's a special condition.
-    if (lovers) {
-        const aliveLovers = alivePlayers.filter(p => lovers.includes(p.userId));
+    if (gameData.lovers) {
+        const aliveLovers = alivePlayers.filter(p => gameData.lovers!.includes(p.userId));
         // If the only players left alive are the lovers, they win.
         if (aliveLovers.length === alivePlayers.length && alivePlayers.length >= 2) {
             gameOver = true;
-            const lover1 = players.find(p => p.userId === lovers[0]);
-            const lover2 = players.find(p => p.userId === lovers[1]);
+            const lover1 = players.find(p => p.userId === gameData.lovers![0]);
+            const lover2 = players.find(p => p.userId === gameData.lovers![1]);
             message = `¡Los enamorados han ganado! Desafiando a sus bandos, ${lover1?.displayName} y ${lover2?.displayName} han triunfado solos contra el mundo.`;
-            winners = lovers;
+            winners = gameData.lovers;
         }
     }
     
@@ -486,7 +488,6 @@ async function checkGameOver(gameId: string, transaction: Transaction, lovers?: 
     }
 
     if (gameOver) {
-        const gameData = (await transaction.get(gameRef)).data()
         transaction.update(gameRef, { status: 'finished', phase: 'finished' });
         const logRef = doc(collection(db, 'game_events'));
         transaction.set(logRef, {
@@ -607,7 +608,7 @@ export async function processNight(gameId: string) {
             if (nightKillResult.hunterId) return; 
 
             if (nightKillResult.killedIds.length > 0) {
-                 const isGameOver = await checkGameOver(gameId, transaction, game.lovers);
+                 const isGameOver = await checkGameOver(gameId, transaction);
                  if (isGameOver) return;
             }
 
@@ -712,7 +713,7 @@ export async function processVotes(gameId: string) {
             if (voteKillResult.hunterId) return;
 
             if (voteKillResult.killedIds.length > 0) {
-                 const isGameOver = await checkGameOver(gameId, transaction, game.lovers);
+                 const isGameOver = await checkGameOver(gameId, transaction);
                  if (isGameOver) return;
             }
             
@@ -816,7 +817,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
                 return; // End transaction here, the next hunter will trigger a new one
             }
 
-            const isGameOver = await checkGameOver(gameId, transaction, game.lovers);
+            const isGameOver = await checkGameOver(gameId, transaction);
             if (isGameOver) return;
             
             // This logic needs to know if the hunter died during the day or night

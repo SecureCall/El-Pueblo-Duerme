@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { FlaskConical, Crown, Fingerprint, Users2, Loader2, HelpCircle } from "lucide-react";
+import { FlaskConical, Crown, Fingerprint, Users2, Loader2, HelpCircle, Heart } from "lucide-react";
 
 import { useGameSession } from "@/hooks/use-game-session";
 import { createGame } from "@/app/actions";
@@ -51,6 +51,7 @@ const specialRoles = [
   { id: 'prince', label: 'Príncipe', Icon: Crown, description: 'Inmune a ser linchado por votación.' },
   { id: 'lycanthrope', label: 'Licántropo', Icon: Fingerprint, description: 'Un aldeano que la vidente ve como lobo.' },
   { id: 'twin', label: 'Gemelas', Icon: Users2, description: 'Dos jugadores que se conocen y son aliados.' },
+  { id: 'cupid', label: 'Cupido', Icon: Heart, description: 'Enamora a dos jugadores la primera noche.' },
 ] as const;
 
 

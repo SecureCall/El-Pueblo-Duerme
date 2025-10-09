@@ -241,6 +241,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                         <PlayerGrid 
                             players={players.filter(p => {
                                 if (p.userId === currentPlayer.userId && hechiceraAction === 'save') return true;
+                                if (isCupidFirstNight) return true;
                                 if (p.userId === currentPlayer.userId) return false;
                                 if (currentPlayer.role === 'werewolf') return p.role !== 'werewolf';
                                 return true;
