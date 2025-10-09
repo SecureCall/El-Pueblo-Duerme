@@ -80,7 +80,7 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
   const alivePlayers = players.filter(p => p.isAlive);
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
-  const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound -1);
+  const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
 
   const getPhaseTitle = () => {
     switch(game.phase) {
