@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { startGame } from "@/app/actions";
 import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useGameSession } from "@/hooks/use-game-session";
 
 interface StartGameButtonProps {
   gameId: string;
@@ -14,11 +15,12 @@ interface StartGameButtonProps {
 export function StartGameButton({ gameId, playerCount }: StartGameButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const { userId } = useGameSession();
   const canStart = playerCount >= 3;
 
   const handleStartGame = async () => {
     setIsLoading(true);
-    const result = await startGame(gameId, ""); // creatorId check is on server
+    const result = await startGame(gameId, userId); // creatorId check is on server
     if (result.error) {
       toast({
         variant: "destructive",
