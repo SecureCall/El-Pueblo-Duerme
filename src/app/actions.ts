@@ -778,27 +778,6 @@ async function checkEndDayEarly(gameId: string) {
     }
 }
 
-// Helper to convert Firestore Timestamps to something JSON-serializable (ISO strings)
-const toJSONCompatible = (obj: any): any => {
-    if (!obj) return obj;
-    if (obj instanceof Timestamp) {
-        return obj.toDate().toISOString();
-    }
-    if (Array.isArray(obj)) {
-        return obj.map(toJSONCompatible);
-    }
-    if (typeof obj === 'object' && obj.constructor === Object) {
-        const newObj: { [key: string]: any } = {};
-        for (const key in obj) {
-            if (Object.prototype.hasOwnProperty.call(obj, key)) {
-                newObj[key] = toJSONCompatible(obj[key]);
-            }
-        }
-        return newObj;
-    }
-    return obj;
-};
-
 export async function runAIActions(gameId: string, phase: Game['phase']) {
     try {
         const gameDoc = await getDoc(doc(db, 'games', gameId));
@@ -883,3 +862,24 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
         console.error("Error in AI Actions:", e);
     }
 }
+
+// Helper to convert Firestore Timestamps to something JSON-serializable (ISO strings)
+const toJSONCompatible = (obj: any): any => {
+    if (!obj) return obj;
+    if (obj instanceof Timestamp) {
+        return obj.toDate().toISOString();
+    }
+    if (Array.isArray(obj)) {
+        return obj.map(toJSONCompatible);
+    }
+    if (typeof obj === 'object' && obj.constructor === Object) {
+        const newObj: { [key: string]: any } = {};
+        for (const key in obj) {
+            if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                newObj[key] = toJSONCompatible(obj[key]);
+            }
+        }
+        return newObj;
+    }
+    return obj;
+};
