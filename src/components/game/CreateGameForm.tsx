@@ -29,7 +29,7 @@ import { Switch } from "../ui/switch";
 import { Label } from "../ui/label";
 import { Checkbox } from "../ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
-import { WolfIcon, HunterIcon, SeerIcon, DoctorIcon, PriestIcon } from "../icons";
+import { WolfIcon, HunterIcon, SeerIcon, DoctorIcon, PriestIcon, LycanthropeIcon } from "../icons";
 
 const FormSchema = z.object({
   gameName: z.string().min(3, { message: "El nombre de la partida debe tener al menos 3 caracteres." }).max(30),
@@ -57,7 +57,7 @@ const specialRoles = [
   { id: 'hechicera', label: 'Hechicera', Icon: FlaskConical, description: 'Usa una poción de vida y una de muerte.' },
   { id: 'hunter', label: 'Cazador', Icon: HunterIcon, description: 'Al morir, puede llevarse a otro jugador consigo.' },
   { id: 'prince', label: 'Príncipe', Icon: Crown, description: 'Inmune a ser linchado por votación.' },
-  { id: 'lycanthrope', label: 'Licántropo', Icon: Fingerprint, description: 'Un aldeano que la vidente ve como lobo.' },
+  { id: 'lycanthrope', label: 'Licántropo', Icon: LycanthropeIcon, description: 'Un aldeano que la vidente ve como lobo.' },
   { id: 'twin', label: 'Gemelas', Icon: Users2, description: 'Dos jugadores que se conocen y son aliados.' },
   { id: 'cupid', label: 'Cupido', Icon: Heart, description: 'Enamora a dos jugadores la primera noche.' },
   { id: 'guardian', label: 'Guardián', Icon: Shield, description: 'Protege a un jugador del ataque de los lobos. No puede protegerse a sí mismo.' },
@@ -248,3 +248,5 @@ export function CreateGameForm() {
     </Card>
   );
 }
+
+    
