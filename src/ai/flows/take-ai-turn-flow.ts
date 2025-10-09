@@ -15,7 +15,7 @@ export const TakeAITurnInputSchema = z.object({
 
 export const TakeAITurnOutputSchema = z.object({
     reasoning: z.string().describe("Your step-by-step thought process to arrive at this action."),
-    action: z.string().describe("The action to take. Format: 'TYPE:TARGET_ID' or 'TYPE:TARGET_ID1|TARGET_ID2' or 'TYPE'. Examples: 'VOTE:player123', 'KILL:player456', 'KILL:player456|player789', 'HEAL:player789', 'CHECK:playerABC', 'SHOOT:playerXYZ', 'POISON:player111', 'SAVE:player222', 'PROTECT:player333'. If no action is possible, return 'NONE'."),
+    action: z.string().describe("The action to take. Format: 'TYPE:TARGET_ID' or 'TYPE:TARGET_ID1|TARGET_ID2' or 'TYPE'. Examples: 'VOTE:player123', 'KILL:player456', 'KILL:player456|player789', 'HEAL:player789', 'CHECK:playerABC', 'SHOOT:playerXYZ', 'POISON:player111', 'SAVE:player222', 'PROTECT:player333', 'ENCHANT:playerABC|playerDEF'. If no action is possible, return 'NONE'."),
 });
 
 export async function takeAITurn(input: TakeAITurnInput): Promise<TakeAITurnOutput> {
