@@ -370,14 +370,17 @@ async function checkGameOver(gameId: string, transaction: Transaction, lovers?: 
     let gameOver = false;
     let message = "";
 
+    // 1. Check for Lovers' victory first, as it's a special condition.
     if (lovers) {
         const aliveLovers = alivePlayers.filter(p => lovers.includes(p.userId));
-        if (aliveLovers.length === 2 && alivePlayers.length === 2) {
+        // If the only players left alive are the lovers, they win.
+        if (aliveLovers.length === alivePlayers.length && alivePlayers.length >= 2) {
             gameOver = true;
-            message = `¡Los enamorados han ganado! Desafiando a sus bandos, ${aliveLovers[0].displayName} y ${aliveLovers[1].displayName} han triunfado solos.`;
+            message = `¡Los enamorados han ganado! Desafiando a sus bandos, ${aliveLovers[0].displayName} y ${aliveLovers[1].displayName} han triunfado solos contra el mundo.`;
         }
     }
     
+    // 2. If lovers haven't won, check for other conditions.
     if (!gameOver) {
         if (aliveWerewolves.length === 0) {
             gameOver = true;
@@ -390,7 +393,6 @@ async function checkGameOver(gameId: string, transaction: Transaction, lovers?: 
             message = "¡Nadie ha sobrevivido a la masacre!";
         }
     }
-
 
     if (gameOver) {
         const gameData = (await transaction.get(gameRef)).data()
@@ -767,7 +769,7 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
         for (const ai of aiPlayers) {
              const nightActionsQuery = query(collection(db, 'night_actions'), where('gameId', '==', gameId), where('round', '==', game.currentRound), where('playerId', '==', ai.userId));
             const existingActions = await getDocs(nightActionsQuery);
-            if (!existingActions.empty) continue; // AI has already acted this round
+            if (!existingActions.empty && phase === 'night') continue; // AI has already acted this round
 
             if (phase === 'night') {
                 const aliveTargets = alivePlayers.filter(p => p.userId !== ai.userId);
@@ -788,10 +790,15 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
                         break;
                     }
                     case 'doctor': {
-                        const healableTargets = aliveTargets.filter(p => p.lastHealedRound !== game.currentRound -1);
+                        // AI Doctor will try to heal someone other than who was healed last round
+                        const healableTargets = aliveTargets.filter(p => p.lastHealedRound !== game.currentRound - 1);
                         if (healableTargets.length > 0) {
                             const target = healableTargets[Math.floor(Math.random() * healableTargets.length)];
-                             await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'doctor_heal', targetId: target.userId });
+                            await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'doctor_heal', targetId: target.userId });
+                        } else if (aliveTargets.length > 0) {
+                            // Fallback if all have been healed recently (unlikely)
+                            const target = aliveTargets[Math.floor(Math.random() * aliveTargets.length)];
+                            await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'doctor_heal', targetId: target.userId });
                         }
                         break;
                     }
