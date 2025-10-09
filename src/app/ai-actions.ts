@@ -17,14 +17,13 @@ async function getPlayerRef(gameId: string, userId: string) {
 // Helper to convert Firestore Timestamps to something JSON-serializable (ISO strings)
 const toJSONCompatible = (obj: any): any => {
     if (!obj) return obj;
-    // Changed the check to be more robust. `constructor.name` can be unreliable after minification.
-    if ('toDate' in obj && typeof obj.toDate === 'function') {
-        return (obj as Timestamp).toDate().toISOString();
+    if (typeof obj.toDate === 'function') {
+        return obj.toDate().toISOString();
     }
     if (Array.isArray(obj)) {
         return obj.map(toJSONCompatible);
     }
-    if (typeof obj === 'object' && obj !== null && obj.constructor === Object) {
+    if (typeof obj === 'object' && obj !== null) {
         const newObj: { [key: string]: any } = {};
         for (const key in obj) {
             if (Object.prototype.hasOwnProperty.call(obj, key)) {
