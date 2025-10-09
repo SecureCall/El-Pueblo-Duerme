@@ -1,3 +1,5 @@
+"use server";
+
 import { redirect } from "next/navigation";
 import {
   collection,
@@ -36,7 +38,6 @@ export async function createGame(
   maxPlayers: number,
   fillWithAI: boolean
 ) {
-  "use server";
   const gameId = generateGameId();
   const gameRef = doc(db, "games", gameId);
 
@@ -85,7 +86,6 @@ export async function joinGame(
   userId: string,
   displayName: string
 ) {
-  "use server";
   const gameRef = doc(db, "games", gameId);
   const gameSnap = await getDoc(gameRef);
 
@@ -147,7 +147,6 @@ const generateRoles = (playerCount: number, settings: Game['settings']) => {
 const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
 
 export async function startGame(gameId: string, creatorId: string) {
-    "use server";
     const gameRef = doc(db, 'games', gameId);
     const batch = writeBatch(db);
 
@@ -234,7 +233,6 @@ export async function startGame(gameId: string, creatorId: string) {
 }
 
 export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 'round'> & { round: number }) {
-  "use server";
   try {
     const actionRef = collection(db, 'night_actions');
 
@@ -289,7 +287,6 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
 }
 
 export async function submitCupidAction(gameId: string, cupidId: string, target1Id: string, target2Id: string) {
-    "use server";
     try {
         const gameRef = doc(db, 'games', gameId);
         await updateDoc(gameRef, {
@@ -426,7 +423,6 @@ async function checkGameOver(gameId: string, transaction: Transaction, lovers?: 
 }
 
 export async function processNight(gameId: string) {
-    "use server";
     const gameRef = doc(db, 'games', gameId);
     
     try {
@@ -519,7 +515,6 @@ export async function processNight(gameId: string) {
 
 
 export async function submitVote(gameId: string, voterId: string, targetId: string) {
-    "use server";
     try {
         const playerRef = doc(db, 'players', `${voterId}_${gameId}`);
         await updateDoc(playerRef, { votedFor: targetId });
@@ -532,7 +527,6 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
 }
 
 export async function processVotes(gameId: string) {
-    "use server";
     const gameRef = doc(db, 'games', gameId);
     
     try {
@@ -613,7 +607,6 @@ export async function processVotes(gameId: string) {
 }
 
 export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
-  "use server";
   try {
     const seerPlayerRef = doc(db, 'players', `${seerId}_${gameId}`);
     const seerPlayerSnap = await getDoc(seerPlayerRef);
@@ -646,7 +639,6 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
 
 
 export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
-    "use server";
     const gameRef = doc(db, 'games', gameId);
 
     try {

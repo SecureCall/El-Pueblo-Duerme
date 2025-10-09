@@ -1,4 +1,3 @@
-
 "use server";
 
 import { collection, doc, getDoc, getDocs, query, where, orderBy, Timestamp } from "firebase/firestore";
@@ -29,7 +28,6 @@ const toJSONCompatible = (obj: any): any => {
 };
 
 export async function runAIActions(gameId: string, phase: Game['phase']) {
-    "use server";
     try {
         const gameDoc = await getDoc(doc(db, 'games', gameId));
         if (!gameDoc.exists()) return;
