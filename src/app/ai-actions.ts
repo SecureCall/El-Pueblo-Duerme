@@ -16,14 +16,14 @@ async function getPlayerRef(gameId: string, userId: string) {
 
 // Helper to convert Firestore Timestamps to something JSON-serializable (ISO strings)
 const toJSONCompatible = (obj: any): any => {
-    if (!obj) return obj;
+    if (obj === null || obj === undefined) return obj;
     if (typeof obj.toDate === 'function') {
         return obj.toDate().toISOString();
     }
     if (Array.isArray(obj)) {
         return obj.map(toJSONCompatible);
     }
-    if (typeof obj === 'object' && obj !== null) {
+    if (typeof obj === 'object') {
         const newObj: { [key: string]: any } = {};
         for (const key in obj) {
             if (Object.prototype.hasOwnProperty.call(obj, key)) {
@@ -48,6 +48,7 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
         const events = eventsSnap.docs.map(e => e.data() as GameEvent);
 
         const aiPlayers = players.filter(p => p.isAI && p.isAlive);
+        const alivePlayers = players.filter(p => p.isAlive);
 
         for (const ai of aiPlayers) {
              const nightActionsQuery = query(collection(db, 'night_actions'), where('gameId', '==', gameId), where('round', '==', game.currentRound), where('playerId', '==', ai.userId));
@@ -77,29 +78,23 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
 
             const [actionType, targetId] = aiResult.action.split(':');
 
-            if (!actionType || actionType === 'NONE' || !targetId) continue;
+            if (!actionType || actionType === 'NONE') continue;
 
-            const alivePlayers = players.filter(p => p.isAlive);
-            const validTarget = alivePlayers.some(p => p.userId === targetId);
-
-            if (!validTarget && actionType !== 'NONE') {
-                console.log(`AI (${ai.displayName}) chose an invalid target: ${targetId}. Skipping turn.`);
-                continue;
-            }
+            const isValidTarget = (targetId: string) => alivePlayers.some(p => p.userId === targetId);
 
             switch(actionType) {
                 case 'KILL':
-                    if (phase === 'night' && ai.role === 'werewolf') {
+                    if (phase === 'night' && ai.role === 'werewolf' && targetId && isValidTarget(targetId)) {
                         await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'werewolf_kill', targetId });
                     }
                     break;
                 case 'CHECK':
-                     if (phase === 'night' && ai.role === 'seer') {
+                     if (phase === 'night' && ai.role === 'seer' && targetId && isValidTarget(targetId)) {
                         await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'seer_check', targetId });
                     }
                     break;
                 case 'HEAL':
-                     if (phase === 'night' && ai.role === 'doctor') {
+                     if (phase === 'night' && ai.role === 'doctor' && targetId && isValidTarget(targetId)) {
                          const targetPlayerRef = await getPlayerRef(game.id, targetId);
                          if (targetPlayerRef) {
                             const targetPlayerDoc = await getDoc(targetPlayerRef);
@@ -110,12 +105,12 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
                     }
                     break;
                 case 'VOTE':
-                    if (phase === 'day') {
+                    if (phase === 'day' && targetId && isValidTarget(targetId)) {
                         await submitVote(gameId, ai.userId, targetId);
                     }
                     break;
                 case 'SHOOT':
-                    if (phase === 'hunter_shot' && ai.userId === game.pendingHunterShot) {
+                    if (phase === 'hunter_shot' && ai.userId === game.pendingHunterShot && targetId && isValidTarget(targetId)) {
                         await submitHunterShot(gameId, ai.userId, targetId);
                     }
                     break;
@@ -125,5 +120,3 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
         console.error("Error in AI Actions:", e);
     }
 }
-
-    
