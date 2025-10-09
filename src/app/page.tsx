@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { JoinGameForm } from '@/components/JoinGameForm';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
+import { BookOpen } from 'lucide-react';
 
 export default function Home() {
   const bgImage = PlaceHolderImages.find((img) => img.id === 'home-background');
@@ -31,6 +32,9 @@ export default function Home() {
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full max-w-md">
           <Button asChild size="lg" className="w-full sm:w-auto flex-1 font-bold text-lg">
             <Link href="/create">Crear Nueva Partida</Link>
+          </Button>
+          <Button asChild size="lg" variant="outline" className="w-full sm:w-auto text-foreground">
+             <Link href="/how-to-play"><BookOpen className="mr-2 h-5 w-5"/> Cómo Jugar</Link>
           </Button>
         </div>
         

@@ -2,7 +2,7 @@ import type { Timestamp } from "firebase/firestore";
 
 export type GameStatus = "waiting" | "in_progress" | "finished";
 export type GamePhase = "role_reveal" | "night" | "day" | "voting";
-export type PlayerRole = "werewolf" | "villager" | "seer" | "doctor" | "hunter" | null;
+export type PlayerRole = "werewolf" | "villager" | "seer" | "doctor" | "hunter" | "cupid" | null;
 
 export interface Game {
   id: string;
