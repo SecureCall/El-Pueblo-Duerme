@@ -20,6 +20,7 @@ export interface Game {
     doctor: boolean;
     hunter: boolean;
   };
+  phaseEndsAt?: Timestamp;
 }
 
 export interface Player {
@@ -30,4 +31,15 @@ export interface Player {
   votedFor: string | null; // userId
   displayName: string;
   joinedAt: Timestamp;
+}
+
+export type NightActionType = "werewolf_kill" | "seer_check" | "doctor_heal" | "cupid_enchant";
+
+export interface NightAction {
+    gameId: string;
+    round: number;
+    playerId: string; // The player performing the action
+    actionType: NightActionType;
+    targetId: string; // The player targeted by the action
+    createdAt: Timestamp;
 }
