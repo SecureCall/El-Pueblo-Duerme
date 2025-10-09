@@ -21,6 +21,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Game, Player, NightAction, GameEvent } from "@/types";
+import { takeAITurn, TakeAITurnInput } from "@/ai/flows/take-ai-turn-flow";
 
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -374,6 +375,7 @@ async function checkGameOver(gameId: string, transaction: Transaction, lovers?: 
 
     let gameOver = false;
     let message = "";
+    let winners: string[] = [];
 
     // 1. Check for Lovers' victory first, as it's a special condition.
     if (lovers) {
@@ -384,6 +386,7 @@ async function checkGameOver(gameId: string, transaction: Transaction, lovers?: 
             const lover1 = players.find(p => p.userId === lovers[0]);
             const lover2 = players.find(p => p.userId === lovers[1]);
             message = `¡Los enamorados han ganado! Desafiando a sus bandos, ${lover1?.displayName} y ${lover2?.displayName} han triunfado solos contra el mundo.`;
+            winners = lovers;
         }
     }
     
@@ -392,9 +395,11 @@ async function checkGameOver(gameId: string, transaction: Transaction, lovers?: 
         if (aliveWerewolves.length === 0) {
             gameOver = true;
             message = "¡El pueblo ha ganado! Todos los hombres lobo han sido eliminados.";
+            winners = aliveVillagers.map(p => p.userId);
         } else if (aliveWerewolves.length >= aliveVillagers.length) {
             gameOver = true;
             message = "¡Los hombres lobo han ganado! Han superado en número a los aldeanos.";
+            winners = aliveWerewolves.map(p => p.userId);
         } else if (alivePlayers.length === 0) {
             gameOver = true;
             message = "¡Nadie ha sobrevivido a la masacre!";
@@ -410,6 +415,7 @@ async function checkGameOver(gameId: string, transaction: Transaction, lovers?: 
             round: gameData?.currentRound,
             type: 'game_over',
             message: message,
+            data: { winners },
             createdAt: Timestamp.now(),
         });
     }
@@ -771,6 +777,27 @@ async function checkEndDayEarly(gameId: string) {
     }
 }
 
+// Helper to convert Firestore Timestamps to ISO strings for JSON serialization
+const toJSONCompatible = (obj: any): any => {
+    if (!obj) return obj;
+    if (obj instanceof Timestamp) {
+        return obj.toDate().toISOString();
+    }
+    if (Array.isArray(obj)) {
+        return obj.map(toJSONCompatible);
+    }
+    if (typeof obj === 'object' && obj.constructor === Object) {
+        const newObj: { [key: string]: any } = {};
+        for (const key in obj) {
+            if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                newObj[key] = toJSONCompatible(obj[key]);
+            }
+        }
+        return newObj;
+    }
+    return obj;
+};
+
 export async function runAIActions(gameId: string, phase: Game['phase']) {
     try {
         const gameDoc = await getDoc(doc(db, 'games', gameId));
@@ -780,63 +807,75 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
         const playersSnap = await getDocs(query(collection(db, 'players'), where('gameId', '==', gameId)));
         const players = playersSnap.docs.map(p => p.data() as Player);
         
+        const eventsSnap = await getDocs(query(collection(db, 'game_events'), where('gameId', '==', gameId), orderBy('createdAt', 'asc')));
+        const events = eventsSnap.docs.map(e => e.data() as GameEvent);
+
         const aiPlayers = players.filter(p => p.isAI && p.isAlive);
-        const alivePlayers = players.filter(p => p.isAlive);
 
         for (const ai of aiPlayers) {
              const nightActionsQuery = query(collection(db, 'night_actions'), where('gameId', '==', gameId), where('round', '==', game.currentRound), where('playerId', '==', ai.userId));
-            const existingActions = await getDocs(nightActionsQuery);
-            if (!existingActions.empty && phase === 'night') continue; // AI has already acted this round
+            const existingNightActions = await getDocs(nightActionsQuery);
+            if (phase === 'night' && !existingNightActions.empty) continue;
 
-            if (phase === 'night') {
-                const aliveTargets = alivePlayers.filter(p => p.userId !== ai.userId);
-                if (aliveTargets.length === 0) continue;
+            const playerDocSnap = await getDoc(doc(db, 'players', `${ai.userId}_${gameId}`));
+            if (phase === 'day' && playerDocSnap.exists() && playerDocSnap.data().votedFor) continue;
 
-                switch (ai.role) {
-                    case 'werewolf': {
-                        const villagers = aliveTargets.filter(p => p.role !== 'werewolf');
-                        const target = villagers.length > 0 
-                            ? villagers[Math.floor(Math.random() * villagers.length)]
-                            : aliveTargets[Math.floor(Math.random() * aliveTargets.length)];
-                        await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'werewolf_kill', targetId: target.userId });
-                        break;
-                    }
-                    case 'seer': {
-                        const target = aliveTargets[Math.floor(Math.random() * aliveTargets.length)];
-                        await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'seer_check', targetId: target.userId });
-                        break;
-                    }
-                    case 'doctor': {
-                        // AI Doctor will try to heal someone other than who was healed last round
-                        const healableTargets = aliveTargets.filter(p => p.lastHealedRound !== game.currentRound - 1);
-                        if (healableTargets.length > 0) {
-                            const target = healableTargets[Math.floor(Math.random() * healableTargets.length)];
-                            await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'doctor_heal', targetId: target.userId });
-                        } else if (aliveTargets.length > 0) {
-                            // Fallback if all have been healed recently (unlikely)
-                            const target = aliveTargets[Math.floor(Math.random() * aliveTargets.length)];
-                            await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'doctor_heal', targetId: target.userId });
-                        }
-                        break;
-                    }
-                }
-            } else if (phase === 'day') {
-                const playerDocSnap = await getDoc(doc(db, 'players', `${ai.userId}_${gameId}`));
-                if (!playerDocSnap.exists()) continue;
-                const playerDoc = playerDocSnap.data() as Player;
-                if (playerDoc.votedFor) continue;
+            const serializableGame = toJSONCompatible(game);
+            const serializablePlayers = toJSONCompatible(players);
+            const serializableEvents = toJSONCompatible(events);
+            const serializableCurrentPlayer = toJSONCompatible(ai);
 
-                const aliveTargets = alivePlayers.filter(p => p.userId !== ai.userId);
-                if (aliveTargets.length > 0) {
-                    const target = aliveTargets[Math.floor(Math.random() * aliveTargets.length)];
-                    await submitVote(gameId, ai.userId, target.userId);
-                }
-            } else if (phase === 'hunter_shot' && ai.userId === game.pendingHunterShot) {
-                 const aliveTargets = alivePlayers.filter(p => p.userId !== ai.userId);
-                 if (aliveTargets.length > 0) {
-                    const target = aliveTargets[Math.floor(Math.random() * aliveTargets.length)];
-                    await submitHunterShot(gameId, ai.userId, target.userId);
-                 }
+            const aiInput: TakeAITurnInput = {
+                game: serializableGame,
+                players: serializablePlayers,
+                events: serializableEvents,
+                currentPlayer: serializableCurrentPlayer,
+            };
+
+            const aiResult = await takeAITurn(aiInput);
+            console.log(`AI (${ai.displayName} as ${ai.role}) action: ${aiResult.action}. Reasoning: ${aiResult.reasoning}`);
+
+            const [actionType, targetId] = aiResult.action.split(':');
+
+            if (!actionType || actionType === 'NONE' || !targetId) continue;
+
+            const alivePlayers = players.filter(p => p.isAlive);
+            const validTarget = alivePlayers.some(p => p.userId === targetId);
+
+            if (!validTarget && actionType !== 'NONE') {
+                console.log(`AI (${ai.displayName}) chose an invalid target: ${targetId}. Skipping turn.`);
+                continue;
+            }
+
+            switch(actionType) {
+                case 'KILL':
+                    if (phase === 'night' && ai.role === 'werewolf') {
+                        await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'werewolf_kill', targetId });
+                    }
+                    break;
+                case 'CHECK':
+                     if (phase === 'night' && ai.role === 'seer') {
+                        await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'seer_check', targetId });
+                    }
+                    break;
+                case 'HEAL':
+                     if (phase === 'night' && ai.role === 'doctor') {
+                         const targetPlayerDoc = await getDoc(doc(db, 'players', `${targetId}_${gameId}`));
+                         if (targetPlayerDoc.exists() && targetPlayerDoc.data().lastHealedRound !== game.currentRound - 1) {
+                            await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'doctor_heal', targetId });
+                         }
+                    }
+                    break;
+                case 'VOTE':
+                    if (phase === 'day') {
+                        await submitVote(gameId, ai.userId, targetId);
+                    }
+                    break;
+                case 'SHOOT':
+                    if (phase === 'hunter_shot' && ai.userId === game.pendingHunterShot) {
+                        await submitHunterShot(gameId, ai.userId, targetId);
+                    }
+                    break;
             }
         }
     } catch(e) {
