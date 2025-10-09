@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -13,7 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Card, CardContent } from "./ui/card";
 
 const FormSchema = z.object({
-  gameId: z.string().trim().min(1, { message: "El ID de la partida es requerido." }).length(5, {message: "El ID debe tener 5 caracteres."}).toUpperCase(),
+  gameId: z.string().trim().min(1, { message: "El ID de la partida es requerido." }).length(5, {message: "El ID debe tener 5 caracteres."}).transform((val) => val.toUpperCase()),
   displayName: z.string().trim().min(2, { message: "El nombre debe tener al menos 2 caracteres." }).max(20, { message: "El nombre no puede tener más de 20 caracteres." }),
 });
 
