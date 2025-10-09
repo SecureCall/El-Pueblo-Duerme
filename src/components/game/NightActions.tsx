@@ -33,8 +33,13 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
 
     const isCupidFirstNight = currentPlayer.role === 'cupid' && game.currentRound === 1;
     const isHechicera = currentPlayer.role === 'hechicera';
-    const hasPoison = isHechicera && !currentPlayer.potions?.poison;
-    const hasSavePotion = isHechicera && !currentPlayer.potions?.save;
+    
+    // Check if potions have been used in any previous round or this round
+    const hasUsedPoison = !!currentPlayer.potions?.poison;
+    const hasUsedSave = !!currentPlayer.potions?.save;
+
+    const hasPoison = isHechicera && !hasUsedPoison;
+    const hasSavePotion = isHechicera && !hasUsedSave;
 
     useEffect(() => {
         // Default to 'save' if poison is used
@@ -177,6 +182,8 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
     
     const renderHechiceraInfo = () => {
         if (currentPlayer.role !== 'hechicera') return null;
+        
+        if (!hasPoison && !hasSavePotion) return null;
 
         return (
             <div className="mb-4 flex justify-center">
@@ -264,3 +271,5 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         </Card>
     );
 }
+
+    

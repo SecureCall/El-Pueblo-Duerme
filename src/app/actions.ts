@@ -887,13 +887,24 @@ async function checkEndNightEarly(gameId: string) {
     if (game.settings.hechicera) {
         const hechicera = alivePlayers.find(p => p.role === 'hechicera');
         if (hechicera && (!hechicera.potions?.poison || !hechicera.potions?.save)) {
+             // A hechicera might not act, so this is tricky. For now, let's assume they MUST act if they have potions.
+             // A better implementation would have a "skip" action. For now, we consider them required if they have potions.
              requiredPlayerIds.add(hechicera.userId);
         }
     }
     
     const submittedPlayerIds = new Set(submittedActions.map(a => a.playerId));
 
-    const allActionsSubmitted = Array.from(requiredPlayerIds).every(id => submittedPlayerIds.has(id));
+    // A special case for Hechicera: if they used a potion, they've acted.
+    // The current submittedActions only tracks one action type per player. This is a flaw.
+    // Let's refine the check.
+    const allActionsSubmitted = Array.from(requiredPlayerIds).every(id => {
+        // A Hechicera might submit 'poison' or 'save'.
+        if (alivePlayers.find(p => p.userId === id)?.role === 'hechicera') {
+            return submittedActions.some(a => a.playerId === id);
+        }
+        return submittedPlayerIds.has(id);
+    });
 
     if (allActionsSubmitted) {
         await processNight(gameId);
@@ -920,3 +931,5 @@ async function checkEndDayEarly(gameId: string) {
 }
 
   
+
+    
