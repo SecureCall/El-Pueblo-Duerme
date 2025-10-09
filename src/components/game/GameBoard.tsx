@@ -40,7 +40,7 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     // Only the creator should trigger AI actions to avoid multiple executions
     if (game.creator === currentPlayer.userId) {
       if (game.phase === 'night' || game.phase === 'day' || game.phase === 'hunter_shot') {
-        setTimeout(() => runAIActions(game.id, game.phase), 1000); // Small delay
+         runAIActions(game.id, game.phase);
       }
     }
   }, [game.phase, game.id, game.creator, currentPlayer.userId, game.currentRound]);
@@ -196,6 +196,8 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     </div>
   );
 }
+
+    
 
     
 
