@@ -381,7 +381,9 @@ async function checkGameOver(gameId: string, transaction: Transaction, lovers?: 
         // If the only players left alive are the lovers, they win.
         if (aliveLovers.length === alivePlayers.length && alivePlayers.length >= 2) {
             gameOver = true;
-            message = `¡Los enamorados han ganado! Desafiando a sus bandos, ${aliveLovers[0].displayName} y ${aliveLovers[1].displayName} han triunfado solos contra el mundo.`;
+            const lover1 = players.find(p => p.userId === lovers[0]);
+            const lover2 = players.find(p => p.userId === lovers[1]);
+            message = `¡Los enamorados han ganado! Desafiando a sus bandos, ${lover1?.displayName} y ${lover2?.displayName} han triunfado solos contra el mundo.`;
         }
     }
     
@@ -759,7 +761,7 @@ async function checkEndDayEarly(gameId: string) {
     const playersSnap = await getDocs(playersQuery);
     const alivePlayers = playersSnap.docs.map(p => p.data() as Player);
 
-    const allPlayersVoted = alivePlayers.every(p => !!p.votedFor || p.isAI);
+    const allPlayersVoted = alivePlayers.every(p => !!p.votedFor);
     
     if (allPlayersVoted) {
         // A small delay to let AI votes register visually
@@ -819,7 +821,9 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
                     }
                 }
             } else if (phase === 'day') {
-                const playerDoc = (await getDoc(doc(db, 'players', `${ai.userId}_${gameId}`))).data() as Player;
+                const playerDocSnap = await getDoc(doc(db, 'players', `${ai.userId}_${gameId}`));
+                if (!playerDocSnap.exists()) continue;
+                const playerDoc = playerDocSnap.data() as Player;
                 if (playerDoc.votedFor) continue;
 
                 const aliveTargets = alivePlayers.filter(p => p.userId !== ai.userId);
