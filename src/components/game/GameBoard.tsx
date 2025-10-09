@@ -1,14 +1,15 @@
+
 "use client";
 
 import type { Game, Player, GameEvent } from "@/types";
 import { RoleReveal } from "./RoleReveal";
 import { PlayerGrid } from "./PlayerGrid";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { updateDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { NightActions } from "./NightActions";
-import { processNight } from "@/app/actions";
+import { processNight, runAIActions } from "@/app/actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { HeartIcon } from "lucide-react";
@@ -34,14 +35,24 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     }
   }, [game.phase]);
 
+  // Handle AI actions when phase changes
+  useEffect(() => {
+    if (game.creator === currentPlayer.userId) {
+      if (game.phase === 'night' || game.phase === 'day' || game.phase === 'hunter_shot') {
+        runAIActions(game.id, game.phase);
+      }
+    }
+  }, [game.phase, game.id, game.creator, currentPlayer.userId]);
+
   const handleAcknowledgeRole = async () => {
     setShowRole(false);
     if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId) {
+        // Add a delay to allow all players to see their roles
         setTimeout(async () => {
            await updateDoc(doc(db, "games", game.id), { 
                 phase: 'night',
             });
-        }, 3000);
+        }, 5000); 
     }
   };
   
@@ -68,12 +79,12 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
   const alivePlayers = players.filter(p => p.isAlive);
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
+  const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound -1);
 
   const getPhaseTitle = () => {
     switch(game.phase) {
         case 'night': return `Noche ${game.currentRound}`;
         case 'day': return `Día ${game.currentRound}`;
-        case 'voting': return `Votación Día ${game.currentRound}`;
         case 'role_reveal': return 'Comenzando...';
         case 'finished': return 'Partida Terminada';
         case 'hunter_shot': return '¡La venganza del Cazador!';
@@ -97,7 +108,7 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
             </CardTitle>
           </div>
           {game.phase === 'night' && game.status === 'in_progress' && (
-            <PhaseTimer duration={30} onTimerEnd={handleTimerEnd} />
+            <PhaseTimer duration={30} onTimerEnd={handleTimerEnd} gameId={game.id} round={game.currentRound} />
           )}
           <GameChronicle events={events} />
         </CardHeader>
@@ -120,13 +131,14 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
         <NightActions game={game} players={alivePlayers} currentPlayer={currentPlayer} />
       )}
       
-      {game.phase === 'day' && currentPlayer.isAlive && (
+      {game.phase === 'day' && (
         <DayPhase 
             game={game} 
-            players={alivePlayers} 
+            players={players} // Pass all players to show votes on dead players too
             currentPlayer={currentPlayer}
             nightEvent={nightEvent}
             loverDeathEvents={loverDeathEvents}
+            voteEvent={voteEvent}
         />
       )}
        
@@ -144,3 +156,5 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     </div>
   );
 }
+
+    

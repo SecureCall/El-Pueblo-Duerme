@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { submitVote, processVotes } from '@/app/actions';
 import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
-import { HeartCrack, SunIcon } from 'lucide-react';
+import { HeartCrack, SunIcon, Users } from 'lucide-react';
 
 interface DayPhaseProps {
     game: Game;
@@ -18,26 +18,19 @@ interface DayPhaseProps {
     currentPlayer: Player;
     nightEvent?: GameEvent;
     loverDeathEvents?: GameEvent[];
+    voteEvent?: GameEvent;
 }
 
-export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathEvents = [] }: DayPhaseProps) {
+export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathEvents = [], voteEvent }: DayPhaseProps) {
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
 
     const hasVoted = !!currentPlayer.votedFor;
     const alivePlayers = players.filter(p => p.isAlive);
-    const allPlayersVoted = alivePlayers.every(p => !!p.votedFor);
-
-    useEffect(() => {
-        if (allPlayersVoted && currentPlayer.userId === game.creator && game.status === 'in_progress' && game.phase === 'day') {
-            processVotes(game.id);
-        }
-    }, [allPlayersVoted, currentPlayer.userId, game.creator, game.id, game.status, game.phase]);
-
 
     const handlePlayerSelect = (player: Player) => {
-        if (hasVoted || !player.isAlive || player.userId === currentPlayer.userId) return;
+        if (hasVoted || !currentPlayer.isAlive || !player.isAlive || player.userId === currentPlayer.userId) return;
         setSelectedPlayerId(player.userId);
     };
 
@@ -64,7 +57,10 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
             if (!acc[player.votedFor]) {
                 acc[player.votedFor] = [];
             }
-            acc[player.votedFor].push(player.displayName);
+            const voter = players.find(p => p.userId === player.userId);
+            if (voter) {
+                acc[player.votedFor].push(voter.displayName);
+            }
         }
         return acc;
     }, {} as Record<string, string[]>);
@@ -96,36 +92,58 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                     </Alert>
                 ))}
 
-                {hasVoted ? (
-                    <div className="text-center py-4 space-y-4">
-                        <p className="text-lg text-primary">
-                            Has votado por {votedForPlayer?.displayName || 'alguien'}. Esperando al resto de jugadores...
-                        </p>
+                {voteEvent && (
+                     <Alert className='mb-4 bg-background/50 border-blue-400/30'>
+                        <Users className="h-4 w-4" />
+                        <AlertTitle>Resultado de la Votación Anterior</AlertTitle>
+                        <AlertDescription>
+                            {voteEvent.message}
+                        </AlertDescription>
+                    </Alert>
+                )}
+                
+                {currentPlayer.isAlive ? (
+                    hasVoted ? (
+                        <div className="text-center py-4 space-y-4">
+                            <p className="text-lg text-primary">
+                                Has votado por {votedForPlayer?.displayName || 'alguien'}. Esperando al resto de jugadores...
+                            </p>
+                            <PlayerGrid 
+                                players={alivePlayers}
+                                votesByPlayer={votesByPlayer}
+                            />
+                        </div>
+                    ) : (
+                        <>
+                            <p className="text-center mb-4 text-muted-foreground">Selecciona al jugador que crees que es un Hombre Lobo.</p>
+                             <PlayerGrid 
+                                players={alivePlayers.filter(p => p.userId !== currentPlayer.userId)}
+                                onPlayerClick={handlePlayerSelect}
+                                clickable={true}
+                                selectedPlayerIds={selectedPlayerId ? [selectedPlayerId] : []}
+                                votesByPlayer={votesByPlayer}
+                            />
+                            <Button 
+                                className="w-full mt-6 text-lg" 
+                                onClick={handleVoteSubmit} 
+                                disabled={!selectedPlayerId || isSubmitting}
+                            >
+                                {isSubmitting ? <Loader2 className="animate-spin" /> : `Votar por ${players.find(p=>p.userId === selectedPlayerId)?.displayName || '...'}`}
+                            </Button>
+                        </>
+                    )
+                ) : (
+                     <div className="text-center py-4 space-y-4">
+                        <p className="text-lg">Observas el debate desde el más allá...</p>
                         <PlayerGrid 
-                            players={alivePlayers.filter(p => p.userId !== currentPlayer.userId)}
+                            players={alivePlayers}
                             votesByPlayer={votesByPlayer}
                         />
                     </div>
-                ) : (
-                    <>
-                        <p className="text-center mb-4 text-muted-foreground">Selecciona al jugador que crees que es un Hombre Lobo.</p>
-                         <PlayerGrid 
-                            players={alivePlayers.filter(p => p.userId !== currentPlayer.userId)}
-                            onPlayerClick={handlePlayerSelect}
-                            clickable={true}
-                            selectedPlayerIds={selectedPlayerId ? [selectedPlayerId] : []}
-                            votesByPlayer={votesByPlayer}
-                        />
-                        <Button 
-                            className="w-full mt-6 text-lg" 
-                            onClick={handleVoteSubmit} 
-                            disabled={!selectedPlayerId || isSubmitting}
-                        >
-                            {isSubmitting ? <Loader2 className="animate-spin" /> : `Votar por ${players.find(p=>p.userId === selectedPlayerId)?.displayName || '...'}`}
-                        </Button>
-                    </>
                 )}
             </CardContent>
         </Card>
     );
 }
+
+    

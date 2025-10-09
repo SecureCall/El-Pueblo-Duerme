@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -6,13 +7,15 @@ import { Progress } from '../ui/progress';
 interface PhaseTimerProps {
     duration: number; // in seconds
     onTimerEnd: () => void;
+    gameId: string;
+    round: number;
 }
 
-export function PhaseTimer({ duration, onTimerEnd }: PhaseTimerProps) {
+export function PhaseTimer({ duration, onTimerEnd, gameId, round }: PhaseTimerProps) {
     const [timeLeft, setTimeLeft] = useState(duration);
     
     useEffect(() => {
-        setTimeLeft(duration); // Reset timer on new phase/round
+        setTimeLeft(duration);
         const interval = setInterval(() => {
             setTimeLeft(prev => {
                 if (prev <= 1) {
@@ -25,7 +28,8 @@ export function PhaseTimer({ duration, onTimerEnd }: PhaseTimerProps) {
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [duration, onTimerEnd]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [duration, onTimerEnd, gameId, round]);
 
     const progress = (timeLeft / duration) * 100;
 
@@ -36,3 +40,5 @@ export function PhaseTimer({ duration, onTimerEnd }: PhaseTimerProps) {
         </div>
     );
 }
+
+    
