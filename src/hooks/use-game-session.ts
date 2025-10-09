@@ -1,7 +1,7 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { v4 as uuidv4 } from "uuid";
 
 // Note: This hook is for client-side use only.
 // It uses localStorage which is not available on the server.
@@ -16,7 +16,7 @@ export function useGameSession() {
     // This code runs only on the client
     let storedUserId = localStorage.getItem("werewolf_userId");
     if (!storedUserId) {
-      storedUserId = uuidv4();
+      storedUserId = crypto.randomUUID();
       localStorage.setItem("werewolf_userId", storedUserId);
     }
     setUserId(storedUserId);

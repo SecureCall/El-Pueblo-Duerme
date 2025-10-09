@@ -23,7 +23,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Game, Player, NightAction, GameEvent } from "@/types";
-import { v4 as uuidv4 } from 'uuid';
+import crypto from "crypto";
 
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -193,7 +193,7 @@ export async function startGame(gameId: string, creatorId: string) {
             const availableAINames = AI_NAMES.filter(name => !players.some(p => p.displayName === name));
 
             for (let i = 0; i < aiPlayerCount; i++) {
-                const aiUserId = `ai_${Date.now()}_${i}`;
+                const aiUserId = `ai_${crypto.randomUUID()}`;
                 const aiName = availableAINames[i % availableAINames.length] || `Bot ${i + 1}`;
                 
                 const aiPlayerRef = doc(collection(db, 'players'));
