@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import type { Game, Player, NightAction, NightActionType } from '@/types';
+import type { Game, Player, NightActionType } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
@@ -27,16 +27,12 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         if (submitted) return;
 
         // Logic to prevent selecting invalid targets
-        if (currentPlayer.role === 'werewolf' && (player.role === 'werewolf' || !player.isAlive)) {
-            return;
+        if (!player.isAlive) return;
+        if (currentPlayer.role === 'werewolf' && player.role === 'werewolf') return;
+        if ((currentPlayer.role === 'seer' || currentPlayer.role === 'doctor') && player.userId === currentPlayer.userId) {
+             // Allow self-selection for seer/doctor
         }
-        if ((currentPlayer.role === 'seer' || currentPlayer.role === 'doctor') && !player.isAlive) {
-            return;
-        }
-        if (currentPlayer.role === 'doctor' && player.userId === currentPlayer.userId) {
-            // Depending on rules, could be allowed. For now, disallow self-heal.
-            // return;
-        }
+
 
         setSelectedPlayerId(player.userId);
     };
@@ -126,8 +122,9 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                     <>
                         <PlayerGrid 
                             players={players.filter(p => {
+                                // Werewolves can't target other werewolves
                                 if (currentPlayer.role === 'werewolf') return p.role !== 'werewolf';
-                                return p.userId !== currentPlayer.userId;
+                                return true;
                             })}
                             onPlayerClick={handlePlayerSelect}
                             clickable={true}

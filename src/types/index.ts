@@ -19,6 +19,7 @@ export interface Game {
     seer: boolean;
     doctor: boolean;
     hunter: boolean;
+    cupid: boolean;
   };
   phaseEndsAt?: Timestamp;
 }
@@ -41,5 +42,14 @@ export interface NightAction {
     playerId: string; // The player performing the action
     actionType: NightActionType;
     targetId: string; // The player targeted by the action
+    createdAt: Timestamp;
+}
+
+export interface GameEvent {
+    gameId: string;
+    round: number;
+    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal';
+    message: string;
+    data?: any;
     createdAt: Timestamp;
 }

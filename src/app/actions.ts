@@ -14,6 +14,7 @@ import {
   writeBatch,
   Timestamp,
   addDoc,
+  increment,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Game, Player, NightAction } from "@/types";
@@ -53,6 +54,7 @@ export async function createGame(
       seer: true,
       doctor: true,
       hunter: false,
+      cupid: true,
     },
   };
 
@@ -127,6 +129,7 @@ const generateRoles = (playerCount: number, settings: Game['settings']) => {
     if (settings.seer) roles.push('seer');
     if (settings.doctor) roles.push('doctor');
     if (settings.hunter) roles.push('hunter');
+    if (settings.cupid) roles.push('cupid');
     
     while (roles.length < playerCount) {
         roles.push('villager');
@@ -186,7 +189,6 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
   try {
     const actionRef = collection(db, 'night_actions');
     
-    // We should ensure a player can only submit one action of a certain type per round
     const q = query(actionRef, 
       where('gameId', '==', action.gameId), 
       where('round', '==', action.round), 
@@ -195,13 +197,7 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
     );
     const existingActions = await getDocs(q);
     
-    // For werewolves, they can change their vote. For others, it's one and done.
-    if (!existingActions.empty && action.actionType !== 'werewolf_kill') {
-      return { error: "Ya has realizado tu acción esta noche." };
-    }
-
     if (!existingActions.empty) {
-      // Update existing vote
       const batch = writeBatch(db);
       existingActions.forEach(doc => batch.delete(doc.ref));
       await batch.commit();
@@ -220,12 +216,84 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
 }
 
 export async function processNight(gameId: string) {
-    // This server action will be responsible for processing all night actions
-    // and transitioning the game to the 'day' phase.
-    // We will implement the full logic in a future step.
+    const gameRef = doc(db, 'games', gameId);
+    const gameSnap = await getDoc(gameRef);
 
-    const gameRef = doc(db, "games", gameId);
-    await updateDoc(gameRef, { phase: 'day' });
+    if (!gameSnap.exists()) return { error: 'Game not found' };
+    const game = gameSnap.data() as Game;
+
+    const actionsQuery = query(collection(db, 'night_actions'),
+        where('gameId', '==', gameId),
+        where('round', '==', game.currentRound)
+    );
+
+    const actionsSnap = await getDocs(actionsQuery);
+    const actions = actionsSnap.docs.map(doc => doc.data() as NightAction);
+
+    let killedPlayerId: string | null = null;
+    let savedPlayerId: string | null = null;
+
+    // 1. Process Doctor's action
+    const doctorAction = actions.find(a => a.actionType === 'doctor_heal');
+    if (doctorAction) {
+        savedPlayerId = doctorAction.targetId;
+    }
+
+    // 2. Process Werewolves' action
+    const werewolfVotes = actions.filter(a => a.actionType === 'werewolf_kill');
+    if (werewolfVotes.length > 0) {
+        const voteCounts = werewolfVotes.reduce((acc, vote) => {
+            acc[vote.targetId] = (acc[vote.targetId] || 0) + 1;
+            return acc;
+        }, {} as Record<string, number>);
+
+        let maxVotes = 0;
+        let mostVotedPlayerId: string | null = null;
+        for (const targetId in voteCounts) {
+            if (voteCounts[targetId] > maxVotes) {
+                maxVotes = voteCounts[targetId];
+                mostVotedPlayerId = targetId;
+            }
+        }
+        
+        if(mostVotedPlayerId) {
+             killedPlayerId = mostVotedPlayerId;
+        }
+    }
+    
+    const batch = writeBatch(db);
+    let eventLogMessage = "La noche transcurre en silencio.";
+
+    // 3. Determine final outcome and update player status
+    if (killedPlayerId && killedPlayerId !== savedPlayerId) {
+        const playerRef = doc(db, 'players', `${killedPlayerId}_${gameId}`);
+        batch.update(playerRef, { isAlive: false });
+        
+        const killedPlayerSnap = await getDoc(doc(db, 'players', `${killedPlayerId}_${gameId}`));
+        const killedPlayerName = killedPlayerSnap.data()?.displayName || 'Un jugador';
+        eventLogMessage = `${killedPlayerName} fue atacado en la noche y no ha sobrevivido.`;
+    } else if (killedPlayerId && killedPlayerId === savedPlayerId) {
+        eventLogMessage = "Se escuchó un grito en la noche, ¡pero el doctor llegó a tiempo!";
+    }
+    
+    // 4. Create event log for the night's result
+    const logRef = collection(db, 'game_events');
+    await addDoc(logRef, {
+        gameId,
+        round: game.currentRound,
+        type: 'night_result',
+        message: eventLogMessage,
+        data: { killedPlayerId, savedPlayerId },
+        createdAt: Timestamp.now(),
+    });
+
+    // 5. Transition to next phase
+    batch.update(gameRef, { 
+        phase: 'day',
+        currentRound: increment(1)
+    });
+    
+    await batch.commit();
 
     return { success: true };
 }
