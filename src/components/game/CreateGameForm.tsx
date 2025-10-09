@@ -26,7 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 const FormSchema = z.object({
   gameName: z.string().min(3, { message: "El nombre de la partida debe tener al menos 3 caracteres." }).max(30),
   displayName: z.string().min(2, { message: "Tu nombre debe tener al menos 2 caracteres." }).max(20),
-  maxPlayers: z.number().min(4).max(16),
+  maxPlayers: z.number().min(4).max(20),
 });
 
 export function CreateGameForm() {
@@ -106,7 +106,7 @@ export function CreateGameForm() {
                   <FormControl>
                     <Slider
                       min={4}
-                      max={16}
+                      max={20}
                       step={1}
                       defaultValue={[field.value]}
                       onValueChange={(value) => field.onChange(value[0])}
