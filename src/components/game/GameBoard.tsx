@@ -17,6 +17,7 @@ import { HeartIcon, Moon, Sun, Users2 } from "lucide-react";
 import { HunterShot } from "./HunterShot";
 import { GameChronicle } from "./GameChronicle";
 import { PhaseTimer } from "./PhaseTimer";
+import { CurrentPlayerRole } from "./CurrentPlayerRole";
 
 interface GameBoardProps {
   game: Game;
@@ -215,6 +216,10 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
                 <p className="text-destructive font-bold mt-2">Ahora eres un espectador. No puedes hablar ni votar.</p>
             </CardContent>
          </Card>
+       )}
+       
+       {currentPlayer.isAlive && game.status === 'in_progress' && game.phase !== 'role_reveal' && (
+        <CurrentPlayerRole player={currentPlayer} />
        )}
     </div>
   );
