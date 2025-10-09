@@ -44,6 +44,7 @@ Analiza el estado actual del juego y decide la mejor acción a tomar. Piensa pas
 - Gemelas: Dos jugadoras que se conocen y saben que son aliadas desde el principio.
 - Licántropo: Un aldeano que es visto como lobo por la Vidente.
 - Cría de Lobo: Si es eliminado, la noche siguiente los lobos pueden matar a dos jugadores.
+- Maldito: Un aldeano que si es atacado por los lobos, se convierte en uno de ellos en lugar de morir.
 
 **ESTADO ACTUAL DEL JUEGO (en formato JSON):**
 - Partida: {{{game}}}

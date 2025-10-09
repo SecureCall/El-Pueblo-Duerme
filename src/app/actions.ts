@@ -158,6 +158,7 @@ const generateRoles = (playerCount: number, settings: Game['settings']) => {
     }
     if (settings.guardian) roles.push('guardian');
     if (settings.priest) roles.push('priest');
+    if (settings.cursed) roles.push('cursed');
     
     // Fill remaining spots with villagers
     while (roles.length < playerCount) {
@@ -610,7 +611,23 @@ export async function processNight(gameId: string) {
 
             // Process werewolf attacks
             for (const killedId of killedByWerewolfIds) {
-                if (killedId === savedByPriestId) {
+                 const targetPlayer = playersData.find(p => p.userId === killedId);
+
+                 if (targetPlayer?.role === 'cursed' && game.settings.cursed) {
+                    const playerRef = doc(db, 'players', targetPlayer.id);
+                    transaction.update(playerRef, { role: 'werewolf' });
+                    messages.push(`En la oscuridad, ${targetPlayer.displayName} no muere, ¡sino que se une a la manada! Ahora es un Hombre Lobo.`);
+                    const eventLogRef = doc(collection(db, 'game_events'));
+                    transaction.set(eventLogRef, {
+                        gameId,
+                        round: game.currentRound,
+                        type: 'player_transformed',
+                        message: `${targetPlayer.displayName} fue atacado, pero en lugar de morir, ha sido transformado en un Hombre Lobo.`,
+                        data: { playerId: targetPlayer.userId },
+                        createdAt: Timestamp.now(),
+                    });
+
+                } else if (killedId === savedByPriestId) {
                      messages.push("Una bendición ha protegido a un aldeano de un destino fatal.");
                 } else if (finalSavedPlayerIds.includes(killedId)) {
                     messages.push("Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!");

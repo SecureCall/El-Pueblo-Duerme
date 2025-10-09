@@ -20,6 +20,7 @@ export type PlayerRole =
   // Lobos (Rojo)
   "werewolf" |
   "wolf_cub" |
+  "cursed" |
   // Unused for now
   "ghost" |
   "virginia_woolf" |
@@ -31,7 +32,6 @@ export type PlayerRole =
   "seer_apprentice" |
   "elder_leader" |
   "seeker_fairy" |
-  "cursed" |
   "sleeping_fairy" |
   // Especiales (Verde/Morado)
   "shapeshifter" |
@@ -69,6 +69,7 @@ export interface Game {
     guardian: boolean;
     priest: boolean;
     wolf_cub: boolean;
+    cursed: boolean;
   };
   phaseEndsAt?: Timestamp;
   lovers?: [string, string];
@@ -109,7 +110,7 @@ export interface NightAction {
 export interface GameEvent {
     gameId: string;
     round: number;
-    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot';
+    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot' | 'player_transformed';
     message: string;
     data?: any;
     createdAt: Timestamp;

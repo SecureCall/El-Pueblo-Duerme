@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { FlaskConical, Crown, Fingerprint, Users2, Loader2, HelpCircle, Heart, Shield, Sparkles } from "lucide-react";
+import { FlaskConical, Crown, Fingerprint, Users2, Loader2, HelpCircle, Heart, Shield, Sparkles, User } from "lucide-react";
 
 
 import { useGameSession } from "@/hooks/use-game-session";
@@ -48,6 +48,7 @@ const FormSchema = z.object({
   guardian: z.boolean(),
   priest: z.boolean(),
   wolf_cub: z.boolean(),
+  cursed: z.boolean(),
 });
 
 const specialRoles = [
@@ -62,6 +63,7 @@ const specialRoles = [
   { id: 'guardian', label: 'Guardián', Icon: Shield, description: 'Protege a un jugador del ataque de los lobos. No puede protegerse a sí mismo.' },
   { id: 'priest', label: 'Sacerdote', Icon: PriestIcon, description: 'Bendice a un jugador, protegiéndolo de cualquier ataque nocturno.' },
   { id: 'wolf_cub', label: 'Cría de Lobo', Icon: WolfIcon, description: 'Si muere, los lobos matan a dos la noche siguiente.' },
+  { id: 'cursed', label: 'Maldito', Icon: User, description: 'Si los lobos te atacan, te conviertes en uno de ellos.' },
 ] as const;
 
 
@@ -89,6 +91,7 @@ export function CreateGameForm() {
       guardian: true,
       priest: true,
       wolf_cub: true,
+      cursed: true,
     },
   });
 
