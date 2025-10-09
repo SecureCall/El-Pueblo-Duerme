@@ -10,8 +10,8 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { HomeIcon, HeartIcon } from 'lucide-react';
-import { WolfIcon, VillagerIcon, DoctorIcon, SeerIcon, HunterIcon } from '@/components/icons';
+import { HomeIcon } from 'lucide-react';
+import { WolfIcon, VillagerIcon, DoctorIcon, SeerIcon, HunterIcon, CupidIcon } from '@/components/icons';
 import { cn } from '@/lib/utils';
 
 const roles = [
@@ -52,7 +52,7 @@ const roles = [
     },
     {
         name: 'Cupido',
-        Icon: HeartIcon,
+        Icon: CupidIcon,
         color: 'text-pink-400',
         description:
             'En la primera noche, eliges a dos jugadores para que se "enamoren". Si uno de esos dos jugadores muere, el otro morirá instantáneamente de desamor. Puedes elegirte a ti mismo como uno de los enamorados.',

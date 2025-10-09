@@ -72,12 +72,13 @@ export function HunterIcon(props: SVGProps<SVGSVGElement>) {
 export function CupidIcon(props: SVGProps<SVGSVGElement>) {
     return (
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-            <path d="M12.3 4.2c2.5 2.5 2.5 6.6 0 9.2L4.2 21.5c-2.5-2.5-6.6-2.5-9.2 0s-2.5-6.6 0-9.2L3.1 4.2c2.5-2.5 6.6-2.5 9.2 0z" />
+            <path d="M13.3 4.2c2.5 2.5 2.5 6.6 0 9.2L5.2 21.5c-2.5-2.5-6.6-2.5-9.2 0s-2.5-6.6 0-9.2L11.1 4.2c2.5-2.5 6.6-2.5 9.2 0z" transform="rotate(45 12 12)" />
             <path d="m13 13 8.3-8.3" />
             <path d="M16 16 22 22" />
         </svg>
     )
 }
+
 
 export function SkullIcon(props: SVGProps<SVGSVGElement>) {
   return (
