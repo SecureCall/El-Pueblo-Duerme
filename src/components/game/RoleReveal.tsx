@@ -4,7 +4,7 @@
 import type { Player } from "@/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
-import { DoctorIcon, HunterIcon, SeerIcon, VillagerIcon, WolfIcon, CupidIcon } from "../icons";
+import { DoctorIcon, HunterIcon, SeerIcon, VillagerIcon, WolfIcon, CupidIcon, HechiceraIcon, LycanthropeIcon, PrinceIcon, TwinIcon } from "../icons";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
@@ -23,7 +23,7 @@ type RoleDetail = {
     bgImageId: string;
 }
 
-const roleDetails: Record<NonNullable<Player['role']>, RoleDetail> = {
+const roleDetails: Partial<Record<NonNullable<Player['role']>, RoleDetail>> = {
     werewolf: {
         name: "Hombre Lobo",
         description: "Cada noche, tú y tus compañeros lobos elegís a un aldeano para eliminar. Durante el día, debéis haceros pasar por aldeanos inocentes.",
@@ -42,7 +42,7 @@ const roleDetails: Record<NonNullable<Player['role']>, RoleDetail> = {
     },
     doctor: {
         name: "Doctor",
-        description: "Cada noche, puedes elegir a un jugador (incluido tú mismo) para protegerlo de los ataques de los lobos. No puedes elegir al mismo jugador dos noches seguidas.",
+        description: "Cada noche, puedes elegir a un jugador para protegerlo. No puedes proteger a la misma persona dos noches seguidas.",
         atmosphere: "En tus manos está el poder de dar una noche más de vida.",
         Icon: DoctorIcon,
         color: "text-green-400",
@@ -71,8 +71,50 @@ const roleDetails: Record<NonNullable<Player['role']>, RoleDetail> = {
         Icon: CupidIcon,
         color: "text-pink-400",
         bgImageId: "role-bg-cupid"
-    }
+    },
+    hechicera: {
+        name: "Hechicera",
+        description: "Tienes una poción para salvar a la víctima de los lobos y otra para envenenar a un jugador. Puedes usar cada una una vez por partida.",
+        atmosphere: "El poder de la vida y la muerte está en tus manos.",
+        Icon: HechiceraIcon,
+        color: "text-purple-400",
+        bgImageId: "role-bg-werewolf" // Placeholder
+    },
+    prince: {
+        name: "Príncipe",
+        description: "Si eres el más votado para ser linchado, revelas tu identidad y sobrevives. No puedes ser eliminado por votación.",
+        atmosphere: "Tu sangre real te protege del juicio de la plebe.",
+        Icon: PrinceIcon,
+        color: "text-yellow-300",
+        bgImageId: "role-bg-hunter" // Placeholder
+    },
+    lycanthrope: {
+        name: "Licántropo",
+        description: "Eres un aldeano, pero la Vidente te ve como un lobo. Tu inocencia es tu mayor desafío.",
+        atmosphere: "Marcado por la luna, pero fiel al pueblo. ¿Podrás convencerlos?",
+        Icon: LycanthropeIcon,
+        color: "text-orange-400",
+        bgImageId: "role-bg-werewolf" // Placeholder
+    },
+    twin: {
+        name: "Gemelo/a",
+        description: "No estás solo/a. Hay otro jugador que es tu gemelo/a. Os conocéis desde el principio y sois aliados.",
+        atmosphere: "Un vínculo inquebrantable en medio del caos.",
+        Icon: TwinIcon,
+        color: "text-blue-300",
+        bgImageId: "role-bg-villager" // Placeholder
+    },
 }
+
+const defaultRoleDetail: RoleDetail = {
+    name: "Rol Desconocido",
+    description: "Tu rol no se ha podido determinar. Por favor, contacta al administrador.",
+    atmosphere: "El misterio te envuelve...",
+    Icon: VillagerIcon,
+    color: "text-gray-400",
+    bgImageId: "role-bg-villager"
+}
+
 
 export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
     if (!player.role) {
@@ -83,7 +125,7 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
         )
     }
 
-    const details = roleDetails[player.role];
+    const details = roleDetails[player.role] ?? defaultRoleDetail;
     const bgImage = PlaceHolderImages.find((img) => img.id === details.bgImageId);
 
   return (

@@ -287,11 +287,10 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
 
     if (action.actionType === 'doctor_heal') {
         const targetPlayerRef = await getPlayerRef(action.gameId, action.targetId);
-        if (targetPlayerRef) {
-            const targetDoc = await getDoc(targetPlayerRef);
-            if(targetDoc.exists() && targetDoc.data().lastHealedRound === action.round - 1) {
-                return { success: false, error: "No puedes proteger a la misma persona dos noches seguidas." };
-            }
+        if (!targetPlayerRef) throw new Error("Target player for heal not found");
+        const targetDoc = await getDoc(targetPlayerRef);
+        if(targetDoc.exists() && targetDoc.data().lastHealedRound === action.round - 1) {
+            return { success: false, error: "No puedes proteger a la misma persona dos noches seguidas." };
         }
     }
     

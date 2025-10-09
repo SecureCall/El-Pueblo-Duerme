@@ -111,6 +111,13 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             toast({ variant: 'destructive', title: 'Poción usada', description: 'Ya has usado tu poción de salvación.' });
             return;
         }
+        if (actionType === 'doctor_heal') {
+            const targetPlayer = players.find(p => p.userId === selectedPlayerIds[0]);
+            if (targetPlayer?.lastHealedRound === game.currentRound - 1) {
+                toast({ variant: 'destructive', title: 'Regla del Doctor', description: 'No puedes proteger a la misma persona dos noches seguidas.' });
+                return;
+            }
+        }
 
         setIsSubmitting(true);
 
@@ -143,8 +150,8 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             }
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
+            setIsSubmitting(false); // Only set to false on error, success hides the form
         }
-        setIsSubmitting(false);
     };
     
     const otherWerewolves = currentPlayer.role === 'werewolf' 

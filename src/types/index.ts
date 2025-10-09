@@ -59,13 +59,35 @@ export interface Game {
     // Basic roles
     seer: boolean;
     doctor: boolean;
+// Roles especiales
     hunter: boolean;
     cupid: boolean;
-    // Expanded roles
     hechicera: boolean;
     lycanthrope: boolean;
     prince: boolean;
     twin: boolean;
+    guardian: boolean;
+    ghost: boolean;
+    priest: boolean;
+    virginia_woolf: boolean;
+    leper: boolean;
+    river_mermaid: boolean;
+    lookout: boolean;
+    troublemaker: boolean;
+    silencer: boolean;
+    seer_apprentice: boolean;
+    elder_leader: boolean;
+    wolf_cub: boolean;
+    seeker_fairy: boolean;
+    cursed: boolean;
+    sleeping_fairy: boolean;
+    shapeshifter: boolean;
+    drunk_man: boolean;
+    cult_leader: boolean;
+    fisherman: boolean;
+    vampire: boolean;
+    witch: boolean;
+    banshee: boolean;
   };
   phaseEndsAt?: Timestamp;
   lovers?: [string, string];
@@ -124,5 +146,3 @@ export type TakeAITurnOutput = {
     reasoning: string;
     action: string;
 };
-
-    
