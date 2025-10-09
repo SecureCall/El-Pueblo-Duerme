@@ -22,6 +22,7 @@ export interface Game {
     cupid: boolean;
   };
   phaseEndsAt?: Timestamp;
+  lovers?: [string, string];
 }
 
 export interface Player {
@@ -48,7 +49,7 @@ export interface NightAction {
 export interface GameEvent {
     gameId: string;
     round: number;
-    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over';
+    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death';
     message: string;
     data?: any;
     createdAt: Timestamp;

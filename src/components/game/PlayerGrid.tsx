@@ -7,7 +7,7 @@ interface PlayerGridProps {
     players: Player[];
     onPlayerClick?: (player: Player) => void;
     clickable?: boolean;
-    selectedPlayerId?: string | null;
+    selectedPlayerIds?: string[]; // Changed to array
     highlightedPlayers?: { userId: string, color: string }[];
 }
 
@@ -15,7 +15,7 @@ export function PlayerGrid({
     players, 
     onPlayerClick, 
     clickable = false,
-    selectedPlayerId,
+    selectedPlayerIds = [], // Default to empty array
     highlightedPlayers = []
 }: PlayerGridProps) {
   return (
@@ -28,7 +28,7 @@ export function PlayerGrid({
                 player={player} 
                 onClick={onPlayerClick ? () => onPlayerClick(player) : undefined}
                 isClickable={clickable && player.isAlive}
-                isSelected={player.userId === selectedPlayerId}
+                isSelected={selectedPlayerIds.includes(player.userId)} // Check if included in array
                 highlightColor={highlight?.color}
             />
         )

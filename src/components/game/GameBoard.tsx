@@ -11,6 +11,7 @@ import { NightActions } from "./NightActions";
 import { processNight } from "@/app/actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
+import { HeartIcon } from "lucide-react";
 
 interface GameBoardProps {
   game: Game;
@@ -65,7 +66,7 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
 
   const alivePlayers = players.filter(p => p.isAlive);
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
-  const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound -1);
+  const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
 
   const getPhaseTitle = () => {
     switch(game.phase) {
@@ -78,6 +79,12 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     }
   }
 
+  const isLover = !!game.lovers?.includes(currentPlayer.userId);
+  const otherLoverId = isLover ? game.lovers!.find(id => id !== currentPlayer.userId) : null;
+  const otherLover = otherLoverId ? players.find(p => p.userId === otherLoverId) : null;
+  const highlightedPlayers = otherLover ? [{ userId: otherLover.userId, color: '#FF69B4' }] : [];
+
+
   return (
     <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
       <Card className="text-center bg-card/80">
@@ -88,7 +95,7 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
         </CardHeader>
       </Card>
       
-      <PlayerGrid players={players} />
+      <PlayerGrid players={players} highlightedPlayers={highlightedPlayers} />
 
       {game.phase === 'night' && currentPlayer.isAlive && (
         <NightActions game={game} players={alivePlayers} currentPlayer={currentPlayer} />
@@ -100,16 +107,23 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
             players={alivePlayers} 
             currentPlayer={currentPlayer}
             nightEvent={nightEvent}
+            loverDeathEvents={loverDeathEvents}
         />
       )}
        
        {game.phase !== 'night' && game.phase !== 'role_reveal' && (
          <Card className="mt-8 bg-card/80">
             <CardHeader>
-              <CardTitle className="font-headline text-2xl">Tu Rol</CardTitle>
+              <CardTitle className="font-headline text-2xl">Tu Estatus</CardTitle>
             </CardHeader>
             <CardContent>
                 <p>Eres un <span className="font-bold">{currentPlayer.role}</span>.</p>
+                {isLover && otherLover && (
+                  <div className="flex items-center gap-2 mt-2 text-pink-400">
+                    <HeartIcon className="h-5 w-5" />
+                    <p>Estás enamorado de {otherLover.isAlive ? otherLover.displayName : `${otherLover.displayName} (fallecido)`}.</p>
+                  </div>
+                )}
                  {!currentPlayer.isAlive && <p className="text-destructive font-bold mt-2">Has sido eliminado.</p>}
             </CardContent>
          </Card>

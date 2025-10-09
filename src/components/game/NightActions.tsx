@@ -1,14 +1,13 @@
 "use client";
 
 import { useState } from 'react';
-import type { Game, Player, NightActionType, PlayerRole } from '@/types';
+import type { Game, Player, NightActionType } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
-import { submitNightAction, getSeerResult } from '@/app/actions';
-import { Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { submitNightAction, getSeerResult, submitCupidAction } from '@/app/actions';
+import { Loader2, Heart } from 'lucide-react';
 import { WolfIcon } from '../icons';
 import { SeerResult } from './SeerResult';
 
@@ -19,23 +18,32 @@ interface NightActionsProps {
 }
 
 export function NightActions({ game, players, currentPlayer }: NightActionsProps) {
-    const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+    const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [seerResult, setSeerResult] = useState<{ targetName: string; isWerewolf: boolean; } | null>(null);
     const { toast } = useToast();
 
+    const isCupidFirstNight = currentPlayer.role === 'cupid' && game.currentRound === 1;
+    const selectionLimit = isCupidFirstNight ? 2 : 1;
+
     const handlePlayerSelect = (player: Player) => {
-        if (submitted) return;
-
-        // Logic to prevent selecting invalid targets
-        if (!player.isAlive) return;
+        if (submitted || !player.isAlive) return;
         if (currentPlayer.role === 'werewolf' && player.role === 'werewolf') return;
-        if ((currentPlayer.role === 'seer' || currentPlayer.role === 'doctor') && player.userId === currentPlayer.userId) {
-             // Allow self-selection for seer/doctor
-        }
 
-        setSelectedPlayerId(player.userId);
+        setSelectedPlayerIds(prev => {
+            if (prev.includes(player.userId)) {
+                return prev.filter(id => id !== player.userId);
+            }
+            if (prev.length < selectionLimit) {
+                return [...prev, player.userId];
+            }
+            if (selectionLimit === 1) {
+                return [player.userId];
+            }
+            // For Cupid, if 2 are selected, replace the first one
+            return [prev[1], player.userId];
+        });
     };
 
     const getActionType = (): NightActionType | null => {
@@ -43,13 +51,14 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             case 'werewolf': return 'werewolf_kill';
             case 'seer': return 'seer_check';
             case 'doctor': return 'doctor_heal';
+            case 'cupid': return 'cupid_enchant';
             default: return null;
         }
     }
 
     const handleSubmit = async () => {
-        if (!selectedPlayerId) {
-            toast({ variant: 'destructive', title: 'Debes seleccionar un jugador.' });
+        if (selectedPlayerIds.length !== selectionLimit) {
+            toast({ variant: 'destructive', title: `Debes seleccionar ${selectionLimit} jugador(es).` });
             return;
         }
 
@@ -57,20 +66,26 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         if (!actionType) return;
 
         setIsSubmitting(true);
-        const result = await submitNightAction({
-            gameId: game.id,
-            round: game.currentRound,
-            playerId: currentPlayer.userId,
-            actionType: actionType,
-            targetId: selectedPlayerId,
-        });
+
+        let result;
+        if (isCupidFirstNight) {
+            result = await submitCupidAction(game.id, currentPlayer.userId, selectedPlayerIds[0], selectedPlayerIds[1]);
+        } else {
+             result = await submitNightAction({
+                gameId: game.id,
+                round: game.currentRound,
+                playerId: currentPlayer.userId,
+                actionType: actionType,
+                targetId: selectedPlayerIds[0],
+            });
+        }
 
         if (result.success) {
             setSubmitted(true);
             toast({ title: 'Acción registrada.', description: 'Tu decisión ha sido guardada.' });
 
             if (currentPlayer.role === 'seer') {
-                const seerResultData = await getSeerResult(game.id, currentPlayer.userId, selectedPlayerId);
+                const seerResultData = await getSeerResult(game.id, currentPlayer.userId, selectedPlayerIds[0]);
                 if (seerResultData.success) {
                     setSeerResult({
                         targetName: seerResultData.targetName!,
@@ -80,7 +95,6 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                      toast({ variant: 'destructive', title: 'Error del Vidente', description: seerResultData.error });
                 }
             }
-
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -96,6 +110,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             case 'werewolf': return 'Elige a un aldeano para eliminar.';
             case 'seer': return 'Elige a un jugador para descubrir su identidad.';
             case 'doctor': return 'Elige a un jugador para proteger esta noche.';
+            case 'cupido': return game.currentRound === 1 ? 'Elige a dos jugadores para que se enamoren.' : 'Tu flecha ya ha unido dos corazones.';
             default: return 'No tienes acciones esta noche. Espera al amanecer.';
         }
     }
@@ -118,7 +133,12 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         )
     }
 
-    const canPerformAction = currentPlayer.role === 'werewolf' || currentPlayer.role === 'seer' || currentPlayer.role === 'doctor';
+    const canPerformAction = (
+        currentPlayer.role === 'werewolf' || 
+        currentPlayer.role === 'seer' || 
+        currentPlayer.role === 'doctor' ||
+        isCupidFirstNight
+    );
 
     if (seerResult) {
         return <SeerResult targetName={seerResult.targetName} isWerewolf={seerResult.isWerewolf} />;
@@ -140,20 +160,25 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                     <>
                         <PlayerGrid 
                             players={players.filter(p => {
-                                // Seer can't check themselves
                                 if (currentPlayer.role === 'seer' && p.userId === currentPlayer.userId) return false;
-                                // Werewolves can't target other werewolves
                                 if (currentPlayer.role === 'werewolf') return p.role !== 'werewolf';
                                 return true;
                             })}
                             onPlayerClick={handlePlayerSelect}
                             clickable={true}
-                            selectedPlayerId={selectedPlayerId}
+                            selectedPlayerIds={selectedPlayerIds}
                         />
+                         {isCupidFirstNight && (
+                            <div className="flex justify-center items-center gap-4 mt-4">
+                                <span className='text-lg'>{players.find(p => p.userId === selectedPlayerIds[0])?.displayName || '?'}</span>
+                                <Heart className="h-6 w-6 text-pink-400" />
+                                <span className='text-lg'>{players.find(p => p.userId === selectedPlayerIds[1])?.displayName || '?'}</span>
+                            </div>
+                        )}
                         <Button 
                             className="w-full mt-6 text-lg" 
                             onClick={handleSubmit} 
-                            disabled={!selectedPlayerId || isSubmitting}
+                            disabled={selectedPlayerIds.length !== selectionLimit || isSubmitting}
                         >
                             {isSubmitting ? <Loader2 className="animate-spin" /> : 'Confirmar Acción'}
                         </Button>

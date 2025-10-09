@@ -9,16 +9,17 @@ import { useToast } from '@/hooks/use-toast';
 import { submitVote, processVotes } from '@/app/actions';
 import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
-import { SunIcon } from 'lucide-react';
+import { HeartCrack, SunIcon } from 'lucide-react';
 
 interface DayPhaseProps {
     game: Game;
     players: Player[];
     currentPlayer: Player;
     nightEvent?: GameEvent;
+    loverDeathEvents?: GameEvent[];
 }
 
-export function DayPhase({ game, players, currentPlayer, nightEvent }: DayPhaseProps) {
+export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathEvents = [] }: DayPhaseProps) {
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
@@ -65,7 +66,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent }: DayPhaseP
             </CardHeader>
             <CardContent>
                 {nightEvent && (
-                    <Alert className='mb-6 bg-background/50'>
+                    <Alert className='mb-4 bg-background/50'>
                         <SunIcon className="h-4 w-4" />
                         <AlertTitle>Al Amanecer...</AlertTitle>
                         <AlertDescription>
@@ -73,6 +74,16 @@ export function DayPhase({ game, players, currentPlayer, nightEvent }: DayPhaseP
                         </AlertDescription>
                     </Alert>
                 )}
+
+                {loverDeathEvents.map(event => (
+                    <Alert key={event.createdAt.toMillis()} variant="destructive" className='mb-4 bg-destructive/10'>
+                        <HeartCrack className="h-4 w-4" />
+                        <AlertTitle>¡Una tragedia de amor!</AlertTitle>
+                        <AlertDescription>
+                            {event.message}
+                        </AlertDescription>
+                    </Alert>
+                ))}
 
                 {hasVoted ? (
                     <div className="text-center py-8">
