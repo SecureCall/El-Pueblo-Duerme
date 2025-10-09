@@ -79,7 +79,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         name: "Príncipe",
         description: "Si eres el más votado para ser linchado, revelas tu identidad y sobrevives. No puedes ser eliminado por votación diurna.",
         atmosphere: "Tu sangre real te protege del juicio de la plebe.",
-        image: "/roles/Prince.png",
+        image: "/roles/prince.png",
         color: "text-yellow-300",
         bgImageId: "role-bg-hunter" 
     },
