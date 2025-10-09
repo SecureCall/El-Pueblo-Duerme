@@ -5,7 +5,7 @@ import { collection, doc, getDoc, getDocs, query, where, orderBy, type Timestamp
 import { db } from "@/lib/firebase";
 import type { Game, Player, GameEvent, TakeAITurnInput } from "@/types";
 import { takeAITurn } from "@/ai/flows/take-ai-turn-flow";
-import { submitNightAction, submitVote, submitHunterShot } from "./actions";
+import { submitNightAction, submitVote, submitHunterShot, submitCupidAction } from "./actions";
 
 async function getPlayerRef(gameId: string, userId: string) {
     const q = query(collection(db, 'players'), where('gameId', '==', gameId), where('userId', '==', userId));
@@ -78,7 +78,7 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
             const aiResult = await takeAITurn(aiInput);
             console.log(`AI (${ai.displayName} as ${ai.role}) action: ${aiResult.action}. Reasoning: ${aiResult.reasoning}`);
 
-            const [actionType, targetId] = aiResult.action.split(':');
+            const [actionType, targetData] = aiResult.action.split(':');
 
             if (!actionType || actionType === 'NONE') continue;
 
@@ -88,51 +88,63 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
             
              const isValidMultiTarget = (ids: string | undefined): ids is string => {
                 if (!ids) return false;
-                return ids.split('|').every(id => isValidTarget(id));
+                return ids.split('|').every(id => isValidTarget(id) || players.some(p => p.userId === id)); // Cupid can pick self
             }
 
             switch(actionType) {
                 case 'KILL':
-                    if (phase === 'night' && (ai.role === 'werewolf' || ai.role === 'wolf_cub') && isValidMultiTarget(targetId)) {
-                        await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'werewolf_kill', targetId });
+                    if (phase === 'night' && (ai.role === 'werewolf' || ai.role === 'wolf_cub') && isValidMultiTarget(targetData)) {
+                        await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'werewolf_kill', targetId: targetData });
                     }
                     break;
                 case 'CHECK':
-                     if (phase === 'night' && ai.role === 'seer' && isValidTarget(targetId)) {
-                        await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'seer_check', targetId });
+                     if (phase === 'night' && ai.role === 'seer' && isValidTarget(targetData)) {
+                        await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'seer_check', targetId: targetData });
                     }
                     break;
                 case 'HEAL':
-                     if (phase === 'night' && ai.role === 'doctor' && isValidTarget(targetId)) {
-                        const targetPlayerDoc = await getDoc(doc(db, 'players', players.find(p => p.userId === targetId)!.id));
+                     if (phase === 'night' && ai.role === 'doctor' && isValidTarget(targetData)) {
+                        const targetPlayerDoc = await getDoc(doc(db, 'players', players.find(p => p.userId === targetData)!.id));
                          if (targetPlayerDoc.exists() && targetPlayerDoc.data().lastHealedRound !== game.currentRound - 1) {
-                            await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'doctor_heal', targetId });
+                            await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'doctor_heal', targetId: targetData });
                          }
                     }
                     break;
-                case 'PROTECT': // This could be used for Guardian
-                     if (phase === 'night' && ai.role === 'guardian' && isValidTarget(targetId) && targetId !== ai.userId) {
-                        await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'guardian_protect', targetId });
+                case 'PROTECT':
+                     if (phase === 'night' && ai.role === 'guardian' && isValidTarget(targetData) && targetData !== ai.userId) {
+                        await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'guardian_protect', targetId: targetData });
+                    }
+                    break;
+                case 'BLESS':
+                     if (phase === 'night' && ai.role === 'priest' && isValidTarget(targetData)) {
+                         if(targetData === ai.userId && ai.priestSelfHealUsed) continue;
+                        await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'priest_bless', targetId: targetData });
                     }
                     break;
                 case 'POISON':
-                    if (phase === 'night' && ai.role === 'hechicera' && isValidTarget(targetId) && !ai.potions?.poison) {
-                        await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'hechicera_poison', targetId });
+                    if (phase === 'night' && ai.role === 'hechicera' && isValidTarget(targetData) && !ai.potions?.poison) {
+                        await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'hechicera_poison', targetId: targetData });
                     }
                     break;
                 case 'SAVE':
-                    if (phase === 'night' && ai.role === 'hechicera' && isValidTarget(targetId) && !ai.potions?.save) {
-                        await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'hechicera_save', targetId });
+                    if (phase === 'night' && ai.role === 'hechicera' && isValidTarget(targetData) && !ai.potions?.save) {
+                        await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: 'hechicera_save', targetId: targetData });
+                    }
+                    break;
+                case 'ENCHANT':
+                    if (phase === 'night' && ai.role === 'cupid' && game.currentRound === 1 && isValidMultiTarget(targetData)) {
+                        const [target1Id, target2Id] = targetData.split('|');
+                        await submitCupidAction(gameId, ai.userId, target1Id, target2Id);
                     }
                     break;
                 case 'VOTE':
-                    if (phase === 'day' && isValidTarget(targetId)) {
-                        await submitVote(gameId, ai.userId, targetId);
+                    if (phase === 'day' && isValidTarget(targetData)) {
+                        await submitVote(gameId, ai.userId, targetData);
                     }
                     break;
                 case 'SHOOT':
-                    if (phase === 'hunter_shot' && ai.userId === game.pendingHunterShot && isValidTarget(targetId)) {
-                        await submitHunterShot(gameId, ai.userId, targetId);
+                    if (phase === 'hunter_shot' && ai.userId === game.pendingHunterShot && isValidTarget(targetData)) {
+                        await submitHunterShot(gameId, ai.userId, targetData);
                     }
                     break;
             }
@@ -141,3 +153,5 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
         console.error("Error in AI Actions:", e);
     }
 }
+
+    

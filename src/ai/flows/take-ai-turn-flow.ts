@@ -45,6 +45,7 @@ Analiza el estado actual del juego y decide la mejor acción a tomar. Piensa pas
 - Licántropo: Un aldeano que es visto como lobo por la Vidente.
 - Cría de Lobo: Si es eliminado, la noche siguiente los lobos pueden matar a dos jugadores.
 - Maldito: Un aldeano que si es atacado por los lobos, se convierte en uno de ellos en lugar de morir.
+- Sacerdote: Cada noche, bendice a un jugador, haciéndolo inmune a cualquier ataque. Solo puede bendecirse a sí mismo una vez.
 
 **ESTADO ACTUAL DEL JUEGO (en formato JSON):**
 - Partida: {{{game}}}
@@ -65,10 +66,11 @@ Basado en toda la información, y especialmente en tu identidad y rol dentro de 
     - ¿Hay algún jugador que parezca inocente o que sea valioso para mi equipo (ej. mi gemelo/a, mi enamorado/a)?
     - ¿Cuál es la jugada más estratégica que puedo hacer AHORA MISMO? (ej. como Hechicera, ¿es mejor guardar mis pociones o usarlas ahora?).
     - Como Hombre Lobo, si la Cría de Lobo ha muerto y tenemos dos asesinatos (`wolfCubRevengeRound`), debo seleccionar dos objetivos.
+    - Como Cupido, en la ronda 1, debo elegir a dos jugadores para enamorar. Una buena estrategia es elegirme a mí y a otro jugador.
 
 2.  **Acción:**
     - Basado en tu razonamiento, elige UNA SOLA acción.
-    - El formato DEBE ser \`TYPE:TARGET_ID\`, \`TYPE:TARGET_ID1|TARGET_ID2\` (para la venganza de la Cría de Lobo) o \`TYPE\`.
+    - El formato DEBE ser \`TYPE:TARGET_ID\`, \`TYPE:TARGET_ID1|TARGET_ID2\` (para Cupido o la venganza de la Cría de Lobo) o \`TYPE\`.
     - **TYPEs válidos:**
         - **VOTE**: votar durante el día.
         - **KILL**: hombres lobo por la noche.
@@ -78,13 +80,15 @@ Basado en toda la información, y especialmente en tu identidad y rol dentro de 
         - **POISON**: hechicera, usar veneno.
         - **SAVE**: hechicera, usar poción de salvación.
         - **PROTECT**: guardián por la noche.
+        - **ENCHANT**: cupido en la primera noche.
+        - **BLESS**: sacerdote por la noche.
     - **TARGET_ID** debe ser el userId de un jugador vivo.
     - Si no tienes ninguna acción válida o posible, devuelve 'NONE'.
 
-**EJEMPLO DE RESPUESTA (HECHICERA):**
+**EJEMPLO DE RESPUESTA (CUPIDO RONDA 1):**
 {
-  "reasoning": "Soy la Hechicera. En el día, el Jugador X defendió a un lobo conocido, así que es muy sospechoso. Usaré mi poción de veneno en él esta noche para eliminar una amenaza clara. Guardaré mi poción de salvación para más adelante, cuando sepa quién es la vidente o el doctor.",
-  "action": "POISON:playerX_id"
+  "reasoning": "Soy Cupido y es la primera noche. Para tener más control sobre mi destino, me elegiré a mí mismo y a otro jugador, 'playerABC', como enamorados. Si somos los únicos que quedamos, ganaremos. Si 'playerABC' es un lobo, será una partida interesante.",
+  "action": "ENCHANT:mi_propio_id|playerABC_id"
 }
 
 **EJEMPLO DE RESPUESTA (LOBO CON VENGANZA DE CRIA):**
@@ -109,3 +113,5 @@ const takeAITurnFlow = ai.defineFlow(
         return output!;
     }
 );
+
+    
