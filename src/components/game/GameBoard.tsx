@@ -4,17 +4,17 @@ import type { Game, Player, GameEvent } from "@/types";
 import { RoleReveal } from "./RoleReveal";
 import { PlayerGrid } from "./PlayerGrid";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { updateDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { NightActions } from "./NightActions";
 import { processNight } from "@/app/actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
-import { HeartIcon, ScrollText } from "lucide-react";
+import { HeartIcon } from "lucide-react";
 import { HunterShot } from "./HunterShot";
 import { GameChronicle } from "./GameChronicle";
-import { Button } from "../ui/button";
+import { PhaseTimer } from "./PhaseTimer";
 
 interface GameBoardProps {
   game: Game;
@@ -37,8 +37,6 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
   const handleAcknowledgeRole = async () => {
     setShowRole(false);
     if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId) {
-        // Simple mechanism to give players time to see their roles.
-        // In a real app, this should be a server-side check.
         setTimeout(async () => {
            await updateDoc(doc(db, "games", game.id), { 
                 phase: 'night',
@@ -47,16 +45,11 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     }
   };
   
-   useEffect(() => {
-    let timer: NodeJS.Timeout;
+   const handleTimerEnd = async () => {
     if (game.phase === 'night' && game.creator === currentPlayer.userId && game.status === 'in_progress') {
-        // Give players 30 seconds to perform their actions
-        timer = setTimeout(async () => {
-            await processNight(game.id);
-        }, 30000); // 30 seconds
+      await processNight(game.id);
     }
-    return () => clearTimeout(timer);
-  }, [game.phase, game.id, game.currentRound, game.creator, currentPlayer.userId, game.status]);
+  };
   
   if (game.status === 'finished') {
     const gameOverEvent = events.find(e => e.type === 'game_over');
@@ -97,12 +90,15 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
   return (
     <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
        <Card className="text-center bg-card/80">
-        <CardHeader className="flex flex-row items-center justify-between p-4">
+        <CardHeader className="flex flex-row items-center justify-between p-4 relative">
           <div className="flex-1">
             <CardTitle className="font-headline text-3xl">
               {getPhaseTitle()}
             </CardTitle>
           </div>
+          {game.phase === 'night' && game.status === 'in_progress' && (
+            <PhaseTimer duration={30} onTimerEnd={handleTimerEnd} />
+          )}
           <GameChronicle events={events} />
         </CardHeader>
       </Card>

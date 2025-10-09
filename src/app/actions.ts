@@ -180,6 +180,7 @@ export async function startGame(gameId: string, creatorId: string) {
         status: 'in_progress',
         phase: 'role_reveal',
         currentRound: 1,
+        phaseEndsAt: Timestamp.fromMillis(Date.now() + 30000), // Timer for night phase
     });
 
     await batch.commit();
@@ -209,6 +210,9 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
       ...action,
       createdAt: Timestamp.now(),
     });
+    
+    // After submitting an action, check if the night can end early
+    await checkEndNightEarly(action.gameId);
 
     return { success: true };
   } catch (error) {
@@ -224,7 +228,6 @@ export async function submitCupidAction(gameId: string, cupidId: string, target1
             lovers: [target1Id, target2Id]
         });
         
-        // Log the action to prevent re-doing it
         await submitNightAction({
             gameId,
             round: 1,
@@ -293,7 +296,6 @@ async function checkGameOver(gameId: string, transaction: Transaction, lovers?: 
     const gameRef = doc(db, 'games', gameId);
     const playersQuery = query(collection(db, 'players'), where('gameId', '==', gameId));
     
-    // We need to fetch players within the transaction context for consistency
     const playersSnap = await transaction.get(playersQuery);
     const players = playersSnap.docs.map(doc => doc.data() as Player);
 
@@ -350,7 +352,6 @@ export async function processNight(gameId: string) {
 
             if (game.phase !== 'night' || game.status !== 'in_progress') return;
 
-            // Fetch players inside transaction to ensure consistency
             const playersSnap = await getDocs(query(collection(db, 'players'), where('gameId', '==', gameId)));
             const playersData = playersSnap.docs.map(doc => doc.data() as Player);
 
@@ -358,7 +359,6 @@ export async function processNight(gameId: string) {
                 where('gameId', '==', gameId),
                 where('round', '==', game.currentRound)
             );
-            // Must fetch outside transaction, as it's a query not a single doc get
             const actionsSnap = await getDocs(actionsQuery); 
             const actions = actionsSnap.docs.map(doc => doc.data() as NightAction);
 
@@ -412,7 +412,7 @@ export async function processNight(gameId: string) {
                 createdAt: Timestamp.now(),
             });
 
-            if (nightKillResult.hunterId) return; // Stop processing, wait for hunter
+            if (nightKillResult.hunterId) return; 
 
             if (nightKillResult.killedIds.length > 0) {
                  const isGameOver = await checkGameOver(gameId, transaction, game.lovers);
@@ -455,7 +455,6 @@ export async function processVotes(gameId: string) {
 
             if (game.phase !== 'day' || game.status !== 'in_progress') return;
 
-            // Fetch players inside transaction to ensure consistency
             const playersSnap = await getDocs(query(collection(db, 'players'), where('gameId', '==', gameId)));
             const playersData = playersSnap.docs.map(doc => doc.data() as Player);
             const alivePlayers = playersData.filter(p => p.isAlive);
@@ -505,7 +504,7 @@ export async function processVotes(gameId: string) {
                 createdAt: Timestamp.now(),
             });
             
-            if (voteKillResult.hunterId) return; // Stop processing, wait for hunter
+            if (voteKillResult.hunterId) return;
 
             if (voteKillResult.killedIds.length > 0) {
                  const isGameOver = await checkGameOver(gameId, transaction, game.lovers);
@@ -514,7 +513,8 @@ export async function processVotes(gameId: string) {
             
             transaction.update(gameRef, {
                 phase: 'night',
-                currentRound: increment(1)
+                currentRound: increment(1),
+                phaseEndsAt: Timestamp.fromMillis(Date.now() + 30000), // Timer for night phase
             });
         });
 
@@ -570,11 +570,9 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
                 throw new Error("No es tu momento de disparar.");
             }
             
-            // Fetch players to get data for events and lover logic
             const playersSnap = await getDocs(query(collection(db, 'players'), where('gameId', '==', gameId)));
             const playersData = playersSnap.docs.map(doc => doc.data() as Player);
 
-            // Kill the hunter first
             const hunterPlayerRef = doc(db, 'players', `${hunterId}_${gameId}`);
             transaction.update(hunterPlayerRef, { isAlive: false });
 
@@ -590,24 +588,65 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
                 createdAt: Timestamp.now(),
             });
 
-            // Kill the target and check for game over
             const targetKillResult = await killPlayer(transaction, gameId, targetId, game, playersData);
             const isGameOver = await checkGameOver(gameId, transaction, game.lovers);
             if (isGameOver) return;
             
-            // Determine next phase based on when the hunter was killed
-            const originatingPhase = game.currentRound > 0 ? 'day' : 'night'; // Assumption: hunter died during day if round > 0 vote, else night. Better logic might be needed.
+            const originatingPhase = game.currentRound > 0 ? 'day' : 'night';
             const nextPhase = originatingPhase === 'day' ? 'night' : 'day';
 
             transaction.update(gameRef, {
                 phase: nextPhase,
-                pendingHunterShot: null, // Clear the pending shot
-                currentRound: nextPhase === 'night' ? increment(1) : game.currentRound // Increment round if moving to night
+                pendingHunterShot: null,
+                currentRound: nextPhase === 'night' ? increment(1) : game.currentRound,
+                phaseEndsAt: nextPhase === 'night' ? Timestamp.fromMillis(Date.now() + 30000) : null,
             });
         });
         return { success: true };
     } catch (error: any) {
         console.error("Error submitting hunter shot: ", error);
         return { error: error.message || "No se pudo registrar el disparo." };
+    }
+}
+
+async function checkEndNightEarly(gameId: string) {
+    const gameRef = doc(db, 'games', gameId);
+    const gameDoc = await getDoc(gameRef);
+    if (!gameDoc.exists()) return;
+
+    const game = gameDoc.data() as Game;
+    if (game.phase !== 'night') return;
+
+    const playersQuery = query(collection(db, 'players'), where('gameId', '==', gameId), where('isAlive', '==', true));
+    const playersSnap = await getDocs(playersQuery);
+    const alivePlayers = playersSnap.docs.map(p => p.data() as Player);
+    
+    const nightActionsQuery = query(collection(db, 'night_actions'), where('gameId', '==', gameId), where('round', '==', game.currentRound));
+    const nightActionsSnap = await getDocs(nightActionsQuery);
+    const submittedActions = nightActionsSnap.docs.map(a => a.data() as NightAction);
+
+    const requiredPlayerIds = new Set<string>();
+    const werewolves = alivePlayers.filter(p => p.role === 'werewolf');
+    if (werewolves.length > 0) {
+        werewolves.forEach(w => requiredPlayerIds.add(w.userId));
+    }
+
+    const seer = alivePlayers.find(p => p.role === 'seer');
+    if (seer) requiredPlayerIds.add(seer.userId);
+    
+    const doctor = alivePlayers.find(p => p.role === 'doctor');
+    if (doctor) requiredPlayerIds.add(doctor.userId);
+    
+    if (game.currentRound === 1) {
+        const cupid = alivePlayers.find(p => p.role === 'cupid');
+        if (cupid) requiredPlayerIds.add(cupid.userId);
+    }
+    
+    const submittedPlayerIds = new Set(submittedActions.map(a => a.playerId));
+
+    const allActionsSubmitted = Array.from(requiredPlayerIds).every(id => submittedPlayerIds.has(id));
+
+    if (allActionsSubmitted) {
+        await processNight(gameId);
     }
 }

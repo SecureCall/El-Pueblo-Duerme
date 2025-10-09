@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Game, Player, NightActionType } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
@@ -10,6 +10,7 @@ import { submitNightAction, getSeerResult, submitCupidAction } from '@/app/actio
 import { Loader2, Heart } from 'lucide-react';
 import { WolfIcon } from '../icons';
 import { SeerResult } from './SeerResult';
+import { useNightActions } from '@/hooks/use-night-actions';
 
 interface NightActionsProps {
     game: Game;
@@ -20,16 +21,17 @@ interface NightActionsProps {
 export function NightActions({ game, players, currentPlayer }: NightActionsProps) {
     const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [submitted, setSubmitted] = useState(false);
     const [seerResult, setSeerResult] = useState<{ targetName: string; isWerewolf: boolean; } | null>(null);
     const { toast } = useToast();
+    const { hasSubmitted } = useNightActions(game.id, game.currentRound, currentPlayer.userId);
 
     const isCupidFirstNight = currentPlayer.role === 'cupid' && game.currentRound === 1;
     const selectionLimit = isCupidFirstNight ? 2 : 1;
 
     const handlePlayerSelect = (player: Player) => {
-        if (submitted || !player.isAlive) return;
+        if (hasSubmitted || !player.isAlive) return;
         if (currentPlayer.role === 'werewolf' && player.role === 'werewolf') return;
+        if (currentPlayer.role === 'doctor' && player.userId === currentPlayer.userId) return; // Simplified rule: doctor can't self-heal
 
         setSelectedPlayerIds(prev => {
             if (prev.includes(player.userId)) {
@@ -41,7 +43,6 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             if (selectionLimit === 1) {
                 return [player.userId];
             }
-            // For Cupid, if 2 are selected, replace the first one
             return [prev[1], player.userId];
         });
     };
@@ -81,7 +82,6 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         }
 
         if (result.success) {
-            setSubmitted(true);
             toast({ title: 'Acción registrada.', description: 'Tu decisión ha sido guardada.' });
 
             if (currentPlayer.role === 'seer') {
@@ -110,7 +110,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             case 'werewolf': return 'Elige a un aldeano para eliminar.';
             case 'seer': return 'Elige a un jugador para descubrir su identidad.';
             case 'doctor': return 'Elige a un jugador para proteger esta noche.';
-            case 'cupido': return game.currentRound === 1 ? 'Elige a dos jugadores para que se enamoren.' : 'Tu flecha ya ha unido dos corazones.';
+            case 'cupid': return game.currentRound === 1 ? 'Elige a dos jugadores para que se enamoren.' : 'Tu flecha ya ha unido dos corazones.';
             default: return 'No tienes acciones esta noche. Espera al amanecer.';
         }
     }
@@ -152,7 +152,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             </CardHeader>
             <CardContent>
                 {renderWerewolfInfo()}
-                {submitted ? (
+                {hasSubmitted ? (
                      <div className="text-center py-8">
                         <p className="text-lg text-primary">Has realizado tu acción. Espera a que amanezca.</p>
                     </div>
@@ -161,6 +161,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                         <PlayerGrid 
                             players={players.filter(p => {
                                 if (currentPlayer.role === 'seer' && p.userId === currentPlayer.userId) return false;
+                                if (currentPlayer.role === 'doctor' && p.userId === currentPlayer.userId) return false;
                                 if (currentPlayer.role === 'werewolf') return p.role !== 'werewolf';
                                 return true;
                             })}
