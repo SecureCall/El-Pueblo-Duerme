@@ -4,7 +4,6 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { TakeAITurnInputSchema, TakeAITurnOutputSchema, TakeAITurnInput, TakeAITurnOutput } from '@/types';
-import { Timestamp } from 'firebase/firestore';
 
 
 export async function takeAITurn(input: TakeAITurnInput): Promise<TakeAITurnOutput> {
