@@ -5,7 +5,7 @@ import type { GameEvent, Player } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import Link from 'next/link';
-import { CrownIcon, Milestone } from 'lucide-react';
+import { Milestone } from 'lucide-react';
 import { WolfIcon, VillagerIcon } from '../icons';
 
 interface GameOverProps {
@@ -47,7 +47,7 @@ export function GameOver({ event, players }: GameOverProps) {
                     </ul>
                 </div>
                  <div>
-                    <h3 className="text-2xl font-bold flex items-center justify-center gap-2"><VillagerIcon /> Aldeanos</h3>
+                    <h3 className="text-2xl font-bold flex items-center justify-center gap-2"><VillagerIcon /> Pueblo</h3>
                     <ul className="list-none p-0">
                         {villagers.map(p => (
                              <li key={p.userId} className="text-lg text-muted-foreground">{p.displayName} ({p.role})</li>
