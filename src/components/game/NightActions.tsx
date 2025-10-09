@@ -8,10 +8,11 @@ import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
 import { submitNightAction, getSeerResult, submitCupidAction } from '@/app/actions';
-import { Loader2, Heart } from 'lucide-react';
-import { WolfIcon, HechiceraIcon } from '../icons';
+import { Loader2, Heart, FlaskConical, Shield } from 'lucide-react';
+import { WolfIcon } from '../icons';
 import { SeerResult } from './SeerResult';
 import { useNightActions } from '@/hooks/use-night-actions';
+import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
 
 interface NightActionsProps {
     game: Game;
@@ -19,15 +20,29 @@ interface NightActionsProps {
     currentPlayer: Player;
 }
 
+type HechiceraAction = 'poison' | 'save';
+
 export function NightActions({ game, players, currentPlayer }: NightActionsProps) {
     const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [seerResult, setSeerResult] = useState<{ targetName: string; isWerewolf: boolean; } | null>(null);
+    const [hechiceraAction, setHechiceraAction] = useState<HechiceraAction>('poison');
+    
     const { toast } = useToast();
     const { hasSubmitted } = useNightActions(game.id, game.currentRound, currentPlayer.userId);
 
     const isCupidFirstNight = currentPlayer.role === 'cupid' && game.currentRound === 1;
-    const isHechiceraWithPoison = currentPlayer.role === 'hechicera' && !currentPlayer.potions?.poison;
+    const isHechicera = currentPlayer.role === 'hechicera';
+    const hasPoison = isHechicera && !currentPlayer.potions?.poison;
+    const hasSavePotion = isHechicera && !currentPlayer.potions?.save;
+
+    useEffect(() => {
+        // Default to 'save' if poison is used
+        if (isHechicera && !hasPoison && hasSavePotion) {
+            setHechiceraAction('save');
+        }
+    }, [isHechicera, hasPoison, hasSavePotion]);
+    
     const selectionLimit = isCupidFirstNight ? 2 : 1;
 
     const handlePlayerSelect = (player: Player) => {
@@ -39,6 +54,12 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             toast({ variant: 'destructive', title: 'Regla del Doctor', description: 'No puedes proteger a la misma persona dos noches seguidas.' });
             return;
         }
+        if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save' && player.userId === currentPlayer.userId) {
+            // Original game rule, witch cannot save herself.
+            // toast({ variant: 'destructive', title: 'Regla de la Hechicera', description: 'No puedes usar la poción de salvación en ti misma.' });
+            // return;
+        }
+
 
         setSelectedPlayerIds(prev => {
             if (prev.includes(player.userId)) {
@@ -60,7 +81,10 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             case 'seer': return 'seer_check';
             case 'doctor': return 'doctor_heal';
             case 'cupid': return 'cupid_enchant';
-            case 'hechicera': return 'hechicera_poison';
+            case 'hechicera':
+                if (hechiceraAction === 'poison') return 'hechicera_poison';
+                if (hechiceraAction === 'save') return 'hechicera_save';
+                return null;
             default: return null;
         }
     }
@@ -73,6 +97,15 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
 
         const actionType = getActionType();
         if (!actionType) return;
+        
+        if (actionType === 'hechicera_poison' && !hasPoison) {
+            toast({ variant: 'destructive', title: 'Poción usada', description: 'Ya has usado tu poción de veneno.' });
+            return;
+        }
+        if (actionType === 'hechicera_save' && !hasSavePotion) {
+            toast({ variant: 'destructive', title: 'Poción usada', description: 'Ya has usado tu poción de salvación.' });
+            return;
+        }
 
         setIsSubmitting(true);
 
@@ -119,7 +152,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             case 'seer': return 'Elige a un jugador para descubrir su identidad.';
             case 'doctor': return 'Elige a un jugador para proteger esta noche.';
             case 'cupid': return game.currentRound === 1 ? 'Elige a dos jugadores para que se enamoren.' : 'Tu flecha ya ha unido dos corazones.';
-            case 'hechicera': return isHechiceraWithPoison ? 'Elige a un jugador para usar tu poción de veneno.' : 'Ya no te quedan pociones de veneno.';
+            case 'hechicera': return (hasPoison || hasSavePotion) ? 'Elige una poción y un objetivo.' : 'Has usado todas tus pociones.';
             default: return 'No tienes acciones esta noche. Espera al amanecer.';
         }
     }
@@ -146,21 +179,27 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         if (currentPlayer.role !== 'hechicera') return null;
 
         return (
-            <div className="mb-4 text-center flex justify-center items-center gap-4 text-sm text-muted-foreground">
-                <div className='flex items-center gap-1'>
-                    <HechiceraIcon className="h-4 w-4" />
-                    <span>Poción de Veneno:</span>
-                    <span className={currentPlayer.potions?.poison ? 'text-destructive' : 'text-green-400'}>
-                         {currentPlayer.potions?.poison ? 'Usada' : 'Disponible'}
-                    </span>
-                </div>
-                 <div className='flex items-center gap-1'>
-                    <HechiceraIcon className="h-4 w-4" />
-                    <span>Poción de Salvación:</span>
-                    <span className={currentPlayer.potions?.save ? 'text-destructive' : 'text-green-400'}>
-                         {currentPlayer.potions?.save ? 'Usada' : 'Próximamente'}
-                    </span>
-                </div>
+            <div className="mb-4 flex justify-center">
+                <ToggleGroup 
+                    type="single" 
+                    value={hechiceraAction} 
+                    onValueChange={(value: HechiceraAction) => {
+                        if (value) {
+                            setHechiceraAction(value);
+                            setSelectedPlayerIds([]);
+                        }
+                    }}
+                    className='w-auto'
+                >
+                    <ToggleGroupItem value="poison" aria-label="Usar veneno" disabled={!hasPoison}>
+                        <FlaskConical className="h-4 w-4 mr-2" />
+                        Veneno
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="save" aria-label="Usar poción de salvación" disabled={!hasSavePotion}>
+                        <Shield className="h-4 w-4 mr-2" />
+                        Salvar
+                    </ToggleGroupItem>
+                </ToggleGroup>
             </div>
         )
     }
@@ -170,7 +209,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         currentPlayer.role === 'seer' || 
         currentPlayer.role === 'doctor' ||
         isCupidFirstNight ||
-        isHechiceraWithPoison
+        (isHechicera && (hasPoison || hasSavePotion))
     );
 
     if (seerResult) {
@@ -194,6 +233,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                     <>
                         <PlayerGrid 
                             players={players.filter(p => {
+                                if (p.userId === currentPlayer.userId && hechiceraAction === 'save') return true;
                                 if (p.userId === currentPlayer.userId) return false;
                                 if (currentPlayer.role === 'werewolf') return p.role !== 'werewolf';
                                 return true;

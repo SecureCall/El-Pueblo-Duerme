@@ -301,6 +301,12 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
         }
     }
     
+    if (action.actionType === 'hechicera_save') {
+        if (player.potions?.save) {
+            return { success: false, error: "Ya has usado tu poción de salvación." };
+        }
+    }
+    
     // Check for existing action for this player and round to prevent duplicates
     const q = query(actionRef, 
       where('gameId', '==', action.gameId), 
@@ -310,12 +316,13 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
     const existingActions = await getDocs(q);
     
     const batch = writeBatch(db);
-    // If an action already exists, overwrite it (useful for werewolves changing vote)
+    // If an action already exists, overwrite it (useful for werewolves changing vote or witch changing action)
     if (!existingActions.empty) {
         existingActions.forEach(doc => {
-            // Only delete if it's the same type of action being submitted
-            // or if it's a werewolf kill vote (so they can change their mind)
-            if (doc.data().actionType === action.actionType || action.actionType === 'werewolf_kill') {
+            const docData = doc.data();
+            // Allow override for werewolves or if witch is changing potion type
+            const isWitchChangingPotion = action.playerId === docData.playerId && (docData.actionType === 'hechicera_poison' || docData.actionType === 'hechicera_save');
+            if (docData.actionType === action.actionType || action.actionType === 'werewolf_kill' || isWitchChangingPotion) {
                batch.delete(doc.ref);
             }
         });
@@ -340,6 +347,12 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
        batch.update(playerRef, {
            "potions.poison": action.round
        });
+    }
+
+    if (action.actionType === 'hechicera_save') {
+        batch.update(playerRef, {
+            "potions.save": action.round
+        });
     }
 
     await batch.commit();
@@ -512,12 +525,16 @@ export async function processNight(gameId: string) {
 
             let killedByWerewolfId: string | null = null;
             let killedByPoisonId: string | null = null;
-            let savedPlayerId: string | null = null;
+            let savedByDoctorId: string | null = null;
+            let savedByHechiceraId: string | null = null;
             let nightKillResult: { killedIds: string[], hunterId: string | null } = { killedIds: [], hunterId: null };
 
             const doctorAction = actions.find(a => a.actionType === 'doctor_heal');
-            if (doctorAction) savedPlayerId = doctorAction.targetId;
+            if (doctorAction) savedByDoctorId = doctorAction.targetId;
 
+            const hechiceraSaveAction = actions.find(a => a.actionType === 'hechicera_save');
+            if (hechiceraSaveAction) savedByHechiceraId = hechiceraSaveAction.targetId;
+            
             const werewolfVotes = actions.filter(a => a.actionType === 'werewolf_kill');
             if (werewolfVotes.length > 0) {
                 const voteCounts = werewolfVotes.reduce((acc, vote) => {
@@ -547,18 +564,19 @@ export async function processNight(gameId: string) {
             }
 
             let messages: string[] = [];
+            const finalSavedPlayerId = savedByDoctorId || savedByHechiceraId;
             
             // Process werewolf attack
-            if (killedByWerewolfId && killedByWerewolfId !== savedPlayerId) {
+            if (killedByWerewolfId && killedByWerewolfId !== finalSavedPlayerId) {
                 const killedPlayer = playersData.find(p => p.userId === killedByWerewolfId)!;
                 messages.push(`${killedPlayer.displayName} fue atacado en la noche.`);
                 nightKillResult = await killPlayer(transaction, gameId, killedPlayer.userId, game, playersData);
-            } else if (killedByWerewolfId && killedByWerewolfId === savedPlayerId) {
-                messages.push("Se escuchó un grito en la noche, ¡pero el doctor llegó justo a tiempo para salvar a alguien!");
+            } else if (killedByWerewolfId && killedByWerewolfId === finalSavedPlayerId) {
+                messages.push("Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!");
             }
 
             // Process poison attack
-            if (killedByPoisonId && killedByPoisonId !== killedByWerewolfId && killedByPoisonId !== savedPlayerId) {
+            if (killedByPoisonId && killedByPoisonId !== killedByWerewolfId && killedByPoisonId !== finalSavedPlayerId) {
                  const killedPlayer = playersData.find(p => p.userId === killedByPoisonId)!;
                  messages.push(`${killedPlayer.displayName} ha muerto misteriosamente, víctima de un veneno.`);
                  const poisonKillResult = await killPlayer(transaction, gameId, killedPlayer.userId, game, playersData);
@@ -579,9 +597,9 @@ export async function processNight(gameId: string) {
                 type: 'night_result',
                 message: messages.join(' '),
                 data: { 
-                    killedByWerewolfId: (killedByWerewolfId && killedByWerewolfId !== savedPlayerId) ? killedByWerewolfId : null,
-                    killedByPoisonId: (killedByPoisonId && killedByPoisonId !== killedByWerewolfId && killedByPoisonId !== savedPlayerId) ? killedByPoisonId : null,
-                    savedPlayerId 
+                    killedByWerewolfId: (killedByWerewolfId && killedByWerewolfId !== finalSavedPlayerId) ? killedByWerewolfId : null,
+                    killedByPoisonId: (killedByPoisonId && killedByPoisonId !== killedByWerewolfId && killedByPoisonId !== finalSavedPlayerId) ? killedByPoisonId : null,
+                    savedPlayerId: finalSavedPlayerId
                 },
                 createdAt: Timestamp.now(),
             });
