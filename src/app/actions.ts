@@ -21,8 +21,8 @@ import {
   orderBy,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Game, Player, NightAction, GameEvent } from "@/types";
-import { takeAITurn, TakeAITurnInput } from "@/ai/flows/take-ai-turn-flow";
+import type { Game, Player, NightAction, GameEvent, TakeAITurnInput } from "@/types";
+import { takeAITurn } from "@/ai/flows/take-ai-turn-flow";
 
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';

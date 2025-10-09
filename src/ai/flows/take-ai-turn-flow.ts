@@ -3,7 +3,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { Game, GameEvent, Player } from '@/types';
+import { TakeAITurnInputSchema, TakeAITurnOutputSchema, TakeAITurnInput, TakeAITurnOutput } from '@/types';
 import { Timestamp } from 'firebase/firestore';
 
 // Helper to convert Firestore Timestamps to something JSON-serializable (ISO strings)
@@ -24,45 +24,6 @@ const toJSONCompatible = (obj: any): any => {
     }
     return obj;
 };
-
-// Define serializable versions of types
-const SerializablePlayerSchema = z.object({
-    userId: z.string(),
-    gameId: z.string(),
-    role: z.string().nullable(),
-    isAlive: z.boolean(),
-    votedFor: z.string().nullable(),
-    displayName: z.string(),
-    joinedAt: z.string(), // ISO String
-    lastHealedRound: z.number().optional(),
-    isAI: z.boolean().optional(),
-});
-
-const SerializableGameEventSchema = z.object({
-    gameId: z.string(),
-    round: z.number(),
-    type: z.string(),
-    message: z.string(),
-    data: z.any().optional(),
-    createdAt: z.string(), // ISO String
-});
-
-
-export const TakeAITurnInputSchema = z.object({
-    game: z.any(),
-    players: z.array(SerializablePlayerSchema),
-    events: z.array(SerializableGameEventSchema),
-    currentPlayer: SerializablePlayerSchema,
-});
-
-export type TakeAITurnInput = z.infer<typeof TakeAITurnInputSchema>;
-
-export const TakeAITurnOutputSchema = z.object({
-    reasoning: z.string().describe("Tu proceso de pensamiento paso a paso para llegar a esta acción."),
-    action: z.string().describe("La acción a realizar. Formato: 'TYPE:TARGET_ID' o 'TYPE'. Ejemplos: 'VOTE:player123', 'KILL:player456', 'HEAL:player789', 'CHECK:playerABC', 'SHOOT:playerXYZ'. Si no hay acción posible, devuelve 'NONE'."),
-});
-
-export type TakeAITurnOutput = z.infer<typeof TakeAITurnOutputSchema>;
 
 export async function takeAITurn(input: TakeAITurnInput): Promise<TakeAITurnOutput> {
     return takeAITurnFlow(input);
