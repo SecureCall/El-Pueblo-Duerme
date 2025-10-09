@@ -52,7 +52,8 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
     };
     
     const votedForPlayer = players.find(p => p.userId === currentPlayer.votedFor);
-    const votesByPlayer = players.reduce((acc, player) => {
+    
+    const votesByPlayer = alivePlayers.reduce((acc, player) => {
         if (player.votedFor) {
             if (!acc[player.votedFor]) {
                 acc[player.votedFor] = [];
