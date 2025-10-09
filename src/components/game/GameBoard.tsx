@@ -5,13 +5,14 @@ import { RoleReveal } from "./RoleReveal";
 import { PlayerGrid } from "./PlayerGrid";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { useEffect, useState } from "react";
-import { updateDoc, doc, Timestamp } from "firebase/firestore";
+import { updateDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { NightActions } from "./NightActions";
 import { processNight } from "@/app/actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { HeartIcon } from "lucide-react";
+import { HunterShot } from "./HunterShot";
 
 interface GameBoardProps {
   game: Game;
@@ -60,6 +61,11 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     return <GameOver event={gameOverEvent} players={players} />;
   }
 
+  if (game.phase === 'hunter_shot' && game.pendingHunterShot === currentPlayer.userId) {
+      const alivePlayers = players.filter(p => p.isAlive && p.userId !== currentPlayer.userId);
+      return <HunterShot game={game} currentPlayer={currentPlayer} players={alivePlayers} />;
+  }
+
   if (showRole && currentPlayer.role) {
     return <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />;
   }
@@ -75,6 +81,7 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
         case 'voting': return `Votación Día ${game.currentRound}`;
         case 'role_reveal': return 'Comenzando...';
         case 'finished': return 'Partida Terminada';
+        case 'hunter_shot': return '¡La venganza del Cazador!';
         default: return '';
     }
   }

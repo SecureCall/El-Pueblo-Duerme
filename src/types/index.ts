@@ -1,7 +1,7 @@
 import type { Timestamp } from "firebase/firestore";
 
 export type GameStatus = "waiting" | "in_progress" | "finished";
-export type GamePhase = "role_reveal" | "night" | "day" | "voting" | "finished";
+export type GamePhase = "role_reveal" | "night" | "day" | "voting" | "hunter_shot" | "finished";
 export type PlayerRole = "werewolf" | "villager" | "seer" | "doctor" | "hunter" | "cupid" | null;
 
 export interface Game {
@@ -23,6 +23,7 @@ export interface Game {
   };
   phaseEndsAt?: Timestamp;
   lovers?: [string, string];
+  pendingHunterShot?: string; // userId of the hunter who needs to shoot
 }
 
 export interface Player {
@@ -49,7 +50,7 @@ export interface NightAction {
 export interface GameEvent {
     gameId: string;
     round: number;
-    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death';
+    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot';
     message: string;
     data?: any;
     createdAt: Timestamp;

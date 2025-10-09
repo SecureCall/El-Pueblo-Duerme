@@ -55,7 +55,7 @@ export async function createGame(
       werewolves: werewolfCount,
       seer: true,
       doctor: true,
-      hunter: false,
+      hunter: true,
       cupid: true,
     },
   };
@@ -245,41 +245,56 @@ async function killPlayer(
   transaction: Transaction,
   gameId: string,
   playerId: string,
-  lovers: [string, string] | undefined,
+  gameData: Game,
   playersData: Player[]
-): Promise<string[]> {
+): Promise<{ killedIds: string[], hunterId: string | null }> {
+  const playerToKill = playersData.find(p => p.userId === playerId && p.isAlive);
+  if (!playerToKill) return { killedIds: [], hunterId: null };
+
   const killedPlayerIds: string[] = [playerId];
+  
+  if (playerToKill.role === 'hunter') {
+    transaction.update(doc(db, 'games', gameId), { pendingHunterShot: playerId, phase: 'hunter_shot' });
+    return { killedIds: [], hunterId: playerId };
+  }
+  
   const playerRef = doc(db, 'players', `${playerId}_${gameId}`);
   transaction.update(playerRef, { isAlive: false });
 
-  if (lovers && lovers.includes(playerId)) {
-    const otherLoverId = lovers.find(id => id !== playerId)!;
+  if (gameData.lovers && gameData.lovers.includes(playerId)) {
+    const otherLoverId = gameData.lovers.find(id => id !== playerId)!;
     const otherLoverPlayer = playersData.find(p => p.userId === otherLoverId);
     if (otherLoverPlayer && otherLoverPlayer.isAlive) {
-      const otherLoverRef = doc(db, 'players', `${otherLoverId}_${gameId}`);
-      transaction.update(otherLoverRef, { isAlive: false });
-      killedPlayerIds.push(otherLoverId);
+      
+      if (otherLoverPlayer.role === 'hunter') {
+         transaction.update(doc(db, 'games', gameId), { pendingHunterShot: otherLoverId, phase: 'hunter_shot' });
+      } else {
+        const otherLoverRef = doc(db, 'players', `${otherLoverId}_${gameId}`);
+        transaction.update(otherLoverRef, { isAlive: false });
+        killedPlayerIds.push(otherLoverId);
 
-      const killedPlayer = playersData.find(p => p.userId === playerId)!;
-      const eventLogRef = doc(collection(db, 'game_events'));
-      transaction.set(eventLogRef, {
-          gameId,
-          round: (await transaction.get(doc(db, 'games', gameId))).data()?.currentRound,
-          type: 'lover_death',
-          message: `${otherLoverPlayer.displayName} no pudo soportar la pérdida de ${killedPlayer.displayName} y ha muerto de desamor.`,
-          createdAt: Timestamp.now(),
-      });
+        const killedPlayer = playersData.find(p => p.userId === playerId)!;
+        const eventLogRef = doc(collection(db, 'game_events'));
+        transaction.set(eventLogRef, {
+            gameId,
+            round: gameData.currentRound,
+            type: 'lover_death',
+            message: `${otherLoverPlayer.displayName} no pudo soportar la pérdida de ${killedPlayer.displayName} y ha muerto de desamor.`,
+            createdAt: Timestamp.now(),
+        });
+      }
     }
   }
 
-  return killedPlayerIds;
+  return { killedIds: killedPlayerIds, hunterId: null };
 }
 
 async function checkGameOver(gameId: string, transaction: Transaction, lovers?: [string, string]): Promise<boolean> {
     const gameRef = doc(db, 'games', gameId);
     const playersQuery = query(collection(db, 'players'), where('gameId', '==', gameId));
     
-    const playersSnap = await getDocs(playersQuery);
+    // We need to fetch players within the transaction context for consistency
+    const playersSnap = await transaction.get(playersQuery);
     const players = playersSnap.docs.map(doc => doc.data() as Player);
 
     const alivePlayers = players.filter(p => p.isAlive);
@@ -309,11 +324,12 @@ async function checkGameOver(gameId: string, transaction: Transaction, lovers?: 
 
 
     if (gameOver) {
+        const gameData = (await transaction.get(gameRef)).data()
         transaction.update(gameRef, { status: 'finished', phase: 'finished' });
         const logRef = doc(collection(db, 'game_events'));
         transaction.set(logRef, {
             gameId,
-            round: (await transaction.get(gameRef)).data()?.currentRound,
+            round: gameData?.currentRound,
             type: 'game_over',
             message: message,
             createdAt: Timestamp.now(),
@@ -342,12 +358,12 @@ export async function processNight(gameId: string) {
                 where('gameId', '==', gameId),
                 where('round', '==', game.currentRound)
             );
-            const actionsSnap = await getDocs(actionsQuery); // Not in transaction, but actions are immutable once set for the round
+            // Must fetch outside transaction, as it's a query not a single doc get
+            const actionsSnap = await getDocs(actionsQuery); 
             const actions = actionsSnap.docs.map(doc => doc.data() as NightAction);
 
             let killedPlayerId: string | null = null;
             let savedPlayerId: string | null = null;
-            let allKilledIds: string[] = [];
 
             const doctorAction = actions.find(a => a.actionType === 'doctor_heal');
             if (doctorAction) savedPlayerId = doctorAction.targetId;
@@ -376,11 +392,12 @@ export async function processNight(gameId: string) {
             }
 
             let eventLogMessage = "La noche transcurre en un inquietante silencio.";
+            let nightKillResult: { killedIds: string[], hunterId: string | null } = { killedIds: [], hunterId: null };
 
             if (killedPlayerId && killedPlayerId !== savedPlayerId) {
                 const killedPlayer = playersData.find(p => p.userId === killedPlayerId)!;
                 eventLogMessage = `${killedPlayer.displayName} fue atacado en la noche y no ha sobrevivido.`;
-                allKilledIds = await killPlayer(transaction, gameId, killedPlayer.userId, game.lovers, playersData);
+                nightKillResult = await killPlayer(transaction, gameId, killedPlayer.userId, game, playersData);
             } else if (killedPlayerId && killedPlayerId === savedPlayerId) {
                 eventLogMessage = "Se escuchó un grito en la noche, ¡pero el doctor llegó justo a tiempo!";
             }
@@ -391,13 +408,15 @@ export async function processNight(gameId: string) {
                 round: game.currentRound,
                 type: 'night_result',
                 message: eventLogMessage,
-                data: { killedPlayerId: allKilledIds.length > 0 ? killedPlayerId : null, savedPlayerId },
+                data: { killedPlayerId: nightKillResult.killedIds.length > 0 ? killedPlayerId : null, savedPlayerId },
                 createdAt: Timestamp.now(),
             });
 
-            if (allKilledIds.length > 0) {
-                const isGameOver = await checkGameOver(gameId, transaction, game.lovers);
-                if (isGameOver) return;
+            if (nightKillResult.hunterId) return; // Stop processing, wait for hunter
+
+            if (nightKillResult.killedIds.length > 0) {
+                 const isGameOver = await checkGameOver(gameId, transaction, game.lovers);
+                 if (isGameOver) return;
             }
 
             playersSnap.forEach(playerDoc => {
@@ -461,13 +480,14 @@ export async function processVotes(gameId: string) {
 
             let lynchedPlayerId: string | null = null;
             let eventMessage: string;
-            let allKilledIds: string[] = [];
+            let voteKillResult: { killedIds: string[], hunterId: string | null } = { killedIds: [], hunterId: null };
+
 
             if (mostVotedPlayerIds.length === 1 && maxVotes > 0) {
                 lynchedPlayerId = mostVotedPlayerIds[0];
                 const lynchedPlayer = playersData.find(p => p.userId === lynchedPlayerId)!;
                 eventMessage = `El pueblo ha decidido. ${lynchedPlayer.displayName} ha sido linchado.`;
-                allKilledIds = await killPlayer(transaction, gameId, lynchedPlayer.userId, game.lovers, playersData);
+                voteKillResult = await killPlayer(transaction, gameId, lynchedPlayer.userId, game, playersData);
 
             } else if (mostVotedPlayerIds.length > 1) {
                 eventMessage = "La votación resultó en un empate. Nadie fue linchado hoy.";
@@ -485,9 +505,11 @@ export async function processVotes(gameId: string) {
                 createdAt: Timestamp.now(),
             });
             
-            if (allKilledIds.length > 0) {
-                const isGameOver = await checkGameOver(gameId, transaction, game.lovers);
-                if (isGameOver) return;
+            if (voteKillResult.hunterId) return; // Stop processing, wait for hunter
+
+            if (voteKillResult.killedIds.length > 0) {
+                 const isGameOver = await checkGameOver(gameId, transaction, game.lovers);
+                 if (isGameOver) return;
             }
             
             transaction.update(gameRef, {
@@ -532,4 +554,60 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
     console.error("Error getting seer result: ", error);
     return { success: false, error: error.message };
   }
+}
+
+
+export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
+    const gameRef = doc(db, 'games', gameId);
+
+    try {
+        await runTransaction(db, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found");
+            const game = gameSnap.data() as Game;
+
+            if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId) {
+                throw new Error("No es tu momento de disparar.");
+            }
+            
+            // Fetch players to get data for events and lover logic
+            const playersSnap = await getDocs(query(collection(db, 'players'), where('gameId', '==', gameId)));
+            const playersData = playersSnap.docs.map(doc => doc.data() as Player);
+
+            // Kill the hunter first
+            const hunterPlayerRef = doc(db, 'players', `${hunterId}_${gameId}`);
+            transaction.update(hunterPlayerRef, { isAlive: false });
+
+            const hunterPlayer = playersData.find(p => p.userId === hunterId)!;
+            const targetPlayer = playersData.find(p => p.userId === targetId)!;
+
+            const hunterEventRef = doc(collection(db, 'game_events'));
+            transaction.set(hunterEventRef, {
+                gameId,
+                round: game.currentRound,
+                type: 'hunter_shot',
+                message: `En su último aliento, ${hunterPlayer.displayName} dispara y se lleva consigo a ${targetPlayer.displayName}.`,
+                createdAt: Timestamp.now(),
+            });
+
+            // Kill the target and check for game over
+            const targetKillResult = await killPlayer(transaction, gameId, targetId, game, playersData);
+            const isGameOver = await checkGameOver(gameId, transaction, game.lovers);
+            if (isGameOver) return;
+            
+            // Determine next phase based on when the hunter was killed
+            const originatingPhase = game.currentRound > 0 ? 'day' : 'night'; // Assumption: hunter died during day if round > 0 vote, else night. Better logic might be needed.
+            const nextPhase = originatingPhase === 'day' ? 'night' : 'day';
+
+            transaction.update(gameRef, {
+                phase: nextPhase,
+                pendingHunterShot: null, // Clear the pending shot
+                currentRound: nextPhase === 'night' ? increment(1) : game.currentRound // Increment round if moving to night
+            });
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error submitting hunter shot: ", error);
+        return { error: error.message || "No se pudo registrar el disparo." };
+    }
 }
