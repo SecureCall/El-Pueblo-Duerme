@@ -1,0 +1,76 @@
+
+"use client";
+
+import type { GameEvent } from '@/types';
+import { Button } from '@/components/ui/button';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollText, SunIcon, VoteIcon, MoonIcon, Swords } from 'lucide-react'; // Assuming VoteIcon exists, otherwise use a substitute
+import { formatDistanceToNow } from 'date-fns';
+import { es } from 'date-fns/locale';
+
+interface GameChronicleProps {
+  events: GameEvent[];
+}
+
+function getEventIcon(type: GameEvent['type']) {
+    switch (type) {
+        case 'night_result':
+            return <MoonIcon className="h-4 w-4 text-blue-400" />;
+        case 'vote_result':
+            return <SunIcon className="h-4 w-4 text-yellow-400" />; // Using Sun for day-time vote
+        case 'lover_death':
+        case 'hunter_shot':
+            return <Swords className="h-4 w-4 text-destructive" />;
+        case 'game_over':
+             return <Swords className="h-4 w-4 text-yellow-500" />;
+        default:
+            return <ScrollText className="h-4 w-4" />;
+    }
+}
+
+export function GameChronicle({ events }: GameChronicleProps) {
+  return (
+    <Sheet>
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="icon">
+          <ScrollText className="h-6 w-6" />
+          <span className="sr-only">Abrir Crónica</span>
+        </Button>
+      </SheetTrigger>
+      <SheetContent>
+        <SheetHeader>
+          <SheetTitle className="font-headline text-2xl">Crónica de la Partida</SheetTitle>
+          <SheetDescription>
+            Un resumen de los eventos que han ocurrido en el pueblo.
+          </SheetDescription>
+        </SheetHeader>
+        <ScrollArea className="h-[calc(100vh-8rem)] w-full mt-4 pr-4">
+          <div className="space-y-6">
+            {events.map((event) => (
+              <div key={event.createdAt.toMillis()} className="flex items-start gap-4">
+                <div className="mt-1">{getEventIcon(event.type)}</div>
+                <div className="flex-1">
+                  <p className="text-sm text-foreground">{event.message}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {`Ronda ${event.round} - ${formatDistanceToNow(event.createdAt.toDate(), { addSuffix: true, locale: es })}`}
+                  </p>
+                </div>
+              </div>
+            ))}
+             {events.length === 0 && (
+                <p className="text-center text-muted-foreground py-8">Aún no ha ocurrido nada en el pueblo.</p>
+             )}
+          </div>
+        </ScrollArea>
+      </SheetContent>
+    </Sheet>
+  );
+}

@@ -11,8 +11,10 @@ import { NightActions } from "./NightActions";
 import { processNight } from "@/app/actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
-import { HeartIcon } from "lucide-react";
+import { HeartIcon, ScrollText } from "lucide-react";
 import { HunterShot } from "./HunterShot";
+import { GameChronicle } from "./GameChronicle";
+import { Button } from "../ui/button";
 
 interface GameBoardProps {
   game: Game;
@@ -94,11 +96,14 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
 
   return (
     <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
-      <Card className="text-center bg-card/80">
-        <CardHeader>
-          <CardTitle className="font-headline text-3xl">
-            {getPhaseTitle()}
-          </CardTitle>
+       <Card className="text-center bg-card/80">
+        <CardHeader className="flex flex-row items-center justify-between p-4">
+          <div className="flex-1">
+            <CardTitle className="font-headline text-3xl">
+              {getPhaseTitle()}
+            </CardTitle>
+          </div>
+          <GameChronicle events={events} />
         </CardHeader>
       </Card>
       
