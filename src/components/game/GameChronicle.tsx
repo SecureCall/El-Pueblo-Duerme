@@ -58,7 +58,7 @@ export function GameChronicle({ events }: GameChronicleProps) {
         <ScrollArea className="h-[calc(100vh-8rem)] w-full mt-4 pr-4">
           <div className="space-y-6">
             {sortedEvents.map((event) => (
-              <div key={event.createdAt.toMillis()} className="flex items-start gap-4">
+              <div key={event.id} className="flex items-start gap-4">
                 <div className="mt-1">{getEventIcon(event.type)}</div>
                 <div className="flex-1">
                   <p className="text-sm text-foreground">{event.message}</p>

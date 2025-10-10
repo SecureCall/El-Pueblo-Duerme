@@ -28,9 +28,16 @@
         },
         "players": {
           "type": "array",
-          "description": "Array of userIds playing the game.",
+          "description": "Array of Player objects in the game.",
           "items": {
-            "type": "string"
+            "$ref": "#/entities/Player"
+          }
+        },
+        "events": {
+          "type": "array",
+          "description": "Array of GameEvent objects for this game.",
+          "items": {
+            "$ref": "#/entities/GameEvent"
           }
         },
         "maxPlayers": {
@@ -74,10 +81,6 @@
           "type": "string",
           "description": "Reference to User that represents the player. (Relationship: User 1:N Player)"
         },
-        "gameId": {
-          "type": "string",
-          "description": "Reference to Game in which the player is participating. (Relationship: Game 1:N Player)"
-        },
         "role": {
           "type": "string",
           "description": "The player's role in the game ('werewolf', 'villager', 'seer', 'doctor', 'hunter')."
@@ -102,7 +105,6 @@
       },
       "required": [
         "userId",
-        "gameId",
         "role",
         "isAlive",
         "displayName",
@@ -193,47 +195,11 @@
           "schema": {
             "$ref": "#/backend/entities/Game"
           },
-          "description": "Stores game instances. The creator field indicates the user who created the game.",
+          "description": "Stores game instances. Contains all players and events as arrays.",
           "params": [
             {
               "name": "gameId",
               "description": "Unique identifier for the game."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/games/{gameId}/players/{userId}",
-        "definition": {
-          "entityName": "Player",
-          "schema": {
-            "$ref": "#/backend/entities/Player"
-          },
-          "description": "Stores player data for each game. Includes denormalized 'gameId' for authorization independence.",
-          "params": [
-            {
-              "name": "gameId",
-              "description": "Unique identifier for the game."
-            },
-            {
-              "name": "userId",
-              "description": "Unique identifier for the user (player) in the game."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/events/{eventId}",
-        "definition": {
-          "entityName": "GameEvent",
-          "schema": {
-            "$ref": "#/backend/entities/GameEvent"
-          },
-          "description": "Stores game logs. Write access is restricted. Read access is granted to any authenticated user.",
-          "params": [
-            {
-              "name": "eventId",
-              "description": "Unique identifier for the game event."
             }
           ]
         }

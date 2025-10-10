@@ -5,15 +5,9 @@ import { useEffect, useState } from 'react';
 import { 
   doc, 
   onSnapshot, 
-  collection, 
-  query, 
-  where, 
-  type QuerySnapshot, 
   type DocumentData, 
   type DocumentSnapshot, 
-  orderBy, 
-  FirestoreError,
-  collectionGroup
+  type FirestoreError,
 } from 'firebase/firestore';
 import type { Game, Player, GameEvent } from '@/types';
 import { useFirebase } from '@/firebase';
@@ -41,12 +35,16 @@ export const useGameState = (gameId: string) => {
     const gameRef = doc(firestore, 'games', gameId);
     const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
-        setGame({ ...snapshot.data() as Game, id: snapshot.id });
+        const gameData = { ...snapshot.data() as Game, id: snapshot.id };
+        setGame(gameData);
+        setPlayers(gameData.players.sort((a, b) => a.joinedAt.toMillis() - b.joinedAt.toMillis()));
+        setEvents(gameData.events?.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis()) || []);
         setError(null);
       } else {
         setError('Partida no encontrada.');
         setGame(null);
         setPlayers([]);
+        setEvents([]);
       }
       setLoading(false);
     }, (err: FirestoreError) => {
@@ -54,49 +52,14 @@ export const useGameState = (gameId: string) => {
             operation: 'get',
             path: gameRef.path,
         });
-        setError("Error al cargar la partida.");
+        setError("Error al cargar la partida. Permisos insuficientes.");
         setLoading(false);
-        errorEmitter.emit('permission-error', contextualError);
-    });
-
-    const playersQuery = query(
-      collectionGroup(firestore, 'players'), 
-      where('gameId', '==', gameId)
-    );
-    const unsubscribePlayers = onSnapshot(playersQuery, (snapshot: QuerySnapshot<DocumentData>) => {
-      const playersData = snapshot.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
-      setPlayers(playersData.sort((a, b) => a.joinedAt.toMillis() - b.joinedAt.toMillis()));
-    }, (err: FirestoreError) => {
-        const contextualError = new FirestorePermissionError({
-            operation: 'list',
-            path: `games/${gameId}/players`,
-        });
-        setError("Error al cargar los jugadores.");
-        errorEmitter.emit('permission-error', contextualError);
-    });
-    
-    const eventsQuery = query(
-      collectionGroup(firestore, 'events'), 
-      where('gameId', '==', gameId), 
-      orderBy('createdAt', 'asc')
-    );
-    const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot: QuerySnapshot<DocumentData>) => {
-        const eventsData = snapshot.docs.map(doc => ({ ...doc.data() as GameEvent, id: doc.id }));
-        setEvents(eventsData);
-    }, (err: FirestoreError) => {
-        const contextualError = new FirestorePermissionError({
-            operation: 'list',
-            path: `games/${gameId}/events`,
-        });
-        setError("Error al cargar los eventos de la partida.");
         errorEmitter.emit('permission-error', contextualError);
     });
 
 
     return () => {
       unsubscribeGame();
-      unsubscribePlayers();
-      unsubscribeEvents();
     };
   }, [gameId, firestore]);
 

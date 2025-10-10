@@ -80,7 +80,9 @@ export function GameRoom({ gameId }: { gameId: string }) {
             return <GameLobby game={game} players={players} isCreator={game.creator === userId} />;
         case 'in_progress':
         case 'finished':
-            return <GameBoard game={game} players={players} currentPlayer={currentPlayer} events={events} />;
+            // Pass sorted events to game board
+            const sortedEvents = [...events].sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis());
+            return <GameBoard game={game} players={players} currentPlayer={currentPlayer} events={sortedEvents} />;
         default:
             return <p>Estado de la partida desconocido.</p>;
     }

@@ -1,23 +1,16 @@
+
 'use client';
 import { 
-  collection,
   doc,
   setDoc,
   getDoc,
   updateDoc,
   arrayUnion,
-  query,
-  getDocs,
-  writeBatch,
   Timestamp,
-  addDoc,
   increment,
   runTransaction,
-  where,
-  orderBy,
   type Firestore,
   type Transaction,
-  type Timestamp as FirestoreTimestamp,
 } from "firebase/firestore";
 import type { Game, Player, NightAction, GameEvent } from "@/types";
 import { takeAITurn } from "@/ai/flows/take-ai-turn-flow";
@@ -33,14 +26,7 @@ function generateGameId(length = 5) {
   return result;
 }
 
-async function getPlayerDoc(db: Firestore, gameId: string, userId: string) {
-    const playerRef = doc(db, 'games', gameId, 'players', userId);
-    const playerSnap = await getDoc(playerRef);
-    return playerSnap;
-}
-
-
-const createPlayerObject = (userId: string, gameId: string, displayName: string, isAI: boolean = false): Omit<Player, 'id'> => ({
+const createPlayerObject = (userId: string, gameId: string, displayName: string, isAI: boolean = false): Player => ({
     userId,
     gameId,
     displayName: displayName.trim(),
@@ -82,9 +68,10 @@ export async function createGame(
   const gameData: Omit<Game, 'id'> = {
       name: gameName.trim(),
       status: "waiting",
-      phase: "night", // Lobby UI is driven by status='waiting'
+      phase: "night", 
       creator: userId,
-      playerUIDs: [], // Will be populated by joinGame
+      players: [], 
+      events: [],
       maxPlayers: maxPlayers,
       createdAt: Timestamp.now(),
       currentRound: 0,
@@ -96,6 +83,7 @@ export async function createGame(
       lovers: null,
       twins: null,
       wolfCubRevengeRound: 0,
+      nightActions: [],
   };
   
   try {
@@ -103,7 +91,6 @@ export async function createGame(
     
     const joinResult = await joinGame(db, gameId, userId, displayName);
     if (joinResult.error) {
-      // In a real app, you might want to delete the game document here if join fails.
       return { error: `La partida se creó, pero no se pudo unir: ${joinResult.error}` };
     }
 
@@ -130,13 +117,10 @@ export async function joinGame(
   displayName: string
 ) {
   const gameRef = doc(db, "games", gameId);
-  const playerRef = doc(db, "games", gameId, "players", userId);
-  const playerData = createPlayerObject(userId, gameId, displayName, false);
-  let failingOp: { path: string, operation: 'create' | 'update' | 'get', data?: any } | null = null;
-
+  const newPlayer = createPlayerObject(userId, gameId, displayName, false);
+  
   try {
     await runTransaction(db, async (transaction) => {
-      failingOp = { path: gameRef.path, operation: 'get' };
       const gameSnap = await transaction.get(gameRef);
 
       if (!gameSnap.exists()) {
@@ -149,29 +133,27 @@ export async function joinGame(
         throw new Error("La partida ya ha comenzado.");
       }
       
-      if (game.playerUIDs.length >= game.maxPlayers && !game.playerUIDs.includes(userId)) {
+      const playerExists = game.players.some(p => p.userId === userId);
+      
+      if (game.players.length >= game.maxPlayers && !playerExists) {
         throw new Error("Esta partida está llena.");
       }
       
-      failingOp = { path: gameRef.path, operation: 'update', data: { playerUIDs: arrayUnion(userId) } };
-      transaction.update(gameRef, {
-        playerUIDs: arrayUnion(userId),
-      });
-
-      failingOp = { path: playerRef.path, operation: 'create', data: playerData };
-      // Use set with merge option to create or update the player document.
-      // This avoids the need for a separate 'get' operation.
-      transaction.set(playerRef, playerData, { merge: true });
+      if (!playerExists) {
+        transaction.update(gameRef, {
+          players: arrayUnion(newPlayer),
+        });
+      }
     });
 
     return { success: true };
 
   } catch(error: any) {
-    if (error.code === 'permission-denied' && failingOp) {
+    if (error.code === 'permission-denied') {
         const permissionError = new FirestorePermissionError({
-            path: failingOp.path,
-            operation: failingOp.operation as 'create' | 'update' | 'get',
-            requestResourceData: failingOp.data,
+            path: gameRef.path,
+            operation: 'update',
+            requestResourceData: { players: arrayUnion(newPlayer) },
         });
         errorEmitter.emit('permission-error', permissionError);
         return { error: "Permiso denegado al unirse a la partida." };
@@ -251,24 +233,16 @@ const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessi
 
 export async function startGame(db: Firestore, gameId: string, creatorId: string) {
     const gameRef = doc(db, 'games', gameId);
-    let failingOp: { path: string, operation: 'create' | 'update' | 'write' | 'list' | 'get', data?: any } | null = null;
     
     try {
-        const playersCollectionPath = `games/${gameId}/players`;
-        failingOp = { path: playersCollectionPath, operation: 'list' };
-        const playersQuery = query(collection(db, playersCollectionPath));
-        const playersSnap = await getDocs(playersQuery);
-        const existingPlayers = playersSnap.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
-
         await runTransaction(db, async (transaction) => {
-            failingOp = { path: gameRef.path, operation: 'get' };
             const gameSnap = await transaction.get(gameRef);
 
             if (!gameSnap.exists()) {
                 throw new Error('Partida no encontrada.');
             }
 
-            const game = { ...gameSnap.data() as Game, id: gameSnap.id };
+            let game = gameSnap.data() as Game;
 
             if (game.creator !== creatorId) {
                 throw new Error('Solo el creador puede iniciar la partida.');
@@ -278,31 +252,18 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
                 throw new Error('La partida ya ha comenzado.');
             }
             
-            let finalPlayers = [...existingPlayers];
-            let finalPlayerIds = existingPlayers.map(p => p.userId);
+            let finalPlayers = [...game.players];
 
             if (game.settings.fillWithAI && finalPlayers.length < game.maxPlayers) {
                 const aiPlayerCount = game.maxPlayers - finalPlayers.length;
-                const availableAINames = AI_NAMES.filter(name => !existingPlayers.some(p => p.displayName === name));
+                const availableAINames = AI_NAMES.filter(name => !finalPlayers.some(p => p.displayName === name));
 
                 for (let i = 0; i < aiPlayerCount; i++) {
                     const aiUserId = `ai_${Date.now()}_${i}`;
                     const aiName = availableAINames[i % availableAINames.length] || `Bot ${i + 1}`;
-                    
-                    const aiPlayerRef = doc(db, 'games', gameId, 'players', aiUserId);
                     const aiPlayerData = createPlayerObject(aiUserId, gameId, aiName, true);
-                    
-                    failingOp = { path: aiPlayerRef.path, operation: 'create', data: aiPlayerData };
-                    transaction.set(aiPlayerRef, aiPlayerData);
-
-                    finalPlayers.push({ ...aiPlayerData, id: aiPlayerRef.id });
-                    finalPlayerIds.push(aiUserId);
+                    finalPlayers.push(aiPlayerData);
                 }
-                
-                failingOp = { path: gameRef.path, operation: 'update', data: { playerUIDs: finalPlayerIds } };
-                transaction.update(gameRef, {
-                    playerUIDs: finalPlayerIds,
-                });
             }
             
             const totalPlayers = finalPlayers.length;
@@ -317,19 +278,10 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
             }));
 
             const twinUserIds = assignedPlayers.filter(p => p.role === 'twin').map(p => p.userId);
-            if (twinUserIds.length === 2) {
-                failingOp = { path: gameRef.path, operation: 'update', data: { twins: twinUserIds } };
-                transaction.update(gameRef, { twins: twinUserIds });
-            }
-
-            assignedPlayers.forEach((player) => {
-                const playerRef = doc(db, 'games', gameId, 'players', player.userId);
-                failingOp = { path: playerRef.path, operation: 'update', data: { role: player.role } };
-                transaction.update(playerRef, { role: player.role });
-            });
-
-            failingOp = { path: gameRef.path, operation: 'update', data: { status: 'in_progress', phase: 'role_reveal', currentRound: 1 } };
+            
             transaction.update(gameRef, {
+                players: assignedPlayers,
+                twins: twinUserIds.length === 2 ? twinUserIds : null,
                 status: 'in_progress',
                 phase: 'role_reveal',
                 currentRound: 1,
@@ -339,11 +291,10 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
         return { success: true };
 
     } catch (e: any) {
-        if (e.code === 'permission-denied' && failingOp) {
+        if (e.code === 'permission-denied') {
             const permissionError = new FirestorePermissionError({
-                path: failingOp.path,
-                operation: failingOp.operation as 'create' | 'update' | 'write' | 'list' | 'get',
-                requestResourceData: failingOp.data,
+                path: gameRef.path,
+                operation: 'update',
             });
             errorEmitter.emit('permission-error', permissionError);
             return { error: "Permiso denegado al iniciar la partida." };
@@ -355,130 +306,101 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
 
 
 export async function submitNightAction(db: Firestore, action: Omit<NightAction, 'createdAt' | 'round'> & { round: number }) {
+  const gameRef = doc(db, 'games', gameId);
   try {
-    const actionRef = collection(db, 'games', action.gameId, 'night_actions');
-    const playerDoc = await getPlayerDoc(db, action.gameId, action.playerId);
-    if (!playerDoc || !playerDoc.exists()) throw new Error("Player not found");
-    const player = playerDoc.data() as Player;
-
-    if (action.actionType === 'doctor_heal') {
-        const targetPlayerDoc = await getPlayerDoc(db, action.gameId, action.targetId);
-        if (!targetPlayerDoc || !targetPlayerDoc.exists()) throw new Error("Target player for heal not found");
+    await runTransaction(db, async (transaction) => {
+        const gameSnap = await transaction.get(gameRef);
+        if (!gameSnap.exists()) throw new Error("Game not found");
         
-        if(targetPlayerDoc.data().lastHealedRound === action.round - 1) {
-            return { success: false, error: "No puedes proteger a la misma persona dos noches seguidas." };
-        }
-    }
-    
-    if (action.actionType === 'hechicera_poison') {
-        if (player.potions?.poison) {
-            return { success: false, error: "Ya has usado tu poción de veneno." };
-        }
-    }
-    
-    if (action.actionType === 'hechicera_save') {
-        if (player.potions?.save) {
-            return { success: false, error: "Ya has usado tu poción de salvación." };
-        }
-    }
+        const game = gameSnap.data() as Game;
+        const player = game.players.find(p => p.userId === action.playerId);
+        if (!player) throw new Error("Player not found");
+        
+        const nightActions = game.nightActions ? [...game.nightActions] : [];
+        const existingActionIndex = nightActions.findIndex(a => a.round === action.round && a.playerId === action.playerId);
 
-    if (action.actionType === 'guardian_protect' && action.targetId === action.playerId && player.userId === action.playerId) {
-    }
-
-    if (action.actionType === 'priest_bless' && action.targetId === action.playerId && player.priestSelfHealUsed) {
-        return { success: false, error: "Ya te has bendecido a ti mismo una vez." };
-    }
-    
-    const q = query(actionRef, 
-      where('round', '==', action.round), 
-      where('playerId', '==', action.playerId)
-    );
-    const existingActions = await getDocs(q);
-    
-    const batch = writeBatch(db);
-    if (!existingActions.empty) {
-        existingActions.forEach(doc => {
-            const docData = doc.data();
-            const isWitchChangingPotion = action.playerId === docData.playerId && (docData.actionType === 'hechicera_poison' || docData.actionType === 'hechicera_save');
-            if (docData.actionType === action.actionType || action.actionType === 'werewolf_kill' || isWitchChangingPotion) {
-               batch.delete(doc.ref);
+        // Validations
+        if (action.actionType === 'doctor_heal') {
+            const targetPlayer = game.players.find(p => p.userId === action.targetId);
+            if (!targetPlayer) throw new Error("Target player not found");
+            if (targetPlayer.lastHealedRound === action.round - 1) {
+                throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
             }
+        }
+        if (action.actionType === 'hechicera_poison' && player.potions?.poison) throw new Error("Ya has usado tu poción de veneno.");
+        if (action.actionType === 'hechicera_save' && player.potions?.save) throw new Error("Ya has usado tu poción de salvación.");
+        if (action.actionType === 'priest_bless' && action.targetId === action.playerId && player.priestSelfHealUsed) {
+            throw new Error("Ya te has bendecido a ti mismo una vez.");
+        }
+        
+        // Remove previous actions for this player this round
+        if (existingActionIndex > -1) {
+            nightActions.splice(existingActionIndex, 1);
+        }
+
+        const newAction: NightAction = { ...action, createdAt: Timestamp.now() };
+        nightActions.push(newAction);
+
+        let players = [...game.players];
+        const playerIndex = players.findIndex(p => p.userId === action.playerId);
+
+        if (action.actionType === 'doctor_heal') {
+            const targetIndex = players.findIndex(p => p.userId === action.targetId);
+            if (targetIndex > -1) {
+                players[targetIndex].lastHealedRound = action.round;
+            }
+        } else if (action.actionType === 'hechicera_poison') {
+            players[playerIndex].potions!.poison = action.round;
+        } else if (action.actionType === 'hechicera_save') {
+            players[playerIndex].potions!.save = action.round;
+        } else if (action.actionType === 'priest_bless' && action.targetId === action.playerId) {
+            players[playerIndex].priestSelfHealUsed = true;
+        }
+
+        transaction.update(gameRef, {
+            nightActions,
+            players,
         });
-    }
-    
-    const newActionRef = doc(collection(db, 'games', action.gameId, 'night_actions'));
-    batch.set(newActionRef, {
-      ...action,
-      createdAt: Timestamp.now(),
     });
 
-    if (action.actionType === 'doctor_heal') {
-        const targetPlayerDoc = await getPlayerDoc(db, action.gameId, action.targetId);
-        if (targetPlayerDoc) {
-            batch.update(targetPlayerDoc.ref, {
-                lastHealedRound: action.round
-            });
-        }
-    }
-
-    if (action.actionType === 'hechicera_poison') {
-       batch.update(playerDoc.ref, {
-           "potions.poison": action.round
-       });
-    }
-
-    if (action.actionType === 'hechicera_save') {
-        batch.update(playerDoc.ref, {
-            "potions.save": action.round
-        });
-    }
-
-    if (action.actionType === 'priest_bless' && action.targetId === action.playerId) {
-        batch.update(playerDoc.ref, {
-            priestSelfHealUsed: true
-        });
-    }
-
-    await batch.commit();
-    
     await checkEndNightEarly(db, action.gameId);
-
     return { success: true };
-  } catch (error) {
-    if ((error as any).code === 'permission-denied') {
+
+  } catch (error: any) {
+    if (error.code === 'permission-denied') {
         const permissionError = new FirestorePermissionError({
-            path: `games/${action.gameId}/night_actions`,
-            operation: 'create',
-            requestResourceData: action,
+            path: gameRef.path,
+            operation: 'update',
+            requestResourceData: { nightActions: '...' }
         });
         errorEmitter.emit('permission-error', permissionError);
         return { error: "Permiso denegado al realizar la acción nocturna." };
     }
     console.error("Error submitting night action: ", error);
-    return { error: "No se pudo registrar tu acción." };
+    return { success: false, error: error.message || "No se pudo registrar tu acción." };
   }
 }
 
 export async function submitCupidAction(db: Firestore, gameId: string, cupidId: string, target1Id: string, target2Id: string) {
+    const gameRef = doc(db, 'games', gameId);
     try {
-        const gameRef = doc(db, 'games', gameId);
         await updateDoc(gameRef, {
-            lovers: [target1Id, target2Id]
-        });
-        
-        await submitNightAction(db, {
-            gameId,
-            round: 1,
-            playerId: cupidId,
-            actionType: 'cupid_enchant',
-            targetId: `${target1Id}|${target2Id}`,
+            lovers: [target1Id, target2Id],
+            nightActions: arrayUnion({
+                gameId,
+                round: 1,
+                playerId: cupidId,
+                actionType: 'cupid_enchant',
+                targetId: `${target1Id}|${target2Id}`,
+                createdAt: Timestamp.now(),
+            } as NightAction)
         });
 
         return { success: true };
     } catch (error) {
         if ((error as any).code === 'permission-denied') {
             const permissionError = new FirestorePermissionError({
-                path: `games/${gameId}`,
+                path: gameRef.path,
                 operation: 'update',
                 requestResourceData: { lovers: [target1Id, target2Id] },
             });
@@ -490,98 +412,95 @@ export async function submitCupidAction(db: Firestore, gameId: string, cupidId: 
     }
 }
 
-
 async function killPlayer(
-  db: Firestore,
   transaction: Transaction,
-  gameId: string,
-  playerId: string,
-  gameData: Game,
-  playersData: Player[]
-): Promise<{ killedIds: string[], hunterId: string | null }> {
-  const playerToKill = playersData.find(p => p.userId === playerId && p.isAlive);
-  if (!playerToKill) return { killedIds: [], hunterId: null };
-
-  const killedPlayerIds: string[] = [playerId];
-  let hunterTriggeredId: string | null = null;
+  gameRef: any,
+  gameData: Game
+): Promise<{ game: Game, hunterId: string | null }> {
   
-  const playerRef = doc(db, 'games', gameId, 'players', playerToKill.userId);
-
-  if (playerToKill.role === 'hunter' && gameData.settings.hunter) {
-    hunterTriggeredId = playerId;
-  } else if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) {
-    transaction.update(doc(db, 'games', gameId), { wolfCubRevengeRound: gameData.currentRound + 1 });
-    transaction.update(playerRef, { isAlive: false });
-  } else {
-    transaction.update(playerRef, { isAlive: false });
+  const killedPlayerIds = gameData.players
+    .filter(p => p.isAlive && p.votedFor === 'TO_BE_KILLED')
+    .map(p => p.userId);
+  
+  if (killedPlayerIds.length === 0) {
+    return { game: gameData, hunterId: null };
   }
+  
+  let newGameData = { ...gameData };
+  let hunterTriggeredId: string | null = null;
 
-  if (gameData.lovers && gameData.lovers.includes(playerId)) {
-    const otherLoverId = gameData.lovers.find(id => id !== playerId)!;
-    const otherLoverPlayer = playersData.find(p => p.userId === otherLoverId);
-    if (otherLoverPlayer && otherLoverPlayer.isAlive) {
-      if (otherLoverPlayer.role === 'hunter' && gameData.settings.hunter) {
-         if (!hunterTriggeredId) {
-            hunterTriggeredId = otherLoverId;
-         }
-      } else {
-        const otherLoverRef = doc(db, 'games', gameId, 'players', otherLoverPlayer.userId);
-        transaction.update(otherLoverRef, { isAlive: false });
-        killedPlayerIds.push(otherLoverId);
+  for (const playerId of killedPlayerIds) {
+      const playerIndex = newGameData.players.findIndex(p => p.userId === playerId && p.isAlive);
+      if (playerIndex === -1) continue;
+
+      const playerToKill = newGameData.players[playerIndex];
+      newGameData.players[playerIndex].isAlive = false;
+
+      if (playerToKill.role === 'hunter' && newGameData.settings.hunter) {
+          hunterTriggeredId = playerId;
+      } else if (playerToKill.role === 'wolf_cub' && newGameData.settings.wolf_cub) {
+          newGameData.wolfCubRevengeRound = newGameData.currentRound + 1;
       }
-      
-      const killedPlayer = playersData.find(p => p.userId === playerId)!;
-      const eventLogRef = doc(collection(db, "games", gameId, "events"));
-      transaction.set(eventLogRef, {
-          gameId,
-          round: gameData.currentRound,
-          type: 'lover_death',
-          message: `${otherLoverPlayer.displayName} no pudo soportar la pérdida de ${killedPlayer.displayName} y ha muerto de desamor.`,
-          createdAt: Timestamp.now(),
-      });
-    }
-  }
 
+      if (newGameData.lovers && newGameData.lovers.includes(playerId)) {
+          const otherLoverId = newGameData.lovers.find(id => id !== playerId)!;
+          const otherLoverIndex = newGameData.players.findIndex(p => p.userId === otherLoverId && p.isAlive);
+          if (otherLoverIndex > -1) {
+              const otherLoverPlayer = newGameData.players[otherLoverIndex];
+              if (otherLoverPlayer.role === 'hunter' && newGameData.settings.hunter && !hunterTriggeredId) {
+                  hunterTriggeredId = otherLoverId;
+              } else {
+                  newGameData.players[otherLoverIndex].isAlive = false;
+                  const newEvent: GameEvent = {
+                      id: `evt_${Date.now()}_${Math.random()}`,
+                      gameId: newGameData.id,
+                      round: newGameData.currentRound,
+                      type: 'lover_death',
+                      message: `${otherLoverPlayer.displayName} no pudo soportar la pérdida de ${playerToKill.displayName} y ha muerto de desamor.`,
+                      createdAt: Timestamp.now(),
+                  };
+                  newGameData.events.push(newEvent);
+              }
+          }
+      }
+  }
+  
   if (hunterTriggeredId) {
-    transaction.update(doc(db, 'games', gameId), { pendingHunterShot: hunterTriggeredId, phase: 'hunter_shot' });
-    return { killedIds: [], hunterId: hunterTriggeredId };
+    newGameData.pendingHunterShot = hunterTriggeredId;
+    newGameData.phase = 'hunter_shot';
+    newGameData.players.forEach(p => {
+        if (p.userId === hunterTriggeredId) p.votedFor = null; // Clear to-be-killed status
+    })
+    return { game: newGameData, hunterId: hunterTriggeredId };
   }
 
-  return { killedIds: killedPlayerIds, hunterId: null };
+  return { game: newGameData, hunterId: null };
 }
 
-async function checkGameOver(db: Firestore, gameId: string, transaction: Transaction): Promise<boolean> {
-    const gameRef = doc(db, 'games', gameId);
-    const gameSnap = await transaction.get(gameRef);
-    const gameData = { ...gameSnap.data() as Game, id: gameSnap.id };
-
-    const playersQuery = query(collection(db, 'games', gameId, 'players'));
-    
-    const playersSnap = await getDocs(playersQuery);
-    const players = playersSnap.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
-
-    const alivePlayers = players.filter(p => p.isAlive);
+async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: boolean }> {
+    let newGameData = { ...gameData };
+    const alivePlayers = newGameData.players.filter(p => p.isAlive);
     const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
-    const aliveWerewolves = alivePlayers.filter(p => p.isAlive && wolfRoles.includes(p.role));
-    const aliveVillagers = alivePlayers.filter(p => p.isAlive && !wolfRoles.includes(p.role));
+    const aliveWerewolves = alivePlayers.filter(p => wolfRoles.includes(p.role));
+    const aliveVillagers = alivePlayers.filter(p => !wolfRoles.includes(p.role));
 
     let gameOver = false;
     let message = "";
     let winners: string[] = [];
 
-    if (gameData.lovers) {
-        const aliveLovers = alivePlayers.filter(p => gameData.lovers!.includes(p.userId));
+    if (newGameData.lovers) {
+        const aliveLovers = alivePlayers.filter(p => newGameData.lovers!.includes(p.userId));
         if (aliveLovers.length === alivePlayers.length && alivePlayers.length >= 2) {
             gameOver = true;
-            const lover1 = players.find(p => p.userId === gameData.lovers![0]);
-            const lover2 = players.find(p => p.userId === gameData.lovers![1]);
+            const lover1 = newGameData.players.find(p => p.userId === newGameData.lovers![0]);
+            const lover2 = newGameData.players.find(p => p.userId === newGameData.lovers![1]);
             message = `¡Los enamorados han ganado! Desafiando a sus bandos, ${lover1?.displayName} y ${lover2?.displayName} han triunfado solos contra el mundo.`;
-            winners = gameData.lovers;
+            winners = newGameData.lovers;
         }
     }
     
     if (!gameOver) {
-        if (aliveWerewolves.length === 0) {
+        if (aliveWerewolves.length === 0 && aliveVillagers.length > 0) {
             gameOver = true;
             message = "¡El pueblo ha ganado! Todos los hombres lobo han sido eliminados.";
             winners = aliveVillagers.map(p => p.userId);
@@ -596,19 +515,21 @@ async function checkGameOver(db: Firestore, gameId: string, transaction: Transac
     }
 
     if (gameOver) {
-        transaction.update(gameRef, { status: 'finished', phase: 'finished' });
-        const logRef = doc(collection(db, "games", gameId, "events"));
-        transaction.set(logRef, {
-            gameId,
-            round: gameData?.currentRound,
+        newGameData.status = 'finished';
+        newGameData.phase = 'finished';
+        const newEvent: GameEvent = {
+            id: `evt_${Date.now()}_${Math.random()}`,
+            gameId: newGameData.id,
+            round: newGameData.currentRound,
             type: 'game_over',
             message: message,
             data: { winners },
             createdAt: Timestamp.now(),
-        });
+        };
+        newGameData.events.push(newEvent);
     }
 
-    return gameOver;
+    return { game: newGameData, isOver: gameOver };
 }
 
 export async function processNight(db: Firestore, gameId: string) {
@@ -618,38 +539,23 @@ export async function processNight(db: Firestore, gameId: string) {
         await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found!");
-            const game = { ...gameSnap.data() as Game, id: gameSnap.id };
+            let game = gameSnap.data() as Game;
 
             if (game.phase !== 'night' || game.status !== 'in_progress') return;
 
-            const playersSnap = await getDocs(query(collection(db, 'games', gameId, 'players')));
-            const playersData = playersSnap.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
-
-            const actionsQuery = query(collection(db, 'games', gameId, 'night_actions'),
-                where('round', '==', game.currentRound)
-            );
-            const actionsSnap = await getDocs(actionsQuery); 
-            const actions = actionsSnap.docs.map(doc => doc.data() as NightAction);
-
-            const killedByWerewolfIds: string[] = [];
+            const actions = game.nightActions?.filter(a => a.round === game.currentRound) || [];
+            
+            let killedByWerewolfIds: string[] = [];
             let killedByPoisonId: string | null = null;
             let savedByDoctorId: string | null = null;
             let savedByHechiceraId: string | null = null;
             let savedByGuardianId: string | null = null;
             let savedByPriestId: string | null = null;
-            let nightKillResults: { killedIds: string[], hunterId: string | null }[] = [];
 
-            const doctorAction = actions.find(a => a.actionType === 'doctor_heal');
-            if (doctorAction) savedByDoctorId = doctorAction.targetId;
-
-            const hechiceraSaveAction = actions.find(a => a.actionType === 'hechicera_save');
-            if (hechiceraSaveAction) savedByHechiceraId = hechiceraSaveAction.targetId;
-            
-            const guardianAction = actions.find(a => a.actionType === 'guardian_protect');
-            if (guardianAction) savedByGuardianId = guardianAction.targetId;
-
-            const priestAction = actions.find(a => a.actionType === 'priest_bless');
-            if (priestAction) savedByPriestId = priestAction.targetId;
+            savedByDoctorId = actions.find(a => a.actionType === 'doctor_heal')?.targetId || null;
+            savedByHechiceraId = actions.find(a => a.actionType === 'hechicera_save')?.targetId || null;
+            savedByGuardianId = actions.find(a => a.actionType === 'guardian_protect')?.targetId || null;
+            savedByPriestId = actions.find(a => a.actionType === 'priest_bless')?.targetId || null;
 
             const werewolfVotes = actions.filter(a => a.actionType === 'werewolf_kill');
             if (werewolfVotes.length > 0) {
@@ -679,24 +585,29 @@ export async function processNight(db: Firestore, gameId: string) {
                     killedByWerewolfIds.push(killedId);
                 }
             }
-
-            const poisonAction = actions.find(a => a.actionType === 'hechicera_poison');
-            if (poisonAction) {
-                killedByPoisonId = poisonAction.targetId;
-            }
+            
+            killedByPoisonId = actions.find(a => a.actionType === 'hechicera_poison')?.targetId || null;
 
             let messages: string[] = [];
             const finalSavedPlayerIds = [savedByDoctorId, savedByHechiceraId, savedByGuardianId].filter(id => id && id !== savedByPriestId).filter(Boolean) as string[];
-
+            
+            const markPlayerForDeath = (playerId: string) => {
+                const playerIndex = game.players.findIndex(p => p.userId === playerId);
+                if (playerIndex > -1) {
+                    game.players[playerIndex].votedFor = 'TO_BE_KILLED';
+                }
+            };
+            
             for (const killedId of killedByWerewolfIds) {
-                 const targetPlayer = playersData.find(p => p.userId === killedId);
+                 const targetPlayer = game.players.find(p => p.userId === killedId);
 
                  if (targetPlayer?.role === 'cursed' && game.settings.cursed) {
-                    const playerRef = doc(db, 'games', gameId, 'players', targetPlayer.userId);
-                    transaction.update(playerRef, { role: 'werewolf' });
+                    const playerIndex = game.players.findIndex(p => p.userId === targetPlayer.userId);
+                    if (playerIndex > -1) game.players[playerIndex].role = 'werewolf';
+                    
                     messages.push(`En la oscuridad, ${targetPlayer.displayName} no muere, ¡sino que se une a la manada! Ahora es un Hombre Lobo.`);
-                    const eventLogRef = doc(collection(db, "games", gameId, "events"));
-                    transaction.set(eventLogRef, {
+                    game.events.push({
+                        id: `evt_${Date.now()}_${Math.random()}`,
                         gameId,
                         round: game.currentRound,
                         type: 'player_transformed',
@@ -704,16 +615,14 @@ export async function processNight(db: Firestore, gameId: string) {
                         data: { playerId: targetPlayer.userId },
                         createdAt: Timestamp.now(),
                     });
-
                 } else if (killedId === savedByPriestId) {
                      messages.push("Una bendición ha protegido a un aldeano de un destino fatal.");
                 } else if (finalSavedPlayerIds.includes(killedId)) {
                     messages.push("Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!");
                 } else {
-                    const killedPlayer = playersData.find(p => p.userId === killedId)!;
+                    const killedPlayer = game.players.find(p => p.userId === killedId)!;
                     messages.push(`${killedPlayer.displayName} fue atacado en la noche.`);
-                    const result = await killPlayer(db, transaction, gameId, killedPlayer.userId, game, playersData);
-                    nightKillResults.push(result);
+                    markPlayerForDeath(killedId);
                 }
             }
 
@@ -722,15 +631,13 @@ export async function processNight(db: Firestore, gameId: string) {
                     messages.push("Una bendición ha protegido a un aldeano de un veneno mortal.");
                 } else if (finalSavedPlayerIds.includes(killedByPoisonId)) {
                     messages.push("La poción de una hechicera ha salvado a alguien de un veneno.");
-                }
-                 else {
-                    const killedPlayer = playersData.find(p => p.userId === killedByPoisonId)!;
+                } else {
+                    const killedPlayer = game.players.find(p => p.userId === killedByPoisonId)!;
                     messages.push(`${killedPlayer.displayName} ha muerto misteriosamente, víctima de un veneno.`);
-                    const result = await killPlayer(db, transaction, gameId, killedPlayer.userId, game, playersData);
-                    nightKillResults.push(result);
+                    markPlayerForDeath(killedByPoisonId);
                 }
             }
-
+            
             if (messages.length === 0) {
                 messages.push("La noche transcurre en un inquietante silencio.");
             }
@@ -739,40 +646,37 @@ export async function processNight(db: Firestore, gameId: string) {
             const killedWerewolfTargets = killedByWerewolfIds.filter(id => !allProtectedIds.includes(id));
             const killedPoisonTarget = (killedByPoisonId && !killedByWerewolfIds.includes(killedByPoisonId) && !allProtectedIds.includes(killedByPoisonId)) ? killedByPoisonId : null;
 
-            const logRef = doc(collection(db, "games", gameId, "events"));
-            transaction.set(logRef, {
+            game.events.push({
+                id: `evt_${Date.now()}_${Math.random()}`,
                 gameId,
                 round: game.currentRound,
                 type: 'night_result',
                 message: messages.join(' '),
-                data: { 
-                    killedByWerewolfIds: killedWerewolfTargets,
-                    killedByPoisonId: killedPoisonTarget,
-                    savedPlayerIds: allProtectedIds,
-                },
+                data: { killedByWerewolfIds: killedWerewolfTargets, killedByPoisonId: killedPoisonTarget, savedPlayerIds: allProtectedIds },
                 createdAt: Timestamp.now(),
             });
+
+            const { game: gameAfterKills, hunterId } = await killPlayer(transaction, gameRef, game);
+            game = gameAfterKills;
             
-            const triggeredHunterId = nightKillResults.map(r => r.hunterId).find(id => id);
-            if (triggeredHunterId) return; 
-
-            const anyKills = nightKillResults.some(r => r.killedIds.length > 0);
-            if (anyKills) {
-                 const isGameOver = await checkGameOver(db, gameId, transaction);
-                 if (isGameOver) return;
+            if (hunterId) {
+                transaction.update(gameRef, game);
+                return;
             }
 
-            playersSnap.forEach(playerDoc => {
-                const playerRef = doc(db, 'games', gameId, 'players', playerDoc.id);
-                transaction.update(playerRef, { votedFor: null });
-            });
-
-            const nextPhaseUpdate: {phase: Game['phase'], wolfCubRevengeRound?: number} = { phase: 'day' };
+            const { game: finalGame, isOver } = await checkGameOver(game);
+            game = finalGame;
+            if (isOver) {
+                transaction.update(gameRef, game);
+                return;
+            }
+            
+            game.players.forEach(p => p.votedFor = null);
+            game.phase = 'day';
             if (game.wolfCubRevengeRound === game.currentRound) {
-                nextPhaseUpdate.wolfCubRevengeRound = 0;
+                game.wolfCubRevengeRound = 0;
             }
-
-            transaction.update(gameRef, nextPhaseUpdate);
+            transaction.update(gameRef, game);
         });
         return { success: true };
     } catch (error) {
@@ -783,21 +687,27 @@ export async function processNight(db: Firestore, gameId: string) {
 
 
 export async function submitVote(db: Firestore, gameId: string, voterId: string, targetId: string) {
+    const gameRef = doc(db, 'games', gameId);
     try {
-        const playerRef = doc(db, 'games', gameId, 'players', voterId);
-        const playerSnap = await getDoc(playerRef);
+        await runTransaction(db, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found");
+            const game = gameSnap.data() as Game;
 
-        if (playerSnap.exists()) {
-            await updateDoc(playerRef, { votedFor: targetId });
-            await checkEndDayEarly(db, gameId);
-        }
+            const playerIndex = game.players.findIndex(p => p.userId === voterId && p.isAlive);
+            if (playerIndex === -1) throw new Error("Player not found or is not alive");
+            
+            game.players[playerIndex].votedFor = targetId;
+
+            transaction.update(gameRef, { players: game.players });
+        });
+        await checkEndDayEarly(db, gameId);
         return { success: true };
-    } catch (error) {
-        if ((error as any).code === 'permission-denied') {
+    } catch (error: any) {
+        if (error.code === 'permission-denied') {
             const permissionError = new FirestorePermissionError({
-                path: `games/${gameId}/players/${voterId}`,
+                path: gameRef.path,
                 operation: 'update',
-                requestResourceData: { votedFor: targetId },
             });
             errorEmitter.emit('permission-error', permissionError);
             return { error: "Permiso denegado al votar." };
@@ -814,14 +724,11 @@ export async function processVotes(db: Firestore, gameId: string) {
         await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
-            const game = { ...gameSnap.data() as Game, id: gameSnap.id };
+            let game = gameSnap.data() as Game;
 
             if (game.phase !== 'day' || game.status !== 'in_progress') return;
 
-            const playersSnap = await getDocs(query(collection(db, 'games', gameId, 'players')));
-            const playersData = playersSnap.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
-            const alivePlayers = playersData.filter(p => p.isAlive);
-
+            const alivePlayers = game.players.filter(p => p.isAlive);
             const voteCounts: Record<string, number> = {};
             alivePlayers.forEach(player => {
                 if (player.votedFor) {
@@ -842,54 +749,60 @@ export async function processVotes(db: Firestore, gameId: string) {
 
             let lynchedPlayerId: string | null = null;
             let eventMessage: string;
-            let voteKillResult: { killedIds: string[], hunterId: string | null } = { killedIds: [], hunterId: null };
-
-            const lynchedPlayerIsPrince = (playerId: string) => {
-                const player = playersData.find(p => p.userId === playerId);
-                return player?.role === 'prince' && game.settings.prince;
-            };
 
             if (mostVotedPlayerIds.length === 1 && maxVotes > 0) {
                 const potentialLynchedId = mostVotedPlayerIds[0];
-                const lynchedPlayer = playersData.find(p => p.userId === potentialLynchedId)!;
+                const lynchedPlayerIndex = game.players.findIndex(p => p.userId === potentialLynchedId);
                 
-                if (lynchedPlayerIsPrince(potentialLynchedId) && !lynchedPlayer.princeRevealed) {
-                    eventMessage = `${lynchedPlayer.displayName} ha sido sentenciado, pero revela su identidad como ¡el Príncipe! y sobrevive a la votación.`;
-                    const playerRef = doc(db, 'games', gameId, 'players', lynchedPlayer.userId);
-                    transaction.update(playerRef, { princeRevealed: true });
+                if (lynchedPlayerIndex > -1) {
+                    const lynchedPlayer = game.players[lynchedPlayerIndex];
+                    if (lynchedPlayer.role === 'prince' && game.settings.prince && !lynchedPlayer.princeRevealed) {
+                        eventMessage = `${lynchedPlayer.displayName} ha sido sentenciado, pero revela su identidad como ¡el Príncipe! y sobrevive a la votación.`;
+                        game.players[lynchedPlayerIndex].princeRevealed = true;
+                    } else {
+                        lynchedPlayerId = potentialLynchedId;
+                        eventMessage = `El pueblo ha decidido. ${lynchedPlayer.displayName} ha sido linchado.`;
+                        game.players[lynchedPlayerIndex].votedFor = 'TO_BE_KILLED';
+                    }
                 } else {
-                    lynchedPlayerId = potentialLynchedId;
-                    eventMessage = `El pueblo ha decidido. ${lynchedPlayer.displayName} ha sido linchado.`;
-                    voteKillResult = await killPlayer(db, transaction, gameId, lynchedPlayer.userId, game, playersData);
+                    eventMessage = "El jugador a linchar no fue encontrado.";
                 }
-
             } else if (mostVotedPlayerIds.length > 1) {
                 eventMessage = "La votación resultó en un empate. Nadie fue linchado hoy.";
             } else {
                 eventMessage = "El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.";
             }
 
-            const logRef = doc(collection(db, "games", gameId, "events"));
-            transaction.set(logRef, {
+            game.events.push({
+                id: `evt_${Date.now()}_${Math.random()}`,
                 gameId,
                 round: game.currentRound,
                 type: 'vote_result',
                 message: eventMessage,
-                data: { lynchedPlayerId: lynchedPlayerId },
+                data: { lynchedPlayerId },
                 createdAt: Timestamp.now(),
             });
             
-            if (voteKillResult.hunterId) return;
+            const { game: gameAfterKill, hunterId } = await killPlayer(transaction, gameRef, game);
+            game = gameAfterKill;
 
-            if (voteKillResult.killedIds.length > 0) {
-                 const isGameOver = await checkGameOver(db, gameId, transaction);
-                 if (isGameOver) return;
+            if (hunterId) {
+                transaction.update(gameRef, game);
+                return;
             }
+
+            const { game: finalGame, isOver } = await checkGameOver(game);
+            game = finalGame;
+
+            if (isOver) {
+                transaction.update(gameRef, game);
+                return;
+            }
+
+            game.phase = 'night';
+            game.currentRound = game.currentRound + 1;
             
-            transaction.update(gameRef, {
-                phase: 'night',
-                currentRound: increment(1),
-            });
+            transaction.update(gameRef, game);
         });
 
         return { success: true };
@@ -901,36 +814,20 @@ export async function processVotes(db: Firestore, gameId: string) {
 
 export async function getSeerResult(db: Firestore, gameId: string, seerId: string, targetId: string) {
   try {
-    const seerPlayerDoc = await getPlayerDoc(db, gameId, seerId);
-    if (!seerPlayerDoc || !seerPlayerDoc.exists()) {
-        throw new Error("Seer player not found");
-    }
-
-    if (seerPlayerDoc.data()?.role !== 'seer') {
-      throw new Error("No eres el vidente.");
-    }
-    
-    const targetPlayerDoc = await getPlayerDoc(db, gameId, targetId);
-     if (!targetPlayerDoc || !targetPlayerDoc.exists()) {
-        throw new Error("Target player not found");
-    }
-    
     const gameDoc = await getDoc(doc(db, 'games', gameId));
-    if (!gameDoc.exists()) {
-      throw new Error("Game not found");
-    }
-    const game = { ...gameDoc.data() as Game, id: gameDoc.id };
+    if (!gameDoc.exists()) throw new Error("Game not found");
+    const game = gameDoc.data() as Game;
 
-    const targetPlayer = targetPlayerDoc.data() as Player;
+    const seerPlayer = game.players.find(p => p.userId === seerId);
+    if (!seerPlayer || seerPlayer.role !== 'seer') throw new Error("No eres el vidente.");
+    
+    const targetPlayer = game.players.find(p => p.userId === targetId);
+    if (!targetPlayer) throw new Error("Target player not found");
+
     const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
     const isWerewolf = wolfRoles.includes(targetPlayer.role) || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope);
 
-    return { 
-        success: true, 
-        isWerewolf, 
-        targetName: targetPlayer.displayName 
-    };
-
+    return { success: true, isWerewolf, targetName: targetPlayer.displayName };
   } catch (error: any) {
     console.error("Error getting seer result: ", error);
     return { success: false, error: error.message };
@@ -945,58 +842,52 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
         await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
-            const game = { ...gameSnap.data() as Game, id: gameSnap.id };
+            let game = gameSnap.data() as Game;
 
             if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId) {
                 throw new Error("No es tu momento de disparar.");
             }
             
-            const playersQuery = query(collection(db, 'games', gameId, 'players'));
-            const playersSnap = await getDocs(playersQuery);
-            const playersData = playersSnap.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
+            const hunterPlayer = game.players.find(p => p.userId === hunterId)!;
+            const targetPlayer = game.players.find(p => p.userId === targetId)!;
 
-            const hunterPlayer = playersData.find(p => p.userId === hunterId)!;
-            const hunterPlayerRef = doc(db, 'games', gameId, 'players', hunterPlayer.userId);
-            transaction.update(hunterPlayerRef, { isAlive: false });
-
-            const targetPlayer = playersData.find(p => p.userId === targetId)!;
-
-            const hunterEventRef = doc(collection(db, "games", gameId, "events"));
-            transaction.set(hunterEventRef, {
+            game.events.push({
+                id: `evt_${Date.now()}_${Math.random()}`,
                 gameId,
                 round: game.currentRound,
                 type: 'hunter_shot',
                 message: `En su último aliento, ${hunterPlayer.displayName} dispara y se lleva consigo a ${targetPlayer.displayName}.`,
                 createdAt: Timestamp.now(),
             });
-
-            const targetKillResult = await killPlayer(db, transaction, gameId, targetId, game, playersData);
             
-            if (targetKillResult.hunterId) {
-                 transaction.update(gameRef, { 
-                    pendingHunterShot: targetKillResult.hunterId, 
-                    phase: 'hunter_shot' 
-                });
+            const targetIndex = game.players.findIndex(p => p.userId === targetId);
+            if (targetIndex > -1) {
+                game.players[targetIndex].votedFor = 'TO_BE_KILLED';
+            }
+            
+            const { game: gameAfterKill, hunterId: newHunterId } = await killPlayer(transaction, gameRef, game);
+            game = gameAfterKill;
+            
+            if (newHunterId) { // Another hunter was killed by the shot
+                transaction.update(gameRef, game);
                 return;
             }
 
-            const isGameOver = await checkGameOver(db, gameId, transaction);
-            if (isGameOver) return;
-            
-            const voteEventQuery = query(collection(db, "games", gameId, "events"), 
-                where('round', '==', game.currentRound),
-                where('type', '==', 'vote_result')
-            );
-            const voteEventSnap = await getDocs(voteEventQuery);
-            
-            const diedDuringDay = !voteEventSnap.empty;
-            const nextPhase = diedDuringDay ? 'night' : 'day';
+            const { game: finalGame, isOver } = await checkGameOver(game);
+            game = finalGame;
 
-            transaction.update(gameRef, {
-                phase: nextPhase,
-                pendingHunterShot: null,
-                currentRound: nextPhase === 'night' ? increment(1) : game.currentRound,
-            });
+            if (isOver) {
+                transaction.update(gameRef, game);
+                return;
+            }
+            
+            const voteEvent = game.events.find(e => e.round === game.currentRound && e.type === 'vote_result');
+            
+            game.phase = voteEvent ? 'night' : 'day';
+            game.currentRound = voteEvent ? game.currentRound + 1 : game.currentRound;
+            game.pendingHunterShot = null;
+
+            transaction.update(gameRef, game);
         });
         return { success: true };
     } catch (error: any) {
@@ -1004,7 +895,6 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             const permissionError = new FirestorePermissionError({
                 path: gameRef.path,
                 operation: 'update',
-                requestResourceData: { pendingHunterShot: null },
             });
             errorEmitter.emit('permission-error', permissionError);
             return { error: "Permiso denegado al disparar." };
@@ -1019,16 +909,11 @@ async function checkEndNightEarly(db: Firestore, gameId: string) {
     const gameDoc = await getDoc(gameRef);
     if (!gameDoc.exists()) return;
 
-    const game = { ...gameDoc.data() as Game, id: gameDoc.id };
+    const game = gameDoc.data() as Game;
     if (game.phase !== 'night') return;
 
-    const playersQuery = query(collection(db, 'games', gameId, 'players'), where('isAlive', '==', true));
-    const playersSnap = await getDocs(playersQuery);
-    const alivePlayers = playersSnap.docs.map(p => p.data() as Player);
-    
-    const nightActionsQuery = query(collection(db, 'games', gameId, 'night_actions'), where('round', '==', game.currentRound));
-    const nightActionsSnap = await getDocs(nightActionsQuery);
-    const submittedActions = nightActionsSnap.docs.map(a => a.data() as NightAction);
+    const alivePlayers = game.players.filter(p => p.isAlive);
+    const submittedActions = game.nightActions?.filter(a => a.round === game.currentRound) || [];
 
     const requiredPlayerIds = new Set<string>();
 
@@ -1075,8 +960,6 @@ async function checkEndNightEarly(db: Firestore, gameId: string) {
     const wolfActionSubmitted = werewolves.some(w => submittedPlayerIds.has(w.userId));
     if (werewolves.length > 0 && wolfActionSubmitted) {
         werewolves.forEach(w => requiredPlayerIds.delete(w.userId));
-        if (submittedActions.some(a => a.actionType === 'werewolf_kill')) {
-        }
     }
 
 
@@ -1092,13 +975,10 @@ async function checkEndDayEarly(db: Firestore, gameId: string) {
     const gameDoc = await getDoc(gameRef);
     if (!gameDoc.exists()) return;
 
-    const game = { ...gameDoc.data() as Game, id: gameDoc.id };
+    const game = gameDoc.data() as Game;
     if (game.phase !== 'day') return;
 
-    const playersQuery = query(collection(db, 'games', gameId, 'players'), where('isAlive', '==', true));
-    const playersSnap = await getDocs(playersQuery);
-    const alivePlayers = playersSnap.docs.map(p => p.data() as Player);
-
+    const alivePlayers = game.players.filter(p => p.isAlive && !p.isAI);
     const allPlayersVoted = alivePlayers.every(p => !!p.votedFor);
     
     if (allPlayersVoted) {
@@ -1130,32 +1010,24 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
     try {
         const gameDoc = await getDoc(doc(db, 'games', gameId));
         if (!gameDoc.exists()) return;
-        const game = { ...gameDoc.data() as Game, id: gameDoc.id };
+        const game = gameDoc.data() as Game;
 
-        const playersSnap = await getDocs(query(collection(db, 'games', gameId, 'players')));
-        const players = playersSnap.docs.map(p => ({ ...p.data() as Player, id: p.id }));
-        
-        const eventsSnap = await getDocs(query(collection(db, 'games', gameId, 'events'), orderBy('createdAt', 'asc')));
-        const events = eventsSnap.docs.map(e => e.data() as GameEvent);
-
-        const aiPlayers = players.filter(p => p.isAI && p.isAlive);
-        const alivePlayers = players.filter(p => p.isAlive);
+        const aiPlayers = game.players.filter(p => p.isAI && p.isAlive);
+        const alivePlayers = game.players.filter(p => p.isAlive);
+        const nightActions = game.nightActions?.filter(a => a.round === game.currentRound) || [];
 
         for (const ai of aiPlayers) {
-             const nightActionsQuery = query(collection(db, 'games', gameId, 'night_actions'), where('round', '==', game.currentRound), where('playerId', '==', ai.userId));
-            const existingNightActions = await getDocs(nightActionsQuery);
-            if (phase === 'night' && !existingNightActions.empty) continue;
+             const hasActed = phase === 'night' 
+                ? nightActions.some(a => a.playerId === ai.userId)
+                : ai.votedFor;
+            
+            if (hasActed) continue;
             
             if (phase === 'hunter_shot' && ai.userId !== game.pendingHunterShot) continue;
 
-            const playerDocSnap = await getPlayerDoc(db, game.id, ai.userId);
-            if (!playerDocSnap || !playerDocSnap.exists()) continue;
-
-            if (phase === 'day' && playerDocSnap.exists() && playerDocSnap.data().votedFor) continue;
-
             const serializableGame = toJSONCompatible(game);
-            const serializablePlayers = toJSONCompatible(players);
-            const serializableEvents = toJSONCompatible(events);
+            const serializablePlayers = toJSONCompatible(game.players);
+            const serializableEvents = toJSONCompatible(game.events);
             const serializableCurrentPlayer = toJSONCompatible(ai);
 
             const aiInput = {
@@ -1178,7 +1050,7 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
             
              const isValidMultiTarget = (ids: string | undefined): ids is string => {
                 if (!ids) return false;
-                return ids.split('|').every(id => players.some(p => p.userId === id));
+                return ids.split('|').every(id => game.players.some(p => p.userId === id));
             }
 
             switch(actionType) {
@@ -1194,7 +1066,7 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
                     break;
                 case 'HEAL':
                      if (phase === 'night' && ai.role === 'doctor' && isValidTarget(targetData)) {
-                        const targetPlayer = players.find(p => p.userId === targetData);
+                        const targetPlayer = game.players.find(p => p.userId === targetData);
                          if (targetPlayer && targetPlayer.lastHealedRound !== game.currentRound - 1) {
                             await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: 'doctor_heal', targetId: targetData });
                          }

@@ -49,7 +49,8 @@ export interface Game {
   status: GameStatus;
   phase: GamePhase;
   creator: string;
-  playerUIDs: string[]; // Array of userIds
+  players: Player[]; // Array of Player objects
+  events: GameEvent[]; // Array of GameEvent objects
   maxPlayers: number;
   createdAt: Timestamp;
   currentRound: number;
@@ -93,12 +94,12 @@ export interface Game {
   twins: [string, string] | null;
   pendingHunterShot: string | null; // userId of the hunter who needs to shoot
   wolfCubRevengeRound: number; // The round where werewolves get an extra kill
+  nightActions?: NightAction[];
 }
 
 export interface Player {
-  id: string; // The document ID
   userId: string;
-  gameId: string;
+  gameId: string; // Still useful for context, though not for querying
   role: PlayerRole;
   isAlive: boolean;
   votedFor: string | null; // userId
@@ -126,7 +127,7 @@ export interface NightAction {
 }
 
 export interface GameEvent {
-    id: string; // document id
+    id: string; // unique id for the event, can be generated on client
     gameId: string;
     round: number;
     type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot' | 'player_transformed';

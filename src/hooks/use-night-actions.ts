@@ -2,32 +2,27 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { useFirebase } from '@/firebase';
+import type { Game } from '@/types';
+import { useGameState } from './use-game-state';
 
 
 export function useNightActions(gameId: string, round: number, playerId: string) {
-    const { firestore } = useFirebase();
+    const { game } = useGameState(gameId);
     const [hasSubmitted, setHasSubmitted] = useState(false);
 
     useEffect(() => {
-        if (!gameId || !playerId || round === 0 || !firestore) {
+        if (!game || !playerId || round === 0) {
             setHasSubmitted(false);
             return;
         };
 
-        const actionsQuery = query(
-            collection(firestore, 'games', gameId, 'night_actions'),
-            where('round', '==', round),
-            where('playerId', '==', playerId)
+        const submittedAction = game.nightActions?.find(
+            action => action.round === round && action.playerId === playerId
         );
 
-        const unsubscribe = onSnapshot(actionsQuery, (snapshot) => {
-            setHasSubmitted(!snapshot.empty);
-        });
+        setHasSubmitted(!!submittedAction);
 
-        return () => unsubscribe();
-    }, [gameId, round, playerId, firestore]);
+    }, [game, round, playerId]);
 
     return { hasSubmitted };
 }

@@ -1,22 +1,5 @@
 
 {
-  "indexes": [
-    {
-      "collectionGroup": "players",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "gameId", "order": "ASCENDING" },
-        { "fieldPath": "joinedAt", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "events",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "gameId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "ASCENDING" }
-      ]
-    }
-  ],
+  "indexes": [],
   "fieldOverrides": []
 }
