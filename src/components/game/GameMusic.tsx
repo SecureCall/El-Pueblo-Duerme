@@ -52,11 +52,15 @@ export function GameMusic({ game }: GameMusicProps) {
     }
 
     if (newSrc && newSrc !== currentSrcRef.current) {
-        audio.src = newSrc;
-        audio.loop = true;
-        audio.volume = 0.3;
-        currentSrcRef.current = newSrc;
-        playAudio();
+        // Fade out, change src, fade in
+        audio.volume = 0;
+        setTimeout(() => {
+            audio.src = newSrc;
+            currentSrcRef.current = newSrc;
+            audio.loop = true;
+            playAudio();
+            audio.volume = 0.3;
+        }, 300); // 300ms fade time
 
     } else if (!newSrc && !audio.paused) {
         audio.pause();
@@ -64,6 +68,7 @@ export function GameMusic({ game }: GameMusicProps) {
         currentSrcRef.current = null;
     }
     
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game.status, game.phase]);
 
   return <audio ref={audioRef} preload="auto" />;
