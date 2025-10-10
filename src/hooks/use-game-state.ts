@@ -12,7 +12,8 @@ import {
   type DocumentData, 
   type DocumentSnapshot, 
   orderBy, 
-  FirestoreError
+  FirestoreError,
+  collectionGroup
 } from 'firebase/firestore';
 import type { Game, Player, GameEvent } from '@/types';
 import { useFirebase } from '@/firebase';
@@ -58,7 +59,10 @@ export const useGameState = (gameId: string) => {
         errorEmitter.emit('permission-error', contextualError);
     });
 
-    const playersQuery = query(collection(firestore, 'games', gameId, 'players'));
+    const playersQuery = query(
+      collectionGroup(firestore, 'players'), 
+      where('gameId', '==', gameId)
+    );
     const unsubscribePlayers = onSnapshot(playersQuery, (snapshot: QuerySnapshot<DocumentData>) => {
       const playersData = snapshot.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
       setPlayers(playersData.sort((a, b) => a.joinedAt.toMillis() - b.joinedAt.toMillis()));
@@ -71,7 +75,11 @@ export const useGameState = (gameId: string) => {
         errorEmitter.emit('permission-error', contextualError);
     });
     
-    const eventsQuery = query(collection(firestore, 'games', gameId, 'events'), orderBy('createdAt', 'asc'));
+    const eventsQuery = query(
+      collectionGroup(firestore, 'events'), 
+      where('gameId', '==', gameId), 
+      orderBy('createdAt', 'asc')
+    );
     const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot: QuerySnapshot<DocumentData>) => {
         const eventsData = snapshot.docs.map(doc => ({ ...doc.data() as GameEvent, id: doc.id }));
         setEvents(eventsData);

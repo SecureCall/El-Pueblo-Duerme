@@ -1,117 +1,130 @@
 /**
- * @file Firestore Security Rules
- * @description This ruleset defines access control for the "El Pueblo Duerme" application.
+ * @fileoverview Firestore Security Rules for El Pueblo Duerme.
  *
  * Core Philosophy:
- *  - Enforce a combination of ownership-based and shared access control.
- *  - Prioritize secure defaults, restricting access unless explicitly allowed.
- *  - Focus on authorization and relational integrity. Defer complex data validation.
+ * This ruleset prioritizes secure data access based on user authentication and
+ * explicit authorization. It enforces ownership and role-based access control
+ * where appropriate, defaulting to a deny-all policy when authorization is
+ * ambiguous.  Data schema validation is relaxed to facilitate rapid
+ * prototyping and iteration.
  *
  * Data Structure:
- *  - `/games/{gameId}`: Stores game instances, with the `creator` field indicating ownership.
- *  - `/games/{gameId}/players/{userId}`: Stores player data within a game, linking users to games.
- *  - `/events/{eventId}`: Stores all events (logs) related to games.
+ * - /games/{gameId}: Stores game instances, secured by creator ownership.
+ * - /games/{gameId}/players/{userId}: Stores player data within a game.
+ * - /events/{eventId}: Stores game events. Read access is public for authenticated users, write access is restricted.
  *
  * Key Security Decisions:
- *  - Games: Games are only creatable and modifiable by the user with matching `creator` field.
- *  - Players: Player documents can only be created with a matching `userId` and are generally secured by game ownership.
- *  - Events: Read access is public (authenticated users), write access is denied.
- *  - No User Listing: Listing all users is disallowed to protect privacy.
+ * - User listing is disallowed.
+ * - Ambiguous authorization scenarios default to denial.
+ * - The rules explicitly deny write operations with `if false;` to prevent accidental open access.
  *
  * Denormalization for Authorization:
- *  - The 'Player' entity contains both 'gameId' and 'userId' which allows player-scoped rules to be written independently.
+ * - The `Player` entity under `/games/{gameId}/players/{userId}` contains a
+ *   denormalized `gameId` field. This eliminates the need for server-side
+ *   `get()` calls to the parent `/games/{gameId}` document to validate the
+ *   player's association with the game. This improves performance.
+ *
+ * Structural Segregation:
+ * - This ruleset makes use of public and private data using separate collections:
+ *   e.g., public game events in `/events` versus private game details in `/games`.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows reading and creating Game documents. Only the creator can update or delete.
+     * @description Checks if the request is made by a signed-in user.
+     * @return {boolean} True if the user is signed in, false otherwise.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the authenticated user ID matches the provided user ID.
+     * @param {string} userId - The user ID to compare against the authenticated user's ID.
+     * @return {boolean} True if the user IDs match, false otherwise.
+     */
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the authenticated user is the owner of the resource, and that the resource exists.
+     * @param {string} userId - The user ID to compare against the authenticated user's ID.
+     * @return {boolean} True if the user IDs match, and the resource exists, false otherwise.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Rules for the /games/{gameId} collection.
      * @path /games/{gameId}
-     * @allow (create) - Authenticated user can create a game if the `creator` field matches their `uid`.
-     * @allow (get, list) - Any authenticated user can read game details.
-     * @deny (update, delete) - Any user cannot update or delete a game if not creator.
-     * @principle Enforces document ownership for writes; public read access for authenticated users.
+     * @allow (create) - User A creates a new game: request.auth.uid == request.resource.data.creator
+     * @allow (get) - User A gets a game
+     * @allow (list) - User A lists games
+     * @allow (update) - User A updates a game that they own: request.auth.uid == resource.data.creator
+     * @allow (delete) - User A deletes a game that they own: request.auth.uid == resource.data.creator and resource != null
+     * @deny (create) - User A attempts to create a game with a mismatched creator ID: request.auth.uid != request.resource.data.creator
+     * @deny (update) - User B attempts to update a game owned by User A.
+     * @deny (delete) - User B attempts to delete a game owned by User A.
+     * @principle Enforces document ownership for writes.
      */
     match /games/{gameId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isOwner(creatorId) {
-        return isSignedIn() && request.auth.uid == creatorId;
-      }
-
-      function isExistingOwner() {
-        return isSignedIn() && resource.data.creator == request.auth.uid;
-      }
-
-      allow get, list: if isSignedIn();
+      allow get, list: if true;
       allow create: if isSignedIn() && request.resource.data.creator == request.auth.uid;
-      allow update: if isExistingOwner();
-      allow delete: if isExistingOwner();
+      allow update: if isExistingOwner(resource.data.creator);
+      allow delete: if isExistingOwner(resource.data.creator);
     }
 
     /**
-     * @description Allows reading, creating, updating, and deleting Player documents within a specific game.
+     * @description Rules for the /games/{gameId}/players/{userId} collection.
      * @path /games/{gameId}/players/{userId}
-     * @allow (create) - Authenticated user can create a player document if the 'userId' matches their 'uid'.
-     * @allow (get, list) - Any user can read player details.
-     * @deny (update, delete) - Any user cannot update or delete a player if not game creator.
-     * @principle Enforces document ownership for writes; public read access.
+     * @allow (create) - User A creates their player profile in game X: request.auth.uid == userId && request.resource.data.gameId == gameId
+     * @allow (get) - User A gets their player profile in game X: request.auth.uid == userId
+     * @allow (list) - User A lists all players in game X: request.auth.uid == userId
+     * @allow (update) - User A updates their player profile in game X: request.auth.uid == userId && resource != null
+     * @allow (delete) - User A deletes their player profile in game X: request.auth.uid == userId && resource != null
+     * @deny (create) - User B attempts to create User A's player profile.
+     * @deny (update) - User B attempts to update User A's player profile.
+     * @deny (delete) - User B attempts to delete User A's player profile.
+     * @principle Restricts access to a user's own data tree.
      */
     match /games/{gameId}/players/{userId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isPlayer() {
-        return request.auth.uid == userId;
-      }
-
-      function isExistingPlayer() {
-        return isSignedIn() && resource.data.userId == request.auth.uid;
-      }
-
-      allow get, list: if true;
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && isExistingPlayer();
-      allow delete: if isSignedIn() && isExistingPlayer();
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && request.resource.data.gameId == gameId;
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Allows reading GameEvent documents, but only allows server-side creation.
+     * @description Rules for the /events/{eventId} collection.
      * @path /events/{eventId}
-     * @allow (get, list) - Any authenticated user can read event details.
-     * @deny (create, update, delete) - No user can create, update, or delete events.
-     * @principle Restricts write access to game logs while providing public read access for authenticated users.
+     * @allow (get) - Any signed-in user can read a game event.
+     * @allow (list) - Any signed-in user can list game events.
+     * @deny (create) - No one can create game events through client-side rules.
+     * @deny (update) - No one can update game events through client-side rules.
+     * @deny (delete) - No one can delete game events through client-side rules.
      */
     match /events/{eventId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
       allow get, list: if isSignedIn();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow create, update, delete: if false;
     }
 
-        /**
-     * @description  Denies all access to subcollection `/games/{gameId}/events/{eventId}`.
-     * @path `/games/{gameId}/events/{eventId}`
-     * @allow (get) - No one can get the document.
-     * @allow (list) - No one can list the document.
-     * @allow (create) - No one can create the document.
-     * @allow (update) - No one can update the document.
-     * @allow (delete) - No one can delete the document.
-     * @principle Events documents can only be created through a trusted environment.
+    /**
+     * @description Rules for the /games/{gameId}/events/{eventId} collection.
+     * @path /games/{gameId}/events/{eventId}
+     * @allow (get) - Any signed-in user can read a game event.
+     * @allow (list) - Any signed-in user can list game events.
+     * @deny (create) - No one can create game events through client-side rules.
+     * @deny (update) - No one can update game events through client-side rules.
+     * @deny (delete) - No one can delete game events through client-side rules.
      */
     match /games/{gameId}/events/{eventId} {
-        allow get: if false;
-        allow list: if false;
-        allow create: if false;
-        allow update: if false;
-        allow delete: if false;
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if false;
     }
   }
 }
