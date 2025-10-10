@@ -75,45 +75,40 @@ export async function createGame(
     }
 
     const gameId = generateGameId();
+    const gameRef = doc(db, "games", gameId);
+    const existingGame = await getDoc(gameRef);
+
+    if (existingGame.exists()) {
+        return { error: "ID de partida ya existe. Por favor, intenta de nuevo." };
+    }
+        
+    const werewolfCount = Math.max(1, Math.floor(maxPlayers / 5));
+
+    const gameData: Omit<Game, 'id'> = {
+        name: gameName.trim(),
+        status: "waiting",
+        phase: "night", // Lobby UI is driven by status='waiting'
+        creator: userId,
+        players: [userId],
+        maxPlayers: maxPlayers,
+        createdAt: Timestamp.now(),
+        currentRound: 0,
+        settings: {
+            ...settings,
+            werewolves: werewolfCount,
+        },
+        pendingHunterShot: null,
+        lovers: null,
+        wolfCubRevengeRound: 0,
+    };
     
-    const result = await runTransaction(db, async (transaction) => {
-        const gameRef = doc(db, "games", gameId);
+    await setDoc(gameRef, gameData);
 
-        const existingGame = await transaction.get(gameRef);
-        if (existingGame.exists()) {
-            throw new Error("ID de partida ya existe. Por favor, intenta de nuevo.");
-        }
+    const playerRef = doc(db, "games", gameId, "players", userId);
+    const playerData = createPlayerObject(userId, gameId, displayName, false);
+    await setDoc(playerRef, playerData);
         
-        const werewolfCount = Math.max(1, Math.floor(maxPlayers / 5));
-
-        const gameData: Omit<Game, 'id'> = {
-            name: gameName.trim(),
-            status: "waiting",
-            phase: "night", // Lobby UI is driven by status='waiting'
-            creator: userId,
-            players: [userId],
-            maxPlayers: maxPlayers,
-            createdAt: Timestamp.now(),
-            currentRound: 0,
-            settings: {
-                ...settings,
-                werewolves: werewolfCount,
-            },
-            pendingHunterShot: null,
-            lovers: null,
-            wolfCubRevengeRound: 0,
-        };
-        transaction.set(gameRef, gameData);
-
-        // Create player document inside the subcollection
-        const playerRef = doc(db, "games", gameId, "players", userId);
-        const playerData = createPlayerObject(userId, gameId, displayName, false);
-        transaction.set(playerRef, playerData);
-        
-        return { gameId };
-    });
-
-    return result;
+    return { gameId };
 
   } catch (error: any) {
     console.error("Error creating game:", { message: error.message, code: error.code, stack: error.stack });
