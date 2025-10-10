@@ -54,7 +54,11 @@ const FormSchema = z.object({
   cursed: z.boolean(),
 });
 
-const specialRoles = Object.keys(roleDetails).filter(role => role !== 'villager' && role !== 'werewolf') as Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[];
+const specialRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[] = [
+    'seer', 'doctor', 'hunter', 'cupid', 'hechicera', 'lycanthrope', 'prince', 
+    'twin', 'guardian', 'priest', 'wolf_cub', 'cursed'
+];
+
 
 export function CreateGameForm() {
   const router = useRouter();
@@ -74,13 +78,13 @@ export function CreateGameForm() {
       hunter: true,
       cupid: true,
       hechicera: true,
-      lycanthrope: true,
-      prince: true,
-      twin: true,
+      lycanthrope: false,
+      prince: false,
+      twin: false,
       guardian: true,
-      priest: true,
-      wolf_cub: true,
-      cursed: true,
+      priest: false,
+      wolf_cub: false,
+      cursed: false,
     },
   });
 
@@ -179,7 +183,7 @@ export function CreateGameForm() {
                     <FormField
                       key={roleId}
                       control={form.control}
-                      name={roleId as keyof typeof form.getValues()}
+                      name={roleId}
                       render={({ field }) => (
                         <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 bg-background/50">
                           <FormControl>
