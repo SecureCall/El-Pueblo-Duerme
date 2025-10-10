@@ -63,10 +63,21 @@ export function GameMusic({ game }: GameMusicProps) {
       
       // Play the target audio
       if (audioElement.paused) {
-        audioElement.play().catch(error => {
-          // Autoplay is often blocked by browsers until a user interaction.
-          console.log("Game audio autoplay blocked, will start on user interaction.");
-        });
+        const playPromise = audioElement.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                console.log("Game audio autoplay blocked, will start on user interaction.");
+                 const playOnFirstInteraction = () => {
+                    audioElement.play().catch(err => console.error("Error playing game audio on interaction:", err));
+                    window.removeEventListener("click", playOnFirstInteraction);
+                    window.removeEventListener("keydown", playOnFirstInteraction);
+                    window.removeEventListener("touchstart", playOnFirstInteraction);
+                };
+                window.addEventListener("click", playOnFirstInteraction);
+                window.addEventListener("keydown", playOnFirstInteraction);
+                window.addEventListener("touchstart", playOnFirstInteraction);
+            });
+        }
       }
     };
     
@@ -104,5 +115,3 @@ export function GameMusic({ game }: GameMusicProps) {
     </>
   );
 }
-
-    
