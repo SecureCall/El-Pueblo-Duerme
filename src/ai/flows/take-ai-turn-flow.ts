@@ -25,8 +25,8 @@ export async function takeAITurn(input: TakeAITurnInput): Promise<TakeAITurnOutp
 
 const prompt = ai.definePrompt({
     name: 'takeAITurnPrompt',
-    input: { schema: TakeAITurnInputSchema },
-    output: { schema: TakeAITurnOutputSchema },
+    inputSchema: TakeAITurnInputSchema,
+    outputSchema: TakeAITurnOutputSchema,
     prompt: `Eres un jugador experto en el juego 'El Pueblo Duerme' (similar a Mafia o Werewolf). Estás jugando como un bot de IA. Tu objetivo es ganar la partida para tu facción.
 
 Analiza el estado actual del juego y decide la mejor acción a tomar. Piensa paso a paso.
