@@ -271,11 +271,11 @@ const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessi
 
 export async function startGame(db: Firestore, gameId: string, creatorId: string) {
     const gameRef = doc(db, 'games', gameId);
-    let failingOp: { path: string, operation: 'create' | 'update' | 'delete' | 'write', data?: any } | null = null;
+    let failingOp: { path: string, operation: 'create' | 'update' | 'delete' | 'write' | 'list', data?: any } | null = null;
     
     try {
         await runTransaction(db, async (transaction) => {
-            failingOp = null; // Reset at the start of the transaction
+            failingOp = { path: gameRef.path, operation: 'get' };
             const gameSnap = await transaction.get(gameRef);
 
             if (!gameSnap.exists()) {
@@ -292,8 +292,9 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
                 throw new Error('La partida ya ha comenzado.');
             }
             
-            const playersQuery = query(collection(db, 'games', gameId, 'players'));
-            failingOp = { path: playersQuery.path, operation: 'list' };
+            const playersCollectionPath = `games/${gameId}/players`;
+            const playersQuery = query(collection(db, playersCollectionPath));
+            failingOp = { path: playersCollectionPath, operation: 'list' };
             const playersSnap = await transaction.get(playersQuery);
             const players = playersSnap.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
 
@@ -361,7 +362,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
         if (e.code === 'permission-denied' && failingOp) {
             const permissionError = new FirestorePermissionError({
                 path: failingOp.path,
-                operation: failingOp.operation as 'create' | 'update',
+                operation: failingOp.operation as 'create' | 'update' | 'get', // Cast because list is valid for us
                 requestResourceData: failingOp.data,
             });
             errorEmitter.emit('permission-error', permissionError);
