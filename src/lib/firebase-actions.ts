@@ -130,6 +130,7 @@ export async function joinGame(
   const gameRef = doc(db, "games", gameId);
   const playerRef = doc(db, "games", gameId, "players", userId);
   let playerData = createPlayerObject(userId, gameId, displayName, false);
+  let failingOp: { path: string, operation: 'create' | 'update', data?: any } | null = null;
 
   try {
     await runTransaction(db, async (transaction) => {
@@ -149,6 +150,7 @@ export async function joinGame(
       
       if (playerSnap.exists()) {
         if(playerSnap.data().displayName !== displayName) {
+            failingOp = { path: playerRef.path, operation: 'update', data: { displayName: displayName } };
             transaction.update(playerRef, { displayName: displayName });
         }
         return;
@@ -157,22 +159,24 @@ export async function joinGame(
       if (game.players.length >= game.maxPlayers) {
         throw new Error("La partida está llena.");
       }
-
+      
+      failingOp = { path: gameRef.path, operation: 'update', data: { players: arrayUnion(userId) } };
       transaction.update(gameRef, {
         players: arrayUnion(userId),
       });
 
+      failingOp = { path: playerRef.path, operation: 'create', data: playerData };
       transaction.set(playerRef, playerData);
     });
     
     return { success: true };
 
   } catch(error: any) {
-    if (error.code === 'permission-denied') {
+    if (error.code === 'permission-denied' && failingOp) {
         const permissionError = new FirestorePermissionError({
-            path: playerRef.path,
-            operation: 'create',
-            requestResourceData: playerData,
+            path: failingOp.path,
+            operation: failingOp.operation,
+            requestResourceData: failingOp.data,
         });
         errorEmitter.emit('permission-error', permissionError);
         return { error: "Permiso denegado al unirse a la partida." };
@@ -345,7 +349,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
         if (e.code === 'permission-denied' && failingOp) {
             const permissionError = new FirestorePermissionError({
                 path: failingOp.path,
-                operation: failingOp.operation as 'create' | 'update' | 'get', // Cast because list is valid for us
+                operation: failingOp.operation as 'create' | 'update' | 'get',
                 requestResourceData: failingOp.data,
             });
             errorEmitter.emit('permission-error', permissionError);
