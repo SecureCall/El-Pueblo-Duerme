@@ -95,17 +95,21 @@ export async function createGame(
       pendingHunterShot: null,
       lovers: null,
       wolfCubRevengeRound: 0,
+      twins: undefined,
   };
   
   try {
     await setDoc(gameRef, gameData);
     
     // Now that the game is created, join the creator to it.
-    await joinGame(db, gameId, userId, displayName);
+    const joinResult = await joinGame(db, gameId, userId, displayName);
+    if (joinResult.error) {
+      // Propagate the error from joinGame
+      return { error: joinResult.error };
+    }
 
     return { gameId };
   } catch (error: any) {
-    console.error("Error creating game:", error); // Keep this for general debugging
     if (error.code === 'permission-denied') {
         const permissionError = new FirestorePermissionError({
             path: gameRef.path,
@@ -113,8 +117,10 @@ export async function createGame(
             requestResourceData: gameData,
         });
         errorEmitter.emit('permission-error', permissionError);
+        // The listener will throw the error, so we don't need to return a specific message
         return { error: "Permiso denegado al crear la partida." };
     }
+    console.error("Error creating game:", error); // Keep for general debugging
     return { error: `Error al crear la partida: ${error.message || 'Error desconocido'}` };
   }
 }
@@ -126,9 +132,10 @@ export async function joinGame(
   displayName: string
 ) {
   const gameRef = doc(db, "games", gameId);
+  const playerRef = doc(db, "games", gameId, "players", userId);
 
   try {
-    const result = await runTransaction(db, async (transaction) => {
+    await runTransaction(db, async (transaction) => {
       const gameSnap = await transaction.get(gameRef);
 
       if (!gameSnap.exists()) {
@@ -141,7 +148,6 @@ export async function joinGame(
         throw new Error("La partida ya ha comenzado.");
       }
       
-      const playerRef = doc(db, "games", gameId, "players", userId);
       const playerSnap = await transaction.get(playerRef);
       
       if (playerSnap.exists()) {
@@ -149,33 +155,37 @@ export async function joinGame(
         if(playerSnap.data().displayName !== displayName) {
             transaction.update(playerRef, { displayName: displayName });
         }
-        return { success: true };
+        return; // Exit transaction successfully
       }
       
       if (game.players.length >= game.maxPlayers) {
         throw new Error("La partida está llena.");
       }
 
+      // This is the first write in the transaction for a new player
       transaction.update(gameRef, {
         players: arrayUnion(userId),
       });
 
+      // This is the second write
       const playerData = createPlayerObject(userId, gameId, displayName, false);
       transaction.set(playerRef, playerData);
-      
-      return { success: true };
     });
     
-    return result;
+    return { success: true };
 
   } catch(error: any) {
     if (error.code === 'permission-denied') {
+        // Create and emit the contextual error
         const permissionError = new FirestorePermissionError({
-            path: gameRef.path,
-            operation: 'update', // joinGame performs an update
-            requestResourceData: { players: arrayUnion(userId) },
+            // Let's assume the failure is on the player creation since it's more restrictive
+            path: playerRef.path,
+            operation: 'create', // This is the most likely failing operation for a new player
+            requestResourceData: createPlayerObject(userId, gameId, displayName, false),
         });
         errorEmitter.emit('permission-error', permissionError);
+        
+        // Return a user-facing error message
         return { error: "Permiso denegado al unirse a la partida." };
     }
     console.error("Error joining game:", error);
