@@ -84,7 +84,7 @@ export async function createGame(
       status: "waiting",
       phase: "night", // Lobby UI is driven by status='waiting'
       creator: userId,
-      players: [], // Will be populated by joinGame
+      playerUIDs: [], // Will be populated by joinGame
       maxPlayers: maxPlayers,
       createdAt: Timestamp.now(),
       settings: {
@@ -122,25 +122,6 @@ export async function createGame(
   }
 }
 
-/**
- * NOTE: This is a placeholder for a real backend function.
- * In a production app, you would have a Cloud Function that is triggered
- * when a player document is created. This function would then use the
- * Firebase Admin SDK to set a custom claim on the user's auth token.
- * The security rules would then check `request.auth.token.games[gameId] === true`.
- * For this prototype, we'll just log it.
- */
-export async function addPlayerToGameClaim(userId: string, gameId: string) {
-    console.log(`SIMULATING: Setting custom claim for user ${userId} for game ${gameId}. This should be a backend operation.`);
-    // In a real backend:
-    // const admin = require('firebase-admin');
-    // const currentClaims = (await admin.auth().getUser(userId)).customClaims || {};
-    // const newClaims = { ...currentClaims, games: { ...currentClaims.games, [gameId]: true } };
-    // await admin.auth().setCustomUserClaims(userId, newClaims);
-    return { success: true };
-}
-
-
 export async function joinGame(
   db: Firestore,
   gameId: string,
@@ -167,13 +148,13 @@ export async function joinGame(
         throw new Error("La partida ya ha comenzado.");
       }
       
-      if (game.players.length >= game.maxPlayers && !game.players.includes(userId)) {
+      if (game.playerUIDs.length >= game.maxPlayers && !game.playerUIDs.includes(userId)) {
         throw new Error("Esta partida está llena.");
       }
       
-      failingOp = { path: gameRef.path, operation: 'update', data: { players: arrayUnion(userId) } };
+      failingOp = { path: gameRef.path, operation: 'update', data: { playerUIDs: arrayUnion(userId) } };
       transaction.update(gameRef, {
-        players: arrayUnion(userId),
+        playerUIDs: arrayUnion(userId),
       });
 
       failingOp = { path: playerRef.path, operation: 'create', data: playerData };
@@ -182,9 +163,6 @@ export async function joinGame(
       transaction.set(playerRef, playerData, { merge: true });
     });
 
-    // Simulate setting the custom claim after successfully joining
-    await addPlayerToGameClaim(userId, gameId);
-    
     return { success: true };
 
   } catch(error: any) {
@@ -272,7 +250,7 @@ const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessi
 
 export async function startGame(db: Firestore, gameId: string, creatorId: string) {
     const gameRef = doc(db, 'games', gameId);
-    let failingOp: { path: string, operation: 'create' | 'update' | 'write' | 'list', data?: any } | null = null;
+    let failingOp: { path: string, operation: 'create' | 'update' | 'write' | 'list' | 'get', data?: any } | null = null;
     
     try {
         const playersCollectionPath = `games/${gameId}/players`;
@@ -320,9 +298,9 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
                     finalPlayerIds.push(aiUserId);
                 }
                 
-                failingOp = { path: gameRef.path, operation: 'update', data: { players: finalPlayerIds } };
+                failingOp = { path: gameRef.path, operation: 'update', data: { playerUIDs: finalPlayerIds } };
                 transaction.update(gameRef, {
-                    players: finalPlayerIds,
+                    playerUIDs: finalPlayerIds,
                 });
             }
             
@@ -347,8 +325,6 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
                 const playerRef = doc(db, 'games', gameId, 'players', player.userId);
                 failingOp = { path: playerRef.path, operation: 'update', data: { role: player.role } };
                 transaction.update(playerRef, { role: player.role });
-                // Simulate setting claims for all players at game start
-                addPlayerToGameClaim(player.userId, gameId);
             });
 
             failingOp = { path: gameRef.path, operation: 'update', data: { status: 'in_progress', phase: 'role_reveal', currentRound: 1 } };
@@ -365,7 +341,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
         if (e.code === 'permission-denied' && failingOp) {
             const permissionError = new FirestorePermissionError({
                 path: failingOp.path,
-                operation: failingOp.operation as 'create' | 'update' | 'write' | 'list',
+                operation: failingOp.operation as 'create' | 'update' | 'write' | 'list' | 'get',
                 requestResourceData: failingOp.data,
             });
             errorEmitter.emit('permission-error', permissionError);

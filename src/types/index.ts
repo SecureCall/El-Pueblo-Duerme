@@ -49,7 +49,7 @@ export interface Game {
   status: GameStatus;
   phase: GamePhase;
   creator: string;
-  players: string[]; // Array of userIds
+  playerUIDs: string[]; // Array of userIds
   maxPlayers: number;
   createdAt: Timestamp;
   currentRound: number;
