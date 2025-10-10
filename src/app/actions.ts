@@ -68,6 +68,8 @@ export async function createGame(
         werewolves: werewolfCount,
     },
     pendingHunterShot: null,
+    lovers: null,
+    wolfCubRevengeRound: 0,
   };
 
   await setDoc(gameRef, gameData);
@@ -1070,3 +1072,5 @@ async function checkEndDayEarly(gameId: string) {
         await processVotes(gameId);
     }
 }
+
+    
