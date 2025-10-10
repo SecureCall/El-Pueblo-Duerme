@@ -84,7 +84,7 @@ export async function createGame(
       status: "waiting",
       phase: "night", // Lobby UI is driven by status='waiting'
       creator: userId,
-      players: [], // Start with an empty player list
+      players: [], // Will be populated by joinGame
       maxPlayers: maxPlayers,
       createdAt: Timestamp.now(),
       settings: {
@@ -156,7 +156,6 @@ export async function joinGame(
             failingOp = { path: playerRef.path, operation: 'update', data: { displayName: displayName } };
             transaction.update(playerRef, { displayName: displayName });
         }
-        // Ensure player is in the game's player list even if they already existed.
         if (!game.players.includes(userId)) {
              transaction.update(gameRef, {
                 players: arrayUnion(userId),
@@ -198,13 +197,11 @@ export async function joinGame(
 const generateRoles = (playerCount: number, settings: Game['settings']) => {
     let roles: Player['role'][] = [];
     
-    // Calculate werewolves based on final player count
     const numWerewolves = Math.max(1, Math.floor(playerCount / 5));
     for (let i = 0; i < numWerewolves; i++) {
         roles.push('werewolf');
     }
     
-    // Add special roles if enabled and there's space
     if (settings.wolf_cub && roles.length < playerCount) roles.push('wolf_cub');
     if (settings.seeker_fairy && roles.length < playerCount) roles.push('seeker_fairy');
     if (settings.seer && roles.length < playerCount) roles.push('seer');
@@ -240,30 +237,26 @@ const generateRoles = (playerCount: number, settings: Game['settings']) => {
     if (settings.witch && roles.length < playerCount) roles.push('witch');
     if (settings.banshee && roles.length < playerCount) roles.push('banshee');
 
-    // Fill the rest with villagers
     while (roles.length < playerCount) {
         roles.push('villager');
     }
 
-    // Ensure there are no more roles than players
     while (roles.length > playerCount) {
       roles.pop();
     }
     
-    // Final check: make sure there is at least one werewolf if it's a werewolf game
     const hasWolfRole = roles.some(r => r === 'werewolf' || r === 'wolf_cub' || r === 'seeker_fairy');
     if (!hasWolfRole && playerCount > 0) {
         const villagerIndex = roles.findIndex(r => r === 'villager');
         if (villagerIndex !== -1) {
             roles[villagerIndex] = 'werewolf';
         } else if (roles.length > 0) {
-            roles[0] = 'werewolf'; // Fallback: replace the first role
+            roles[0] = 'werewolf';
         } else {
-            roles.push('werewolf'); // Should not happen if playerCount > 0
+            roles.push('werewolf');
         }
     }
     
-    // Shuffle and return
     return roles.sort(() => Math.random() - 0.5);
 };
 
@@ -403,9 +396,6 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
     }
 
     if (action.actionType === 'guardian_protect' && action.targetId === action.playerId && player.userId === action.playerId) {
-        // This check is a bit redundant as Guardian has a one-time self protect rule.
-        // A better implementation would track this on the player object.
-        // For now, we will allow it once. This logic needs to be improved.
     }
 
     if (action.actionType === 'priest_bless' && action.targetId === action.playerId && player.priestSelfHealUsed) {
@@ -554,7 +544,7 @@ async function killPlayer(
       }
       
       const killedPlayer = playersData.find(p => p.userId === playerId)!;
-      const eventLogRef = doc(collection(db, `games/${gameId}/events`));
+      const eventLogRef = doc(collection(db, "events"));
       transaction.set(eventLogRef, {
           gameId,
           round: gameData.currentRound,
@@ -580,8 +570,6 @@ async function checkGameOver(db: Firestore, gameId: string, transaction: Transac
 
     const playersQuery = query(collection(db, 'games', gameId, 'players'));
     
-    // We can't query in a transaction, so we need to rely on passed data or another method.
-    // For now, let's assume we can fetch it, and will fix if it's a problem.
     const playersSnap = await getDocs(playersQuery);
     const players = playersSnap.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
 
@@ -622,7 +610,7 @@ async function checkGameOver(db: Firestore, gameId: string, transaction: Transac
 
     if (gameOver) {
         transaction.update(gameRef, { status: 'finished', phase: 'finished' });
-        const logRef = doc(collection(db, `games/${gameId}/events`));
+        const logRef = doc(collection(db, "events"));
         transaction.set(logRef, {
             gameId,
             round: gameData?.currentRound,
@@ -647,8 +635,6 @@ export async function processNight(db: Firestore, gameId: string) {
 
             if (game.phase !== 'night' || game.status !== 'in_progress') return;
 
-            // Can't do queries in transactions. This data needs to be fetched outside.
-            // For now, let's assume we can get it, this is a known issue to fix if it becomes one.
             const playersSnap = await getDocs(query(collection(db, 'games', gameId, 'players')));
             const playersData = playersSnap.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
 
@@ -722,7 +708,7 @@ export async function processNight(db: Firestore, gameId: string) {
                     const playerRef = doc(db, 'games', gameId, 'players', targetPlayer.userId);
                     transaction.update(playerRef, { role: 'werewolf' });
                     messages.push(`En la oscuridad, ${targetPlayer.displayName} no muere, ¡sino que se une a la manada! Ahora es un Hombre Lobo.`);
-                    const eventLogRef = doc(collection(db, `games/${gameId}/events`));
+                    const eventLogRef = doc(collection(db, "events"));
                     transaction.set(eventLogRef, {
                         gameId,
                         round: game.currentRound,
@@ -766,7 +752,7 @@ export async function processNight(db: Firestore, gameId: string) {
             const killedWerewolfTargets = killedByWerewolfIds.filter(id => !allProtectedIds.includes(id));
             const killedPoisonTarget = (killedByPoisonId && !killedByWerewolfIds.includes(killedByPoisonId) && !allProtectedIds.includes(killedByPoisonId)) ? killedByPoisonId : null;
 
-            const logRef = doc(collection(db, `games/${gameId}/events`));
+            const logRef = doc(collection(db, "events"));
             transaction.set(logRef, {
                 gameId,
                 round: game.currentRound,
@@ -845,7 +831,6 @@ export async function processVotes(db: Firestore, gameId: string) {
 
             if (game.phase !== 'day' || game.status !== 'in_progress') return;
 
-            // This is also a query, can't be in a transaction
             const playersSnap = await getDocs(query(collection(db, 'games', gameId, 'players')));
             const playersData = playersSnap.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
             const alivePlayers = playersData.filter(p => p.isAlive);
@@ -897,7 +882,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                 eventMessage = "El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.";
             }
 
-            const logRef = doc(collection(db, `games/${gameId}/events`));
+            const logRef = doc(collection(db, "events"));
             transaction.set(logRef, {
                 gameId,
                 round: game.currentRound,
@@ -980,7 +965,6 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             }
             
             const playersQuery = query(collection(db, 'games', gameId, 'players'));
-            // Query in transaction
             const playersSnap = await getDocs(playersQuery);
             const playersData = playersSnap.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
 
@@ -990,7 +974,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
 
             const targetPlayer = playersData.find(p => p.userId === targetId)!;
 
-            const hunterEventRef = doc(collection(db, `games/${gameId}/events`));
+            const hunterEventRef = doc(collection(db, "events"));
             transaction.set(hunterEventRef, {
                 gameId,
                 round: game.currentRound,
@@ -1012,7 +996,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             const isGameOver = await checkGameOver(db, gameId, transaction);
             if (isGameOver) return;
             
-            const voteEventQuery = query(collection(db, `games/${gameId}/events`), 
+            const voteEventQuery = query(collection(db, "events"), 
                 where('gameId', '==', gameId),
                 where('round', '==', game.currentRound),
                 where('type', '==', 'vote_result')
@@ -1102,12 +1086,10 @@ async function checkEndNightEarly(db: Firestore, gameId: string) {
     
     const submittedPlayerIds = new Set(submittedActions.map(a => a.playerId));
 
-    // For werewolves, one action is enough
     const wolfActionSubmitted = werewolves.some(w => submittedPlayerIds.has(w.userId));
     if (werewolves.length > 0 && wolfActionSubmitted) {
         werewolves.forEach(w => requiredPlayerIds.delete(w.userId));
         if (submittedActions.some(a => a.actionType === 'werewolf_kill')) {
-             // We can consider this submitted for all werewolves
         }
     }
 
@@ -1167,7 +1149,7 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
         const playersSnap = await getDocs(query(collection(db, 'games', gameId, 'players')));
         const players = playersSnap.docs.map(p => ({ ...p.data() as Player, id: p.id }));
         
-        const eventsSnap = await getDocs(query(collection(db, `games/${gameId}/events`), orderBy('createdAt', 'asc')));
+        const eventsSnap = await getDocs(query(collection(db, 'events'), where('gameId', '==', gameId), orderBy('createdAt', 'asc')));
         const events = eventsSnap.docs.map(e => e.data() as GameEvent);
 
         const aiPlayers = players.filter(p => p.isAI && p.isAlive);
