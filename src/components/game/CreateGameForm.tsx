@@ -6,7 +6,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { FlaskConical, Crown, Fingerprint, Users2, Loader2, HelpCircle, Heart, Shield, Sparkles, User, Crosshair, BotIcon, BriefcaseMedical } from "lucide-react";
+import { FlaskConical, Crown, Fingerprint, Users2, Loader2, HelpCircle, Heart, Shield, Sparkles, User, Crosshair, BotIcon } from "lucide-react";
+import Image from "next/image";
 
 
 import { useGameSession } from "@/hooks/use-game-session";
@@ -52,18 +53,18 @@ const FormSchema = z.object({
 });
 
 const specialRoles = [
-  { id: 'seer', label: 'Vidente', Icon: Fingerprint, description: 'Descubre el rol de un jugador cada noche.' },
-  { id: 'doctor', label: 'Doctor', Icon: Heart, description: 'Protege a un jugador del ataque de los lobos. No puede curar a la misma persona 2 noches seguidas.' },
-  { id: 'hechicera', label: 'Hechicera', Icon: FlaskConical, description: 'Usa una poción de vida y una de muerte.' },
-  { id: 'hunter', label: 'Cazador', Icon: Crosshair, description: 'Al morir, puede llevarse a otro jugador consigo.' },
-  { id: 'prince', label: 'Príncipe', Icon: Crown, description: 'Inmune a ser linchado por votación.' },
-  { id: 'lycanthrope', label: 'Licántropo', Icon: Fingerprint, description: 'Un aldeano que la vidente ve como lobo.' },
-  { id: 'twin', label: 'Gemelas', Icon: Users2, description: 'Dos jugadores que se conocen y son aliados.' },
-  { id: 'cupid', label: 'Cupido', Icon: Heart, description: 'Enamora a dos jugadores la primera noche.' },
-  { id: 'guardian', label: 'Guardián', Icon: Shield, description: 'Protege a un jugador del ataque de los lobos. No puede protegerse a sí mismo.' },
-  { id: 'priest', label: 'Sacerdote', Icon: Sparkles, description: 'Bendice a un jugador, protegiéndolo de cualquier ataque nocturno.' },
-  { id: 'wolf_cub', label: 'Cría de Lobo', Icon: BotIcon, description: 'Si muere, los lobos matan a dos la noche siguiente.' },
-  { id: 'cursed', label: 'Maldito', Icon: User, description: 'Si los lobos te atacan, te conviertes en uno de ellos.' },
+  { id: 'seer', label: 'Vidente', description: 'Descubre el rol de un jugador cada noche.', image: '/roles/seer.png' },
+  { id: 'doctor', label: 'Doctor', description: 'Protege a un jugador del ataque de los lobos. No puede curar a la misma persona 2 noches seguidas.', image: '/roles/doctor.png' },
+  { id: 'hechicera', label: 'Hechicera', description: 'Usa una poción de vida y una de muerte.', image: '/roles/Witch.png' },
+  { id: 'hunter', label: 'Cazador', description: 'Al morir, puede llevarse a otro jugador consigo.', image: '/roles/hunter.png' },
+  { id: 'prince', label: 'Príncipe', description: 'Inmune a ser linchado por votación.', image: '/roles/Prince.png' },
+  { id: 'lycanthrope', label: 'Licántropo', description: 'Un aldeano que la vidente ve como lobo.', image: '/roles/lycanthrope.png' },
+  { id: 'twin', label: 'Gemelas', description: 'Dos jugadores que se conocen y son aliados.', image: '/roles/twin.png' },
+  { id: 'cupid', label: 'Cupido', description: 'Enamora a dos jugadores la primera noche.', image: '/roles/cupid.png' },
+  { id: 'guardian', label: 'Guardián', description: 'Protege a un jugador del ataque de los lobos. No puede protegerse a sí mismo.', image: '/roles/guardian.png' },
+  { id: 'priest', label: 'Sacerdote', description: 'Bendice a un jugador, protegiéndolo de cualquier ataque nocturno.', image: '/roles/priest.png' },
+  { id: 'wolf_cub', label: 'Cría de Lobo', description: 'Si muere, los lobos matan a dos la noche siguiente.', image: '/roles/wolf_cub.png' },
+  { id: 'cursed', label: 'Maldito', description: 'Si los lobos te atacan, te conviertes en uno de ellos.', image: '/roles/cursed.png' },
 ] as const;
 
 
@@ -198,7 +199,9 @@ export function CreateGameForm() {
                           </FormControl>
                           <div className="space-y-1 leading-none">
                             <FormLabel className="flex items-center gap-2">
-                              <role.Icon className="h-4 w-4" />
+                               <div className="relative h-6 w-6">
+                                <Image src={role.image} alt={role.label} fill className="object-contain" unoptimized />
+                               </div>
                               {role.label}
                                <Tooltip>
                                 <TooltipTrigger asChild>
