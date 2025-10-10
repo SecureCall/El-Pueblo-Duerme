@@ -25,11 +25,11 @@ export async function takeAITurn(input: TakeAITurnInput): Promise<TakeAITurnOutp
 
 const prompt = ai.definePrompt({
     name: 'takeAITurnPrompt',
-    inputSchema: TakeAITurnInputSchema,
-    outputSchema: TakeAITurnOutputSchema,
+    input: {schema: TakeAITurnInputSchema},
+    output: {schema: TakeAITurnOutputSchema},
     prompt: `Eres un jugador experto en el juego 'El Pueblo Duerme' (similar a Mafia o Werewolf). Estás jugando como un bot de IA. Tu objetivo es ganar la partida para tu facción.
 
-Analiza el estado actual del juego y decide la mejor acción a tomar. Piensa paso a paso.
+Analiza el estado actual del juego y decide la mejor acción a tomar. Piensa paso a paso. You must respond in valid JSON format.
 
 **REGLAS DEL JUEGO:**
 - Aldeanos: Ganan si eliminan a todos los hombres lobo.
@@ -65,7 +65,7 @@ Basado en toda la información, y especialmente en tu identidad y rol dentro de 
     - ¿Hay algún jugador sospechoso? ¿Por qué?
     - ¿Hay algún jugador que parezca inocente o que sea valioso para mi equipo (ej. mi gemelo/a, mi enamorado/a, el príncipe revelado)?
     - ¿Cuál es la jugada más estratégica que puedo hacer AHORA MISMO? (ej. como Hechicera, ¿es mejor guardar mis pociones o usarlas ahora?).
-    - Como Hombre Lobo, si la Cría de Lobo ha muerto y tenemos dos asesinatos (`wolfCubRevengeRound`), debo seleccionar dos objetivos.
+    - Como Hombre Lobo, si la Cría de Lobo ha muerto y tenemos dos asesinatos (\`wolfCubRevengeRound\`), debo seleccionar dos objetivos.
     - Como Cupido, en la ronda 1, debo elegir a dos jugadores para enamorar. Una buena estrategia es elegirme a mí y a otro jugador.
     - Como Príncipe, no tengo acciones nocturnas, solo un efecto pasivo durante la votación diurna.
 
