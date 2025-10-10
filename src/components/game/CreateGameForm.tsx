@@ -30,6 +30,8 @@ import { Switch } from "../ui/switch";
 import { Label } from "../ui/label";
 import { Checkbox } from "../ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
+import type { PlayerRole } from "@/types";
+import { roleDetails } from "@/lib/roles";
 
 
 const FormSchema = z.object({
@@ -50,23 +52,28 @@ const FormSchema = z.object({
   priest: z.boolean(),
   wolf_cub: z.boolean(),
   cursed: z.boolean(),
+  ancient: z.boolean(),
+  fool: z.boolean(),
+  scapegoat: z.boolean(),
+  savior: z.boolean(),
+  great_werewolf: z.boolean(),
+  white_werewolf: z.boolean(),
+  angel: z.boolean(),
+  thief: z.boolean(),
+  wild_child: z.boolean(),
+  piper: z.boolean(),
+  pyromaniac: z.boolean(),
+  judge: z.boolean(),
+  raven: z.boolean(),
+  fox: z.boolean(),
+  bear_trainer: z.boolean(),
+  actor: z.boolean(),
+  knight: z.boolean(),
+  two_sisters: z.boolean(),
+  three_brothers: z.boolean(),
 });
 
-const specialRoles = [
-  { id: 'seer', label: 'Vidente', description: 'Descubre el rol de un jugador cada noche.', image: '/roles/seer.png' },
-  { id: 'doctor', label: 'Doctor', description: 'Protege a un jugador del ataque de los lobos. No puede curar a la misma persona 2 noches seguidas.', image: '/roles/doctor.png' },
-  { id: 'hechicera', label: 'Hechicera', description: 'Usa una poción de vida y una de muerte.', image: '/roles/Witch.png' },
-  { id: 'hunter', label: 'Cazador', description: 'Al morir, puede llevarse a otro jugador consigo.', image: '/roles/hunter.png' },
-  { id: 'prince', label: 'Príncipe', description: 'Inmune a ser linchado por votación.', image: '/roles/Prince.png' },
-  { id: 'lycanthrope', label: 'Licántropo', description: 'Un aldeano que la vidente ve como lobo.', image: '/roles/lycanthrope.png' },
-  { id: 'twin', label: 'Gemelas', description: 'Dos jugadores que se conocen y son aliados.', image: '/roles/twin.png' },
-  { id: 'cupid', label: 'Cupido', description: 'Enamora a dos jugadores la primera noche.', image: '/roles/cupid.png' },
-  { id: 'guardian', label: 'Guardián', description: 'Protege a un jugador del ataque de los lobos. No puede protegerse a sí mismo.', image: '/roles/guardian.png' },
-  { id: 'priest', label: 'Sacerdote', description: 'Bendice a un jugador, protegiéndolo de cualquier ataque nocturno.', image: '/roles/priest.png' },
-  { id: 'wolf_cub', label: 'Cría de Lobo', description: 'Si muere, los lobos matan a dos la noche siguiente.', image: '/roles/wolf_cub.png' },
-  { id: 'cursed', label: 'Maldito', description: 'Si los lobos te atacan, te conviertes en uno de ellos.', image: '/roles/cursed.png' },
-] as const;
-
+const specialRoles = Object.keys(roleDetails).filter(role => role !== 'villager' && role !== 'werewolf') as Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[];
 
 export function CreateGameForm() {
   const router = useRouter();
@@ -93,6 +100,25 @@ export function CreateGameForm() {
       priest: true,
       wolf_cub: true,
       cursed: true,
+      ancient: true,
+      fool: true,
+      scapegoat: true,
+      savior: true,
+      great_werewolf: true,
+      white_werewolf: true,
+      angel: true,
+      thief: true,
+      wild_child: true,
+      piper: true,
+      pyromaniac: true,
+      judge: true,
+      raven: true,
+      fox: true,
+      bear_trainer: true,
+      actor: true,
+      knight: true,
+      two_sisters: true,
+      three_brothers: true,
     },
   });
 
@@ -184,11 +210,14 @@ export function CreateGameForm() {
               <Label className="text-base">Roles Especiales</Label>
               <FormDescription>Selecciona los roles que quieres incluir en la partida.</FormDescription>
               <div className="grid grid-cols-2 gap-4 mt-4">
-                  {specialRoles.map(role => (
+                  {specialRoles.map(roleId => {
+                    const details = roleDetails[roleId];
+                    if (!details) return null;
+                    return (
                     <FormField
-                      key={role.id}
+                      key={roleId}
                       control={form.control}
-                      name={role.id}
+                      name={roleId}
                       render={({ field }) => (
                         <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 bg-background/50">
                           <FormControl>
@@ -200,15 +229,15 @@ export function CreateGameForm() {
                           <div className="space-y-1 leading-none">
                             <FormLabel className="flex items-center gap-2">
                                <div className="relative h-6 w-6">
-                                <Image src={role.image} alt={role.label} fill className="object-contain" unoptimized />
+                                <Image src={details.image} alt={details.name} fill className="object-contain" unoptimized />
                                </div>
-                              {role.label}
+                              {details.name}
                                <Tooltip>
                                 <TooltipTrigger asChild>
                                   <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                  <p>{role.description}</p>
+                                  <p>{details.description}</p>
                                 </TooltipContent>
                               </Tooltip>
                             </FormLabel>
@@ -216,7 +245,7 @@ export function CreateGameForm() {
                         </FormItem>
                       )}
                     />
-                  ))}
+                  )})}
               </div>
             </div>
 

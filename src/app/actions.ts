@@ -134,7 +134,7 @@ export async function joinGame(
 }
 
 const generateRoles = (playerCount: number, settings: Game['settings']) => {
-    const roles: Player['role'][] = [];
+    let roles: Player['role'][] = [];
     
     // Add werewolves
     for (let i = 0; i < settings.werewolves; i++) {
@@ -142,48 +142,80 @@ const generateRoles = (playerCount: number, settings: Game['settings']) => {
     }
     
     // Add wolf cub if enabled
-    if (settings.wolf_cub) roles.push('wolf_cub');
+    if (settings.wolf_cub && roles.length < playerCount) roles.push('wolf_cub');
+
+    // Add other wolf roles
+    if (settings.great_werewolf && roles.length < playerCount) roles.push('great_werewolf');
+    if (settings.white_werewolf && roles.length < playerCount) roles.push('white_werewolf');
+
 
     // Add special roles based on settings
-    if (settings.seer) roles.push('seer');
-    if (settings.doctor) roles.push('doctor');
-    if (settings.hunter) roles.push('hunter');
-    if (settings.cupid) roles.push('cupid');
-    if (settings.hechicera) roles.push('hechicera');
-    if (settings.lycanthrope) roles.push('lycanthrope');
-    if (settings.prince) roles.push('prince');
-    if (settings.twin) {
+    if (settings.seer && roles.length < playerCount) roles.push('seer');
+    if (settings.doctor && roles.length < playerCount) roles.push('doctor');
+    if (settings.hunter && roles.length < playerCount) roles.push('hunter');
+    if (settings.cupid && roles.length < playerCount) roles.push('cupid');
+    if (settings.hechicera && roles.length < playerCount) roles.push('hechicera');
+    if (settings.lycanthrope && roles.length < playerCount) roles.push('lycanthrope');
+    if (settings.prince && roles.length < playerCount) roles.push('prince');
+    if (settings.twin && (roles.length + 1) < playerCount) {
       roles.push('twin');
-      roles.push('twin'); // Add the second twin
+      roles.push('twin'); 
     }
-    if (settings.guardian) roles.push('guardian');
-    if (settings.priest) roles.push('priest');
-    if (settings.cursed) roles.push('cursed');
+    if (settings.guardian && roles.length < playerCount) roles.push('guardian');
+    if (settings.priest && roles.length < playerCount) roles.push('priest');
+    if (settings.cursed && roles.length < playerCount) roles.push('cursed');
+    if (settings.ancient && roles.length < playerCount) roles.push('ancient');
+    if (settings.fool && roles.length < playerCount) roles.push('fool');
+    if (settings.scapegoat && roles.length < playerCount) roles.push('scapegoat');
+    if (settings.savior && roles.length < playerCount) roles.push('savior');
+    if (settings.angel && roles.length < playerCount) roles.push('angel');
+    if (settings.thief && roles.length < playerCount) roles.push('thief');
+    if (settings.wild_child && roles.length < playerCount) roles.push('wild_child');
+    if (settings.piper && roles.length < playerCount) roles.push('piper');
+    if (settings.pyromaniac && roles.length < playerCount) roles.push('pyromaniac');
+    if (settings.judge && roles.length < playerCount) roles.push('judge');
+    if (settings.raven && roles.length < playerCount) roles.push('raven');
+    if (settings.fox && roles.length < playerCount) roles.push('fox');
+    if (settings.bear_trainer && roles.length < playerCount) roles.push('bear_trainer');
+
+    if (settings.actor && roles.length < playerCount) roles.push('actor');
+    if (settings.knight && roles.length < playerCount) roles.push('knight');
+    if (settings.two_sisters && (roles.length + 1) < playerCount) {
+        roles.push('two_sisters');
+        roles.push('two_sisters');
+    }
+    if (settings.three_brothers && (roles.length + 2) < playerCount) {
+        roles.push('three_brothers');
+        roles.push('three_brothers');
+        roles.push('three_brothers');
+    }
+
     
     // Fill remaining spots with villagers
     while (roles.length < playerCount) {
         roles.push('villager');
     }
 
-    // If we have too many roles (e.g. many special roles selected for a small game),
-    // we need to prioritize. This is a simple priority, could be improved.
-    // For now, let's just slice it to the player count. A better way would be to disable
-    // role selection if it exceeds player count.
-    const finalRoles = roles.slice(0, playerCount);
+    // Ensure there are enough roles, if not, add villagers
+    while (roles.length > playerCount) {
+      roles.pop(); // Remove excess roles
+    }
 
     // Ensure we have at least one werewolf if roles were cut.
-    const hasWolfRole = finalRoles.some(r => r === 'werewolf' || r === 'wolf_cub');
+    const hasWolfRole = roles.some(r => r === 'werewolf' || r === 'wolf_cub' || r === 'great_werewolf' || r === 'white_werewolf');
     if (!hasWolfRole && playerCount > 0) {
-        const villagerIndex = finalRoles.findIndex(r => r === 'villager');
+        const villagerIndex = roles.findIndex(r => r === 'villager');
         if (villagerIndex !== -1) {
-            finalRoles[villagerIndex] = 'werewolf';
+            roles[villagerIndex] = 'werewolf';
+        } else if (roles.length > 0) {
+            roles[0] = 'werewolf';
         } else {
-            finalRoles[0] = 'werewolf';
+            roles.push('werewolf');
         }
     }
     
     // Shuffle roles
-    return finalRoles.sort(() => Math.random() - 0.5);
+    return roles.sort(() => Math.random() - 0.5);
 };
 
 const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
@@ -475,8 +507,9 @@ async function checkGameOver(gameId: string, transaction: Transaction): Promise<
     const players = playersSnap.docs.map(doc => doc.data() as Player);
 
     const alivePlayers = players.filter(p => p.isAlive);
-    const aliveWerewolves = alivePlayers.filter(p => p.isAlive && (p.role === 'werewolf' || p.role === 'wolf_cub'));
-    const aliveVillagers = alivePlayers.filter(p => p.isAlive && p.role !== 'werewolf' && p.role !== 'wolf_cub');
+    const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'great_werewolf', 'white_werewolf', 'cursed'];
+    const aliveWerewolves = alivePlayers.filter(p => p.isAlive && wolfRoles.includes(p.role));
+    const aliveVillagers = alivePlayers.filter(p => p.isAlive && !wolfRoles.includes(p.role));
 
     let gameOver = false;
     let message = "";
@@ -840,7 +873,8 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
     const game = gameDoc.data() as Game;
 
     const targetPlayer = targetPlayerSnap.data() as Player;
-    const isWerewolf = targetPlayer.role === 'werewolf' || targetPlayer.role === 'wolf_cub' || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope);
+    const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'great_werewolf', 'white_werewolf', 'cursed'];
+    const isWerewolf = wolfRoles.includes(targetPlayer.role) || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope);
 
     return { 
         success: true, 
@@ -946,7 +980,8 @@ async function checkEndNightEarly(gameId: string) {
 
     const requiredPlayerIds = new Set<string>();
 
-    const werewolves = alivePlayers.filter(p => p.role === 'werewolf' || p.role === 'wolf_cub');
+    const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'great_werewolf', 'white_werewolf'];
+    const werewolves = alivePlayers.filter(p => wolfRoles.includes(p.role));
     if (werewolves.length > 0) {
         werewolves.forEach(w => requiredPlayerIds.add(w.userId));
     }
@@ -956,8 +991,8 @@ async function checkEndNightEarly(gameId: string) {
         if (seer) requiredPlayerIds.add(seer.userId);
     }
     
-    if (game.settings.doctor) {
-        const doctor = alivePlayers.find(p => p.role === 'doctor');
+    if (game.settings.doctor || game.settings.savior) {
+        const doctor = alivePlayers.find(p => p.role === 'doctor' || p.role === 'savior');
         if (doctor) requiredPlayerIds.add(doctor.userId);
     }
     

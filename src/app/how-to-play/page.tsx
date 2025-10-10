@@ -1,4 +1,5 @@
 
+
 import {
     Accordion,
     AccordionContent,
@@ -17,26 +18,18 @@ import type { PlayerRole } from '@/types';
 
 
 const aldeanoRoleKeys: NonNullable<PlayerRole>[] = [
-    'villager',
-    'guardian',
-    'seer',
-    'doctor',
-    'priest',
-    'twin',
-    'hunter',
-    'hechicera',
-    'prince',
-    'lycanthrope',
+    'villager', 'seer', 'doctor', 'hunter', 'guardian', 'priest', 'prince', 
+    'lycanthrope', 'twin', 'hechicera', 'ancient', 'fool', 'scapegoat', 
+    'savior', 'two_sisters', 'three_brothers', 'knight', 'judge', 'raven', 'fox', 
+    'bear_trainer', 'actor'
 ];
 
 const loboRoleKeys: NonNullable<PlayerRole>[] = [
-    'werewolf',
-    'wolf_cub',
-    'cursed',
+    'werewolf', 'wolf_cub', 'cursed', 'great_werewolf', 'white_werewolf'
 ];
 
 const especialRoleKeys: NonNullable<PlayerRole>[] = [
-    'cupid',
+    'cupid', 'angel', 'thief', 'wild_child', 'piper', 'pyromaniac'
 ];
 
 
@@ -135,9 +128,9 @@ export default function HowToPlayPage() {
                             </p>
                         </div>
                          <div>
-                            <h3 className="font-bold text-pink-400">Para los Enamorados:</h3>
+                            <h3 className="font-bold text-pink-400">Para los Enamorados y Solitarios:</h3>
                             <p className="text-muted-foreground">
-                                Si Cupido os ha unido, vuestro objetivo es ser los únicos supervivientes, sin importar vuestro bando original.
+                                Algunos roles tienen objetivos únicos. Si eres un Enamorado, tu objetivo es ser el último superviviente junto a tu pareja. Otros, como el Tonto del Pueblo o el Flautista, tienen sus propias condiciones de victoria.
                             </p>
                         </div>
                     </CardContent>
@@ -172,7 +165,7 @@ export default function HowToPlayPage() {
                 
                 <RoleSection title="El Pueblo (Equipo Azul)" roleKeys={aldeanoRoleKeys} teamColor="text-blue-400" />
                 <RoleSection title="Los Lobos (Equipo Rojo)" roleKeys={loboRoleKeys} teamColor="text-destructive" />
-                <RoleSection title="Roles Especiales" roleKeys={especialRoleKeys} teamColor="text-pink-400" />
+                <RoleSection title="Roles Especiales y Solitarios" roleKeys={especialRoleKeys} teamColor="text-pink-400" />
 
                 <div className="text-center pt-4">
                     <Button asChild>
