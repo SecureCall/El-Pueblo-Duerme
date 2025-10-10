@@ -1,4 +1,3 @@
-
 'use server';
 
 import { ai } from '@/ai/genkit';
@@ -14,7 +13,6 @@ export async function takeAITurn(input: TakeAITurnInput): Promise<TakeAITurnOutp
 const prompt = ai.definePrompt({
     name: 'takeAITurnPrompt',
     input: {schema: TakeAITurnInputSchema},
-    output: {schema: TakeAITurnOutputSchema},
     prompt: `Eres un jugador experto en el juego 'El Pueblo Duerme' (similar a Mafia o Werewolf). Estás jugando como un bot de IA. Tu objetivo es ganar la partida para tu facción.
 
 Analiza el estado actual del juego y decide la mejor acción a tomar. Piensa paso a paso. You must respond in valid JSON format.
@@ -86,7 +84,14 @@ Basado en toda la información, y especialmente en tu identidad y rol dentro de 
   "action": "KILL:playerA_id|playerB_id"
 }
 
-Ahora, proporciona tu razonamiento y acción para el estado actual del juego.`
+Ahora, proporciona tu razonamiento y acción para el estado actual del juego. Tu respuesta DEBE ser un objeto JSON válido que se ajuste al siguiente esquema:
+\`\`\`json
+{
+  "reasoning": "string",
+  "action": "string"
+}
+\`\`\`
+`
 });
 
 
@@ -98,12 +103,14 @@ const takeAITurnFlow = ai.defineFlow(
     },
     async (input) => {
         // The context can be large, so we use a model that can handle it.
-        const { output } = await prompt(input, { 
+        const response = await ai.generate({
+            prompt: await prompt(input),
             model: 'googleai/gemini-pro',
             config: {
                 responseMimeType: 'application/json',
             }
         });
-        return output!;
+        
+        return TakeAITurnOutputSchema.parse(JSON.parse(response.text));
     }
 );
