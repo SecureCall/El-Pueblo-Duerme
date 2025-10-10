@@ -8,67 +8,38 @@ interface GameMusicProps {
   game: Game;
 }
 
-// Helper to fade out audio
-const fadeOut = (audio: HTMLAudioElement, duration: number = 500) => {
-    if (audio.paused) return;
-    const startVolume = audio.volume;
-    const steps = 20;
-    const stepDuration = duration / steps;
-    let currentStep = 0;
-
-    const fadeInterval = setInterval(() => {
-        currentStep++;
-        const newVolume = startVolume * (1 - currentStep / steps);
-        if (newVolume >= 0) {
-            audio.volume = newVolume;
+const getAudioSrc = (game: Game): string | null => {
+    if (game.status === 'waiting') {
+        return "/audio/lobby-theme.mp3";
+    }
+    if (game.status === 'in_progress') {
+        const isNightPhase = game.phase === 'night' || game.phase === 'role_reveal' || game.phase === 'hunter_shot';
+        if (isNightPhase) {
+            return "/audio/night-theme.mp3";
         } else {
-            audio.volume = 0;
-            audio.pause();
-            clearInterval(fadeInterval);
-             // Reset volume for next play
-            audio.volume = startVolume;
+            return "/audio/day-theme.mp3";
         }
-    }, stepDuration);
-};
-
+    }
+    return null;
+}
 
 export function GameMusic({ game }: GameMusicProps) {
-  const dayAudioRef = useRef<HTMLAudioElement>(null);
-  const nightAudioRef = useRef<HTMLAudioElement>(null);
-  const lobbyAudioRef = useRef<HTMLAudioElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const currentSrcRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const dayAudio = dayAudioRef.current;
-    const nightAudio = nightAudioRef.current;
-    const lobbyAudio = lobbyAudioRef.current;
+    const audio = audioRef.current;
+    if (!audio) return;
 
-    const audioElements = [dayAudio, nightAudio, lobbyAudio];
-    if (audioElements.some(el => !el)) return;
-    
-    // Ensure all audio elements are initialized properly
-    audioElements.forEach(audio => {
-        if(audio) {
-            audio.loop = true;
-            audio.volume = 0.3; // Default volume
-        }
-    });
+    const newSrc = getAudioSrc(game);
 
-    const playAudio = (audioElement: HTMLAudioElement) => {
-      // Pause all other audio elements first
-      audioElements.forEach(audio => {
-        if (audio && audio !== audioElement && !audio.paused) {
-          audio.pause();
-        }
-      });
-      
-      // Play the target audio
-      if (audioElement.paused) {
-        const playPromise = audioElement.play();
+    const playAudio = () => {
+        const playPromise = audio.play();
         if (playPromise !== undefined) {
             playPromise.catch(error => {
                 console.log("Game audio autoplay blocked, will start on user interaction.");
                  const playOnFirstInteraction = () => {
-                    audioElement.play().catch(err => console.error("Error playing game audio on interaction:", err));
+                    audio.play().catch(err => console.error("Error playing game audio on interaction:", err));
                     window.removeEventListener("click", playOnFirstInteraction);
                     window.removeEventListener("keydown", playOnFirstInteraction);
                     window.removeEventListener("touchstart", playOnFirstInteraction);
@@ -78,40 +49,22 @@ export function GameMusic({ game }: GameMusicProps) {
                 window.addEventListener("touchstart", playOnFirstInteraction);
             });
         }
-      }
-    };
-    
-    const stopAllAudio = () => {
-        audioElements.forEach(audio => {
-            if (audio) fadeOut(audio);
-        });
     }
 
-    if (game.status === 'waiting') {
-        playAudio(lobbyAudio!);
-    } else if (game.status === 'in_progress') {
-        const isNightPhase = game.phase === 'night' || game.phase === 'role_reveal' || game.phase === 'hunter_shot';
-        if (isNightPhase) {
-            playAudio(nightAudio!);
-        } else { // Day and voting phases
-            playAudio(dayAudio!);
-        }
-    } else if (game.status === 'finished') {
-        stopAllAudio();
-    }
-    
-    // Cleanup on unmount
-    return () => {
-        stopAllAudio();
+    if (newSrc && newSrc !== currentSrcRef.current) {
+        audio.src = newSrc;
+        audio.loop = true;
+        audio.volume = 0.3;
+        currentSrcRef.current = newSrc;
+        playAudio();
+
+    } else if (!newSrc && !audio.paused) {
+        audio.pause();
+        audio.src = "";
+        currentSrcRef.current = null;
     }
     
   }, [game.status, game.phase]);
 
-  return (
-    <>
-      <audio ref={dayAudioRef} src="/audio/day-theme.mp3" preload="auto" />
-      <audio ref={nightAudioRef} src="/audio/night-theme.mp3" preload="auto" />
-      <audio ref={lobbyAudioRef} src="/audio/lobby-theme.mp3" preload="auto" />
-    </>
-  );
+  return <audio ref={audioRef} preload="auto" />;
 }
