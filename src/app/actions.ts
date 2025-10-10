@@ -67,7 +67,7 @@ export async function createGame(
         ...settings,
         werewolves: werewolfCount,
     },
-    pendingHunterShot: undefined,
+    pendingHunterShot: null,
   };
 
   await setDoc(gameRef, gameData);

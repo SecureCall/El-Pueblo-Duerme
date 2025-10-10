@@ -90,7 +90,7 @@ export interface Game {
   phaseEndsAt?: Timestamp;
   lovers?: [string, string];
   twins?: [string, string];
-  pendingHunterShot?: string; // userId of the hunter who needs to shoot
+  pendingHunterShot?: string | null; // userId of the hunter who needs to shoot
   wolfCubRevengeRound?: number; // The round where werewolves get an extra kill
 }
 
@@ -106,8 +106,8 @@ export interface Player {
   lastHealedRound?: number;
   isAI?: boolean;
   potions?: {
-    poison?: number, // round it was used
-    save?: number, // round it was used
+    poison?: number | null, // round it was used
+    save?: number | null, // round it was used
   }
   priestSelfHealUsed?: boolean;
   princeRevealed?: boolean;
