@@ -55,10 +55,6 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
                         fill
                         className="object-contain"
                         unoptimized
-                        onError={(e) => {
-                            // Fallback if the image doesn't exist
-                            e.currentTarget.src = '/roles/villager.png';
-                        }}
                     />
                 </div>
                 <p className="text-lg font-bold italic text-primary-foreground/90">
