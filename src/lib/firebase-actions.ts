@@ -21,6 +21,8 @@ import {
 } from "firebase/firestore";
 import type { Game, Player, NightAction, GameEvent } from "@/types";
 import { takeAITurn } from "@/ai/flows/take-ai-turn-flow";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -65,43 +67,54 @@ export async function createGame(
   maxPlayers: number,
   settings: Game['settings']
 ) {
+  if (!userId || !displayName?.trim() || !gameName?.trim()) {
+    return { error: "Datos incompletos para crear la partida." };
+  }
+  if (maxPlayers < 3 || maxPlayers > 32) {
+    return { error: "El número de jugadores debe ser entre 3 y 32." };
+  }
+
+  const gameId = generateGameId();
+  const gameRef = doc(db, "games", gameId);
+      
+  const werewolfCount = Math.max(1, Math.floor(maxPlayers / 5));
+
+  const gameData: Omit<Game, 'id'> = {
+      name: gameName.trim(),
+      status: "waiting",
+      phase: "night", // Lobby UI is driven by status='waiting'
+      creator: userId,
+      players: [], // Start with an empty player list
+      maxPlayers: maxPlayers,
+      createdAt: Timestamp.now(),
+      currentRound: 0,
+      settings: {
+          ...settings,
+          werewolves: werewolfCount,
+      },
+      pendingHunterShot: null,
+      lovers: null,
+      wolfCubRevengeRound: 0,
+  };
+  
   try {
-    if (!userId || !displayName?.trim() || !gameName?.trim()) {
-      return { error: "Datos incompletos para crear la partida." };
-    }
-    if (maxPlayers < 3 || maxPlayers > 32) {
-      return { error: "El número de jugadores debe ser entre 3 y 32." };
-    }
-
-    const gameId = generateGameId();
-    const gameRef = doc(db, "games", gameId);
-        
-    const werewolfCount = Math.max(1, Math.floor(maxPlayers / 5));
-
-    const gameData: Omit<Game, 'id'> = {
-        name: gameName.trim(),
-        status: "waiting",
-        phase: "night", // Lobby UI is driven by status='waiting'
-        creator: userId,
-        players: [], // Start with an empty player list
-        maxPlayers: maxPlayers,
-        createdAt: Timestamp.now(),
-        currentRound: 0,
-        settings: {
-            ...settings,
-            werewolves: werewolfCount,
-        },
-        pendingHunterShot: null,
-        lovers: null,
-        wolfCubRevengeRound: 0,
-    };
-    
     await setDoc(gameRef, gameData);
-        
-    return { gameId };
+    
+    // Now that the game is created, join the creator to it.
+    await joinGame(db, gameId, userId, displayName);
 
+    return { gameId };
   } catch (error: any) {
-    console.error("Error creating game:", error);
+    console.error("Error creating game:", error); // Keep this for general debugging
+    if (error.code === 'permission-denied') {
+        const permissionError = new FirestorePermissionError({
+            path: gameRef.path,
+            operation: 'create',
+            requestResourceData: gameData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        return { error: "Permiso denegado al crear la partida." };
+    }
     return { error: `Error al crear la partida: ${error.message || 'Error desconocido'}` };
   }
 }
@@ -156,6 +169,15 @@ export async function joinGame(
     return result;
 
   } catch(error: any) {
+    if (error.code === 'permission-denied') {
+        const permissionError = new FirestorePermissionError({
+            path: gameRef.path,
+            operation: 'update', // joinGame performs an update
+            requestResourceData: { players: arrayUnion(userId) },
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        return { error: "Permiso denegado al unirse a la partida." };
+    }
     console.error("Error joining game:", error);
     return { error: `No se pudo unir a la partida: ${error.message}` };
   }
@@ -318,6 +340,15 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
         return { success: true };
 
     } catch (e: any) {
+        if (e.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+                path: gameRef.path,
+                operation: 'update',
+                requestResourceData: { status: 'in_progress' },
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            return { error: "Permiso denegado al iniciar la partida." };
+        }
         console.error("Error starting game:", e);
         return { error: e.message || 'Error al iniciar la partida.' };
     }
@@ -420,6 +451,15 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
 
     return { success: true };
   } catch (error) {
+    if ((error as any).code === 'permission-denied') {
+        const permissionError = new FirestorePermissionError({
+            path: `games/${action.gameId}/night_actions`,
+            operation: 'create',
+            requestResourceData: action,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        return { error: "Permiso denegado al realizar la acción nocturna." };
+    }
     console.error("Error submitting night action: ", error);
     return { error: "No se pudo registrar tu acción." };
   }
@@ -442,6 +482,15 @@ export async function submitCupidAction(db: Firestore, gameId: string, cupidId: 
 
         return { success: true };
     } catch (error) {
+        if ((error as any).code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+                path: `games/${gameId}`,
+                operation: 'update',
+                requestResourceData: { lovers: [target1Id, target2Id] },
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            return { error: "Permiso denegado al elegir enamorados." };
+        }
         console.error("Error submitting cupid action: ", error);
         return { error: "No se pudo registrar tu acción." };
     }
@@ -761,6 +810,15 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
         }
         return { success: true };
     } catch (error) {
+        if ((error as any).code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+                path: `games/${gameId}/players/${voterId}`,
+                operation: 'update',
+                requestResourceData: { votedFor: targetId },
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            return { error: "Permiso denegado al votar." };
+        }
         console.error("Error submitting vote: ", error);
         return { error: "No se pudo registrar tu voto." };
     }
@@ -969,6 +1027,15 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
         });
         return { success: true };
     } catch (error: any) {
+        if (error.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+                path: gameRef.path,
+                operation: 'update',
+                requestResourceData: { pendingHunterShot: null },
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            return { error: "Permiso denegado al disparar." };
+        }
         console.error("Error submitting hunter shot: ", error);
         return { error: error.message || "No se pudo registrar el disparo." };
     }
