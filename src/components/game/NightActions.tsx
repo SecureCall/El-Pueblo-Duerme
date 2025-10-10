@@ -7,12 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
-import { submitNightAction, getSeerResult, submitCupidAction } from '@/app/actions';
+import { submitNightAction, getSeerResult, submitCupidAction } from '@/lib/firebase-actions';
 import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, BotIcon, Sparkles } from 'lucide-react';
 import { SeerResult } from './SeerResult';
 import { useNightActions } from '@/hooks/use-night-actions';
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import { useFirebase } from '@/firebase';
 
 interface NightActionsProps {
     game: Game;
@@ -27,6 +28,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [seerResult, setSeerResult] = useState<{ targetName: string; isWerewolf: boolean; } | null>(null);
     const [hechiceraAction, setHechiceraAction] = useState<HechiceraAction>('poison');
+    const { firestore } = useFirebase();
     
     const { toast } = useToast();
     const { hasSubmitted } = useNightActions(game.id, game.currentRound, currentPlayer.userId);
@@ -111,6 +113,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
     }
 
     const handleSubmit = async () => {
+        if (!firestore) return;
         if (selectedPlayerIds.length !== selectionLimit) {
             toast({ variant: 'destructive', title: `Debes seleccionar ${selectionLimit} jugador(es).` });
             return;
@@ -147,9 +150,9 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
 
         let result;
         if (isCupidFirstNight) {
-            result = await submitCupidAction(game.id, currentPlayer.userId, selectedPlayerIds[0], selectedPlayerIds[1]);
+            result = await submitCupidAction(firestore, game.id, currentPlayer.userId, selectedPlayerIds[0], selectedPlayerIds[1]);
         } else {
-             result = await submitNightAction({
+             result = await submitNightAction(firestore, {
                 gameId: game.id,
                 round: game.currentRound,
                 playerId: currentPlayer.userId,
@@ -162,7 +165,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             toast({ title: 'Acción registrada.', description: 'Tu decisión ha sido guardada.' });
 
             if (currentPlayer.role === 'seer') {
-                const seerResultData = await getSeerResult(game.id, currentPlayer.userId, selectedPlayerIds[0]);
+                const seerResultData = await getSeerResult(firestore, game.id, currentPlayer.userId, selectedPlayerIds[0]);
                 if (seerResultData.success) {
                     setSeerResult({
                         targetName: seerResultData.targetName!,

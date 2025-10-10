@@ -1,10 +1,11 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
 import { useGameSession } from "@/hooks/use-game-session";
 import { useGameState } from "@/hooks/use-game-state";
 import { EnterNameModal } from "./EnterNameModal";
-import { joinGame } from "@/app/actions";
+import { joinGame } from "@/lib/firebase-actions";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { GameLobby } from "./GameLobby";
@@ -12,17 +13,19 @@ import { useToast } from "@/hooks/use-toast";
 import { GameBoard } from "./GameBoard";
 import Image from "next/image";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
+import { useFirebase } from "@/firebase";
 
 export function GameRoom({ gameId }: { gameId: string }) {
   const { userId, displayName, setDisplayName, isSessionLoaded } = useGameSession();
   const { game, players, events, loading, error } = useGameState(gameId);
   const [isJoining, setIsJoining] = useState(false);
   const { toast } = useToast();
+  const { firestore } = useFirebase();
 
   const handleJoinGame = async () => {
-    if (!displayName) return;
+    if (!displayName || !firestore) return;
     setIsJoining(true);
-    const result = await joinGame(gameId, userId, displayName);
+    const result = await joinGame(firestore, gameId, userId, displayName);
     if (result.error) {
       toast({
         variant: "destructive",

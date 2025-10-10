@@ -3,10 +3,11 @@
 
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
-import { startGame } from "@/app/actions";
+import { startGame } from "@/lib/firebase-actions";
 import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useGameSession } from "@/hooks/use-game-session";
+import { useFirebase } from "@/firebase";
 
 interface StartGameButtonProps {
   gameId: string;
@@ -17,10 +18,11 @@ export function StartGameButton({ gameId, playerCount }: StartGameButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const { userId, isSessionLoaded } = useGameSession();
+  const { firestore } = useFirebase();
   const canStart = playerCount >= 3;
 
   const handleStartGame = async () => {
-    if (!isSessionLoaded || !userId) {
+    if (!isSessionLoaded || !userId || !firestore) {
        toast({
           variant: "destructive",
           title: "Error",
@@ -29,7 +31,7 @@ export function StartGameButton({ gameId, playerCount }: StartGameButtonProps) {
       return;
     }
     setIsLoading(true);
-    const result = await startGame(gameId, userId); // creatorId check is on server
+    const result = await startGame(firestore, gameId, userId); // creatorId check is on server
     if (result.error) {
       toast({
         variant: "destructive",

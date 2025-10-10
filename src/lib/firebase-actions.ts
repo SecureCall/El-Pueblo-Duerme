@@ -1,7 +1,5 @@
 
-"use server";
-
-import { redirect } from "next/navigation";
+'use client';
 import { 
   collection,
   doc,
@@ -17,12 +15,12 @@ import {
   addDoc,
   increment,
   runTransaction,
+  type Firestore,
   type Transaction,
   type Timestamp as FirestoreTimestamp,
 } from "firebase/firestore";
-import { db } from "@/firebase/server-init";
 import type { Game, Player, NightAction, GameEvent } from "@/types";
-
+import { takeAITurn } from "@/ai/flows/take-ai-turn-flow";
 
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -33,7 +31,7 @@ function generateGameId(length = 5) {
   return result;
 }
 
-async function getPlayerDoc(gameId: string, userId: string) {
+async function getPlayerDoc(db: Firestore, gameId: string, userId: string) {
     const playerRef = doc(db, 'games', gameId, 'players', userId);
     const playerSnap = await getDoc(playerRef);
     return playerSnap;
@@ -60,6 +58,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
 
 
 export async function createGame(
+  db: Firestore,
   userId: string,
   displayName: string,
   gameName: string,
@@ -76,12 +75,6 @@ export async function createGame(
 
     const gameId = generateGameId();
     const gameRef = doc(db, "games", gameId);
-    
-    // Check if game ID already exists, though unlikely
-    const existingGame = await getDoc(gameRef);
-    if (existingGame.exists()) {
-        return { error: "ID de partida ya existe. Por favor, intenta de nuevo." };
-    }
         
     const werewolfCount = Math.max(1, Math.floor(maxPlayers / 5));
 
@@ -103,18 +96,18 @@ export async function createGame(
         wolfCubRevengeRound: 0,
     };
     
-    // Only create the game document. The creator will join via joinGame action.
     await setDoc(gameRef, gameData);
         
     return { gameId };
 
   } catch (error: any) {
-    console.error("Error creating game:", { message: error.message, code: error.code, stack: error.stack });
+    console.error("Error creating game:", error);
     return { error: `Error al crear la partida: ${error.message || 'Error desconocido'}` };
   }
 }
 
 export async function joinGame(
+  db: Firestore,
   gameId: string,
   userId: string,
   displayName: string
@@ -246,7 +239,7 @@ const generateRoles = (playerCount: number, settings: Game['settings']) => {
 
 const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
 
-export async function startGame(gameId: string, creatorId: string) {
+export async function startGame(db: Firestore, gameId: string, creatorId: string) {
     const gameRef = doc(db, 'games', gameId);
     
     try {
@@ -330,15 +323,15 @@ export async function startGame(gameId: string, creatorId: string) {
     }
 }
 
-export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 'round'> & { round: number }) {
+export async function submitNightAction(db: Firestore, action: Omit<NightAction, 'createdAt' | 'round'> & { round: number }) {
   try {
     const actionRef = collection(db, 'games', action.gameId, 'night_actions');
-    const playerDoc = await getPlayerDoc(action.gameId, action.playerId);
+    const playerDoc = await getPlayerDoc(db, action.gameId, action.playerId);
     if (!playerDoc || !playerDoc.exists()) throw new Error("Player not found");
     const player = playerDoc.data() as Player;
 
     if (action.actionType === 'doctor_heal') {
-        const targetPlayerDoc = await getPlayerDoc(action.gameId, action.targetId);
+        const targetPlayerDoc = await getPlayerDoc(db, action.gameId, action.targetId);
         if (!targetPlayerDoc || !targetPlayerDoc.exists()) throw new Error("Target player for heal not found");
         
         if(targetPlayerDoc.data().lastHealedRound === action.round - 1) {
@@ -395,7 +388,7 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
     });
 
     if (action.actionType === 'doctor_heal') {
-        const targetPlayerDoc = await getPlayerDoc(action.gameId, action.targetId);
+        const targetPlayerDoc = await getPlayerDoc(db, action.gameId, action.targetId);
         if (targetPlayerDoc) {
             batch.update(targetPlayerDoc.ref, {
                 lastHealedRound: action.round
@@ -423,7 +416,7 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
 
     await batch.commit();
     
-    await checkEndNightEarly(action.gameId);
+    await checkEndNightEarly(db, action.gameId);
 
     return { success: true };
   } catch (error) {
@@ -432,14 +425,14 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
   }
 }
 
-export async function submitCupidAction(gameId: string, cupidId: string, target1Id: string, target2Id: string) {
+export async function submitCupidAction(db: Firestore, gameId: string, cupidId: string, target1Id: string, target2Id: string) {
     try {
         const gameRef = doc(db, 'games', gameId);
         await updateDoc(gameRef, {
             lovers: [target1Id, target2Id]
         });
         
-        await submitNightAction({
+        await submitNightAction(db, {
             gameId,
             round: 1,
             playerId: cupidId,
@@ -456,6 +449,7 @@ export async function submitCupidAction(gameId: string, cupidId: string, target1
 
 
 async function killPlayer(
+  db: Firestore,
   transaction: Transaction,
   gameId: string,
   playerId: string,
@@ -514,7 +508,7 @@ async function killPlayer(
   return { killedIds: killedPlayerIds, hunterId: null };
 }
 
-async function checkGameOver(gameId: string, transaction: Transaction): Promise<boolean> {
+async function checkGameOver(db: Firestore, gameId: string, transaction: Transaction): Promise<boolean> {
     const gameRef = doc(db, 'games', gameId);
     const gameSnap = await transaction.get(gameRef);
     const gameData = { ...gameSnap.data() as Game, id: gameSnap.id };
@@ -578,7 +572,7 @@ async function checkGameOver(gameId: string, transaction: Transaction): Promise<
     return gameOver;
 }
 
-export async function processNight(gameId: string) {
+export async function processNight(db: Firestore, gameId: string) {
     const gameRef = doc(db, 'games', gameId);
     
     try {
@@ -684,7 +678,7 @@ export async function processNight(gameId: string) {
                 } else {
                     const killedPlayer = playersData.find(p => p.userId === killedId)!;
                     messages.push(`${killedPlayer.displayName} fue atacado en la noche.`);
-                    const result = await killPlayer(transaction, gameId, killedPlayer.userId, game, playersData);
+                    const result = await killPlayer(db, transaction, gameId, killedPlayer.userId, game, playersData);
                     nightKillResults.push(result);
                 }
             }
@@ -700,7 +694,7 @@ export async function processNight(gameId: string) {
                  else {
                     const killedPlayer = playersData.find(p => p.userId === killedByPoisonId)!;
                     messages.push(`${killedPlayer.displayName} ha muerto misteriosamente, víctima de un veneno.`);
-                    const result = await killPlayer(transaction, gameId, killedPlayer.userId, game, playersData);
+                    const result = await killPlayer(db, transaction, gameId, killedPlayer.userId, game, playersData);
                     nightKillResults.push(result);
                 }
             }
@@ -732,7 +726,7 @@ export async function processNight(gameId: string) {
 
             const anyKills = nightKillResults.some(r => r.killedIds.length > 0);
             if (anyKills) {
-                 const isGameOver = await checkGameOver(gameId, transaction);
+                 const isGameOver = await checkGameOver(db, gameId, transaction);
                  if (isGameOver) return;
             }
 
@@ -756,14 +750,14 @@ export async function processNight(gameId: string) {
 }
 
 
-export async function submitVote(gameId: string, voterId: string, targetId: string) {
+export async function submitVote(db: Firestore, gameId: string, voterId: string, targetId: string) {
     try {
         const playerRef = doc(db, 'games', gameId, 'players', voterId);
         const playerSnap = await getDoc(playerRef);
 
         if (playerSnap.exists()) {
             await updateDoc(playerRef, { votedFor: targetId });
-            await checkEndDayEarly(gameId);
+            await checkEndDayEarly(db, gameId);
         }
         return { success: true };
     } catch (error) {
@@ -772,7 +766,7 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
     }
 }
 
-export async function processVotes(gameId: string) {
+export async function processVotes(db: Firestore, gameId: string) {
     const gameRef = doc(db, 'games', gameId);
     
     try {
@@ -825,7 +819,7 @@ export async function processVotes(gameId: string) {
                 } else {
                     lynchedPlayerId = potentialLynchedId;
                     eventMessage = `El pueblo ha decidido. ${lynchedPlayer.displayName} ha sido linchado.`;
-                    voteKillResult = await killPlayer(transaction, gameId, lynchedPlayer.userId, game, playersData);
+                    voteKillResult = await killPlayer(db, transaction, gameId, lynchedPlayer.userId, game, playersData);
                 }
 
             } else if (mostVotedPlayerIds.length > 1) {
@@ -847,7 +841,7 @@ export async function processVotes(gameId: string) {
             if (voteKillResult.hunterId) return;
 
             if (voteKillResult.killedIds.length > 0) {
-                 const isGameOver = await checkGameOver(gameId, transaction);
+                 const isGameOver = await checkGameOver(db, gameId, transaction);
                  if (isGameOver) return;
             }
             
@@ -864,9 +858,9 @@ export async function processVotes(gameId: string) {
     }
 }
 
-export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
+export async function getSeerResult(db: Firestore, gameId: string, seerId: string, targetId: string) {
   try {
-    const seerPlayerDoc = await getPlayerDoc(gameId, seerId);
+    const seerPlayerDoc = await getPlayerDoc(db, gameId, seerId);
     if (!seerPlayerDoc || !seerPlayerDoc.exists()) {
         throw new Error("Seer player not found");
     }
@@ -875,7 +869,7 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
       throw new Error("No eres el vidente.");
     }
     
-    const targetPlayerDoc = await getPlayerDoc(gameId, targetId);
+    const targetPlayerDoc = await getPlayerDoc(db, gameId, targetId);
      if (!targetPlayerDoc || !targetPlayerDoc.exists()) {
         throw new Error("Target player not found");
     }
@@ -903,7 +897,7 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
 }
 
 
-export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
+export async function submitHunterShot(db: Firestore, gameId: string, hunterId: string, targetId: string) {
     const gameRef = doc(db, 'games', gameId);
 
     try {
@@ -935,7 +929,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
                 createdAt: Timestamp.now(),
             });
 
-            const targetKillResult = await killPlayer(transaction, gameId, targetId, game, playersData);
+            const targetKillResult = await killPlayer(db, transaction, gameId, targetId, game, playersData);
             
             // If the hunter shot another hunter, we need to resolve that before continuing
             if (targetKillResult.hunterId) {
@@ -946,7 +940,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
                 return; // End transaction here, the next hunter will trigger a new one
             }
 
-            const isGameOver = await checkGameOver(gameId, transaction);
+            const isGameOver = await checkGameOver(db, gameId, transaction);
             if (isGameOver) return;
             
             // This logic needs to know if the hunter died during the day or night
@@ -958,7 +952,11 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
                 where('round', '==', game.currentRound),
                 where('type', '==', 'vote_result')
             );
-            const voteEventSnap = await getDocs(voteEventQuery);
+            const voteEventSnap = await getDocs(query(collection(db, 'game_events'), 
+                where('gameId', '==', gameId),
+                where('round', '==', game.currentRound),
+                where('type', '==', 'vote_result')
+            ));
             
             const diedDuringDay = !voteEventSnap.empty;
             const nextPhase = diedDuringDay ? 'night' : 'day';
@@ -976,7 +974,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
     }
 }
 
-async function checkEndNightEarly(gameId: string) {
+async function checkEndNightEarly(db: Firestore, gameId: string) {
     const gameRef = doc(db, 'games', gameId);
     const gameDoc = await getDoc(gameRef);
     if (!gameDoc.exists()) return;
@@ -1048,11 +1046,11 @@ async function checkEndNightEarly(gameId: string) {
     });
 
     if (allActionsSubmitted) {
-        await processNight(gameId);
+        await processNight(db, gameId);
     }
 }
 
-async function checkEndDayEarly(gameId: string) {
+async function checkEndDayEarly(db: Firestore, gameId: string) {
     const gameRef = doc(db, 'games', gameId);
     const gameDoc = await getDoc(gameRef);
     if (!gameDoc.exists()) return;
@@ -1067,8 +1065,148 @@ async function checkEndDayEarly(gameId: string) {
     const allPlayersVoted = alivePlayers.every(p => !!p.votedFor);
     
     if (allPlayersVoted) {
-        await processVotes(gameId);
+        await processVotes(db, gameId);
     }
 }
 
-    
+// AI Actions
+const toJSONCompatible = (obj: any): any => {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj.toDate === 'function') {
+        return obj.toDate().toISOString();
+    }
+    if (Array.isArray(obj)) {
+        return obj.map(toJSONCompatible);
+    }
+    if (typeof obj === 'object') {
+        const newObj: { [key: string]: any } = {};
+        for (const key in obj) {
+            if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                newObj[key] = toJSONCompatible(obj[key]);
+            }
+        }
+        return newObj;
+    }
+    return obj;
+};
+
+export async function runAIActions(db: Firestore, gameId: string, phase: Game['phase']) {
+    try {
+        const gameDoc = await getDoc(doc(db, 'games', gameId));
+        if (!gameDoc.exists()) return;
+        const game = { ...gameDoc.data() as Game, id: gameDoc.id };
+
+        const playersSnap = await getDocs(query(collection(db, 'games', gameId, 'players')));
+        const players = playersSnap.docs.map(p => ({ ...p.data() as Player, id: p.id }));
+        
+        const eventsSnap = await getDocs(query(collection(db, 'game_events'), where('gameId', '==', gameId), orderBy('createdAt', 'asc')));
+        const events = eventsSnap.docs.map(e => e.data() as GameEvent);
+
+        const aiPlayers = players.filter(p => p.isAI && p.isAlive);
+        const alivePlayers = players.filter(p => p.isAlive);
+
+        for (const ai of aiPlayers) {
+             const nightActionsQuery = query(collection(db, 'games', gameId, 'night_actions'), where('round', '==', game.currentRound), where('playerId', '==', ai.userId));
+            const existingNightActions = await getDocs(nightActionsQuery);
+            if (phase === 'night' && !existingNightActions.empty) continue;
+            
+            if (phase === 'hunter_shot' && ai.userId !== game.pendingHunterShot) continue;
+
+            const playerDocSnap = await getPlayerDoc(db, game.id, ai.userId);
+            if (!playerDocSnap || !playerDocSnap.exists()) continue;
+
+            if (phase === 'day' && playerDocSnap.exists() && playerDocSnap.data().votedFor) continue;
+
+            const serializableGame = toJSONCompatible(game);
+            const serializablePlayers = toJSONCompatible(players);
+            const serializableEvents = toJSONCompatible(events);
+            const serializableCurrentPlayer = toJSONCompatible(ai);
+
+            const aiInput: TakeAITurnInput = {
+                game: JSON.stringify(serializableGame),
+                players: JSON.stringify(serializablePlayers),
+                events: JSON.stringify(serializableEvents),
+                currentPlayer: JSON.stringify(serializableCurrentPlayer),
+            };
+
+            const aiResult = await takeAITurn(aiInput);
+            console.log(`AI (${ai.displayName} as ${ai.role}) action: ${aiResult.action}. Reasoning: ${aiResult.reasoning}`);
+
+            const [actionType, targetData] = aiResult.action.split(':');
+
+            if (!actionType || actionType === 'NONE') continue;
+
+            const isValidTarget = (id: string | undefined): id is string => {
+                return !!id && alivePlayers.some(p => p.userId === id);
+            }
+            
+             const isValidMultiTarget = (ids: string | undefined): ids is string => {
+                if (!ids) return false;
+                // For Cupid, target can be self, who might be dead if shot.
+                return ids.split('|').every(id => players.some(p => p.userId === id));
+            }
+
+            switch(actionType) {
+                case 'KILL':
+                    if (phase === 'night' && (ai.role === 'werewolf' || ai.role === 'wolf_cub') && isValidMultiTarget(targetData)) {
+                        await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: 'werewolf_kill', targetId: targetData });
+                    }
+                    break;
+                case 'CHECK':
+                     if (phase === 'night' && ai.role === 'seer' && isValidTarget(targetData)) {
+                        await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: 'seer_check', targetId: targetData });
+                    }
+                    break;
+                case 'HEAL':
+                     if (phase === 'night' && ai.role === 'doctor' && isValidTarget(targetData)) {
+                        const targetPlayer = players.find(p => p.userId === targetData);
+                         if (targetPlayer && targetPlayer.lastHealedRound !== game.currentRound - 1) {
+                            await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: 'doctor_heal', targetId: targetData });
+                         }
+                    }
+                    break;
+                case 'PROTECT':
+                     if (phase === 'night' && ai.role === 'guardian' && isValidTarget(targetData) && targetData !== ai.userId) {
+                        await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: 'guardian_protect', targetId: targetData });
+                    }
+                    break;
+                case 'BLESS':
+                     if (phase === 'night' && ai.role === 'priest' && isValidTarget(targetData)) {
+                         if(targetData === ai.userId && ai.priestSelfHealUsed) continue;
+                        await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: 'priest_bless', targetId: targetData });
+                    }
+                    break;
+                case 'POISON':
+                    if (phase === 'night' && ai.role === 'hechicera' && isValidTarget(targetData) && !ai.potions?.poison) {
+                        await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: 'hechicera_poison', targetId: targetData });
+                    }
+                    break;
+                case 'SAVE':
+                    if (phase === 'night' && ai.role === 'hechicera' && isValidTarget(targetData) && !ai.potions?.save) {
+                        await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: 'hechicera_save', targetId: targetData });
+                    }
+                    break;
+                case 'ENCHANT':
+                    if (phase === 'night' && ai.role === 'cupid' && game.currentRound === 1 && isValidMultiTarget(targetData)) {
+                        const [target1Id, target2Id] = targetData.split('|');
+                        if (target1Id && target2Id) {
+                            await submitCupidAction(db, gameId, ai.userId, target1Id, target2Id);
+                        }
+                    }
+                    break;
+                case 'VOTE':
+                    if (phase === 'day' && isValidTarget(targetData)) {
+                        await submitVote(db, gameId, ai.userId, targetData);
+                    }
+                    break;
+                case 'SHOOT':
+                    if (phase === 'hunter_shot' && ai.userId === game.pendingHunterShot && isValidTarget(targetData)) {
+                        await submitHunterShot(db, gameId, ai.userId, targetData);
+                    }
+                    break;
+            }
+        }
+    } catch(e) {
+        console.error("Error in AI Actions:", e);
+    }
+}

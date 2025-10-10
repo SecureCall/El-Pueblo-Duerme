@@ -7,10 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
-import { submitVote, processVotes } from '@/app/actions';
+import { submitVote } from '@/lib/firebase-actions';
 import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { HeartCrack, SunIcon, Users } from 'lucide-react';
+import { useFirebase } from '@/firebase';
 
 interface DayPhaseProps {
     game: Game;
@@ -25,6 +26,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
+    const { firestore } = useFirebase();
 
     const hasVoted = !!currentPlayer.votedFor;
     const alivePlayers = players.filter(p => p.isAlive);
@@ -35,13 +37,13 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
     };
 
     const handleVoteSubmit = async () => {
-        if (!selectedPlayerId) {
+        if (!selectedPlayerId || !firestore) {
             toast({ variant: 'destructive', title: 'Debes seleccionar un jugador para votar.' });
             return;
         }
 
         setIsSubmitting(true);
-        const result = await submitVote(game.id, currentPlayer.userId, selectedPlayerId);
+        const result = await submitVote(firestore, game.id, currentPlayer.userId, selectedPlayerId);
         setIsSubmitting(false);
 
         if (result.success) {

@@ -9,8 +9,7 @@ import { useEffect, useState } from "react";
 import { updateDoc, doc } from "firebase/firestore";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
-import { processNight, processVotes } from "@/app/actions";
-import { runAIActions } from "@/app/ai-actions";
+import { processNight, processVotes, runAIActions } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { HeartIcon, Moon, Sun, Users2 } from "lucide-react";
@@ -42,12 +41,12 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
   // Handle AI actions when phase changes
   useEffect(() => {
     // Only the creator should trigger AI actions to avoid multiple executions
-    if (game.creator === currentPlayer.userId) {
+    if (game.creator === currentPlayer.userId && firestore) {
       if ((game.phase === 'night' || game.phase === 'day' || game.phase === 'hunter_shot') && game.settings.fillWithAI) {
-         runAIActions(game.id, game.phase);
+         runAIActions(firestore, game.id, game.phase);
       }
     }
-  }, [game.phase, game.id, game.creator, currentPlayer.userId, game.currentRound, game.settings.fillWithAI]);
+  }, [game.phase, game.id, game.creator, currentPlayer.userId, game.currentRound, game.settings.fillWithAI, firestore]);
 
   const handleAcknowledgeRole = async () => {
     setShowRole(false);
@@ -66,12 +65,12 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
   
    const handleTimerEnd = async () => {
     // Only creator processes the phase end to prevent multiple executions
-    if (game.creator !== currentPlayer.userId) return;
+    if (game.creator !== currentPlayer.userId || !firestore) return;
 
     if (game.phase === 'night' && game.status === 'in_progress') {
-      await processNight(game.id);
+      await processNight(firestore, game.id);
     } else if (game.phase === 'day' && game.status === 'in_progress') {
-      await processVotes(game.id);
+      await processVotes(firestore, game.id);
     }
   };
   
