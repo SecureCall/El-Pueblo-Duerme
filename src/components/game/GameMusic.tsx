@@ -8,6 +8,30 @@ interface GameMusicProps {
   game: Game;
 }
 
+// Helper to fade out audio
+const fadeOut = (audio: HTMLAudioElement, duration: number = 500) => {
+    if (audio.paused) return;
+    const startVolume = audio.volume;
+    const steps = 20;
+    const stepDuration = duration / steps;
+    let currentStep = 0;
+
+    const fadeInterval = setInterval(() => {
+        currentStep++;
+        const newVolume = startVolume * (1 - currentStep / steps);
+        if (newVolume >= 0) {
+            audio.volume = newVolume;
+        } else {
+            audio.volume = 0;
+            audio.pause();
+            clearInterval(fadeInterval);
+             // Reset volume for next play
+            audio.volume = startVolume;
+        }
+    }, stepDuration);
+};
+
+
 export function GameMusic({ game }: GameMusicProps) {
   const dayAudioRef = useRef<HTMLAudioElement>(null);
   const nightAudioRef = useRef<HTMLAudioElement>(null);
@@ -20,12 +44,12 @@ export function GameMusic({ game }: GameMusicProps) {
 
     const audioElements = [dayAudio, nightAudio, lobbyAudio];
     if (audioElements.some(el => !el)) return;
-
-    // Set initial properties for all audio elements
+    
+    // Ensure all audio elements are initialized properly
     audioElements.forEach(audio => {
-        if (audio) {
+        if(audio) {
             audio.loop = true;
-            audio.volume = 0.3;
+            audio.volume = 0.3; // Default volume
         }
     });
 
@@ -36,20 +60,19 @@ export function GameMusic({ game }: GameMusicProps) {
           audio.pause();
         }
       });
+      
       // Play the target audio
       if (audioElement.paused) {
         audioElement.play().catch(error => {
           // Autoplay is often blocked by browsers until a user interaction.
-          console.log("Audio autoplay blocked, will start on user interaction.");
+          console.log("Game audio autoplay blocked, will start on user interaction.");
         });
       }
     };
     
     const stopAllAudio = () => {
         audioElements.forEach(audio => {
-            if (audio && !audio.paused) {
-                audio.pause();
-            }
+            if (audio) fadeOut(audio);
         });
     }
 
@@ -66,7 +89,12 @@ export function GameMusic({ game }: GameMusicProps) {
         stopAllAudio();
     }
     
-  }, [game.phase, game.status]);
+    // Cleanup on unmount
+    return () => {
+        stopAllAudio();
+    }
+    
+  }, [game.status, game.phase]);
 
   return (
     <>
@@ -76,3 +104,5 @@ export function GameMusic({ game }: GameMusicProps) {
     </>
   );
 }
+
+    

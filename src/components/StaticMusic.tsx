@@ -1,26 +1,14 @@
 
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 
 interface StaticMusicProps {
   src: string;
 }
 
 export function StaticMusic({ src }: StaticMusicProps) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const hasPlayed = useRef(false);
-
-  const playAudio = useCallback(() => {
-    const audio = audioRef.current;
-    if (audio && audio.paused && !hasPlayed.current) {
-      audio.play().then(() => {
-        hasPlayed.current = true;
-      }).catch(error => {
-        console.log("Audio autoplay failed, waiting for user interaction.", error);
-      });
-    }
-  }, []);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -29,34 +17,32 @@ export function StaticMusic({ src }: StaticMusicProps) {
     audio.loop = true;
     audio.volume = 0.3;
 
-    // Try to play immediately
-    playAudio();
+    const playPromise = audio.play();
 
-    // Add event listeners to play on first user interaction
-    const handleFirstInteraction = () => {
-      playAudio();
-      // Clean up listeners after first interaction
-      window.removeEventListener('click', handleFirstInteraction);
-      window.removeEventListener('keydown', handleFirstInteraction);
-      window.removeEventListener('touchstart', handleFirstInteraction);
-    };
+    if (playPromise !== undefined) {
+      playPromise.catch(error => {
+        console.log("Autoplay was prevented. Waiting for user interaction.");
+        const playOnFirstInteraction = () => {
+          audio.play().catch(err => console.error("Error playing audio on interaction:", err));
+          window.removeEventListener("click", playOnFirstInteraction);
+          window.removeEventListener("keydown", playOnFirstInteraction);
+          window.removeEventListener("touchstart", playOnFirstInteraction);
+        };
+        window.addEventListener("click", playOnFirstInteraction);
+        window.addEventListener("keydown", playOnFirstInteraction);
+        window.addEventListener("touchstart", playOnFirstInteraction);
+      });
+    }
 
-    window.addEventListener('click', handleFirstInteraction);
-    window.addEventListener('keydown', handleFirstInteraction);
-    window.addEventListener('touchstart', handleFirstInteraction);
-
-    // Cleanup on component unmount
     return () => {
-      if (audio) {
-        audio.pause();
-      }
-      window.removeEventListener('click', handleFirstInteraction);
-      window.removeEventListener('keydown', handleFirstInteraction);
-      window.removeEventListener('touchstart', handleFirstInteraction);
-    };
-  }, [src, playAudio]);
+        if (audio) {
+            audio.pause();
+        }
+    }
+  }, [src]);
 
-  return (
-    <audio ref={audioRef} src={src} preload="auto" />
-  );
+
+  return <audio ref={audioRef} src={src} preload="auto" />;
 }
+
+    
