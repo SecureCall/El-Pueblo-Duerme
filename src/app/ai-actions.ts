@@ -13,12 +13,11 @@ import {
   type DocumentData, 
   type DocumentSnapshot 
 } from "firebase/firestore";
-import { getSdks } from "@/firebase";
+import { db } from "@/firebase/server-init";
 import type { Game, Player, GameEvent, TakeAITurnInput } from "@/types";
 import { takeAITurn } from "@/ai/flows/take-ai-turn-flow";
 import { submitNightAction, submitVote, submitHunterShot, submitCupidAction } from "./actions";
 
-const { firestore: db } = getSdks();
 
 async function getPlayerDocSnapshot(gameId: string, userId: string): Promise<DocumentSnapshot<DocumentData> | null> {
     const q = query(collection(db, 'players'), where('gameId', '==', gameId), where('userId', '==', userId));
@@ -168,3 +167,5 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
         console.error("Error in AI Actions:", e);
     }
 }
+
+    

@@ -20,10 +20,8 @@ import {
   type Transaction,
   type Timestamp as FirestoreTimestamp,
 } from "firebase/firestore";
-import { getSdks } from "@/firebase";
+import { db } from "@/firebase/server-init";
 import type { Game, Player, NightAction, GameEvent } from "@/types";
-
-const { firestore: db } = getSdks();
 
 
 function generateGameId(length = 5) {
@@ -1083,5 +1081,7 @@ async function checkEndDayEarly(gameId: string) {
         await processVotes(gameId);
     }
 }
+
+    
 
     
