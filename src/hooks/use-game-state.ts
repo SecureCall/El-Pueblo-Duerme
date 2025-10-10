@@ -61,8 +61,7 @@ export const useGameState = (gameId: string) => {
     });
     
     const eventsQuery = query(
-        collection(firestore, 'game_events'), 
-        where('gameId', '==', gameId),
+        collection(firestore, `games/${gameId}/events`),
         orderBy('createdAt', 'asc') // Fetch in ascending order
     );
     const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot: QuerySnapshot<DocumentData>) => {
