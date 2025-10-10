@@ -135,6 +135,13 @@ export async function joinGame(
     votedFor: null,
     displayName: displayName,
     joinedAt: Timestamp.now(),
+    isAI: false,
+    potions: {
+        poison: null,
+        save: null,
+    },
+    priestSelfHealUsed: false,
+    princeRevealed: false,
   };
   await setDoc(playerRef, playerData);
   return { success: true };
