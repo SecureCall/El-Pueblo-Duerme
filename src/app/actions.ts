@@ -40,6 +40,24 @@ async function getPlayerRef(gameId: string, userId: string) {
     return snapshot.docs[0].ref;
 }
 
+const createPlayerObject = (userId: string, gameId: string, displayName: string, isCreator = false): Omit<Player, 'id'> => ({
+    userId,
+    gameId,
+    displayName,
+    role: null,
+    isAlive: true,
+    votedFor: null,
+    joinedAt: Timestamp.now(),
+    isAI: false,
+    lastHealedRound: 0,
+    potions: {
+        poison: null,
+        save: null,
+    },
+    priestSelfHealUsed: false,
+    princeRevealed: false,
+});
+
 
 export async function createGame(
   userId: string,
@@ -49,22 +67,24 @@ export async function createGame(
   settings: Game['settings']
 ) {
   const gameId = generateGameId();
-  const gameRef = doc(db, "games", gameId);
+  const batch = writeBatch(db);
 
+  const gameRef = doc(db, "games", gameId);
+  
   const werewolfCount = Math.max(1, Math.floor(maxPlayers / 5));
 
   const gameData: Game = {
     id: gameId,
     name: gameName,
     status: "waiting",
-    phase: "night",
+    phase: "night", // Lobby UI is driven by status='waiting', so this is okay.
     creator: userId,
     players: [userId],
     maxPlayers: maxPlayers,
     createdAt: Timestamp.now(),
     currentRound: 0,
     settings: {
-        ...settings,
+        ...settings, // provided settings
         werewolves: werewolfCount,
     },
     pendingHunterShot: null,
@@ -72,29 +92,16 @@ export async function createGame(
     wolfCubRevengeRound: 0,
   };
 
-  await setDoc(gameRef, gameData);
+  batch.set(gameRef, gameData);
 
   const playerRef = doc(collection(db, "players"));
   const playerData: Player = {
     id: playerRef.id,
-    userId: userId,
-    gameId: gameId,
-    role: null,
-    isAlive: true,
-    votedFor: null,
-    displayName: displayName,
-    joinedAt: Timestamp.now(),
-    isAI: false,
-    potions: {
-        poison: null,
-        save: null,
-    },
-    priestSelfHealUsed: false,
-    princeRevealed: false,
-    lastHealedRound: 0,
+    ...createPlayerObject(userId, gameId, displayName, true)
   };
+  batch.set(playerRef, playerData);
 
-  await setDoc(playerRef, playerData);
+  await batch.commit();
 
   return { gameId };
 }
@@ -124,31 +131,21 @@ export async function joinGame(
   if (game.players.includes(userId)) {
     return { success: true }; // Already in game
   }
-
-  await updateDoc(gameRef, {
+  
+  const batch = writeBatch(db);
+  
+  batch.update(gameRef, {
     players: arrayUnion(userId),
   });
 
   const playerRef = doc(collection(db, "players"));
   const playerData: Player = {
     id: playerRef.id,
-    userId: userId,
-    gameId: gameId,
-    role: null,
-    isAlive: true,
-    votedFor: null,
-    displayName: displayName,
-    joinedAt: Timestamp.now(),
-    isAI: false,
-    potions: {
-        poison: null,
-        save: null,
-    },
-    priestSelfHealUsed: false,
-    princeRevealed: false,
-    lastHealedRound: 0,
+    ...createPlayerObject(userId, gameId, displayName)
   };
-  await setDoc(playerRef, playerData);
+  batch.set(playerRef, playerData);
+  
+  await batch.commit();
   return { success: true };
 }
 
@@ -1072,5 +1069,7 @@ async function checkEndDayEarly(gameId: string) {
         await processVotes(gameId);
     }
 }
+
+    
 
     
