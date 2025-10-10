@@ -37,7 +37,7 @@ import { roleDetails } from "@/lib/roles";
 const FormSchema = z.object({
   gameName: z.string().min(3, { message: "El nombre de la partida debe tener al menos 3 caracteres." }).max(30),
   displayName: z.string().min(2, { message: "Tu nombre debe tener al menos 2 caracteres." }).max(20),
-  maxPlayers: z.number().min(3).max(20),
+  maxPlayers: z.number().min(3).max(32),
   fillWithAI: z.boolean(),
   // Roles
   seer: z.boolean(),
@@ -177,7 +177,7 @@ export function CreateGameForm() {
                   <FormControl>
                     <Slider
                       min={3}
-                      max={20}
+                      max={32}
                       step={1}
                       defaultValue={[field.value]}
                       onValueChange={(value) => field.onChange(value[0])}
