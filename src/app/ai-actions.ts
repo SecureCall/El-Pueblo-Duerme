@@ -22,12 +22,12 @@ import { submitNightAction, submitVote, submitHunterShot, submitCupidAction } fr
 
 // START: Hardcoded Firebase Initialization
 const firebaseConfig = {
-  "apiKey": "YOUR_API_KEY",
-  "authDomain": "YOUR_PROJECT_ID.firebaseapp.com",
-  "projectId": "YOUR_PROJECT_ID",
-  "storageBucket": "YOUR_PROJECT_ID.appspot.com",
-  "messagingSenderId": "YOUR_MESSAGING_SENDER_ID",
-  "appId": "YOUR_APP_ID"
+  "apiKey": "mock-api-key",
+  "authDomain": "pueblo-duerme-98765.firebaseapp.com",
+  "projectId": "pueblo-duerme-98765",
+  "storageBucket": "pueblo-duerme-98765.appspot.com",
+  "messagingSenderId": "123456789012",
+  "appId": "1:123456789012:web:abcdef1234567890abcdef"
 };
 
 const app = !getApps().length ? initializeApp(firebaseConfig as FirebaseOptions) : getApp();

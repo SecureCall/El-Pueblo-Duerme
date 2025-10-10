@@ -1,8 +1,25 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, query, where, onSnapshot, getFirestore } from 'firebase/firestore';
+import { getApp, getApps, initializeApp, type FirebaseOptions } from 'firebase/app';
+
+
+// START: Hardcoded Firebase Initialization for Client
+const firebaseConfig = {
+  "apiKey": "mock-api-key",
+  "authDomain": "pueblo-duerme-98765.firebaseapp.com",
+  "projectId": "pueblo-duerme-98765",
+  "storageBucket": "pueblo-duerme-98765.appspot.com",
+  "messagingSenderId": "123456789012",
+  "appId": "1:123456789012:web:abcdef1234567890abcdef"
+};
+
+const app = !getApps().length ? initializeApp(firebaseConfig as FirebaseOptions) : getApp();
+const db = getFirestore(app);
+// END: Hardcoded Firebase Initialization for Client
+
 
 export function useNightActions(gameId: string, round: number, playerId: string) {
     const [hasSubmitted, setHasSubmitted] = useState(false);
