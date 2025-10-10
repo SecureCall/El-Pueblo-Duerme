@@ -94,7 +94,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     ghost: {
         name: "Fantasma",
-        description: "Si mueres, podrás enviar una carta escrita a un jugador de tu elección. No puedes revelar roles directamente, pero puedes insinuar, sugerir o sembrar dudas.",
+        description: "Si mueres, podrás enviar una carta escrita a un jugador de tu elección. No puedes revelar roles directamente, pero puedes insinuar, sugerir o sembrar dudas. Tu objetivo sigue siendo ayudar al pueblo… incluso desde el más allá.",
         atmosphere: "Tu objetivo sigue siendo ayudar al pueblo… incluso desde el más allá.",
         image: "/roles/ghost.png",
         color: "text-slate-400",
@@ -176,7 +176,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     wolf_cub: {
         name: "Cría de Lobo",
         description: "Te despiertas cada noche junto al Hombre Lobo. Si eres eliminado, la noche siguiente a tu muerte, el Hombre Lobo devorará a dos personas en lugar de una.",
-        atmosphere: "Una carta de venganza silenciosa que castiga duramente al pueblo.",
+        atmosphere: "Una carta de venganza silenciosa que castiga duramente al pueblo si no te descubren a tiempo.",
         image: "/roles/wolf_cub.png",
         color: "text-red-400",
         bgImageId: "role-bg-werewolf"
@@ -280,3 +280,5 @@ export const defaultRoleDetail: RoleDetail = {
     color: "text-gray-400",
     bgImageId: "role-bg-villager"
 };
+
+    
