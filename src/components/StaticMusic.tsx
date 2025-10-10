@@ -11,9 +11,17 @@ export function StaticMusic({ src }: StaticMusicProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    // Ensure this only runs on the client
+    if (typeof window === 'undefined') return;
 
+    let audio = audioRef.current;
+    if (!audio) {
+      audio = new Audio(src);
+      audioRef.current = audio;
+    } else if (audio.src !== window.location.origin + src) {
+      audio.src = src;
+    }
+    
     audio.loop = true;
     audio.volume = 0.3;
 
@@ -21,16 +29,20 @@ export function StaticMusic({ src }: StaticMusicProps) {
 
     if (playPromise !== undefined) {
       playPromise.catch(error => {
-        console.log("Autoplay was prevented. Waiting for user interaction.");
+        // Autoplay was prevented.
+        // We'll add a one-time event listener for the first user interaction.
         const playOnFirstInteraction = () => {
-          audio.play().catch(err => console.error("Error playing audio on interaction:", err));
+          if (audio?.paused) {
+            audio.play().catch(err => console.error("Error playing audio on interaction:", err));
+          }
+          // Clean up the event listener
           window.removeEventListener("click", playOnFirstInteraction);
           window.removeEventListener("keydown", playOnFirstInteraction);
           window.removeEventListener("touchstart", playOnFirstInteraction);
         };
-        window.addEventListener("click", playOnFirstInteraction);
-        window.addEventListener("keydown", playOnFirstInteraction);
-        window.addEventListener("touchstart", playOnFirstInteraction);
+        window.addEventListener("click", playOnFirstInteraction, { once: true });
+        window.addEventListener("keydown", playOnFirstInteraction, { once: true });
+        window.addEventListener("touchstart", playOnFirstInteraction, { once: true });
       });
     }
 
@@ -42,7 +54,5 @@ export function StaticMusic({ src }: StaticMusicProps) {
   }, [src]);
 
 
-  return <audio ref={audioRef} src={src} preload="auto" />;
+  return null; // The Audio object is handled in the effect, no need to render an element
 }
-
-    

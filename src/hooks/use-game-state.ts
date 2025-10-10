@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -24,7 +25,7 @@ export const useGameState = (gameId: string) => {
     const gameRef = doc(db, 'games', gameId);
     const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
-        setGame(snapshot.data() as Game);
+        setGame({ ...snapshot.data() as Game, id: snapshot.id });
         setError(null);
       } else {
         setError('Partida no encontrada.');
@@ -40,7 +41,7 @@ export const useGameState = (gameId: string) => {
 
     const playersQuery = query(collection(db, 'players'), where('gameId', '==', gameId));
     const unsubscribePlayers = onSnapshot(playersQuery, (snapshot: QuerySnapshot<DocumentData>) => {
-      const playersData = snapshot.docs.map(doc => doc.data() as Player);
+      const playersData = snapshot.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
       setPlayers(playersData.sort((a, b) => a.joinedAt.toMillis() - b.joinedAt.toMillis()));
     }, (err) => {
         console.error("Error fetching players:", err);
@@ -53,7 +54,7 @@ export const useGameState = (gameId: string) => {
         orderBy('createdAt', 'asc') // Fetch in ascending order
     );
     const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot: QuerySnapshot<DocumentData>) => {
-        const eventsData = snapshot.docs.map(doc => doc.data() as GameEvent);
+        const eventsData = snapshot.docs.map(doc => ({ ...doc.data() as GameEvent, id: doc.id }));
         setEvents(eventsData);
     }, (err) => {
         console.error("Error fetching events:", err);

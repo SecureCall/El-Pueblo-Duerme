@@ -88,10 +88,10 @@ export interface Game {
     banshee: boolean;
   };
   phaseEndsAt?: Timestamp;
-  lovers?: [string, string];
+  lovers: [string, string] | null;
   twins?: [string, string];
-  pendingHunterShot?: string | null; // userId of the hunter who needs to shoot
-  wolfCubRevengeRound?: number; // The round where werewolves get an extra kill
+  pendingHunterShot: string | null; // userId of the hunter who needs to shoot
+  wolfCubRevengeRound: number; // The round where werewolves get an extra kill
 }
 
 export interface Player {
@@ -125,6 +125,7 @@ export interface NightAction {
 }
 
 export interface GameEvent {
+    id: string; // document id
     gameId: string;
     round: number;
     type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot' | 'player_transformed';

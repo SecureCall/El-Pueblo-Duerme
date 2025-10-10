@@ -1,17 +1,17 @@
 
 "use server";
 
-import { collection, doc, getDoc, getDocs, query, where, orderBy, type Timestamp } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, where, orderBy, type Timestamp, type DocumentData, type DocumentSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Game, Player, GameEvent, TakeAITurnInput } from "@/types";
 import { takeAITurn } from "@/ai/flows/take-ai-turn-flow";
 import { submitNightAction, submitVote, submitHunterShot, submitCupidAction } from "./actions";
 
-async function getPlayerRef(gameId: string, userId: string) {
+async function getPlayerDocSnapshot(gameId: string, userId: string): Promise<DocumentSnapshot<DocumentData> | null> {
     const q = query(collection(db, 'players'), where('gameId', '==', gameId), where('userId', '==', userId));
     const snapshot = await getDocs(q);
     if (snapshot.empty) return null;
-    return snapshot.docs[0].ref;
+    return snapshot.docs[0];
 }
 
 // Helper to convert Firestore Timestamps to something JSON-serializable (ISO strings)
@@ -39,10 +39,10 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
     try {
         const gameDoc = await getDoc(doc(db, 'games', gameId));
         if (!gameDoc.exists()) return;
-        const game = gameDoc.data() as Game;
+        const game = { ...gameDoc.data() as Game, id: gameDoc.id };
 
         const playersSnap = await getDocs(query(collection(db, 'players'), where('gameId', '==', gameId)));
-        const players = playersSnap.docs.map(p => p.data() as Player);
+        const players = playersSnap.docs.map(p => ({ ...p.data() as Player, id: p.id }));
         
         const eventsSnap = await getDocs(query(collection(db, 'game_events'), where('gameId', '==', gameId), orderBy('createdAt', 'asc')));
         const events = eventsSnap.docs.map(e => e.data() as GameEvent);
@@ -57,10 +57,9 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
             
             if (phase === 'hunter_shot' && ai.userId !== game.pendingHunterShot) continue;
 
-            const playerRef = await getPlayerRef(game.id, ai.userId);
-            if (!playerRef) continue;
+            const playerDocSnap = await getPlayerDocSnapshot(game.id, ai.userId);
+            if (!playerDocSnap) continue;
 
-            const playerDocSnap = await getDoc(playerRef);
             if (phase === 'day' && playerDocSnap.exists() && playerDocSnap.data().votedFor) continue;
 
             const serializableGame = toJSONCompatible(game);

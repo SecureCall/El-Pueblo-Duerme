@@ -33,12 +33,13 @@ function generateGameId(length = 5) {
   return result;
 }
 
-async function getPlayerRef(gameId: string, userId: string) {
+async function getPlayerDoc(gameId: string, userId: string) {
     const q = query(collection(db, 'players'), where('gameId', '==', gameId), where('userId', '==', userId));
     const snapshot = await getDocs(q);
     if (snapshot.empty) return null;
-    return snapshot.docs[0].ref;
+    return snapshot.docs[0];
 }
+
 
 const createPlayerObject = (userId: string, gameId: string, displayName: string, isAI: boolean = false): Omit<Player, 'id'> => ({
     userId,
@@ -73,8 +74,7 @@ export async function createGame(
   
   const werewolfCount = Math.max(1, Math.floor(maxPlayers / 5));
 
-  const gameData: Game = {
-    id: gameId,
+  const gameData: Omit<Game, 'id'> = {
     name: gameName,
     status: "waiting",
     phase: "night", // Lobby UI is driven by status='waiting', so this is okay.
@@ -232,7 +232,7 @@ export async function startGame(gameId: string, creatorId: string) {
             return { error: 'Partida no encontrada.' };
         }
 
-        const game = gameSnap.data() as Game;
+        const game = { ...gameSnap.data() as Game, id: gameSnap.id };
 
         if (game.creator !== creatorId) {
             return { error: 'Solo el creador puede iniciar la partida.' };
@@ -310,16 +310,15 @@ export async function startGame(gameId: string, creatorId: string) {
 export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 'round'> & { round: number }) {
   try {
     const actionRef = collection(db, 'night_actions');
-    const playerRef = await getPlayerRef(action.gameId, action.playerId);
-    if (!playerRef) throw new Error("Player not found");
-    const playerDoc = await getDoc(playerRef);
+    const playerDoc = await getPlayerDoc(action.gameId, action.playerId);
+    if (!playerDoc || !playerDoc.exists()) throw new Error("Player not found");
     const player = playerDoc.data() as Player;
 
     if (action.actionType === 'doctor_heal') {
-        const targetPlayerRef = await getPlayerRef(action.gameId, action.targetId);
-        if (!targetPlayerRef) throw new Error("Target player for heal not found");
-        const targetDoc = await getDoc(targetPlayerRef);
-        if(targetDoc.exists() && targetDoc.data().lastHealedRound === action.round - 1) {
+        const targetPlayerDoc = await getPlayerDoc(action.gameId, action.targetId);
+        if (!targetPlayerDoc || !targetPlayerDoc.exists()) throw new Error("Target player for heal not found");
+        
+        if(targetPlayerDoc.data().lastHealedRound === action.round - 1) {
             return { success: false, error: "No puedes proteger a la misma persona dos noches seguidas." };
         }
     }
@@ -374,28 +373,28 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 
     });
 
     if (action.actionType === 'doctor_heal') {
-        const targetPlayerRef = await getPlayerRef(action.gameId, action.targetId);
-        if (targetPlayerRef) {
-            batch.update(targetPlayerRef, {
+        const targetPlayerDoc = await getPlayerDoc(action.gameId, action.targetId);
+        if (targetPlayerDoc) {
+            batch.update(targetPlayerDoc.ref, {
                 lastHealedRound: action.round
             });
         }
     }
 
     if (action.actionType === 'hechicera_poison') {
-       batch.update(playerRef, {
+       batch.update(playerDoc.ref, {
            "potions.poison": action.round
        });
     }
 
     if (action.actionType === 'hechicera_save') {
-        batch.update(playerRef, {
+        batch.update(playerDoc.ref, {
             "potions.save": action.round
         });
     }
 
     if (action.actionType === 'priest_bless' && action.targetId === action.playerId) {
-        batch.update(playerRef, {
+        batch.update(playerDoc.ref, {
             priestSelfHealUsed: true
         });
     }
@@ -447,14 +446,15 @@ async function killPlayer(
   const killedPlayerIds: string[] = [playerId];
   let hunterTriggeredId: string | null = null;
   
+  const playerRef = doc(db, 'players', playerToKill.id);
+
   if (playerToKill.role === 'hunter' && gameData.settings.hunter) {
     hunterTriggeredId = playerId;
+    // Don't mark as dead yet, hunter shoots first
   } else if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) {
     transaction.update(doc(db, 'games', gameId), { wolfCubRevengeRound: gameData.currentRound + 1 });
-    const playerRef = doc(db, 'players', playerToKill.id);
     transaction.update(playerRef, { isAlive: false });
   } else {
-    const playerRef = doc(db, 'players', playerToKill.id);
     transaction.update(playerRef, { isAlive: false });
   }
 
@@ -463,7 +463,9 @@ async function killPlayer(
     const otherLoverPlayer = playersData.find(p => p.userId === otherLoverId);
     if (otherLoverPlayer && otherLoverPlayer.isAlive) {
       if (otherLoverPlayer.role === 'hunter' && gameData.settings.hunter) {
-         hunterTriggeredId = otherLoverId;
+         if (!hunterTriggeredId) { // Prevent overwriting the first hunter
+            hunterTriggeredId = otherLoverId;
+         }
       } else {
         const otherLoverRef = doc(db, 'players', otherLoverPlayer.id);
         transaction.update(otherLoverRef, { isAlive: false });
@@ -492,12 +494,13 @@ async function killPlayer(
 
 async function checkGameOver(gameId: string, transaction: Transaction): Promise<boolean> {
     const gameRef = doc(db, 'games', gameId);
-    const gameData = (await transaction.get(gameRef)).data() as Game;
+    const gameSnap = await transaction.get(gameRef);
+    const gameData = { ...gameSnap.data() as Game, id: gameSnap.id };
 
     const playersQuery = query(collection(db, 'players'), where('gameId', '==', gameId));
     
     const playersSnap = await transaction.get(playersQuery);
-    const players = playersSnap.docs.map(doc => doc.data() as Player);
+    const players = playersSnap.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
 
     const alivePlayers = players.filter(p => p.isAlive);
     const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
@@ -560,12 +563,12 @@ export async function processNight(gameId: string) {
         await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found!");
-            const game = gameSnap.data() as Game;
+            const game = { ...gameSnap.data() as Game, id: gameSnap.id };
 
             if (game.phase !== 'night' || game.status !== 'in_progress') return;
 
             const playersSnap = await transaction.get(query(collection(db, 'players'), where('gameId', '==', gameId)));
-            const playersData = playersSnap.docs.map(doc => doc.data() as Player);
+            const playersData = playersSnap.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
 
             const actionsQuery = query(collection(db, 'night_actions'),
                 where('gameId', '==', gameId),
@@ -703,7 +706,7 @@ export async function processNight(gameId: string) {
                 createdAt: Timestamp.now(),
             });
             
-            const triggeredHunterId = nightKillResults.map(r => r.hunterId).find(id => id !== null);
+            const triggeredHunterId = nightKillResults.map(r => r.hunterId).find(id => id);
             if (triggeredHunterId) return; 
 
             const anyKills = nightKillResults.some(r => r.killedIds.length > 0);
@@ -733,9 +736,9 @@ export async function processNight(gameId: string) {
 
 export async function submitVote(gameId: string, voterId: string, targetId: string) {
     try {
-        const playerRef = await getPlayerRef(gameId, voterId);
-        if (playerRef) {
-            await updateDoc(playerRef, { votedFor: targetId });
+        const playerDoc = await getPlayerDoc(gameId, voterId);
+        if (playerDoc && playerDoc.exists()) {
+            await updateDoc(playerDoc.ref, { votedFor: targetId });
             await checkEndDayEarly(gameId);
         }
         return { success: true };
@@ -752,12 +755,12 @@ export async function processVotes(gameId: string) {
         await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
-            const game = gameSnap.data() as Game;
+            const game = { ...gameSnap.data() as Game, id: gameSnap.id };
 
             if (game.phase !== 'day' || game.status !== 'in_progress') return;
 
             const playersSnap = await transaction.get(query(collection(db, 'players'), where('gameId', '==', gameId)));
-            const playersData = playersSnap.docs.map(doc => doc.data() as Player);
+            const playersData = playersSnap.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
             const alivePlayers = playersData.filter(p => p.isAlive);
 
             const voteCounts: Record<string, number> = {};
@@ -839,23 +842,21 @@ export async function processVotes(gameId: string) {
 
 export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
   try {
-    const seerPlayerRef = await getPlayerRef(gameId, seerId);
-    if (!seerPlayerRef) {
+    const seerPlayerDoc = await getPlayerDoc(gameId, seerId);
+    if (!seerPlayerDoc || !seerPlayerDoc.exists()) {
         throw new Error("Seer player not found");
     }
-    const seerPlayerSnap = await getDoc(seerPlayerRef);
 
-    if (!seerPlayerSnap.exists() || seerPlayerSnap.data()?.role !== 'seer') {
+    if (seerPlayerDoc.data()?.role !== 'seer') {
       throw new Error("No eres el vidente.");
     }
     
-    const targetPlayerRef = await getPlayerRef(gameId, targetId);
-     if (!targetPlayerRef) {
+    const targetPlayerDoc = await getPlayerDoc(gameId, targetId);
+     if (!targetPlayerDoc || !targetPlayerDoc.exists()) {
         throw new Error("Target player not found");
     }
-    const targetPlayerSnap = await getDoc(targetPlayerRef);
 
-    if (!targetPlayerSnap.exists()) {
+    if (!targetPlayerDoc.exists()) {
       throw new Error("Jugador objetivo no encontrado.");
     }
     
@@ -863,9 +864,9 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
     if (!gameDoc.exists()) {
       throw new Error("Game not found");
     }
-    const game = gameDoc.data() as Game;
+    const game = { ...gameDoc.data() as Game, id: gameDoc.id };
 
-    const targetPlayer = targetPlayerSnap.data() as Player;
+    const targetPlayer = targetPlayerDoc.data() as Player;
     const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
     const isWerewolf = wolfRoles.includes(targetPlayer.role) || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope);
 
@@ -889,7 +890,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
         await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
-            const game = gameSnap.data() as Game;
+            const game = { ...gameSnap.data() as Game, id: gameSnap.id };
 
             if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId) {
                 throw new Error("No es tu momento de disparar.");
@@ -897,7 +898,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
             
             const playersQuery = query(collection(db, 'players'), where('gameId', '==', gameId));
             const playersSnap = await transaction.get(playersQuery);
-            const playersData = playersSnap.docs.map(doc => doc.data() as Player);
+            const playersData = playersSnap.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
 
             const hunterPlayer = playersData.find(p => p.userId === hunterId)!;
             const hunterPlayerRef = doc(db, 'players', hunterPlayer.id);
@@ -937,7 +938,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
                 where('round', '==', game.currentRound),
                 where('type', '==', 'vote_result')
             );
-            const voteEventSnap = await transaction.get(voteEventQuery);
+            const voteEventSnap = await getDocs(voteEventQuery);
             
             const diedDuringDay = !voteEventSnap.empty;
             const nextPhase = diedDuringDay ? 'night' : 'day';
@@ -960,7 +961,7 @@ async function checkEndNightEarly(gameId: string) {
     const gameDoc = await getDoc(gameRef);
     if (!gameDoc.exists()) return;
 
-    const game = gameDoc.data() as Game;
+    const game = { ...gameDoc.data() as Game, id: gameDoc.id };
     if (game.phase !== 'night') return;
 
     const playersQuery = query(collection(db, 'players'), where('gameId', '==', gameId), where('isAlive', '==', true));
@@ -1036,7 +1037,7 @@ async function checkEndDayEarly(gameId: string) {
     const gameDoc = await getDoc(gameRef);
     if (!gameDoc.exists()) return;
 
-    const game = gameDoc.data() as Game;
+    const game = { ...gameDoc.data() as Game, id: gameDoc.id };
     if (game.phase !== 'day') return;
 
     const playersQuery = query(collection(db, 'players'), where('gameId', '==', gameId), where('isAlive', '==', true));
@@ -1049,5 +1050,3 @@ async function checkEndDayEarly(gameId: string) {
         await processVotes(gameId);
     }
 }
-
-    
