@@ -17,10 +17,30 @@ export type PlayerRole =
   "lycanthrope" |
   "twin" |
   "hechicera" |
+  "scapegoat" |
+  "savior" |
+  "ancient" |
+  "fool" |
+  "angel" |
+  "judge" |
+  "raven" |
+  "knight" |
+  "bear_trainer" |
+  "fox" |
   // Lobos
   "werewolf" |
   "wolf_cub" |
   "cursed" |
+  "great_werewolf" |
+  "white_werewolf" |
+  // Solitarios / Otros
+  "thief" |
+  "wild_child" |
+  "piper" |
+  "pyromaniac" |
+  "two_sisters" |
+  "three_brothers" |
+  "actor" |
   null;
 
 
@@ -50,6 +70,26 @@ export interface Game {
     priest: boolean;
     wolf_cub: boolean;
     cursed: boolean;
+    // Additional roles
+    great_werewolf: boolean;
+    white_werewolf: boolean;
+    scapegoat: boolean;
+    savior: boolean;
+    ancient: boolean;
+    fool: boolean;
+    angel: boolean;
+    thief: boolean;
+    wild_child: boolean;
+    piper: boolean;
+    pyromaniac: boolean;
+    judge: boolean;
+    raven: boolean;
+    knight: boolean;
+    fox: boolean;
+    bear_trainer: boolean;
+    two_sisters: boolean;
+    three_brothers: boolean;
+    actor: boolean;
   };
   phaseEndsAt?: Timestamp;
   lovers?: [string, string];

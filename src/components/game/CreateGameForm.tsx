@@ -39,7 +39,7 @@ const FormSchema = z.object({
   displayName: z.string().min(2, { message: "Tu nombre debe tener al menos 2 caracteres." }).max(20),
   maxPlayers: z.number().min(3).max(20),
   fillWithAI: z.boolean(),
-  // Roles
+  // Roles base
   seer: z.boolean(),
   doctor: z.boolean(),
   hunter: z.boolean(),
@@ -52,11 +52,34 @@ const FormSchema = z.object({
   priest: z.boolean(),
   wolf_cub: z.boolean(),
   cursed: z.boolean(),
+  // Roles adicionales
+  great_werewolf: z.boolean(),
+  white_werewolf: z.boolean(),
+  scapegoat: z.boolean(),
+  savior: z.boolean(),
+  ancient: z.boolean(),
+  fool: z.boolean(),
+  angel: z.boolean(),
+  thief: z.boolean(),
+  wild_child: z.boolean(),
+  piper: z.boolean(),
+  pyromaniac: z.boolean(),
+  judge: z.boolean(),
+  raven: z.boolean(),
+  knight: z.boolean(),
+  fox: z.boolean(),
+  bear_trainer: z.boolean(),
+  two_sisters: z.boolean(),
+  three_brothers: z.boolean(),
+  actor: z.boolean(),
 });
 
 const specialRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[] = [
     'seer', 'doctor', 'hunter', 'cupid', 'hechicera', 'lycanthrope', 'prince', 
-    'twin', 'guardian', 'priest', 'wolf_cub', 'cursed'
+    'twin', 'guardian', 'priest', 'wolf_cub', 'cursed', 'great_werewolf', 
+    'white_werewolf', 'scapegoat', 'savior', 'ancient', 'fool', 'angel', 'thief', 
+    'wild_child', 'piper', 'pyromaniac', 'judge', 'raven', 'knight', 'fox', 
+    'bear_trainer', 'two_sisters', 'three_brothers', 'actor'
 ];
 
 
@@ -73,18 +96,39 @@ export function CreateGameForm() {
       displayName: displayName || "",
       maxPlayers: 8,
       fillWithAI: true,
+      // Default enabled roles
       seer: true,
       doctor: true,
       hunter: true,
       cupid: true,
       hechicera: true,
+      guardian: true,
+      // Default disabled roles
       lycanthrope: false,
       prince: false,
       twin: false,
-      guardian: true,
       priest: false,
       wolf_cub: false,
       cursed: false,
+      great_werewolf: false,
+      white_werewolf: false,
+      scapegoat: false,
+      savior: false,
+      ancient: false,
+      fool: false,
+      angel: false,
+      thief: false,
+      wild_child: false,
+      piper: false,
+      pyromaniac: false,
+      judge: false,
+      raven: false,
+      knight: false,
+      fox: false,
+      bear_trainer: false,
+      two_sisters: false,
+      three_brothers: false,
+      actor: false,
     },
   });
 
@@ -175,7 +219,7 @@ export function CreateGameForm() {
             <div>
               <Label className="text-base">Roles Especiales</Label>
               <FormDescription>Selecciona los roles que quieres incluir en la partida.</FormDescription>
-              <div className="grid grid-cols-2 gap-4 mt-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
                   {specialRoles.map(roleId => {
                     const details = roleDetails[roleId];
                     if (!details) return null;
