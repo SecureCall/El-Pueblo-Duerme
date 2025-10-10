@@ -1,0 +1,248 @@
+{
+  "entities": {
+    "Game": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Game",
+      "type": "object",
+      "description": "Represents a game instance in 'El Pueblo Duerme'.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Game entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the game."
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the game ('waiting', 'in_progress', 'finished')."
+        },
+        "phase": {
+          "type": "string",
+          "description": "Current phase of the game ('night', 'day', 'voting')."
+        },
+        "creator": {
+          "type": "string",
+          "description": "Reference to User who created the game. (Relationship: User 1:N Game)"
+        },
+        "players": {
+          "type": "array",
+          "description": "References to Users playing the game. (Relationship: Game 1:N Player)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "maxPlayers": {
+          "type": "number",
+          "description": "Maximum number of players allowed in the game."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the game was created.",
+          "format": "date-time"
+        },
+        "currentRound": {
+          "type": "number",
+          "description": "Current round number of the game."
+        },
+        "settings": {
+          "type": "string",
+          "description": "Game settings (number of werewolves, roles enabled, etc.)."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "status",
+        "phase",
+        "creator",
+        "players",
+        "maxPlayers",
+        "createdAt",
+        "currentRound",
+        "settings"
+      ]
+    },
+    "Player": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Player",
+      "type": "object",
+      "description": "Represents a player in a specific game.",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Reference to User that represents the player. (Relationship: User 1:N Player)"
+        },
+        "gameId": {
+          "type": "string",
+          "description": "Reference to Game in which the player is participating. (Relationship: Game 1:N Player)"
+        },
+        "role": {
+          "type": "string",
+          "description": "The player's role in the game ('werewolf', 'villager', 'seer', 'doctor', 'hunter')."
+        },
+        "isAlive": {
+          "type": "boolean",
+          "description": "Indicates whether the player is currently alive in the game."
+        },
+        "votedFor": {
+          "type": "string",
+          "description": "Reference to User this player voted for. (Relationship: User 1:N Player)"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The display name of the player."
+        },
+        "joinedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the player joined the game.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "gameId",
+        "role",
+        "isAlive",
+        "displayName",
+        "joinedAt"
+      ]
+    },
+    "GameLog": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "GameLog",
+      "type": "object",
+      "description": "Represents a log entry for a specific game.",
+      "properties": {
+        "gameId": {
+          "type": "string",
+          "description": "Reference to Game the log entry belongs to. (Relationship: Game 1:N GameLog)"
+        },
+        "type": {
+          "type": "string",
+          "description": "Type of log entry ('phase_change', 'kill', 'vote', 'ability_used')."
+        },
+        "message": {
+          "type": "string",
+          "description": "Descriptive message for the log entry."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp of when the log entry was created.",
+          "format": "date-time"
+        },
+        "data": {
+          "type": "string",
+          "description": "Additional data associated with the log entry (e.g., target of a kill, voter and target of a vote).",
+          "format": "string"
+        }
+      },
+      "required": [
+        "gameId",
+        "type",
+        "message",
+        "timestamp",
+        "data"
+      ]
+    },
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the application.  Note: Authentication details are managed externally.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "User's email address.",
+          "format": "email"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The user's display name."
+        },
+        "avatar": {
+          "type": "string",
+          "description": "URL of the user's avatar image.",
+          "format": "uri"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "displayName"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/games/{gameId}",
+        "definition": {
+          "entityName": "Game",
+          "schema": {
+            "$ref": "#/backend/entities/Game"
+          },
+          "description": "Stores game instances. The creator field indicates the user who created the game.",
+          "params": [
+            {
+              "name": "gameId",
+              "description": "Unique identifier for the game."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/games/{gameId}/players/{userId}",
+        "definition": {
+          "entityName": "Player",
+          "schema": {
+            "$ref": "#/backend/entities/Player"
+          },
+          "description": "Stores player data for each game. Includes denormalized 'gameId' for authorization independence.",
+          "params": [
+            {
+              "name": "gameId",
+              "description": "Unique identifier for the game."
+            },
+            {
+              "name": "userId",
+              "description": "Unique identifier for the user (player) in the game."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/games/{gameId}/logs/{logId}",
+        "definition": {
+          "entityName": "GameLog",
+          "schema": {
+            "$ref": "#/backend/entities/GameLog"
+          },
+          "description": "Stores game logs.  Write access restricted to server-side code.",
+          "params": [
+            {
+              "name": "gameId",
+              "description": "Unique identifier for the game."
+            },
+            {
+              "name": "logId",
+              "description": "Unique identifier for the game log."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to support the \"El Pueblo Duerme\" game application, emphasizing security, scalability, and ease of debugging.  The core principle is Authorization Independence, achieved through denormalization, avoiding the use of `get()` calls in security rules.  This enables atomic operations and simplifies debugging.\n\n1.  **Games Collection (`/games/{gameId}`):** Stores general game information. Authorization: any authenticated user can read all games. Creation/modification is limited to the game creator.\n\n2.  **Players Collection (`/games/{gameId}/players/{userId}`):** Stores player-specific data for each game. Authorization: ensures players can only access their own data within a given game. Denormalization: The gameId is included in each player document to ensure authorization independence.\n\n3.  **Game Logs Collection (`/games/{gameId}/logs/{logId}`):** Stores logs for each game. Authorization: write access is restricted to server (e.g., Cloud Functions) only, ensuring that game state changes are reliably recorded.  Read access is granted to any authenticated user for debugging/auditing.\n\nThis structure facilitates QAPs (Queries are not Filters).  Because the `players` subcollection is scoped to a `game`, listing players is secure. The `gameId` denormalization enables secure `list` operations."
+  }
+}
