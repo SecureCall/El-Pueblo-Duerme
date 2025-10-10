@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { FlaskConical, Crown, Fingerprint, Users2, Loader2, HelpCircle, Heart, Shield, Sparkles, User, Crosshair, BotIcon } from "lucide-react";
+import { HelpCircle, Loader2 } from "lucide-react";
 import Image from "next/image";
 
 
