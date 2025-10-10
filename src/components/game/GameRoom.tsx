@@ -14,6 +14,7 @@ import { GameBoard } from "./GameBoard";
 import Image from "next/image";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { useFirebase } from "@/firebase";
+import { GameMusic } from "./GameMusic";
 
 export function GameRoom({ gameId }: { gameId: string }) {
   const { userId, displayName, setDisplayName, isSessionLoaded } = useGameSession();
@@ -99,6 +100,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
       )}
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
       <div className="relative z-10 w-full flex items-center justify-center">
+        {game && <GameMusic game={game} />}
         {renderContent()}
       </div>
     </div>

@@ -53,7 +53,7 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
 
       {isCreator && (
         <div className="text-center pt-4">
-          <StartGameButton gameId={game.id} playerCount={players.length} />
+          <StartGameButton game={game} playerCount={players.length} />
         </div>
       )}
     </div>

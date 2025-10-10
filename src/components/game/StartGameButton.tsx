@@ -8,18 +8,21 @@ import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useGameSession } from "@/hooks/use-game-session";
 import { useFirebase } from "@/firebase";
+import type { Game } from "@/types";
 
 interface StartGameButtonProps {
-  gameId: string;
+  game: Game;
   playerCount: number;
 }
 
-export function StartGameButton({ gameId, playerCount }: StartGameButtonProps) {
+export function StartGameButton({ game, playerCount }: StartGameButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const { userId, isSessionLoaded } = useGameSession();
   const { firestore } = useFirebase();
-  const canStart = playerCount >= 3;
+
+  const totalPlayers = game.settings.fillWithAI ? game.maxPlayers : playerCount;
+  const canStart = totalPlayers >= 3;
 
   const handleStartGame = async () => {
     if (!isSessionLoaded || !userId || !firestore) {
@@ -31,7 +34,7 @@ export function StartGameButton({ gameId, playerCount }: StartGameButtonProps) {
       return;
     }
     setIsLoading(true);
-    const result = await startGame(firestore, gameId, userId); // creatorId check is on server
+    const result = await startGame(firestore, game.id, userId); // creatorId check is on server
     if (result.error) {
       toast({
         variant: "destructive",

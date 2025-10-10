@@ -17,7 +17,6 @@ import { HunterShot } from "./HunterShot";
 import { GameChronicle } from "./GameChronicle";
 import { PhaseTimer } from "./PhaseTimer";
 import { CurrentPlayerRole } from "./CurrentPlayerRole";
-import { GameMusic } from "./GameMusic";
 
 interface GameBoardProps {
   game: Game;
@@ -77,10 +76,7 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
   if (game.status === 'finished') {
     const gameOverEvent = events.find(e => e.type === 'game_over');
     return (
-        <>
-            <GameMusic game={game} />
-            <GameOver event={gameOverEvent} players={players} />
-        </>
+        <GameOver event={gameOverEvent} players={players} />
     );
   }
 
@@ -88,19 +84,13 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
   if (isHunterWaitingToShoot) {
       const alivePlayers = players.filter(p => p.isAlive && p.userId !== currentPlayer.userId);
       return (
-        <>
-            <GameMusic game={game} />
-            <HunterShot game={game} currentPlayer={currentPlayer} players={alivePlayers} />
-        </>
+        <HunterShot game={game} currentPlayer={currentPlayer} players={alivePlayers} />
       );
   }
 
   if (showRole && currentPlayer.role) {
     return (
-        <>
-            <GameMusic game={game} />
-            <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />
-        </>
+        <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />
     );
   }
 
@@ -153,7 +143,6 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
 
   return (
     <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
-       <GameMusic game={game} />
        <Card className="text-center bg-card/80">
         <CardHeader className="flex flex-row items-center justify-between p-4 pb-8 relative">
           <div className="absolute left-4 top-1/2 -translate-y-1/2">
