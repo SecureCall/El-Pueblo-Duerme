@@ -1,28 +1,28 @@
 /**
- * @fileoverview Firestore Security Rules for "El Pueblo Duerme"
+ * @fileoverview Firestore Security Rules for "El Pueblo Duerme" Game.
  *
  * Core Philosophy:
- * This ruleset prioritizes authorization independence and security by denormalizing
- * data and avoiding `get()` calls. It enforces strict ownership and role-based
- * access control to protect game data. The design emphasizes atomic operations,
- * simplified debugging, and scalable authorization logic.
+ * This ruleset prioritizes authorization independence and enforces fine-grained
+ * access control based on user identity and game roles. It avoids using
+ * `get()` calls in security rules for efficiency and simplifies debugging.
  *
  * Data Structure:
- * - /games/{gameId}: Stores general game information (creator, status, etc.).
+ * - /games/{gameId}: Stores general game information (name, status, etc.).
  * - /games/{gameId}/players/{userId}: Stores player-specific data within a game.
- * - /games/{gameId}/logs/{logId}: Stores game logs, accessible for auditing.
+ * - /games/{gameId}/logs/{logId}: Stores game logs (phase changes, kills, votes).
  *
  * Key Security Decisions:
- * - Players can only access their own data.
- * - Game creation/modification is limited to the game creator.
- * - Game logs are write-protected, accessible only to the server for reliable recording.
- * - Read access to game logs is open to authenticated users for debugging.
- * - Listing of the players subcollection is enabled and considered secure due to the game scope.
+ * - Games: Any authenticated user can read games, but only the creator can modify.
+ * - Players: Players can only access their own player data within a game.
+ * - Game Logs: Write access is restricted to server-side code only.  Any authenticated user can read game logs.
  *
  * Denormalization for Authorization:
- * - The `Player` entity includes a `gameId` field, denormalizing the game association.
- *   This enables authorization rules to be evaluated directly on the `Player` document
- *   without needing to perform additional `get()` operations.
+ * - Player documents include the `gameId` to allow direct authorization checks
+ *   without needing to query the parent game document. This is how we achieve authorization independence.
+ *
+ * Structural Segregation:
+ * - Game logs are stored in a separate subcollection to clearly segregate them
+ *   from the main game data and apply different security policies.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -31,55 +31,74 @@ service cloud.firestore {
     /**
      * @description Controls access to the games collection.
      * @path /games/{gameId}
-     * @allow get, list: Any authenticated user can read game data.
-     * @allow create: Only authenticated users can create games. The 'creator' field must match the user's UID.
+     * @allow get, list: Any authenticated user can read all games.
+     * @allow create: Only authenticated users can create games, and the creator field must match their UID.
      * @allow update, delete: Only the game creator can modify or delete a game.
-     * @deny create: If the creator field doesn't match the authenticated user's ID.
+     * @deny create: If the creator field does not match the authenticated user's UID.
      * @deny update, delete: If the user is not the game creator.
-     * @principle Enforces owner-only write access, public read access.
+     * @principle Enforces ownership for game creation, modification, and deletion. Public read access.
      */
     match /games/{gameId} {
       allow get, list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.creator == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.creator == request.auth.uid;
+      allow update, delete: if isExistingOwner(resource.data.creator);
     }
 
     /**
      * @description Controls access to the players subcollection within a game.
      * @path /games/{gameId}/players/{userId}
-     * @allow get: A player can only read their own player data.
-     * @allow list: Only the game creator can list players in the game.
-     * @allow create: A user can create their own player entry if the userId matches their auth UID and the gameId matches the parent game.
-     * @allow update, delete: A player can only update/delete their own player data.
-     * @deny create: If the userId in the request doesn't match the authenticated user's ID or if the gameId doesn't match.
-     * @deny update, delete: If the user is not the player or if the player document does not exist.
-     * @principle Enforces player-ownership for their own data within a game.
+     * @allow get: A player can read their own player document.
+     * @allow create: A player can create their own player document.
+     * @allow update, delete: A player can update or delete their own player document.
+     * @deny get: If the user is not the owner of the player document.
+     * @deny create: If the user is not creating their own player document.
+     * @deny update, delete: If the user is not the owner of the player document, or the document doesn't exist.
+     * @principle Enforces player-ownership within a specific game.
      */
     match /games/{gameId}/players/{userId} {
-      allow get: if isSignedIn() && userId == request.auth.uid;
-      allow list: if isSignedIn(); // Anyone signed in can list players.
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.gameId == gameId;
-      allow update, delete: if isSignedIn() && userId == request.auth.uid;
+      allow get, create, update, delete: if isOwner(userId);
     }
 
     /**
      * @description Controls access to the game logs subcollection within a game.
      * @path /games/{gameId}/logs/{logId}
-     * @allow get, list: Any authenticated user can read game logs.
-     * @allow create, update, delete: No client-side write access. Only server-side processes can write logs.
-     * @deny create, update, delete: All client requests to write game logs.
-     * @principle Restricts write access to server-side processes only.
+     * @allow get, list: Any signed-in user can read game logs.
+     * @deny create, update, delete: Only server-side code should write game logs.
+     * @principle Restricts write access to game logs to server-side code. Grants public read.
      */
     match /games/{gameId}/logs/{logId} {
       allow get, list: if isSignedIn();
       allow create, update, delete: if false;
     }
 
-    // ---- Helper Functions ----
+    //---------------------------------------------------------------------------------------------
+    // Helper Functions
+    //---------------------------------------------------------------------------------------------
 
-    // Checks if the user is signed in.
+    /**
+     * @description Checks if the user is signed in.
+     * @return {boolean} True if the user is signed in, false otherwise.
+     */
     function isSignedIn() {
       return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the authenticated user is the owner of the resource.
+     * @param {string} userId - The user ID to check against.
+     * @return {boolean} True if the user is the owner, false otherwise.
+     */
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+        /**
+     * @description Checks if the authenticated user is the owner of an existing resource.
+     * @param {string} userId - The user ID to check against.
+     * @return {boolean} True if the user is the owner and the resource exists, false otherwise.
+     */
+    function isExistingOwner(userId) {
+      return isSignedIn() && isOwner(userId) && resource != null;
     }
   }
 }

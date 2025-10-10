@@ -76,8 +76,9 @@ export async function createGame(
 
     const gameId = generateGameId();
     const gameRef = doc(db, "games", gameId);
+    
+    // Check if game ID already exists, though unlikely
     const existingGame = await getDoc(gameRef);
-
     if (existingGame.exists()) {
         return { error: "ID de partida ya existe. Por favor, intenta de nuevo." };
     }
@@ -89,7 +90,7 @@ export async function createGame(
         status: "waiting",
         phase: "night", // Lobby UI is driven by status='waiting'
         creator: userId,
-        players: [userId],
+        players: [], // Start with an empty player list
         maxPlayers: maxPlayers,
         createdAt: Timestamp.now(),
         currentRound: 0,
@@ -102,11 +103,8 @@ export async function createGame(
         wolfCubRevengeRound: 0,
     };
     
+    // Only create the game document. The creator will join via joinGame action.
     await setDoc(gameRef, gameData);
-
-    const playerRef = doc(db, "games", gameId, "players", userId);
-    const playerData = createPlayerObject(userId, gameId, displayName, false);
-    await setDoc(playerRef, playerData);
         
     return { gameId };
 
@@ -136,10 +134,6 @@ export async function joinGame(
       if (game.status !== "waiting") {
         throw new Error("La partida ya ha comenzado.");
       }
-
-      if (game.players.length >= game.maxPlayers) {
-        throw new Error("La partida está llena.");
-      }
       
       const playerRef = doc(db, "games", gameId, "players", userId);
       const playerSnap = await transaction.get(playerRef);
@@ -152,6 +146,10 @@ export async function joinGame(
         return { success: true };
       }
       
+      if (game.players.length >= game.maxPlayers) {
+        throw new Error("La partida está llena.");
+      }
+
       transaction.update(gameRef, {
         players: arrayUnion(userId),
       });
@@ -1072,3 +1070,5 @@ async function checkEndDayEarly(gameId: string) {
         await processVotes(gameId);
     }
 }
+
+    
