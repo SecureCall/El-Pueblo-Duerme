@@ -1077,9 +1077,3 @@ async function checkEndDayEarly(gameId: string) {
         await processVotes(gameId);
     }
 }
-
-    
-
-    
-
-    
