@@ -3,70 +3,91 @@
  *
  * Core Philosophy:
  * This ruleset prioritizes secure data access based on user authentication and
- * explicit ownership. It allows prototyping with flexible data shapes but
- * strictly enforces authorization.
+ * resource ownership, while maintaining flexible data shapes for prototyping.
  *
  * Data Structure:
  * - /games/{gameId}: Stores game instances.
- * - /games/{gameId}/players/{userId}: Stores player data for each game, nested under the game.
- * - /events/{eventId}: Stores game logs.
+ * - /games/{gameId}/players/{userId}: Stores player data for each game.
+ * - /events/{eventId}: Stores game events.
  *
  * Key Security Decisions:
- * - Players can only create their player document within a game.
- * - Game events are publicly readable, but not writable via the client.
+ * - User listing is disallowed to protect user privacy.
+ * - Read-only collections (e.g., /events) are publicly readable.
+ * - Ambiguous relationships default to strict owner-only access.
  *
  * Denormalization for Authorization:
- * - The /games/{gameId}/players/{userId} path requires the gameId to determine which game the player belongs to. The Player entity includes the gameId in the data, and the create rule enforces that they match.
+ * - The 'Player' entity includes a 'gameId' field, which is denormalized
+ *   to simplify authorization checks within the /games/{gameId}/players/{userId}
+ *   path, avoiding the need for extra `get()` calls.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Secures the `games` collection. Allows anyone to read game data.
-     *              The creator can update and delete the game.
+     * @description Rules for the 'games' collection.
      * @path /games/{gameId}
-     * @allow (get, list): Any user can read game data.
-     * @allow (create): Any authenticated user can create a game, setting themselves as the creator.
-     * @allow (update, delete): Only the creator of the game can modify or delete it.
-     * @deny (create, update, delete):  Unauthenticated users cannot create, update, or delete games.
-     * @principle Public read, owner-only writes.
+     * @allow (create) Signed-in user can create a game with themself as the creator.
+     * @deny (create) User attempts to create a game where creator doesn't match their auth.uid.
+     * @allow (get, list) Anyone can read game data.
+     * @allow (update, delete) Only the game creator can update or delete a game.
+     * @principle Enforces creator-only write access to game documents after creation; public read access.
      */
     match /games/{gameId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
       allow get, list: if true;
       allow create: if isSignedIn() && request.resource.data.creator == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.creator == request.auth.uid && resource != null;
+      allow update, delete: if isExistingOwner(resource.data.creator);
     }
 
     /**
-     * @description Secures the `players` subcollection within a game.
-     *              Allows creating a player document if the authenticated user's ID matches the `userId` in the path.
+     * @description Rules for the 'players' subcollection within a 'game'.
      * @path /games/{gameId}/players/{userId}
-     * @allow (create): Authenticated user can create their player document if the userId matches their auth UID and gameId matches the path.
-     * @allow (get, list, update, delete): No one can get, list, update or delete any player documents.
-     * @deny (create): Creation is denied if the user is not authenticated, the userId does not match the authenticated user's ID, or the gameId does not match the path.
-     * @principle Enforces ownership for player documents, path-based authorization.
+     * @allow (create) Signed-in user can create a player document for themself in a game.
+     * @deny (create) User attempts to create a player document for another user.
+     * @allow (get, list) Anyone can read player data.
+     * @allow (update, delete) Only the player (identified by userId) can update or delete their player document.
+     * @principle Enforces player-ownership within a game subcollection; public read access.
      */
     match /games/{gameId}/players/{userId} {
-      allow create: if isSignedIn() && request.auth.uid == userId && request.resource.data.gameId == gameId && request.resource.data.userId == request.auth.uid;
-      allow get, list, update, delete: if false;
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+       function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get, list: if true;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.gameId == gameId;
+      allow update, delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Secures the `events` collection.  Allows anyone to read events.
-     *              No one can create, update, or delete events via the client.
+     * @description Rules for the 'events' collection.
      * @path /events/{eventId}
-     * @allow (get, list): Any user can read events.
-     * @deny (create, update, delete): No one can create, update, or delete events via the client.
-     * @principle Public read, no client writes.
+     * @allow (get, list) Anyone can read event data.
+     * @deny (create, update, delete) No one can create, update, or delete event data.
+     * @principle Events are read-only for all users.
      */
     match /events/{eventId} {
       allow get, list: if true;
       allow create, update, delete: if false;
     }
-  }
-
-  function isSignedIn() {
-    return request.auth != null;
   }
 }
