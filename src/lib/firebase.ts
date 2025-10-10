@@ -4,7 +4,7 @@ import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { firebaseConfig } from "./firebase-config";
 
-// Inicializa la app de Firebase
+// Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig as FirebaseOptions) : getApp();
 const db = getFirestore(app);
 const auth = getAuth(app);
