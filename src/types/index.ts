@@ -1,6 +1,5 @@
 
 import type { Timestamp } from 'firebase/firestore';
-import { z } from 'zod';
 
 export type GameStatus = "waiting" | "in_progress" | "finished";
 export type GamePhase = "role_reveal" | "night" | "day" | "voting" | "hunter_shot" | "finished";
