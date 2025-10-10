@@ -531,7 +531,7 @@ async function killPlayer(
       }
       
       const killedPlayer = playersData.find(p => p.userId === playerId)!;
-      const eventLogRef = doc(collection(db, "events"));
+      const eventLogRef = doc(collection(db, "games", gameId, "events"));
       transaction.set(eventLogRef, {
           gameId,
           round: gameData.currentRound,
@@ -597,7 +597,7 @@ async function checkGameOver(db: Firestore, gameId: string, transaction: Transac
 
     if (gameOver) {
         transaction.update(gameRef, { status: 'finished', phase: 'finished' });
-        const logRef = doc(collection(db, "events"));
+        const logRef = doc(collection(db, "games", gameId, "events"));
         transaction.set(logRef, {
             gameId,
             round: gameData?.currentRound,
@@ -695,7 +695,7 @@ export async function processNight(db: Firestore, gameId: string) {
                     const playerRef = doc(db, 'games', gameId, 'players', targetPlayer.userId);
                     transaction.update(playerRef, { role: 'werewolf' });
                     messages.push(`En la oscuridad, ${targetPlayer.displayName} no muere, ¡sino que se une a la manada! Ahora es un Hombre Lobo.`);
-                    const eventLogRef = doc(collection(db, "events"));
+                    const eventLogRef = doc(collection(db, "games", gameId, "events"));
                     transaction.set(eventLogRef, {
                         gameId,
                         round: game.currentRound,
@@ -739,7 +739,7 @@ export async function processNight(db: Firestore, gameId: string) {
             const killedWerewolfTargets = killedByWerewolfIds.filter(id => !allProtectedIds.includes(id));
             const killedPoisonTarget = (killedByPoisonId && !killedByWerewolfIds.includes(killedByPoisonId) && !allProtectedIds.includes(killedByPoisonId)) ? killedByPoisonId : null;
 
-            const logRef = doc(collection(db, "events"));
+            const logRef = doc(collection(db, "games", gameId, "events"));
             transaction.set(logRef, {
                 gameId,
                 round: game.currentRound,
@@ -869,7 +869,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                 eventMessage = "El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.";
             }
 
-            const logRef = doc(collection(db, "events"));
+            const logRef = doc(collection(db, "games", gameId, "events"));
             transaction.set(logRef, {
                 gameId,
                 round: game.currentRound,
@@ -961,7 +961,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
 
             const targetPlayer = playersData.find(p => p.userId === targetId)!;
 
-            const hunterEventRef = doc(collection(db, "events"));
+            const hunterEventRef = doc(collection(db, "games", gameId, "events"));
             transaction.set(hunterEventRef, {
                 gameId,
                 round: game.currentRound,
@@ -983,8 +983,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             const isGameOver = await checkGameOver(db, gameId, transaction);
             if (isGameOver) return;
             
-            const voteEventQuery = query(collection(db, "events"), 
-                where('gameId', '==', gameId),
+            const voteEventQuery = query(collection(db, "games", gameId, "events"), 
                 where('round', '==', game.currentRound),
                 where('type', '==', 'vote_result')
             );
@@ -1136,7 +1135,7 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
         const playersSnap = await getDocs(query(collection(db, 'games', gameId, 'players')));
         const players = playersSnap.docs.map(p => ({ ...p.data() as Player, id: p.id }));
         
-        const eventsSnap = await getDocs(query(collection(db, 'events'), where('gameId', '==', gameId), orderBy('createdAt', 'asc')));
+        const eventsSnap = await getDocs(query(collection(db, 'games', gameId, 'events'), orderBy('createdAt', 'asc')));
         const events = eventsSnap.docs.map(e => e.data() as GameEvent);
 
         const aiPlayers = players.filter(p => p.isAI && p.isAlive);

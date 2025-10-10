@@ -71,18 +71,14 @@ export const useGameState = (gameId: string) => {
         errorEmitter.emit('permission-error', contextualError);
     });
     
-    const eventsQuery = query(
-        collection(firestore, "events"),
-        where('gameId', '==', gameId),
-        orderBy('createdAt', 'asc')
-    );
+    const eventsQuery = query(collection(firestore, 'games', gameId, 'events'), orderBy('createdAt', 'asc'));
     const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot: QuerySnapshot<DocumentData>) => {
         const eventsData = snapshot.docs.map(doc => ({ ...doc.data() as GameEvent, id: doc.id }));
         setEvents(eventsData);
     }, (err: FirestoreError) => {
         const contextualError = new FirestorePermissionError({
             operation: 'list',
-            path: `events`,
+            path: `games/${gameId}/events`,
         });
         setError("Error al cargar los eventos de la partida.");
         errorEmitter.emit('permission-error', contextualError);
