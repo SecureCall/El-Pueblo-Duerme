@@ -15,6 +15,7 @@ import {
   increment,
   runTransaction,
   where,
+  orderBy,
   type Firestore,
   type Transaction,
   type Timestamp as FirestoreTimestamp,
@@ -265,7 +266,7 @@ const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessi
 
 export async function startGame(db: Firestore, gameId: string, creatorId: string) {
     const gameRef = doc(db, 'games', gameId);
-    let failingOp: { path: string, operation: 'create' | 'update' | 'delete' | 'write' | 'get' | 'list', data?: any } | null = null;
+    let failingOp: { path: string, operation: 'create' | 'update' | 'write', data?: any } | null = null;
     
     try {
         const playersCollectionPath = `games/${gameId}/players`;
@@ -274,7 +275,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
         const existingPlayers = playersSnap.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
 
         await runTransaction(db, async (transaction) => {
-            failingOp = { path: gameRef.path, operation: 'get' };
+            failingOp = { path: gameRef.path, operation: 'write' };
             const gameSnap = await transaction.get(gameRef);
 
             if (!gameSnap.exists()) {
@@ -355,7 +356,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
         if (e.code === 'permission-denied' && failingOp) {
             const permissionError = new FirestorePermissionError({
                 path: failingOp.path,
-                operation: failingOp.operation as 'create' | 'update' | 'get',
+                operation: failingOp.operation as 'create' | 'update' | 'write',
                 requestResourceData: failingOp.data,
             });
             errorEmitter.emit('permission-error', permissionError);
@@ -1270,6 +1271,8 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
         console.error("Error in AI Actions:", e);
     }
 }
+
+    
 
     
 
