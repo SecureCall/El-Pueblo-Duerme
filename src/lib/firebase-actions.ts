@@ -306,6 +306,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
 
 
 export async function submitNightAction(db: Firestore, action: Omit<NightAction, 'createdAt' | 'round'> & { round: number }) {
+  const { gameId } = action;
   const gameRef = doc(db, 'games', gameId);
   try {
     await runTransaction(db, async (transaction) => {
