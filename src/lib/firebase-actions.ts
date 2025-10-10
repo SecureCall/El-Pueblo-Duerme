@@ -87,7 +87,6 @@ export async function createGame(
       players: [], // Start with an empty player list
       maxPlayers: maxPlayers,
       createdAt: Timestamp.now(),
-      currentRound: 0,
       settings: {
           ...settings,
           werewolves: werewolfCount,
@@ -95,7 +94,7 @@ export async function createGame(
       pendingHunterShot: null,
       lovers: null,
       wolfCubRevengeRound: 0,
-      twins: undefined,
+      twins: null,
   };
   
   try {

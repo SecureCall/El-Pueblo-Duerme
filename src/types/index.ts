@@ -90,7 +90,7 @@ export interface Game {
   };
   phaseEndsAt?: Timestamp;
   lovers: [string, string] | null;
-  twins?: [string, string];
+  twins: [string, string] | null;
   pendingHunterShot: string | null; // userId of the hunter who needs to shoot
   wolfCubRevengeRound: number; // The round where werewolves get an extra kill
 }
