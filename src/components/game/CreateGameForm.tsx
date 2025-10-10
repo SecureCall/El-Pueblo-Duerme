@@ -2,8 +2,6 @@
 "use client";
 
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { HelpCircle, Loader2 } from "lucide-react";
@@ -33,44 +31,43 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/
 import type { PlayerRole } from "@/types";
 import { roleDetails } from "@/lib/roles";
 
-
-const FormSchema = z.object({
-  gameName: z.string().min(3, { message: "El nombre de la partida debe tener al menos 3 caracteres." }).max(30),
-  displayName: z.string().min(2, { message: "Tu nombre debe tener al menos 2 caracteres." }).max(20),
-  maxPlayers: z.number().min(3).max(32),
-  fillWithAI: z.boolean(),
-  // Roles
-  seer: z.boolean(),
-  doctor: z.boolean(),
-  hunter: z.boolean(),
-  cupid: z.boolean,
-  guardian: z.boolean(),
-  priest: z.boolean(),
-  prince: z.boolean(),
-  lycanthrope: z.boolean(),
-  twin: z.boolean(),
-  hechicera: z.boolean(),
-  ghost: z.boolean(),
-  virginia_woolf: z.boolean(),
-  leprosa: z.boolean(),
-  river_siren: z.boolean(),
-  lookout: z.boolean(),
-  troublemaker: z.boolean(),
-  silencer: z.boolean(),
-  seer_apprentice: z.boolean(),
-  elder_leader: z.boolean(),
-  wolf_cub: z.boolean(),
-  cursed: z.boolean(),
-  seeker_fairy: z.boolean(),
-  sleeping_fairy: z.boolean(),
-  shapeshifter: z.boolean(),
-  drunk_man: z.boolean(),
-  cult_leader: z.boolean(),
-  fisherman: z.boolean(),
-  vampire: z.boolean(),
-  witch: z.boolean(),
-  banshee: z.boolean(),
-});
+// Define an interface for the form values without Zod
+interface CreateGameFormValues {
+  gameName: string;
+  displayName: string;
+  maxPlayers: number;
+  fillWithAI: boolean;
+  seer: boolean;
+  doctor: boolean;
+  hunter: boolean;
+  cupid: boolean;
+  guardian: boolean;
+  priest: boolean;
+  prince: boolean;
+  lycanthrope: boolean;
+  twin: boolean;
+  hechicera: boolean;
+  ghost: boolean;
+  virginia_woolf: boolean;
+  leprosa: boolean;
+  river_siren: boolean;
+  lookout: boolean;
+  troublemaker: boolean;
+  silencer: boolean;
+  seer_apprentice: boolean;
+  elder_leader: boolean;
+  wolf_cub: boolean;
+  cursed: boolean;
+  seeker_fairy: boolean;
+  sleeping_fairy: boolean;
+  shapeshifter: boolean;
+  drunk_man: boolean;
+  cult_leader: boolean;
+  fisherman: boolean;
+  vampire: boolean;
+  witch: boolean;
+  banshee: boolean;
+}
 
 const specialRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[] = Object.keys(roleDetails).filter(role => role !== 'villager' && role !== 'werewolf') as Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[];
 
@@ -80,31 +77,45 @@ export function CreateGameForm() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const form = useForm<z.infer<typeof FormSchema>>({
-    resolver: zodResolver(FormSchema),
+  const form = useForm<CreateGameFormValues>({
     defaultValues: {
       gameName: "Partida de Pueblo Duerme",
       displayName: displayName || "",
       maxPlayers: 8,
       fillWithAI: true,
-      // Default enabled roles
       seer: true,
       doctor: true,
-      hunter: true,
-      cupid: true,
-      hechicera: true,
-      guardian: true,
-      // Default disabled roles
-      ...specialRoles.reduce((acc, role) => {
-        if (!['seer', 'doctor', 'hunter', 'cupid', 'hechicera', 'guardian'].includes(role)) {
-          (acc as any)[role] = false;
-        }
-        return acc;
-      }, {}),
+      hunter: false,
+      cupid: false,
+      hechicera: false,
+      guardian: false,
+      prince: false,
+      lycanthrope: false,
+      twin: false,
+      ghost: false,
+      virginia_woolf: false,
+      leprosa: false,
+      river_siren: false,
+      lookout: false,
+      troublemaker: false,
+      silencer: false,
+      seer_apprentice: false,
+      elder_leader: false,
+      wolf_cub: false,
+      cursed: false,
+      seeker_fairy: false,
+      sleeping_fairy: false,
+      shapeshifter: false,
+      drunk_man: false,
+      cult_leader: false,
+      fisherman: false,
+      vampire: false,
+      witch: false,
+      banshee: false,
     },
   });
 
-  async function onSubmit(data: z.infer<typeof FormSchema>) {
+  async function onSubmit(data: CreateGameFormValues) {
     setIsSubmitting(true);
     setDisplayName(data.displayName);
 
@@ -149,7 +160,7 @@ export function CreateGameForm() {
                 <FormItem>
                   <FormLabel>Nombre de la Partida</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input {...field} required minLength={3} maxLength={30}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -162,7 +173,7 @@ export function CreateGameForm() {
                 <FormItem>
                   <FormLabel>Tu Nombre</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input {...field} required minLength={2} maxLength={20} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -199,12 +210,12 @@ export function CreateGameForm() {
                     <FormField
                       key={roleId}
                       control={form.control}
-                      name={roleId as keyof z.infer<typeof FormSchema>}
+                      name={roleId as keyof CreateGameFormValues}
                       render={({ field }) => (
                         <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 bg-background/50">
                           <FormControl>
                             <Checkbox
-                              checked={field.value}
+                              checked={field.value as boolean}
                               onCheckedChange={field.onChange}
                             />
                           </FormControl>

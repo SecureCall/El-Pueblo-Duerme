@@ -4,35 +4,43 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, SubmitHandler } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 
 import { useGameSession } from "@/hooks/use-game-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Card, CardContent } from "./ui/card";
 
-const FormSchema = z.object({
-  gameId: z.string().trim().min(1, { message: "El ID de la partida es requerido." }).length(5, {message: "El ID debe tener 5 caracteres."}).transform((val) => val.toUpperCase()),
-  displayName: z.string().trim().min(2, { message: "El nombre debe tener al menos 2 caracteres." }).max(20, { message: "El nombre no puede tener más de 20 caracteres." }),
-});
+// Define a simple interface for the form data without Zod
+interface JoinGameFormValues {
+  gameId: string;
+  displayName: string;
+}
 
 export function JoinGameForm() {
   const router = useRouter();
   const { displayName, setDisplayName } = useGameSession();
 
-  const form = useForm<z.infer<typeof FormSchema>>({
-    resolver: zodResolver(FormSchema),
+  const form = useForm<JoinGameFormValues>({
     defaultValues: {
       gameId: "",
       displayName: displayName || "",
     },
   });
 
-  const onSubmit: SubmitHandler<z.infer<typeof FormSchema>> = (data) => {
+  const onSubmit: SubmitHandler<JoinGameFormValues> = (data) => {
+    // Basic validation
+    if (data.gameId.trim().length !== 5) {
+      form.setError("gameId", { type: "manual", message: "El ID debe tener 5 caracteres." });
+      return;
+    }
+    if (data.displayName.trim().length < 2 || data.displayName.trim().length > 20) {
+      form.setError("displayName", { type: "manual", message: "El nombre debe tener entre 2 y 20 caracteres." });
+      return;
+    }
+
     setDisplayName(data.displayName);
-    router.push(`/game/${data.gameId}`);
+    router.push(`/game/${data.gameId.toUpperCase()}`);
   };
 
   return (
@@ -46,7 +54,13 @@ export function JoinGameForm() {
                 render={({ field }) => (
                     <FormItem>
                     <FormControl>
-                        <Input placeholder="ID de la partida" {...field} className="text-center text-lg tracking-widest uppercase"/>
+                        <Input 
+                          placeholder="ID de la partida" 
+                          {...field} 
+                          className="text-center text-lg tracking-widest uppercase"
+                          maxLength={5}
+                          required
+                        />
                     </FormControl>
                     <FormMessage />
                     </FormItem>
@@ -58,7 +72,14 @@ export function JoinGameForm() {
                 render={({ field }) => (
                     <FormItem>
                     <FormControl>
-                        <Input placeholder="Tu nombre" {...field} className="text-center text-lg"/>
+                        <Input 
+                          placeholder="Tu nombre" 
+                          {...field} 
+                          className="text-center text-lg"
+                          minLength={2}
+                          maxLength={20}
+                          required
+                        />
                     </FormControl>
                     <FormMessage />
                     </FormItem>
