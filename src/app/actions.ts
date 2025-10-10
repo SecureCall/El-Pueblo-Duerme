@@ -44,7 +44,7 @@ async function getPlayerDoc(gameId: string, userId: string) {
 const createPlayerObject = (userId: string, gameId: string, displayName: string, isAI: boolean = false): Omit<Player, 'id'> => ({
     userId,
     gameId,
-    displayName,
+    displayName: displayName.trim(),
     role: null,
     isAlive: true,
     votedFor: null,
@@ -67,40 +67,59 @@ export async function createGame(
   maxPlayers: number,
   settings: Game['settings']
 ) {
-  const gameId = generateGameId();
-  const batch = writeBatch(db);
+  try {
+    if (!userId || !displayName?.trim() || !gameName?.trim()) {
+      return { error: "Datos incompletos para crear la partida." };
+    }
+    if (maxPlayers < 3 || maxPlayers > 32) {
+      return { error: "El número de jugadores debe ser entre 3 y 32." };
+    }
 
-  const gameRef = doc(db, "games", gameId);
-  
-  const werewolfCount = Math.max(1, Math.floor(maxPlayers / 5));
+    const gameId = generateGameId();
+    
+    const result = await runTransaction(db, async (transaction) => {
+        const gameRef = doc(db, "games", gameId);
 
-  const gameData: Omit<Game, 'id'> = {
-    name: gameName,
-    status: "waiting",
-    phase: "night", // Lobby UI is driven by status='waiting', so this is okay.
-    creator: userId,
-    players: [userId],
-    maxPlayers: maxPlayers,
-    createdAt: Timestamp.now(),
-    currentRound: 0,
-    settings: {
-        ...settings, // provided settings
-        werewolves: werewolfCount,
-    },
-    pendingHunterShot: null,
-    lovers: null,
-    wolfCubRevengeRound: 0,
-  };
+        const existingGame = await transaction.get(gameRef);
+        if (existingGame.exists()) {
+            throw new Error("ID de partida ya existe. Por favor, intenta de nuevo.");
+        }
+        
+        const werewolfCount = Math.max(1, Math.floor(maxPlayers / 5));
 
-  batch.set(gameRef, gameData);
+        const gameData: Omit<Game, 'id'> = {
+            name: gameName.trim(),
+            status: "waiting",
+            phase: "night", // Lobby UI is driven by status='waiting'
+            creator: userId,
+            players: [userId],
+            maxPlayers: maxPlayers,
+            createdAt: Timestamp.now(),
+            currentRound: 0,
+            settings: {
+                ...settings,
+                werewolves: werewolfCount,
+            },
+            pendingHunterShot: null,
+            lovers: null,
+            twins: undefined, // Explicitly set as undefined if not present
+            wolfCubRevengeRound: 0,
+        };
+        transaction.set(gameRef, gameData);
 
-  const playerRef = doc(collection(db, "players"));
-  const playerData = createPlayerObject(userId, gameId, displayName, false);
-  batch.set(playerRef, playerData);
+        const playerRef = doc(collection(db, "players"));
+        const playerData = createPlayerObject(userId, gameId, displayName, false);
+        transaction.set(playerRef, playerData);
+        
+        return { gameId };
+    });
 
-  await batch.commit();
+    return result;
 
-  return { gameId };
+  } catch (error: any) {
+    console.error("Error creating game:", { message: error.message, code: error.code, stack: error.stack });
+    return { error: `Error al crear la partida: ${error.message || 'Error desconocido'}` };
+  }
 }
 
 export async function joinGame(
@@ -109,38 +128,50 @@ export async function joinGame(
   displayName: string
 ) {
   const gameRef = doc(db, "games", gameId);
-  const gameSnap = await getDoc(gameRef);
 
-  if (!gameSnap.exists()) {
-    return { error: "Partida no encontrada." };
+  try {
+    const gameSnap = await getDoc(gameRef);
+
+    if (!gameSnap.exists()) {
+      return { error: "Partida no encontrada." };
+    }
+
+    const game = gameSnap.data() as Game;
+
+    if (game.status !== "waiting") {
+      return { error: "La partida ya ha comenzado." };
+    }
+
+    if (game.players.length >= game.maxPlayers) {
+      return { error: "La partida está llena." };
+    }
+    
+    if (game.players.includes(userId)) {
+      // If player exists, just ensure their display name is up-to-date if it changed.
+      const playerDoc = await getPlayerDoc(gameId, userId);
+      if(playerDoc && playerDoc.data().displayName !== displayName) {
+          await updateDoc(playerDoc.ref, { displayName: displayName });
+      }
+      return { success: true };
+    }
+    
+    const batch = writeBatch(db);
+    
+    batch.update(gameRef, {
+      players: arrayUnion(userId),
+    });
+
+    const playerRef = doc(collection(db, "players"));
+    const playerData = createPlayerObject(userId, gameId, displayName, false);
+    batch.set(playerRef, playerData);
+    
+    await batch.commit();
+    return { success: true };
+
+  } catch(error: any) {
+    console.error("Error joining game:", error);
+    return { error: `No se pudo unir a la partida: ${error.message}` };
   }
-
-  const game = gameSnap.data() as Game;
-
-  if (game.status !== "waiting") {
-    return { error: "La partida ya ha comenzado." };
-  }
-
-  if (game.players.length >= game.maxPlayers) {
-    return { error: "La partida está llena." };
-  }
-  
-  if (game.players.includes(userId)) {
-    return { success: true }; // Already in game
-  }
-  
-  const batch = writeBatch(db);
-  
-  batch.update(gameRef, {
-    players: arrayUnion(userId),
-  });
-
-  const playerRef = doc(collection(db, "players"));
-  const playerData = createPlayerObject(userId, gameId, displayName, false);
-  batch.set(playerRef, playerData);
-  
-  await batch.commit();
-  return { success: true };
 }
 
 const generateRoles = (playerCount: number, settings: Game['settings']) => {
