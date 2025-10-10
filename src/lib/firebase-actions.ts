@@ -275,7 +275,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
     
     try {
         await runTransaction(db, async (transaction) => {
-            failingOp = { path: gameRef.path, operation: 'update', data: { status: 'in_progress' } };
+            failingOp = null; // Reset at the start of the transaction
             const gameSnap = await transaction.get(gameRef);
 
             if (!gameSnap.exists()) {
@@ -293,6 +293,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
             }
             
             const playersQuery = query(collection(db, 'games', gameId, 'players'));
+            failingOp = { path: playersQuery.path, operation: 'list' };
             const playersSnap = await transaction.get(playersQuery);
             const players = playersSnap.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
 
@@ -346,7 +347,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
                 transaction.update(playerRef, { role: player.role });
             });
 
-            failingOp = { path: gameRef.path, operation: 'update', data: { status: 'in_progress' } };
+            failingOp = { path: gameRef.path, operation: 'update', data: { status: 'in_progress', phase: 'role_reveal', currentRound: 1 } };
             transaction.update(gameRef, {
                 status: 'in_progress',
                 phase: 'role_reveal',
@@ -360,7 +361,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
         if (e.code === 'permission-denied' && failingOp) {
             const permissionError = new FirestorePermissionError({
                 path: failingOp.path,
-                operation: failingOp.operation,
+                operation: failingOp.operation as 'create' | 'update',
                 requestResourceData: failingOp.data,
             });
             errorEmitter.emit('permission-error', permissionError);
