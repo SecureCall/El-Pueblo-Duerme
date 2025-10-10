@@ -98,15 +98,10 @@ export async function createGame(
   };
   
   try {
-    // This part should be allowed by "allow create: if request.auth.uid == request.resource.data.creator"
     await setDoc(gameRef, gameData);
     
-    // Now that the game is created, join the creator to it.
-    // This part should be allowed by "allow write: if request.auth.uid == userId"
     const joinResult = await joinGame(db, gameId, userId, displayName);
     if (joinResult.error) {
-      // This might happen if the joinGame transaction fails for other reasons.
-      // We are not deleting the game for simplicity, it will be an empty game.
       return { error: `La partida se creó, pero no se pudo unir: ${joinResult.error}` };
     }
 
@@ -119,10 +114,9 @@ export async function createGame(
             requestResourceData: gameData,
         });
         errorEmitter.emit('permission-error', permissionError);
-        // The listener will throw the error, so we don't need to return a specific message
         return { error: "Permiso denegado al crear la partida." };
     }
-    console.error("Error creating game:", error); // Keep for general debugging
+    console.error("Error creating game:", error);
     return { error: `Error al crear la partida: ${error.message || 'Error desconocido'}` };
   }
 }
@@ -154,23 +148,20 @@ export async function joinGame(
       const playerSnap = await transaction.get(playerRef);
       
       if (playerSnap.exists()) {
-        // If player exists, just ensure their display name is up-to-date if it changed.
         if(playerSnap.data().displayName !== displayName) {
             transaction.update(playerRef, { displayName: displayName });
         }
-        return; // Exit transaction successfully
+        return;
       }
       
       if (game.players.length >= game.maxPlayers) {
         throw new Error("La partida está llena.");
       }
 
-      // This is the first write in the transaction for a new player
       transaction.update(gameRef, {
         players: arrayUnion(userId),
       });
 
-      // This is the second write
       transaction.set(playerRef, playerData);
     });
     
@@ -194,17 +185,14 @@ export async function joinGame(
 const generateRoles = (playerCount: number, settings: Game['settings']) => {
     let roles: Player['role'][] = [];
     
-    // Add werewolves
     for (let i = 0; i < settings.werewolves; i++) {
         roles.push('werewolf');
     }
     
-    // Add other wolf roles
     if (settings.wolf_cub && roles.length < playerCount) roles.push('wolf_cub');
     if (settings.seeker_fairy && roles.length < playerCount) roles.push('seeker_fairy');
 
 
-    // Add special village roles based on settings
     if (settings.seer && roles.length < playerCount) roles.push('seer');
     if (settings.doctor && roles.length < playerCount) roles.push('doctor');
     if (settings.hunter && roles.length < playerCount) roles.push('hunter');
@@ -230,7 +218,6 @@ const generateRoles = (playerCount: number, settings: Game['settings']) => {
     if (settings.elder_leader && roles.length < playerCount) roles.push('elder_leader');
     if (settings.sleeping_fairy && roles.length < playerCount) roles.push('sleeping_fairy');
     
-    // Add special neutral roles
     if (settings.shapeshifter && roles.length < playerCount) roles.push('shapeshifter');
     if (settings.drunk_man && roles.length < playerCount) roles.push('drunk_man');
     if (settings.cult_leader && roles.length < playerCount) roles.push('cult_leader');
@@ -240,17 +227,14 @@ const generateRoles = (playerCount: number, settings: Game['settings']) => {
     if (settings.banshee && roles.length < playerCount) roles.push('banshee');
 
 
-    // Fill remaining spots with villagers
     while (roles.length < playerCount) {
         roles.push('villager');
     }
 
-    // Ensure there are enough roles, if not, add villagers
     while (roles.length > playerCount) {
-      roles.pop(); // Remove excess roles
+      roles.pop();
     }
 
-    // Ensure we have at least one werewolf if roles were cut.
     const hasWolfRole = roles.some(r => r === 'werewolf' || r === 'wolf_cub' || r === 'seeker_fairy');
     if (!hasWolfRole && playerCount > 0) {
         const villagerIndex = roles.findIndex(r => r === 'villager');
@@ -263,7 +247,6 @@ const generateRoles = (playerCount: number, settings: Game['settings']) => {
         }
     }
     
-    // Shuffle roles
     return roles.sort(() => Math.random() - 0.5);
 };
 
@@ -271,7 +254,7 @@ const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessi
 
 export async function startGame(db: Firestore, gameId: string, creatorId: string) {
     const gameRef = doc(db, 'games', gameId);
-    let failingOp: { path: string, operation: 'create' | 'update' | 'delete' | 'write' | 'list', data?: any } | null = null;
+    let failingOp: { path: string, operation: 'create' | 'update' | 'delete' | 'write' | 'get' | 'list', data?: any } | null = null;
     
     try {
         await runTransaction(db, async (transaction) => {
@@ -411,7 +394,6 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         return { success: false, error: "Ya te has bendecido a ti mismo una vez." };
     }
     
-    // Check for existing action for this player and round to prevent duplicates
     const q = query(actionRef, 
       where('round', '==', action.round), 
       where('playerId', '==', action.playerId)
@@ -419,11 +401,9 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
     const existingActions = await getDocs(q);
     
     const batch = writeBatch(db);
-    // If an action already exists, overwrite it (useful for werewolves changing vote or witch changing action)
     if (!existingActions.empty) {
         existingActions.forEach(doc => {
             const docData = doc.data();
-            // Allow override for werewolves or if witch is changing potion type
             const isWitchChangingPotion = action.playerId === docData.playerId && (docData.actionType === 'hechicera_poison' || docData.actionType === 'hechicera_save');
             if (docData.actionType === action.actionType || action.actionType === 'werewolf_kill' || isWitchChangingPotion) {
                batch.delete(doc.ref);
@@ -534,7 +514,6 @@ async function killPlayer(
 
   if (playerToKill.role === 'hunter' && gameData.settings.hunter) {
     hunterTriggeredId = playerId;
-    // Don't mark as dead yet, hunter shoots first
   } else if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) {
     transaction.update(doc(db, 'games', gameId), { wolfCubRevengeRound: gameData.currentRound + 1 });
     transaction.update(playerRef, { isAlive: false });
@@ -547,7 +526,7 @@ async function killPlayer(
     const otherLoverPlayer = playersData.find(p => p.userId === otherLoverId);
     if (otherLoverPlayer && otherLoverPlayer.isAlive) {
       if (otherLoverPlayer.role === 'hunter' && gameData.settings.hunter) {
-         if (!hunterTriggeredId) { // Prevent overwriting the first hunter
+         if (!hunterTriggeredId) {
             hunterTriggeredId = otherLoverId;
          }
       } else {
@@ -595,10 +574,8 @@ async function checkGameOver(db: Firestore, gameId: string, transaction: Transac
     let message = "";
     let winners: string[] = [];
 
-    // 1. Check for Lovers' victory first, as it's a special condition.
     if (gameData.lovers) {
         const aliveLovers = alivePlayers.filter(p => gameData.lovers!.includes(p.userId));
-        // If the only players left alive are the lovers, they win.
         if (aliveLovers.length === alivePlayers.length && alivePlayers.length >= 2) {
             gameOver = true;
             const lover1 = players.find(p => p.userId === gameData.lovers![0]);
@@ -608,7 +585,6 @@ async function checkGameOver(db: Firestore, gameId: string, transaction: Transac
         }
     }
     
-    // 2. If lovers haven't won, check for other conditions.
     if (!gameOver) {
         if (aliveWerewolves.length === 0) {
             gameOver = true;
@@ -683,7 +659,6 @@ export async function processNight(db: Firestore, gameId: string) {
             const werewolfVotes = actions.filter(a => a.actionType === 'werewolf_kill');
             if (werewolfVotes.length > 0) {
                 const voteCounts = werewolfVotes.reduce((acc, vote) => {
-                    // Handle single and double votes
                     const targets = vote.targetId.split('|');
                     targets.forEach(targetId => {
                         if(targetId) acc[targetId] = (acc[targetId] || 0) + 1;
@@ -702,8 +677,6 @@ export async function processNight(db: Firestore, gameId: string) {
                     }
                 }
                 
-                // If there's a tie, randomly select among the tied players.
-                // If wolf cub revenge is active, wolves select 2 players.
                 const killCount = game.wolfCubRevengeRound === game.currentRound ? 2 : 1;
                 while (killedByWerewolfIds.length < killCount && mostVotedPlayerIds.length > 0) {
                     const randomIndex = Math.floor(Math.random() * mostVotedPlayerIds.length);
@@ -718,10 +691,8 @@ export async function processNight(db: Firestore, gameId: string) {
             }
 
             let messages: string[] = [];
-            // Priest save is absolute
             const finalSavedPlayerIds = [savedByDoctorId, savedByHechiceraId, savedByGuardianId].filter(id => id && id !== savedByPriestId).filter(Boolean) as string[];
 
-            // Process werewolf attacks
             for (const killedId of killedByWerewolfIds) {
                  const targetPlayer = playersData.find(p => p.userId === killedId);
 
@@ -751,12 +722,10 @@ export async function processNight(db: Firestore, gameId: string) {
                 }
             }
 
-            // Process poison attack
             if (killedByPoisonId && !killedByWerewolfIds.includes(killedByPoisonId)) {
                 if (killedByPoisonId === savedByPriestId) {
                     messages.push("Una bendición ha protegido a un aldeano de un veneno mortal.");
                 } else if (finalSavedPlayerIds.includes(killedByPoisonId)) {
-                     // Technically, only priest can save from poison based on rules. But lets make save potion work too.
                     messages.push("La poción de una hechicera ha salvado a alguien de un veneno.");
                 }
                  else {
@@ -805,7 +774,7 @@ export async function processNight(db: Firestore, gameId: string) {
 
             const nextPhaseUpdate: {phase: Game['phase'], wolfCubRevengeRound?: number} = { phase: 'day' };
             if (game.wolfCubRevengeRound === game.currentRound) {
-                nextPhaseUpdate.wolfCubRevengeRound = 0; // Reset revenge
+                nextPhaseUpdate.wolfCubRevengeRound = 0;
             }
 
             transaction.update(gameRef, nextPhaseUpdate);
@@ -911,7 +880,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                 round: game.currentRound,
                 type: 'vote_result',
                 message: eventMessage,
-                data: { lynchedPlayerId: lynchedPlayerId }, // Log the ID of the person who would have been lynched if not for prince
+                data: { lynchedPlayerId: lynchedPlayerId },
                 createdAt: Timestamp.now(),
             });
             
@@ -1008,22 +977,17 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
 
             const targetKillResult = await killPlayer(db, transaction, gameId, targetId, game, playersData);
             
-            // If the hunter shot another hunter, we need to resolve that before continuing
             if (targetKillResult.hunterId) {
                  transaction.update(gameRef, { 
                     pendingHunterShot: targetKillResult.hunterId, 
                     phase: 'hunter_shot' 
                 });
-                return; // End transaction here, the next hunter will trigger a new one
+                return;
             }
 
             const isGameOver = await checkGameOver(db, gameId, transaction);
             if (isGameOver) return;
             
-            // This logic needs to know if the hunter died during the day or night
-            // A simple way is to check if it's round 0, which means pre-game, or if the vote just happened.
-            // A better approach is needed, maybe store originating phase. For now, assume it goes to the opposite phase.
-            // Let's check a vote event for the same round to decide.
             const voteEventQuery = query(collection(db, 'game_events'), 
                 where('gameId', '==', gameId),
                 where('round', '==', game.currentRound),
@@ -1112,19 +1076,13 @@ async function checkEndNightEarly(db: Firestore, gameId: string) {
     if (game.settings.hechicera) {
         const hechicera = alivePlayers.find(p => p.role === 'hechicera');
         if (hechicera && (!hechicera.potions?.poison || !hechicera.potions?.save)) {
-             // A hechicera might not act, so this is tricky. For now, let's assume they MUST act if they have potions.
-             // A better implementation would have a "skip" action. For now, we consider them required if they have potions.
              requiredPlayerIds.add(hechicera.userId);
         }
     }
     
     const submittedPlayerIds = new Set(submittedActions.map(a => a.playerId));
 
-    // A special case for Hechicera: if they used a potion, they've acted.
-    // The current submittedActions only tracks one action type per player. This is a flaw.
-    // Let's refine the check.
     const allActionsSubmitted = Array.from(requiredPlayerIds).every(id => {
-        // A Hechicera might submit 'poison' or 'save'.
         if (alivePlayers.find(p => p.userId === id)?.role === 'hechicera') {
             return submittedActions.some(a => a.playerId === id);
         }
@@ -1155,7 +1113,6 @@ async function checkEndDayEarly(db: Firestore, gameId: string) {
     }
 }
 
-// AI Actions
 const toJSONCompatible = (obj: any): any => {
     if (obj === null || obj === undefined) return obj;
     if (typeof obj.toDate === 'function') {
@@ -1228,7 +1185,6 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
             
              const isValidMultiTarget = (ids: string | undefined): ids is string => {
                 if (!ids) return false;
-                // For Cupid, target can be self, who might be dead if shot.
                 return ids.split('|').every(id => players.some(p => p.userId === id));
             }
 
