@@ -36,7 +36,6 @@ export function CurrentPlayerRole({ player }: CurrentPlayerRoleProps) {
                 fill
                 className="object-contain rounded-full bg-background/50 p-1"
                 unoptimized
-                onError={(e) => { e.currentTarget.src = '/roles/villager.png'; }}
             />
           </div>
           <span className={cn("font-bold", details.color)}>{details.name}</span>
@@ -66,7 +65,6 @@ export function CurrentPlayerRole({ player }: CurrentPlayerRoleProps) {
                     fill
                     className="object-contain"
                     unoptimized
-                    onError={(e) => { e.currentTarget.src = '/roles/villager.png'; }}
                 />
             </div>
             <p className="text-base text-muted-foreground text-center md:text-left">
