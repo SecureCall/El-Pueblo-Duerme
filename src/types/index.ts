@@ -103,8 +103,8 @@ export interface Player {
   votedFor: string | null; // userId
   displayName: string;
   joinedAt: Timestamp;
-  lastHealedRound?: number;
-  isAI?: boolean;
+  lastHealedRound: number;
+  isAI: boolean;
   potions?: {
     poison?: number | null, // round it was used
     save?: number | null, // round it was used

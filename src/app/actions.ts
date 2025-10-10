@@ -89,6 +89,7 @@ export async function createGame(
     },
     priestSelfHealUsed: false,
     princeRevealed: false,
+    lastHealedRound: 0,
   };
 
   await setDoc(playerRef, playerData);
@@ -143,6 +144,7 @@ export async function joinGame(
     },
     priestSelfHealUsed: false,
     princeRevealed: false,
+    lastHealedRound: 0,
   };
   await setDoc(playerRef, playerData);
   return { success: true };
@@ -259,7 +261,7 @@ export async function startGame(gameId: string, creatorId: string) {
             const availableAINames = AI_NAMES.filter(name => !players.some(p => p.displayName === name));
 
             for (let i = 0; i < aiPlayerCount; i++) {
-                const aiUserId = `ai_${crypto.randomUUID()}`;
+                const aiUserId = `ai_${Date.now()}_${i}`;
                 const aiName = availableAINames[i % availableAINames.length] || `Bot ${i + 1}`;
                 
                 const aiPlayerRef = doc(collection(db, 'players'));
@@ -276,6 +278,7 @@ export async function startGame(gameId: string, creatorId: string) {
                     potions: { poison: null, save: null },
                     priestSelfHealUsed: false,
                     princeRevealed: false,
+                    lastHealedRound: 0,
                 };
 
                 batch.set(aiPlayerRef, aiPlayerData);
