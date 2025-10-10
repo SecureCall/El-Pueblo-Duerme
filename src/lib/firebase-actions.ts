@@ -14,6 +14,7 @@ import {
   addDoc,
   increment,
   runTransaction,
+  where,
   type Firestore,
   type Transaction,
   type Timestamp as FirestoreTimestamp,
@@ -1269,5 +1270,7 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
         console.error("Error in AI Actions:", e);
     }
 }
+
+    
 
     
