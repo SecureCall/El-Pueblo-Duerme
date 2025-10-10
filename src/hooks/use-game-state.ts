@@ -12,7 +12,6 @@ import {
   type DocumentData, 
   type DocumentSnapshot, 
   orderBy, 
-  getFirestore,
 } from 'firebase/firestore';
 import type { Game, Player, GameEvent } from '@/types';
 import { useFirebase } from '@/firebase';
@@ -52,7 +51,7 @@ export const useGameState = (gameId: string) => {
         setLoading(false);
     });
 
-    const playersQuery = query(collection(firestore, 'players'), where('gameId', '==', gameId));
+    const playersQuery = query(collection(firestore, 'games', gameId, 'players'));
     const unsubscribePlayers = onSnapshot(playersQuery, (snapshot: QuerySnapshot<DocumentData>) => {
       const playersData = snapshot.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
       setPlayers(playersData.sort((a, b) => a.joinedAt.toMillis() - b.joinedAt.toMillis()));

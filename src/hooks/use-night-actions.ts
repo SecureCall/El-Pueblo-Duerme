@@ -17,8 +17,7 @@ export function useNightActions(gameId: string, round: number, playerId: string)
         };
 
         const actionsQuery = query(
-            collection(firestore, 'night_actions'),
-            where('gameId', '==', gameId),
+            collection(firestore, 'games', gameId, 'night_actions'),
             where('round', '==', round),
             where('playerId', '==', playerId)
         );

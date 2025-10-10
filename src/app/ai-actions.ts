@@ -20,10 +20,10 @@ import { submitNightAction, submitVote, submitHunterShot, submitCupidAction } fr
 
 
 async function getPlayerDocSnapshot(gameId: string, userId: string): Promise<DocumentSnapshot<DocumentData> | null> {
-    const q = query(collection(db, 'players'), where('gameId', '==', gameId), where('userId', '==', userId));
-    const snapshot = await getDocs(q);
-    if (snapshot.empty) return null;
-    return snapshot.docs[0];
+    const playerRef = doc(db, 'games', gameId, 'players', userId);
+    const snapshot = await getDoc(playerRef);
+    if (!snapshot.exists()) return null;
+    return snapshot;
 }
 
 // Helper to convert Firestore Timestamps to something JSON-serializable (ISO strings)
@@ -53,7 +53,7 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
         if (!gameDoc.exists()) return;
         const game = { ...gameDoc.data() as Game, id: gameDoc.id };
 
-        const playersSnap = await getDocs(query(collection(db, 'players'), where('gameId', '==', gameId)));
+        const playersSnap = await getDocs(query(collection(db, 'games', gameId, 'players')));
         const players = playersSnap.docs.map(p => ({ ...p.data() as Player, id: p.id }));
         
         const eventsSnap = await getDocs(query(collection(db, 'game_events'), where('gameId', '==', gameId), orderBy('createdAt', 'asc')));
@@ -63,7 +63,7 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
         const alivePlayers = players.filter(p => p.isAlive);
 
         for (const ai of aiPlayers) {
-             const nightActionsQuery = query(collection(db, 'night_actions'), where('gameId', '==', gameId), where('round', '==', game.currentRound), where('playerId', '==', ai.userId));
+             const nightActionsQuery = query(collection(db, 'games', gameId, 'night_actions'), where('round', '==', game.currentRound), where('playerId', '==', ai.userId));
             const existingNightActions = await getDocs(nightActionsQuery);
             if (phase === 'night' && !existingNightActions.empty) continue;
             
