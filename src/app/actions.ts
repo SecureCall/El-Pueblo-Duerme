@@ -40,7 +40,7 @@ async function getPlayerRef(gameId: string, userId: string) {
     return snapshot.docs[0].ref;
 }
 
-const createPlayerObject = (userId: string, gameId: string, displayName: string, isCreator = false): Omit<Player, 'id'> => ({
+const createPlayerObject = (userId: string, gameId: string, displayName: string, isAI: boolean = false): Omit<Player, 'id'> => ({
     userId,
     gameId,
     displayName,
@@ -48,7 +48,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     isAlive: true,
     votedFor: null,
     joinedAt: Timestamp.now(),
-    isAI: false,
+    isAI,
     lastHealedRound: 0,
     potions: {
         poison: null,
@@ -95,10 +95,7 @@ export async function createGame(
   batch.set(gameRef, gameData);
 
   const playerRef = doc(collection(db, "players"));
-  const playerData: Player = {
-    id: playerRef.id,
-    ...createPlayerObject(userId, gameId, displayName, true)
-  };
+  const playerData = createPlayerObject(userId, gameId, displayName, false);
   batch.set(playerRef, playerData);
 
   await batch.commit();
@@ -139,10 +136,7 @@ export async function joinGame(
   });
 
   const playerRef = doc(collection(db, "players"));
-  const playerData: Player = {
-    id: playerRef.id,
-    ...createPlayerObject(userId, gameId, displayName)
-  };
+  const playerData = createPlayerObject(userId, gameId, displayName, false);
   batch.set(playerRef, playerData);
   
   await batch.commit();
@@ -264,24 +258,10 @@ export async function startGame(gameId: string, creatorId: string) {
                 const aiName = availableAINames[i % availableAINames.length] || `Bot ${i + 1}`;
                 
                 const aiPlayerRef = doc(collection(db, 'players'));
-                const aiPlayerData: Player = {
-                    id: aiPlayerRef.id,
-                    userId: aiUserId,
-                    gameId: gameId,
-                    role: null,
-                    isAlive: true,
-                    votedFor: null,
-                    displayName: aiName,
-                    joinedAt: Timestamp.now(),
-                    isAI: true,
-                    potions: { poison: null, save: null },
-                    priestSelfHealUsed: false,
-                    princeRevealed: false,
-                    lastHealedRound: 0,
-                };
+                const aiPlayerData = createPlayerObject(aiUserId, gameId, aiName, true);
 
                 batch.set(aiPlayerRef, aiPlayerData);
-                finalPlayers.push(aiPlayerData);
+                finalPlayers.push({ ...aiPlayerData, id: aiPlayerRef.id }); // Add to local array for role assignment
                 finalPlayerIds.push(aiUserId);
             }
             
@@ -1069,7 +1049,5 @@ async function checkEndDayEarly(gameId: string) {
         await processVotes(gameId);
     }
 }
-
-    
 
     
