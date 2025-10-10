@@ -81,6 +81,13 @@ export async function createGame(
     votedFor: null,
     displayName: displayName,
     joinedAt: Timestamp.now(),
+    isAI: false,
+    potions: {
+        poison: undefined,
+        save: undefined,
+    },
+    priestSelfHealUsed: false,
+    princeRevealed: false,
   };
 
   await setDoc(playerRef, playerData);
@@ -1049,5 +1056,7 @@ async function checkEndDayEarly(gameId: string) {
         await processVotes(gameId);
     }
 }
+
+    
 
     
