@@ -103,7 +103,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         name: "Guardián",
         description: "Cada noche, eliges a un jugador para protegerlo. Ese jugador no podrá ser asesinado por los lobos. No puedes protegerte a ti mismo.",
         atmosphere: "Tu escudo es la última esperanza para los inocentes.",
-        image: "/roles/Guardian.png",
+        image: "/roles/guardian.png",
         color: "text-gray-300",
         bgImageId: "role-bg-doctor"
     },
