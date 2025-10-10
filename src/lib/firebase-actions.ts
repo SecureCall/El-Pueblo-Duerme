@@ -277,7 +277,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
             
             const playersCollectionPath = `games/${gameId}/players`;
             const playersQuery = query(collection(db, playersCollectionPath));
-            failingOp = { path: playersCollectionPath, operation: 'list' };
+            
             const playersSnap = await transaction.get(playersQuery);
             const players = playersSnap.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
 
