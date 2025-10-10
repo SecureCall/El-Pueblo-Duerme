@@ -21,6 +21,8 @@ export function StartGameButton({ game, playerCount }: StartGameButtonProps) {
   const { userId, isSessionLoaded } = useGameSession();
   const { firestore } = useFirebase();
 
+  // The total number of players will be the max players if filling with AI,
+  // otherwise it's the current number of human players.
   const totalPlayers = game.settings.fillWithAI ? game.maxPlayers : playerCount;
   const canStart = totalPlayers >= 3;
 
@@ -43,6 +45,8 @@ export function StartGameButton({ game, playerCount }: StartGameButtonProps) {
       });
       setIsLoading(false);
     }
+    // On success, the component will unmount as the game status changes,
+    // so no need to setIsLoading(false) on success.
   };
 
   return (
@@ -56,3 +60,5 @@ export function StartGameButton({ game, playerCount }: StartGameButtonProps) {
     </Button>
   );
 }
+
+    
