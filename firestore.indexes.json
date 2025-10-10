@@ -12,7 +12,7 @@
     },
     {
       "collectionGroup": "players",
-      "queryScope": "COLLECTION",
+      "queryScope": "COLLECTION_GROUP",
       "fields": [
         {
           "fieldPath": "joinedAt",
