@@ -2,21 +2,9 @@
 'use server';
 
 import { ai } from '@/ai/genkit';
-import { z } from 'zod';
 import type { TakeAITurnInput, TakeAITurnOutput } from '@/types';
+import { TakeAITurnInputSchema, TakeAITurnOutputSchema } from '@/types';
 
-// Zod schemas are defined here to keep them in a server-only context
-export const TakeAITurnInputSchema = z.object({
-    game: z.string().describe("A JSON string representing the entire game state object."),
-    players: z.string().describe("A JSON string representing an array of all player objects in the game."),
-    events: z.string().describe("A JSON string representing an array of all game events that have occurred."),
-    currentPlayer: z.string().describe("A JSON string representing the player object for the AI that is taking its turn."),
-});
-
-export const TakeAITurnOutputSchema = z.object({
-    reasoning: z.string().describe("Your step-by-step thought process to arrive at this action."),
-    action: z.string().describe("The action to take. Format: 'TYPE:TARGET_ID' or 'TYPE:TARGET_ID1|TARGET_ID2' or 'TYPE'. Examples: 'VOTE:player123', 'KILL:player456', 'KILL:player456|player789', 'HEAL:player789', 'CHECK:playerABC', 'SHOOT:playerXYZ', 'POISON:player111', 'SAVE:player222', 'PROTECT:player333', 'ENCHANT:playerABC|playerDEF'. If no action is possible, return 'NONE'."),
-});
 
 export async function takeAITurn(input: TakeAITurnInput): Promise<TakeAITurnOutput> {
     return takeAITurnFlow(input);
