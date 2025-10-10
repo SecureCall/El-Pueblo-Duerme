@@ -67,6 +67,7 @@ export async function createGame(
         ...settings,
         werewolves: werewolfCount,
     },
+    pendingHunterShot: undefined,
   };
 
   await setDoc(gameRef, gameData);
@@ -272,6 +273,9 @@ export async function startGame(gameId: string, creatorId: string) {
                     displayName: aiName,
                     joinedAt: Timestamp.now(),
                     isAI: true,
+                    potions: { poison: null, save: null },
+                    priestSelfHealUsed: false,
+                    princeRevealed: false,
                 };
 
                 batch.set(aiPlayerRef, aiPlayerData);
@@ -1063,9 +1067,3 @@ async function checkEndDayEarly(gameId: string) {
         await processVotes(gameId);
     }
 }
-
-    
-
-    
-
-    
