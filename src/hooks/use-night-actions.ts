@@ -3,20 +3,21 @@
 
 import { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { useFirebase } from '@/firebase';
 
 
 export function useNightActions(gameId: string, round: number, playerId: string) {
+    const { firestore } = useFirebase();
     const [hasSubmitted, setHasSubmitted] = useState(false);
 
     useEffect(() => {
-        if (!gameId || !playerId || round === 0) {
+        if (!gameId || !playerId || round === 0 || !firestore) {
             setHasSubmitted(false);
             return;
         };
 
         const actionsQuery = query(
-            collection(db, 'night_actions'),
+            collection(firestore, 'night_actions'),
             where('gameId', '==', gameId),
             where('round', '==', round),
             where('playerId', '==', playerId)
@@ -27,7 +28,7 @@ export function useNightActions(gameId: string, round: number, playerId: string)
         });
 
         return () => unsubscribe();
-    }, [gameId, round, playerId]);
+    }, [gameId, round, playerId, firestore]);
 
     return { hasSubmitted };
 }

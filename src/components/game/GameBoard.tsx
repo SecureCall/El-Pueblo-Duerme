@@ -6,7 +6,8 @@ import { RoleReveal } from "./RoleReveal";
 import { PlayerGrid } from "./PlayerGrid";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { useEffect, useState } from "react";
-import { updateDoc, doc, getFirestore } from "firebase/firestore";
+import { updateDoc, doc } from "firebase/firestore";
+import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
 import { processNight, processVotes } from "@/app/actions";
 import { runAIActions } from "@/app/ai-actions";
@@ -18,7 +19,6 @@ import { GameChronicle } from "./GameChronicle";
 import { PhaseTimer } from "./PhaseTimer";
 import { CurrentPlayerRole } from "./CurrentPlayerRole";
 import { GameMusic } from "./GameMusic";
-import { getApp } from "firebase/app";
 
 interface GameBoardProps {
   game: Game;
@@ -28,6 +28,7 @@ interface GameBoardProps {
 }
 
 export function GameBoard({ game, players, currentPlayer, events }: GameBoardProps) {
+  const { firestore } = useFirebase();
   const [showRole, setShowRole] = useState(game.phase === 'role_reveal');
 
   useEffect(() => {
@@ -54,9 +55,11 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId) {
         // Add a delay to allow all players to see their roles
         setTimeout(async () => {
-           await updateDoc(doc(getFirestore(getApp()), "games", game.id), { 
-                phase: 'night',
-            });
+           if (firestore) {
+             await updateDoc(doc(firestore, "games", game.id), { 
+                  phase: 'night',
+              });
+           }
         }, 5000); 
     }
   };
@@ -241,9 +244,3 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     </div>
   );
 }
-
-  
-
-    
-
-    

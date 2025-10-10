@@ -12,12 +12,14 @@ import {
   type DocumentData, 
   type DocumentSnapshot, 
   orderBy, 
+  getFirestore,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import type { Game, Player, GameEvent } from '@/types';
+import { useFirebase } from '@/firebase';
 
 
 export const useGameState = (gameId: string) => {
+  const { firestore } = useFirebase();
   const [game, setGame] = useState<Game | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [events, setEvents] = useState<GameEvent[]>([]);
@@ -25,15 +27,15 @@ export const useGameState = (gameId: string) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!gameId) {
+    if (!gameId || !firestore) {
         setLoading(false);
-        setError("No game ID provided.");
+        if (!gameId) setError("No game ID provided.");
         return;
     };
 
     setLoading(true);
 
-    const gameRef = doc(db, 'games', gameId);
+    const gameRef = doc(firestore, 'games', gameId);
     const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
         setGame({ ...snapshot.data() as Game, id: snapshot.id });
@@ -50,7 +52,7 @@ export const useGameState = (gameId: string) => {
         setLoading(false);
     });
 
-    const playersQuery = query(collection(db, 'players'), where('gameId', '==', gameId));
+    const playersQuery = query(collection(firestore, 'players'), where('gameId', '==', gameId));
     const unsubscribePlayers = onSnapshot(playersQuery, (snapshot: QuerySnapshot<DocumentData>) => {
       const playersData = snapshot.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
       setPlayers(playersData.sort((a, b) => a.joinedAt.toMillis() - b.joinedAt.toMillis()));
@@ -60,7 +62,7 @@ export const useGameState = (gameId: string) => {
     });
     
     const eventsQuery = query(
-        collection(db, 'game_events'), 
+        collection(firestore, 'game_events'), 
         where('gameId', '==', gameId),
         orderBy('createdAt', 'asc') // Fetch in ascending order
     );
@@ -77,7 +79,7 @@ export const useGameState = (gameId: string) => {
       unsubscribePlayers();
       unsubscribeEvents();
     };
-  }, [gameId]);
+  }, [gameId, firestore]);
 
   return { game, players, events, loading, error };
 };

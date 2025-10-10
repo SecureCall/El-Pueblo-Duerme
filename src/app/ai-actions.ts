@@ -13,11 +13,12 @@ import {
   type DocumentData, 
   type DocumentSnapshot 
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getSdks } from "@/firebase";
 import type { Game, Player, GameEvent, TakeAITurnInput } from "@/types";
 import { takeAITurn } from "@/ai/flows/take-ai-turn-flow";
 import { submitNightAction, submitVote, submitHunterShot, submitCupidAction } from "./actions";
 
+const { firestore: db } = getSdks();
 
 async function getPlayerDocSnapshot(gameId: string, userId: string): Promise<DocumentSnapshot<DocumentData> | null> {
     const q = query(collection(db, 'players'), where('gameId', '==', gameId), where('userId', '==', userId));

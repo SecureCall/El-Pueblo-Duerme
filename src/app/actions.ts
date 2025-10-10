@@ -20,8 +20,10 @@ import {
   type Transaction,
   type Timestamp as FirestoreTimestamp,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getSdks } from "@/firebase";
 import type { Game, Player, NightAction, GameEvent } from "@/types";
+
+const { firestore: db } = getSdks();
 
 
 function generateGameId(length = 5) {
