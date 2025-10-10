@@ -17,30 +17,29 @@ export type PlayerRole =
   "lycanthrope" |
   "twin" |
   "hechicera" |
-  "scapegoat" |
-  "savior" |
-  "ancient" |
-  "fool" |
-  "angel" |
-  "judge" |
-  "raven" |
-  "knight" |
-  "bear_trainer" |
-  "fox" |
+  "ghost" |
+  "virginia_woolf" |
+  "leprosa" |
+  "river_siren" |
+  "lookout" |
+  "troublemaker" |
+  "silencer" |
+  "seer_apprentice" |
+  "elder_leader" |
   // Lobos
   "werewolf" |
   "wolf_cub" |
   "cursed" |
-  "great_werewolf" |
-  "white_werewolf" |
-  // Solitarios / Otros
-  "thief" |
-  "wild_child" |
-  "piper" |
-  "pyromaniac" |
-  "two_sisters" |
-  "three_brothers" |
-  "actor" |
+  "seeker_fairy" |
+  "sleeping_fairy" |
+  // Especiales
+  "shapeshifter" |
+  "drunk_man" |
+  "cult_leader" |
+  "fisherman" |
+  "vampire" |
+  "witch" |
+  "banshee" |
   null;
 
 
@@ -57,39 +56,37 @@ export interface Game {
   settings: {
     werewolves: number;
     fillWithAI: boolean;
-    // Basic roles
+    // Roles from user
     seer: boolean;
     doctor: boolean;
     hunter: boolean;
     cupid: boolean;
-    hechicera: boolean;
-    lycanthrope: boolean;
-    prince: boolean;
-    twin: boolean;
     guardian: boolean;
     priest: boolean;
+    prince: boolean;
+    lycanthrope: boolean;
+    twin: boolean;
+    hechicera: boolean;
+    ghost: boolean;
+    virginia_woolf: boolean;
+    leprosa: boolean;
+    river_siren: boolean;
+    lookout: boolean;
+    troublemaker: boolean;
+    silencer: boolean;
+    seer_apprentice: boolean;
+    elder_leader: boolean;
     wolf_cub: boolean;
     cursed: boolean;
-    // Additional roles
-    great_werewolf: boolean;
-    white_werewolf: boolean;
-    scapegoat: boolean;
-    savior: boolean;
-    ancient: boolean;
-    fool: boolean;
-    angel: boolean;
-    thief: boolean;
-    wild_child: boolean;
-    piper: boolean;
-    pyromaniac: boolean;
-    judge: boolean;
-    raven: boolean;
-    knight: boolean;
-    fox: boolean;
-    bear_trainer: boolean;
-    two_sisters: boolean;
-    three_brothers: boolean;
-    actor: boolean;
+    seeker_fairy: boolean;
+    sleeping_fairy: boolean;
+    shapeshifter: boolean;
+    drunk_man: boolean;
+    cult_leader: boolean;
+    fisherman: boolean;
+    vampire: boolean;
+    witch: boolean;
+    banshee: boolean;
   };
   phaseEndsAt?: Timestamp;
   lovers?: [string, string];

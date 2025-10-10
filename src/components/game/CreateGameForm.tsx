@@ -39,49 +39,40 @@ const FormSchema = z.object({
   displayName: z.string().min(2, { message: "Tu nombre debe tener al menos 2 caracteres." }).max(20),
   maxPlayers: z.number().min(3).max(20),
   fillWithAI: z.boolean(),
-  // Roles base
+  // Roles
   seer: z.boolean(),
   doctor: z.boolean(),
   hunter: z.boolean(),
-  cupid: z.boolean(),
-  hechicera: z.boolean(),
-  lycanthrope: z.boolean(),
-  prince: z.boolean(),
-  twin: z.boolean(),
+  cupid: z.boolean,
   guardian: z.boolean(),
   priest: z.boolean(),
+  prince: z.boolean(),
+  lycanthrope: z.boolean(),
+  twin: z.boolean(),
+  hechicera: z.boolean(),
+  ghost: z.boolean(),
+  virginia_woolf: z.boolean(),
+  leprosa: z.boolean(),
+  river_siren: z.boolean(),
+  lookout: z.boolean(),
+  troublemaker: z.boolean(),
+  silencer: z.boolean(),
+  seer_apprentice: z.boolean(),
+  elder_leader: z.boolean(),
   wolf_cub: z.boolean(),
   cursed: z.boolean(),
-  // Roles adicionales
-  great_werewolf: z.boolean(),
-  white_werewolf: z.boolean(),
-  scapegoat: z.boolean(),
-  savior: z.boolean(),
-  ancient: z.boolean(),
-  fool: z.boolean(),
-  angel: z.boolean(),
-  thief: z.boolean(),
-  wild_child: z.boolean(),
-  piper: z.boolean(),
-  pyromaniac: z.boolean(),
-  judge: z.boolean(),
-  raven: z.boolean(),
-  knight: z.boolean(),
-  fox: z.boolean(),
-  bear_trainer: z.boolean(),
-  two_sisters: z.boolean(),
-  three_brothers: z.boolean(),
-  actor: z.boolean(),
+  seeker_fairy: z.boolean(),
+  sleeping_fairy: z.boolean(),
+  shapeshifter: z.boolean(),
+  drunk_man: z.boolean(),
+  cult_leader: z.boolean(),
+  fisherman: z.boolean(),
+  vampire: z.boolean(),
+  witch: z.boolean(),
+  banshee: z.boolean(),
 });
 
-const specialRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[] = [
-    'seer', 'doctor', 'hunter', 'cupid', 'hechicera', 'lycanthrope', 'prince', 
-    'twin', 'guardian', 'priest', 'wolf_cub', 'cursed', 'great_werewolf', 
-    'white_werewolf', 'scapegoat', 'savior', 'ancient', 'fool', 'angel', 'thief', 
-    'wild_child', 'piper', 'pyromaniac', 'judge', 'raven', 'knight', 'fox', 
-    'bear_trainer', 'two_sisters', 'three_brothers', 'actor'
-];
-
+const specialRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[] = Object.keys(roleDetails).filter(role => role !== 'villager' && role !== 'werewolf') as Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[];
 
 export function CreateGameForm() {
   const router = useRouter();
@@ -104,31 +95,12 @@ export function CreateGameForm() {
       hechicera: true,
       guardian: true,
       // Default disabled roles
-      lycanthrope: false,
-      prince: false,
-      twin: false,
-      priest: false,
-      wolf_cub: false,
-      cursed: false,
-      great_werewolf: false,
-      white_werewolf: false,
-      scapegoat: false,
-      savior: false,
-      ancient: false,
-      fool: false,
-      angel: false,
-      thief: false,
-      wild_child: false,
-      piper: false,
-      pyromaniac: false,
-      judge: false,
-      raven: false,
-      knight: false,
-      fox: false,
-      bear_trainer: false,
-      two_sisters: false,
-      three_brothers: false,
-      actor: false,
+      ...specialRoles.reduce((acc, role) => {
+        if (!['seer', 'doctor', 'hunter', 'cupid', 'hechicera', 'guardian'].includes(role)) {
+          (acc as any)[role] = false;
+        }
+        return acc;
+      }, {}),
     },
   });
 
@@ -227,7 +199,7 @@ export function CreateGameForm() {
                     <FormField
                       key={roleId}
                       control={form.control}
-                      name={roleId}
+                      name={roleId as keyof z.infer<typeof FormSchema>}
                       render={({ field }) => (
                         <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 bg-background/50">
                           <FormControl>
