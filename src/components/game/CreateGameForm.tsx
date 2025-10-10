@@ -138,10 +138,16 @@ export function CreateGameForm() {
 
     const { gameName, displayName: pName, maxPlayers, fillWithAI, ...roles } = data;
 
+    // Ensure all role settings are booleans (not undefined)
+    const sanitizedRoles = specialRoles.reduce((acc, roleId) => {
+        acc[roleId] = !!roles[roleId as keyof typeof roles];
+        return acc;
+    }, {} as Record<Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>, boolean>);
+
     const gameSettings = {
         fillWithAI,
         werewolves: Math.max(1, Math.floor(data.maxPlayers / 5)),
-        ...roles
+        ...sanitizedRoles
     };
     
     const response = await createGame(
