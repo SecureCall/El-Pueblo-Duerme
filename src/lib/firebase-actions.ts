@@ -93,18 +93,21 @@ export async function createGame(
       },
       pendingHunterShot: null,
       lovers: null,
-      wolfCubRevengeRound: 0,
       twins: null,
+      wolfCubRevengeRound: 0,
   };
   
   try {
+    // This part should be allowed by "allow create: if request.auth.uid == request.resource.data.creator"
     await setDoc(gameRef, gameData);
     
     // Now that the game is created, join the creator to it.
+    // This part should be allowed by "allow write: if request.auth.uid == userId"
     const joinResult = await joinGame(db, gameId, userId, displayName);
     if (joinResult.error) {
-      // Propagate the error from joinGame
-      return { error: joinResult.error };
+      // This might happen if the joinGame transaction fails for other reasons.
+      // We are not deleting the game for simplicity, it will be an empty game.
+      return { error: `La partida se creó, pero no se pudo unir: ${joinResult.error}` };
     }
 
     return { gameId };
@@ -319,7 +322,8 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
                 });
             }
             
-            if (finalPlayers.length < 3) {
+            const totalPlayers = game.settings.fillWithAI ? game.maxPlayers : finalPlayers.length;
+            if (totalPlayers < 3) {
                 throw new Error('Se necesitan al menos 3 jugadores para comenzar.');
             }
             
@@ -351,9 +355,11 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
     } catch (e: any) {
         if (e.code === 'permission-denied') {
             const permissionError = new FirestorePermissionError({
+                // This transaction is complex. The most likely failure is creating an AI player.
+                // We'll report the error as an attempt to 'write' to the game document, as that's the root of the transaction.
                 path: gameRef.path,
-                operation: 'update',
-                requestResourceData: { status: 'in_progress' },
+                operation: 'write', 
+                requestResourceData: { status: 'in_progress' }, // The final intended state change
             });
             errorEmitter.emit('permission-error', permissionError);
             return { error: "Permiso denegado al iniciar la partida." };
@@ -1198,7 +1204,7 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
             const serializableEvents = toJSONCompatible(events);
             const serializableCurrentPlayer = toJSONCompatible(ai);
 
-            const aiInput: TakeAITurnInput = {
+            const aiInput = {
                 game: JSON.stringify(serializableGame),
                 players: JSON.stringify(serializablePlayers),
                 events: JSON.stringify(serializableEvents),
@@ -1286,3 +1292,5 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
         console.error("Error in AI Actions:", e);
     }
 }
+
+    
