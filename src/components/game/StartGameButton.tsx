@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -15,10 +16,18 @@ interface StartGameButtonProps {
 export function StartGameButton({ gameId, playerCount }: StartGameButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  const { userId } = useGameSession();
+  const { userId, isSessionLoaded } = useGameSession();
   const canStart = playerCount >= 3;
 
   const handleStartGame = async () => {
+    if (!isSessionLoaded || !userId) {
+       toast({
+          variant: "destructive",
+          title: "Error",
+          description: "La sesión no está cargada.",
+        });
+      return;
+    }
     setIsLoading(true);
     const result = await startGame(gameId, userId); // creatorId check is on server
     if (result.error) {
@@ -34,7 +43,7 @@ export function StartGameButton({ gameId, playerCount }: StartGameButtonProps) {
   return (
     <Button 
       onClick={handleStartGame} 
-      disabled={isLoading || !canStart} 
+      disabled={isLoading || !canStart || !isSessionLoaded} 
       size="lg" 
       className="font-bold text-xl"
     >

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, SubmitHandler } from "react-hook-form";
 
@@ -27,6 +27,12 @@ export function JoinGameForm() {
       displayName: displayName || "",
     },
   });
+
+  useEffect(() => {
+    if (displayName) {
+        form.setValue("displayName", displayName);
+    }
+  }, [displayName, form]);
 
   const onSubmit: SubmitHandler<JoinGameFormValues> = (data) => {
     // Basic validation

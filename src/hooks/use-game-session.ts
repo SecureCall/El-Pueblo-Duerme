@@ -2,35 +2,47 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-
-// Note: This hook is for client-side use only.
-// It uses localStorage which is not available on the server.
-// The `useEffect` ensures this code runs only on the client.
+import { useAuth } from "@/firebase";
+import { signInAnonymously, onAuthStateChanged, type User } from "firebase/auth";
 
 export function useGameSession() {
-  const [userId, setUserId] = useState<string>("");
+  const auth = useAuth();
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [displayName, setDisplayNameState] = useState<string | null>(null);
   const [isSessionLoaded, setIsSessionLoaded] = useState(false);
 
   useEffect(() => {
-    // This code runs only on the client
-    let storedUserId = localStorage.getItem("werewolf_userId");
-    if (!storedUserId) {
-      storedUserId = crypto.randomUUID();
-      localStorage.setItem("werewolf_userId", storedUserId);
-    }
-    setUserId(storedUserId);
-
     const storedDisplayName = localStorage.getItem("werewolf_displayName");
-    setDisplayNameState(storedDisplayName);
-    
-    setIsSessionLoaded(true);
-  }, []);
+    if (storedDisplayName) {
+      setDisplayNameState(storedDisplayName);
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setFirebaseUser(user);
+        setIsSessionLoaded(true);
+      } else {
+        signInAnonymously(auth).catch((error) => {
+          console.error("Anonymous sign-in failed:", error);
+          // Handle sign-in failure, maybe show an error to the user
+          setIsSessionLoaded(true); // Still finish loading, but with no user
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [auth]);
 
   const setDisplayName = useCallback((name: string) => {
     localStorage.setItem("werewolf_displayName", name);
     setDisplayNameState(name);
   }, []);
 
-  return { userId, displayName, setDisplayName, isSessionLoaded };
+  return { 
+    userId: firebaseUser?.uid || "", // Return real Firebase UID
+    user: firebaseUser,
+    displayName, 
+    setDisplayName, 
+    isSessionLoaded 
+  };
 }

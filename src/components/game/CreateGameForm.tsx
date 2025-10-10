@@ -3,7 +3,7 @@
 
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { HelpCircle, Loader2 } from "lucide-react";
 import Image from "next/image";
 
@@ -73,7 +73,7 @@ const specialRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[] 
 
 export function CreateGameForm() {
   const router = useRouter();
-  const { userId, displayName, setDisplayName } = useGameSession();
+  const { userId, displayName, setDisplayName, isSessionLoaded } = useGameSession();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -114,8 +114,23 @@ export function CreateGameForm() {
       banshee: false,
     },
   });
+  
+  useEffect(() => {
+    if (displayName) {
+      form.setValue('displayName', displayName);
+    }
+  }, [displayName, form]);
 
   async function onSubmit(data: CreateGameFormValues) {
+    if (!isSessionLoaded || !userId) {
+        toast({
+            variant: "destructive",
+            title: "Esperando sesión",
+            description: "Por favor, espera un momento mientras iniciamos tu sesión.",
+        });
+        return;
+    }
+
     setIsSubmitting(true);
     setDisplayName(data.displayName);
 
@@ -263,7 +278,7 @@ export function CreateGameForm() {
               )}
             />
 
-            <Button type="submit" className="w-full font-bold text-lg" disabled={isSubmitting}>
+            <Button type="submit" className="w-full font-bold text-lg" disabled={isSubmitting || !isSessionLoaded}>
               {isSubmitting ? <Loader2 className="animate-spin" /> : "Crear y Unirse"}
             </Button>
           </form>
