@@ -28,7 +28,7 @@
         },
         "players": {
           "type": "array",
-          "description": "References to Users playing the game. (Relationship: Game 1:N Player)",
+          "description": "Array of userIds playing the game.",
           "items": {
             "type": "string"
           }
@@ -109,9 +109,9 @@
         "joinedAt"
       ]
     },
-    "GameLog": {
+    "GameEvent": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "GameLog",
+      "title": "GameEvent",
       "type": "object",
       "description": "Represents a log entry for a specific game.",
       "properties": {
@@ -223,26 +223,21 @@
         }
       },
       {
-        "path": "/games/{gameId}/logs/{logId}",
+        "path": "/events/{eventId}",
         "definition": {
-          "entityName": "GameLog",
+          "entityName": "GameEvent",
           "schema": {
-            "$ref": "#/backend/entities/GameLog"
+            "$ref": "#/backend/entities/GameEvent"
           },
-          "description": "Stores game logs.  Write access restricted to server-side code.",
+          "description": "Stores game logs. Write access is restricted. Read access is granted to any authenticated user.",
           "params": [
             {
-              "name": "gameId",
-              "description": "Unique identifier for the game."
-            },
-            {
-              "name": "logId",
-              "description": "Unique identifier for the game log."
+              "name": "eventId",
+              "description": "Unique identifier for the game event."
             }
           ]
         }
       }
-    ],
-    "reasoning": "The Firestore structure is designed to support the \"El Pueblo Duerme\" game application, emphasizing security, scalability, and ease of debugging.  The core principle is Authorization Independence, achieved through denormalization, avoiding the use of `get()` calls in security rules.  This enables atomic operations and simplifies debugging.\n\n1.  **Games Collection (`/games/{gameId}`):** Stores general game information. Authorization: any authenticated user can read all games. Creation/modification is limited to the game creator.\n\n2.  **Players Collection (`/games/{gameId}/players/{userId}`):** Stores player-specific data for each game. Authorization: ensures players can only access their own data within a given game. Denormalization: The gameId is included in each player document to ensure authorization independence.\n\n3.  **Game Logs Collection (`/games/{gameId}/logs/{logId}`):** Stores logs for each game. Authorization: write access is restricted to server (e.g., Cloud Functions) only, ensuring that game state changes are reliably recorded.  Read access is granted to any authenticated user for debugging/auditing.\n\nThis structure facilitates QAPs (Queries are not Filters).  Because the `players` subcollection is scoped to a `game`, listing players is secure. The `gameId` denormalization enables secure `list` operations."
+    ]
   }
 }
