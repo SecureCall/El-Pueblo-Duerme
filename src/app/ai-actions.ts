@@ -1,11 +1,38 @@
 
 "use server";
 
-import { collection, doc, getDoc, getDocs, query, where, orderBy, type Timestamp, type DocumentData, type DocumentSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { initializeApp, getApps, getApp, type FirebaseOptions } from "firebase/app";
+import { 
+  getFirestore,
+  collection, 
+  doc, 
+  getDoc, 
+  getDocs, 
+  query, 
+  where, 
+  orderBy, 
+  type Timestamp, 
+  type DocumentData, 
+  type DocumentSnapshot 
+} from "firebase/firestore";
 import type { Game, Player, GameEvent, TakeAITurnInput } from "@/types";
 import { takeAITurn } from "@/ai/flows/take-ai-turn-flow";
 import { submitNightAction, submitVote, submitHunterShot, submitCupidAction } from "./actions";
+
+
+// START: Hardcoded Firebase Initialization
+const firebaseConfig = {
+  "apiKey": "YOUR_API_KEY",
+  "authDomain": "YOUR_PROJECT_ID.firebaseapp.com",
+  "projectId": "YOUR_PROJECT_ID",
+  "storageBucket": "YOUR_PROJECT_ID.appspot.com",
+  "messagingSenderId": "YOUR_MESSAGING_SENDER_ID",
+  "appId": "YOUR_APP_ID"
+};
+
+const app = !getApps().length ? initializeApp(firebaseConfig as FirebaseOptions) : getApp();
+const db = getFirestore(app);
+// END: Hardcoded Firebase Initialization
 
 async function getPlayerDocSnapshot(gameId: string, userId: string): Promise<DocumentSnapshot<DocumentData> | null> {
     const q = query(collection(db, 'players'), where('gameId', '==', gameId), where('userId', '==', userId));
