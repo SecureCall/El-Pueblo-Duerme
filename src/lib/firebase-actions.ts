@@ -131,7 +131,7 @@ export async function createGame(
  * For this prototype, we'll just log it.
  */
 export async function addPlayerToGameClaim(userId: string, gameId: string) {
-    console.log(`SIMULATING: Setting custom claim for user ${userId} for game ${gameId}.`);
+    console.log(`SIMULATING: Setting custom claim for user ${userId} for game ${gameId}. This should be a backend operation.`);
     // In a real backend:
     // const admin = require('firebase-admin');
     // const currentClaims = (await admin.auth().getUser(userId)).customClaims || {};
@@ -149,7 +149,7 @@ export async function joinGame(
 ) {
   const gameRef = doc(db, "games", gameId);
   const playerRef = doc(db, "games", gameId, "players", userId);
-  let playerData = createPlayerObject(userId, gameId, displayName, false);
+  const playerData = createPlayerObject(userId, gameId, displayName, false);
   let failingOp: { path: string, operation: 'create' | 'update' | 'get', data?: any } | null = null;
 
   try {
@@ -167,24 +167,8 @@ export async function joinGame(
         throw new Error("La partida ya ha comenzado.");
       }
       
-      failingOp = { path: playerRef.path, operation: 'get' };
-      const playerSnap = await transaction.get(playerRef);
-      
-      if (playerSnap.exists()) {
-        if(playerSnap.data().displayName !== displayName) {
-            failingOp = { path: playerRef.path, operation: 'update', data: { displayName: displayName } };
-            transaction.update(playerRef, { displayName: displayName });
-        }
-        if (!game.players.includes(userId)) {
-             transaction.update(gameRef, {
-                players: arrayUnion(userId),
-             });
-        }
-        return;
-      }
-      
-      if (game.players.length >= game.maxPlayers) {
-        throw new Error("La partida está llena.");
+      if (game.players.length >= game.maxPlayers && !game.players.includes(userId)) {
+        throw new Error("Esta partida está llena.");
       }
       
       failingOp = { path: gameRef.path, operation: 'update', data: { players: arrayUnion(userId) } };
@@ -193,7 +177,9 @@ export async function joinGame(
       });
 
       failingOp = { path: playerRef.path, operation: 'create', data: playerData };
-      transaction.set(playerRef, playerData);
+      // Use set with merge option to create or update the player document.
+      // This avoids the need for a separate 'get' operation.
+      transaction.set(playerRef, playerData, { merge: true });
     });
 
     // Simulate setting the custom claim after successfully joining
