@@ -2,9 +2,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { initializeApp, getApps, getApp, type FirebaseOptions } from "firebase/app";
 import { 
-  getFirestore,
   collection,
   doc,
   setDoc,
@@ -19,25 +17,11 @@ import {
   addDoc,
   increment,
   runTransaction,
-  Transaction,
-  orderBy,
+  type Transaction,
   type Timestamp as FirestoreTimestamp,
 } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import type { Game, Player, NightAction, GameEvent } from "@/types";
-
-// START: Hardcoded Firebase Initialization
-const firebaseConfig = {
-  "apiKey": "mock-api-key",
-  "authDomain": "pueblo-duerme-98765.firebaseapp.com",
-  "projectId": "pueblo-duerme-98765",
-  "storageBucket": "pueblo-duerme-98765.appspot.com",
-  "messagingSenderId": "123456789012",
-  "appId": "1:123456789012:web:abcdef1234567890abcdef"
-};
-
-const app = !getApps().length ? initializeApp(firebaseConfig as FirebaseOptions) : getApp();
-const db = getFirestore(app);
-// END: Hardcoded Firebase Initialization
 
 
 function generateGameId(length = 5) {

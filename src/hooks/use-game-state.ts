@@ -2,34 +2,20 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { initializeApp, getApps, getApp, type FirebaseOptions } from "firebase/app";
 import { 
-  getFirestore,
   doc, 
   onSnapshot, 
   collection, 
   query, 
   where, 
-  QuerySnapshot, 
-  DocumentData, 
-  DocumentSnapshot, 
+  type QuerySnapshot, 
+  type DocumentData, 
+  type DocumentSnapshot, 
   orderBy, 
 } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import type { Game, Player, GameEvent } from '@/types';
 
-// START: Hardcoded Firebase Initialization for Client
-const firebaseConfig = {
-  "apiKey": "mock-api-key",
-  "authDomain": "pueblo-duerme-98765.firebaseapp.com",
-  "projectId": "pueblo-duerme-98765",
-  "storageBucket": "pueblo-duerme-98765.appspot.com",
-  "messagingSenderId": "123456789012",
-  "appId": "1:123456789012:web:abcdef1234567890abcdef"
-};
-
-const app = !getApps().length ? initializeApp(firebaseConfig as FirebaseOptions) : getApp();
-const db = getFirestore(app);
-// END: Hardcoded Firebase Initialization for Client
 
 export const useGameState = (gameId: string) => {
   const [game, setGame] = useState<Game | null>(null);

@@ -1,9 +1,7 @@
 
 "use server";
 
-import { initializeApp, getApps, getApp, type FirebaseOptions } from "firebase/app";
 import { 
-  getFirestore,
   collection, 
   doc, 
   getDoc, 
@@ -15,24 +13,11 @@ import {
   type DocumentData, 
   type DocumentSnapshot 
 } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import type { Game, Player, GameEvent, TakeAITurnInput } from "@/types";
 import { takeAITurn } from "@/ai/flows/take-ai-turn-flow";
 import { submitNightAction, submitVote, submitHunterShot, submitCupidAction } from "./actions";
 
-
-// START: Hardcoded Firebase Initialization
-const firebaseConfig = {
-  "apiKey": "mock-api-key",
-  "authDomain": "pueblo-duerme-98765.firebaseapp.com",
-  "projectId": "pueblo-duerme-98765",
-  "storageBucket": "pueblo-duerme-98765.appspot.com",
-  "messagingSenderId": "123456789012",
-  "appId": "1:123456789012:web:abcdef1234567890abcdef"
-};
-
-const app = !getApps().length ? initializeApp(firebaseConfig as FirebaseOptions) : getApp();
-const db = getFirestore(app);
-// END: Hardcoded Firebase Initialization
 
 async function getPlayerDocSnapshot(gameId: string, userId: string): Promise<DocumentSnapshot<DocumentData> | null> {
     const q = query(collection(db, 'players'), where('gameId', '==', gameId), where('userId', '==', userId));
@@ -182,5 +167,3 @@ export async function runAIActions(gameId: string, phase: Game['phase']) {
         console.error("Error in AI Actions:", e);
     }
 }
-
-    
