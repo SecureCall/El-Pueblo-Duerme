@@ -50,12 +50,12 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/games/$(gameId)).data.creator == request.auth.uid;
     }
 
-    /**
+        /**
      * @description Gets the current document.
      */
-    function getSelf() {
-      return get(request.path);
-    }
+    // function getSelf() {
+    //   return get(request.path);
+    // }
 
     /**
      * @description Rules for the /games/{gameId} collection.
@@ -71,15 +71,22 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.creator == request.auth.uid;
       allow update: if isSignedIn() && isExistingOwner(gameId);
       allow delete: if isSignedIn() && isExistingOwner(gameId);
+    }
 
-      match /players/{userId} {
-        allow get: if isSignedIn() && isOwner(userId);
-        allow list: if false;
+    /**
+     * @description Rules for the /games/{gameId}/players/{userId} collection.
+     * @path /games/{gameId}/players/{userId}
+     * @allow (create) User 'user_abc' can create a new player document under their user ID.
+     * @deny (create) User 'user_xyz' cannot create a player document under 'user_abc's user ID.
+     * @principle Enforces user ownership for player data.
+     */
+    match /games/{gameId}/players/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
 
-        allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == userId;
-        allow update: if isSignedIn() && isOwner(userId);
-        allow delete: if isSignedIn() && isOwner(userId);
-      }
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
 
     /**
