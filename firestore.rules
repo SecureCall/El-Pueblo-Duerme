@@ -1,103 +1,95 @@
 /**
- * @file Firebase Security Rules for "El Pueblo Duerme" (Prototyping Mode)
+ * @fileoverview Firestore Security Rules for "El Pueblo Duerme" Prototyping Mode
  *
- * @core_philosophy This ruleset prioritizes strict authorization and rapid prototyping. It enforces a user-ownership model and role-based access where appropriate,
- * while relaxing data validation to allow for flexible data shapes during development.
+ * Core Philosophy:
+ * This ruleset prioritizes a secure authorization model while offering flexible data validation to enable rapid prototyping.
+ * It enforces strict ownership and role-based access control where appropriate, but relaxes schema validation to allow for faster iteration.
  *
- * @data_structure
- * - /games/{gameId}: Stores game instances, accessible to game creators and players.
- * - /games/{gameId}/players/{userId}: Stores player data within a game, accessible to the specific user.
- * - /events/{eventId}: Stores game event logs, readable by all authenticated users, writable only by admins (simulated by checking user ID).
+ * Data Structure:
+ * - /games/{gameId}: Stores game instances.
+ * - /games/{gameId}/players/{userId}: Stores player data for each game.
+ * - /events/{eventId}: Stores game events.
  *
- * @key_security_decisions
- * - User listing is disallowed.
- * - Data validation is minimized to focus on authorization during the prototyping phase.
- * - The ruleset leans towards stricter access control where relationships are ambiguous.
- * - Denormalization: The `Player` entity includes both `gameId` and `userId` which is helpful for setting rules.
+ * Key Security Decisions:
+ * - User listing is generally disallowed to protect privacy.
+ * - Public read access is granted only for collections explicitly intended for public consumption (e.g., /events).
+ * - All write operations are protected by authorization checks.
  *
- * @denormalization_rationale
- * - Player Data: The `/games/{gameId}/players/{userId}` path includes both the `gameId` and `userId`. This denormalization is crucial for efficient
- *   security rules. Without it, checking a player's access to a game would require additional `get()` calls, which are slow and expensive.
+ * Denormalization for Authorization:
+ * - The `Player` entity in `/games/{gameId}/players/{userId}` includes a denormalized `gameId` field.
+ *   This enables independent authorization checks at the player level without requiring a `get()` call to the parent `/games/{gameId}` document.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows creating, reading, updating, and deleting games. Games are owned by their creator.
+     * @description Secures the /games/{gameId} collection.  Allows game creator to manage game.
      * @path /games/{gameId}
-     * @allow (create) request.auth != null && request.resource.data.creator == request.auth.uid
-     * @allow (get, list) true
-     * @allow (update, delete) request.auth != null && resource.data.creator == request.auth.uid
-     * @deny (create) request.auth == null
-     * @deny (update, delete) resource.data.creator != request.auth.uid
-     * @principle Enforces document ownership for writes, allows public reads.
+     * @allow (create) User 'creatorId' creates a new game.
+     * @allow (get) Any authenticated user can read a game.
+     * @allow (list) Any authenticated user can list games.
+     * @allow (update) User 'creatorId' updates their game.
+     * @allow (delete) User 'creatorId' deletes their game.
+     * @deny (create) User attempts to create a game with a mismatched creator ID.
+     * @principle Enforces ownership for game creation, updates, and deletes.
      */
     match /games/{gameId} {
-      allow get, list: if true;
-      allow create: if isSignedIn() && request.resource.data.creator == request.auth.uid;
-      allow update: if isSignedIn() && isExistingOwner(resource.data.creator);
-      allow delete: if isSignedIn() && isExistingOwner(resource.data.creator);
+      allow get, list: if isSignedIn();
+      allow create: if request.auth.uid == request.resource.data.creator;
+      allow update, delete: if isSignedIn() && isOwner(resource.data.creator);
     }
 
     /**
-     * @description Allows reading, creating, updating, and deleting players within a game. Access is restricted to the specific user (player).
+     * @description Secures the /games/{gameId}/players/{userId} collection. Allows user to create their player profile.
      * @path /games/{gameId}/players/{userId}
-     * @allow (create) request.auth != null && request.auth.uid == userId
-     * @allow (get, list) request.auth != null && request.auth.uid == userId
-     * @allow (update, delete) request.auth != null && request.auth.uid == userId
-     * @deny (create) request.auth == null || request.auth.uid != userId
-     * @deny (get, list) request.auth == null || request.auth.uid != userId
-     * @deny (update, delete) request.auth == null || request.auth.uid != userId
-     * @principle Enforces user-specific access to player data within a game.
+     * @allow (create) User creates their player profile.
+     * @allow (get) Authenticated user can get player data.
+     * @allow (list) Authenticated user can list player data (potentially for game view).
+     * @allow (update) User can update their player profile.
+     * @allow (delete) User can delete their player profile.
+     * @deny (create) User attempts to create a player profile with a mismatched userId.
+     * @principle Enforces user-ownership for player profiles within a game.
      */
     match /games/{gameId}/players/{userId} {
-      allow get, list: if isSignedIn() && isOwner(userId);
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isExistingOwner(userId);
-      allow delete: if isSignedIn() && isExistingOwner(userId);
+      allow get, list: if isSignedIn();
+      allow create: if request.auth.uid == userId;
+      allow update, delete: if isSignedIn() && isOwner(userId);
     }
 
     /**
-     * @description Allows reading game event logs for authenticated users. Write access is denied for non-admins (simulated via UID check).
+     * @description Secures the /events/{eventId} collection.
      * @path /events/{eventId}
-     * @allow (get, list) true
-     * @allow (create) if request.auth.uid == 'yzkSkzJ0ILaQA4vE75uhRR5cdLZ2'; // Simulate Admin User
-     * @deny (create, update, delete) request.auth.uid != 'yzkSkzJ0ILaQA4vE75uhRR5cdLZ2'; // Simulate Admin User
-     * @principle Restricts write access to game events to admins, allows public reads.
+     * @allow (get) Any user can read game events.
+     * @allow (list) Any user can list game events.
+     * @allow (create) Game server can create game event.
+     * @allow (update) false
+     * @allow (delete) false
+     * @principle Public read access with restricted write access.
      */
     match /events/{eventId} {
       allow get, list: if true;
-      allow create: if request.auth.uid == 'yzkSkzJ0ILaQA4vE75uhRR5cdLZ2'; // Simulate Admin User
+      allow create: if false; // TODO: Add validation and proper auth for the game server once implemented
       allow update, delete: if false;
     }
 
     // --- Helper Functions ---
 
     /**
-     * @description Checks if the user is signed in.
-     * @return {bool} True if the user is signed in, false otherwise.
+     * @description Checks if the request is authenticated.
+     * @return {boolean} True if the request is authenticated, false otherwise.
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * @description Checks if the authenticated user ID matches the provided user ID.
+     * @description Checks if the authenticated user is the owner of the resource.
      * @param {string} userId The user ID to compare against the authenticated user's ID.
-     * @return {bool} True if the user is the owner, false otherwise.
+     * @return {boolean} True if the user is the owner, false otherwise.
      */
     function isOwner(userId) {
       return request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the authenticated user is the owner of an existing document.
-     * @param {string} userId The user ID to compare against the authenticated user's ID.
-     * @return {bool} True if the user is the owner and the resource exists, false otherwise.
-     */
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
     }
   }
 }
