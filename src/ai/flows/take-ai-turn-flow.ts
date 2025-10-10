@@ -99,7 +99,7 @@ const takeAITurnFlow = ai.defineFlow(
     async (input) => {
         // The context can be large, so we use a model that can handle it.
         const { output } = await prompt(input, { 
-            model: 'googleai/gemini-1.5-flash-latest',
+            model: 'googleai/gemini-pro',
             format: 'json', 
         });
         return output!;
