@@ -61,10 +61,11 @@ export function GameMusic({ game }: GameMusicProps) {
     if (newSrc && newSrc !== currentSrcRef.current) {
         // Fade out, change src, fade in
         const fadeOut = setInterval(() => {
-            if (audio.volume > 0.01) {
+            if (audio.volume > 0.05) {
                 audio.volume -= 0.05;
             } else {
                 clearInterval(fadeOut);
+                audio.volume = 0;
                 audio.pause();
                 audio.src = newSrc;
                 currentSrcRef.current = newSrc;

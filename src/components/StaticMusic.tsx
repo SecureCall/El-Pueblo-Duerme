@@ -48,7 +48,16 @@ export function StaticMusic({ src }: StaticMusicProps) {
 
     return () => {
         if (audio) {
-            audio.pause();
+            // Fade out before pausing
+            const fadeOut = setInterval(() => {
+                if (audio.volume > 0.05) {
+                    audio.volume -= 0.05;
+                } else {
+                    clearInterval(fadeOut);
+                    audio.volume = 0;
+                    audio.pause();
+                }
+            }, 50);
         }
     }
   }, [src]);
