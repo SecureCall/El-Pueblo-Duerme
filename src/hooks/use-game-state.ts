@@ -12,9 +12,12 @@ import {
   type DocumentData, 
   type DocumentSnapshot, 
   orderBy, 
+  FirestoreError
 } from 'firebase/firestore';
 import type { Game, Player, GameEvent } from '@/types';
 import { useFirebase } from '@/firebase';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 export const useGameState = (gameId: string) => {
@@ -45,19 +48,27 @@ export const useGameState = (gameId: string) => {
         setPlayers([]);
       }
       setLoading(false);
-    }, (err) => {
-        console.error("Error fetching game:", err);
+    }, (err: FirestoreError) => {
+        const contextualError = new FirestorePermissionError({
+            operation: 'get',
+            path: gameRef.path,
+        });
         setError("Error al cargar la partida.");
         setLoading(false);
+        errorEmitter.emit('permission-error', contextualError);
     });
 
     const playersQuery = query(collection(firestore, 'games', gameId, 'players'));
     const unsubscribePlayers = onSnapshot(playersQuery, (snapshot: QuerySnapshot<DocumentData>) => {
       const playersData = snapshot.docs.map(doc => ({ ...doc.data() as Player, id: doc.id }));
       setPlayers(playersData.sort((a, b) => a.joinedAt.toMillis() - b.joinedAt.toMillis()));
-    }, (err) => {
-        console.error("Error fetching players:", err);
+    }, (err: FirestoreError) => {
+        const contextualError = new FirestorePermissionError({
+            operation: 'list',
+            path: `games/${gameId}/players`,
+        });
         setError("Error al cargar los jugadores.");
+        errorEmitter.emit('permission-error', contextualError);
     });
     
     const eventsQuery = query(
@@ -67,8 +78,13 @@ export const useGameState = (gameId: string) => {
     const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot: QuerySnapshot<DocumentData>) => {
         const eventsData = snapshot.docs.map(doc => ({ ...doc.data() as GameEvent, id: doc.id }));
         setEvents(eventsData);
-    }, (err) => {
-        console.error("Error fetching events:", err);
+    }, (err: FirestoreError) => {
+        const contextualError = new FirestorePermissionError({
+            operation: 'list',
+            path: `games/${gameId}/events`,
+        });
+        setError("Error al cargar los eventos de la partida.");
+        errorEmitter.emit('permission-error', contextualError);
     });
 
 
