@@ -83,8 +83,8 @@ export async function createGame(
     joinedAt: Timestamp.now(),
     isAI: false,
     potions: {
-        poison: undefined,
-        save: undefined,
+        poison: null,
+        save: null,
     },
     priestSelfHealUsed: false,
     princeRevealed: false,
@@ -1056,6 +1056,8 @@ async function checkEndDayEarly(gameId: string) {
         await processVotes(gameId);
     }
 }
+
+    
 
     
 
