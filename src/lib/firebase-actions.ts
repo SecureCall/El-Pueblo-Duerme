@@ -87,6 +87,7 @@ export async function createGame(
       playerUIDs: [], // Will be populated by joinGame
       maxPlayers: maxPlayers,
       createdAt: Timestamp.now(),
+      currentRound: 0,
       settings: {
           ...settings,
           werewolves: werewolfCount,
