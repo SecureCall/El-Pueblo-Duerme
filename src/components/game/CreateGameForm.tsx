@@ -52,25 +52,6 @@ const FormSchema = z.object({
   priest: z.boolean(),
   wolf_cub: z.boolean(),
   cursed: z.boolean(),
-  ancient: z.boolean(),
-  fool: z.boolean(),
-  scapegoat: z.boolean(),
-  savior: z.boolean(),
-  great_werewolf: z.boolean(),
-  white_werewolf: z.boolean(),
-  angel: z.boolean(),
-  thief: z.boolean(),
-  wild_child: z.boolean(),
-  piper: z.boolean(),
-  pyromaniac: z.boolean(),
-  judge: z.boolean(),
-  raven: z.boolean(),
-  fox: z.boolean(),
-  bear_trainer: z.boolean(),
-  actor: z.boolean(),
-  knight: z.boolean(),
-  two_sisters: z.boolean(),
-  three_brothers: z.boolean(),
 });
 
 const specialRoles = Object.keys(roleDetails).filter(role => role !== 'villager' && role !== 'werewolf') as Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[];
@@ -100,25 +81,6 @@ export function CreateGameForm() {
       priest: true,
       wolf_cub: true,
       cursed: true,
-      ancient: true,
-      fool: true,
-      scapegoat: true,
-      savior: true,
-      great_werewolf: true,
-      white_werewolf: true,
-      angel: true,
-      thief: true,
-      wild_child: true,
-      piper: true,
-      pyromaniac: true,
-      judge: true,
-      raven: true,
-      fox: true,
-      bear_trainer: true,
-      actor: true,
-      knight: true,
-      two_sisters: true,
-      three_brothers: true,
     },
   });
 
@@ -217,7 +179,7 @@ export function CreateGameForm() {
                     <FormField
                       key={roleId}
                       control={form.control}
-                      name={roleId}
+                      name={roleId as keyof typeof form.getValues()}
                       render={({ field }) => (
                         <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 bg-background/50">
                           <FormControl>

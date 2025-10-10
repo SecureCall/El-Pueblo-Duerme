@@ -19,17 +19,15 @@ import type { PlayerRole } from '@/types';
 
 const aldeanoRoleKeys: NonNullable<PlayerRole>[] = [
     'villager', 'seer', 'doctor', 'hunter', 'guardian', 'priest', 'prince', 
-    'lycanthrope', 'twin', 'hechicera', 'ancient', 'fool', 'scapegoat', 
-    'savior', 'two_sisters', 'three_brothers', 'knight', 'judge', 'raven', 'fox', 
-    'bear_trainer', 'actor'
+    'lycanthrope', 'twin', 'hechicera'
 ];
 
 const loboRoleKeys: NonNullable<PlayerRole>[] = [
-    'werewolf', 'wolf_cub', 'cursed', 'great_werewolf', 'white_werewolf'
+    'werewolf', 'wolf_cub', 'cursed'
 ];
 
 const especialRoleKeys: NonNullable<PlayerRole>[] = [
-    'cupid', 'angel', 'thief', 'wild_child', 'piper', 'pyromaniac'
+    'cupid'
 ];
 
 
