@@ -42,7 +42,7 @@ export function GameOver({ event, players }: GameOverProps) {
                     <h3 className="text-2xl font-bold flex items-center justify-center gap-2"><BotIcon /> Hombres Lobo</h3>
                     <ul className="list-none p-0">
                         {werewolves.map(p => (
-                            <li key={p.userId} className="text-lg text-muted-foreground">{p.displayName}</li>
+                            <li key={p.userId} className="text-lg text-muted-foreground">{p.displayName} ({p.role})</li>
                         ))}
                     </ul>
                 </div>
