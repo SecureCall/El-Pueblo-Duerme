@@ -135,6 +135,7 @@ export async function joinGame(
 ) {
   const gameRef = doc(db, "games", gameId);
   const playerRef = doc(db, "games", gameId, "players", userId);
+  let playerData = createPlayerObject(userId, gameId, displayName, false);
 
   try {
     await runTransaction(db, async (transaction) => {
@@ -170,7 +171,6 @@ export async function joinGame(
       });
 
       // This is the second write
-      const playerData = createPlayerObject(userId, gameId, displayName, false);
       transaction.set(playerRef, playerData);
     });
     
@@ -178,16 +178,12 @@ export async function joinGame(
 
   } catch(error: any) {
     if (error.code === 'permission-denied') {
-        // Create and emit the contextual error
         const permissionError = new FirestorePermissionError({
-            // Let's assume the failure is on the player creation since it's more restrictive
             path: playerRef.path,
-            operation: 'create', // This is the most likely failing operation for a new player
-            requestResourceData: createPlayerObject(userId, gameId, displayName, false),
+            operation: 'create',
+            requestResourceData: playerData,
         });
         errorEmitter.emit('permission-error', permissionError);
-        
-        // Return a user-facing error message
         return { error: "Permiso denegado al unirse a la partida." };
     }
     console.error("Error joining game:", error);
@@ -275,9 +271,11 @@ const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessi
 
 export async function startGame(db: Firestore, gameId: string, creatorId: string) {
     const gameRef = doc(db, 'games', gameId);
+    let failingOp: { path: string, operation: 'create' | 'update' | 'delete' | 'write', data?: any } | null = null;
     
     try {
         await runTransaction(db, async (transaction) => {
+            failingOp = { path: gameRef.path, operation: 'update', data: { status: 'in_progress' } };
             const gameSnap = await transaction.get(gameRef);
 
             if (!gameSnap.exists()) {
@@ -311,12 +309,15 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
                     
                     const aiPlayerRef = doc(db, 'games', gameId, 'players', aiUserId);
                     const aiPlayerData = createPlayerObject(aiUserId, gameId, aiName, true);
-
+                    
+                    failingOp = { path: aiPlayerRef.path, operation: 'create', data: aiPlayerData };
                     transaction.set(aiPlayerRef, aiPlayerData);
-                    finalPlayers.push({ ...aiPlayerData, id: aiPlayerRef.id }); // Add to local array for role assignment
+
+                    finalPlayers.push({ ...aiPlayerData, id: aiPlayerRef.id });
                     finalPlayerIds.push(aiUserId);
                 }
                 
+                failingOp = { path: gameRef.path, operation: 'update', data: { players: finalPlayerIds } };
                 transaction.update(gameRef, {
                     players: finalPlayerIds,
                 });
@@ -335,14 +336,17 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
 
             const twinUserIds = assignedPlayers.filter(p => p.role === 'twin').map(p => p.userId);
             if (twinUserIds.length === 2) {
+                 failingOp = { path: gameRef.path, operation: 'update', data: { twins: twinUserIds } };
                 transaction.update(gameRef, { twins: twinUserIds });
             }
 
             assignedPlayers.forEach((player) => {
                 const playerRef = doc(db, 'games', gameId, 'players', player.userId);
+                failingOp = { path: playerRef.path, operation: 'update', data: { role: player.role } };
                 transaction.update(playerRef, { role: player.role });
             });
 
+            failingOp = { path: gameRef.path, operation: 'update', data: { status: 'in_progress' } };
             transaction.update(gameRef, {
                 status: 'in_progress',
                 phase: 'role_reveal',
@@ -353,13 +357,11 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
         return { success: true };
 
     } catch (e: any) {
-        if (e.code === 'permission-denied') {
+        if (e.code === 'permission-denied' && failingOp) {
             const permissionError = new FirestorePermissionError({
-                // This transaction is complex. The most likely failure is creating an AI player.
-                // We'll report the error as an attempt to 'write' to the game document, as that's the root of the transaction.
-                path: gameRef.path,
-                operation: 'write', 
-                requestResourceData: { status: 'in_progress' }, // The final intended state change
+                path: failingOp.path,
+                operation: failingOp.operation,
+                requestResourceData: failingOp.data,
             });
             errorEmitter.emit('permission-error', permissionError);
             return { error: "Permiso denegado al iniciar la partida." };
