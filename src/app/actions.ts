@@ -102,7 +102,6 @@ export async function createGame(
             },
             pendingHunterShot: null,
             lovers: null,
-            twins: undefined, // Explicitly set as undefined if not present
             wolfCubRevengeRound: 0,
         };
         transaction.set(gameRef, gameData);
@@ -1081,6 +1080,8 @@ async function checkEndDayEarly(gameId: string) {
         await processVotes(gameId);
     }
 }
+
+    
 
     
 
