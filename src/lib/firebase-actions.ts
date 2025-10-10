@@ -1,4 +1,3 @@
-
 'use client';
 import { 
   collection,
@@ -156,6 +155,12 @@ export async function joinGame(
         if(playerSnap.data().displayName !== displayName) {
             failingOp = { path: playerRef.path, operation: 'update', data: { displayName: displayName } };
             transaction.update(playerRef, { displayName: displayName });
+        }
+        // Ensure player is in the game's player list even if they already existed.
+        if (!game.players.includes(userId)) {
+             transaction.update(gameRef, {
+                players: arrayUnion(userId),
+             });
         }
         return;
       }
@@ -1272,9 +1277,3 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
         console.error("Error in AI Actions:", e);
     }
 }
-
-    
-
-    
-
-    
