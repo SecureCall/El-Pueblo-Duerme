@@ -21,7 +21,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     wolf_cub: {
         name: "Cría de Lobo",
-        description: "Eres un lobo, pero si mueres, la noche siguiente los lobos podrán matar a dos jugadores.",
+        description: "Si mueres, la noche siguiente los lobos podrán matar a dos jugadores.",
         atmosphere: "Tu pérdida desatará la furia de la manada.",
         image: "/roles/wolf_cub.png",
         color: "text-destructive",
