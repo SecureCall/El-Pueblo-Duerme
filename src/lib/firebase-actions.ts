@@ -130,7 +130,7 @@ export async function joinGame(
   const gameRef = doc(db, "games", gameId);
   const playerRef = doc(db, "games", gameId, "players", userId);
   let playerData = createPlayerObject(userId, gameId, displayName, false);
-  let failingOp: { path: string, operation: 'create' | 'update', data?: any } | null = null;
+  let failingOp: { path: string, operation: 'create' | 'update' | 'get', data?: any } | null = null;
 
   try {
     await runTransaction(db, async (transaction) => {
@@ -267,7 +267,6 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
     let failingOp: { path: string, operation: 'create' | 'update' | 'delete' | 'write' | 'get' | 'list', data?: any } | null = null;
     
     try {
-        // Step 1: Read existing players OUTSIDE the transaction
         const playersCollectionPath = `games/${gameId}/players`;
         const playersQuery = query(collection(db, playersCollectionPath));
         const playersSnap = await getDocs(playersQuery);
@@ -294,7 +293,6 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
             let finalPlayers = [...existingPlayers];
             let finalPlayerIds = existingPlayers.map(p => p.userId);
 
-            // Step 2: Prepare AI players and other writes for the transaction
             if (game.settings.fillWithAI && finalPlayers.length < game.maxPlayers) {
                 const aiPlayerCount = game.maxPlayers - finalPlayers.length;
                 const availableAINames = AI_NAMES.filter(name => !existingPlayers.some(p => p.displayName === name));
