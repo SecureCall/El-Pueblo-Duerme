@@ -71,7 +71,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         name: "Hechicera",
         description: "Tienes una poción para salvar a la víctima de los lobos y otra para envenenar a un jugador. Puedes usar cada una una vez por partida.",
         atmosphere: "El poder de la vida y la muerte está en tus manos.",
-        image: "/roles/hechicera.png", 
+        image: "/roles/Witch.png", 
         color: "text-purple-400",
         bgImageId: "role-bg-werewolf" 
     },
@@ -79,7 +79,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         name: "Príncipe",
         description: "Si eres el más votado para ser linchado, revelas tu identidad y sobrevives. No puedes ser eliminado por votación diurna.",
         atmosphere: "Tu sangre real te protege del juicio de la plebe.",
-        image: "/roles/prince.png",
+        image: "/roles/Prince.png",
         color: "text-yellow-300",
         bgImageId: "role-bg-hunter" 
     },

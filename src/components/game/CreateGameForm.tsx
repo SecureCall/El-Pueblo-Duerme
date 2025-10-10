@@ -53,7 +53,7 @@ const FormSchema = z.object({
 
 const specialRoles = [
   { id: 'seer', label: 'Vidente', Icon: Fingerprint, description: 'Descubre el rol de un jugador cada noche.' },
-  { id: 'doctor', label: 'Doctor', Icon: BriefcaseMedical, description: 'Protege a un jugador del ataque de los lobos. No puede curar a la misma persona 2 noches seguidas.' },
+  { id: 'doctor', label: 'Doctor', Icon: Heart, description: 'Protege a un jugador del ataque de los lobos. No puede curar a la misma persona 2 noches seguidas.' },
   { id: 'hechicera', label: 'Hechicera', Icon: FlaskConical, description: 'Usa una poción de vida y una de muerte.' },
   { id: 'hunter', label: 'Cazador', Icon: Crosshair, description: 'Al morir, puede llevarse a otro jugador consigo.' },
   { id: 'prince', label: 'Príncipe', Icon: Crown, description: 'Inmune a ser linchado por votación.' },
