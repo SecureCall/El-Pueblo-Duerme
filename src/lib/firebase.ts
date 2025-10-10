@@ -8,26 +8,33 @@ let app;
 let db;
 let auth;
 
-try {
-  // Validar la configuración solo en el servidor para evitar exponer errores en el cliente
-  if (typeof window === 'undefined') {
+// Esta validación se ejecuta en el servidor cuando este archivo se carga por primera vez.
+// Si las variables no están, el servidor fallará al arrancar, lo cual es bueno para detectar errores pronto.
+if (typeof window === 'undefined') {
+  try {
     validateFirebaseConfig();
-  }
-  
-  app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-  db = getFirestore(app);
-  auth = getAuth(app);
-  
-} catch (error) {
-  console.error("Firebase initialization error:", error);
-  // Un fallback muy básico para evitar que la app crashee en el cliente si la config falla
-  if (typeof window !== 'undefined' && !getApps().length) {
-      app = initializeApp({ projectId: 'fallback-project-id' });
-  } else {
+  } catch (error) {
+    console.error("FATAL: Missing Firebase server environment variables.", error);
+    // Para evitar que la app crashee por completo, podemos usar un objeto 'dummy',
+    // aunque las operaciones de Firebase fallarán. Esto es principalmente para que el build no se rompa.
+    if (!getApps().length) {
+      app = initializeApp({ projectId: "MISSING_CONFIG" });
+    } else {
       app = getApp();
+    }
   }
-  db = getFirestore(app);
-  auth = getAuth(app);
 }
+
+if (!app) {
+    if (!getApps().length) {
+        app = initializeApp(firebaseConfig);
+    } else {
+        app = getApp();
+    }
+}
+
+
+db = getFirestore(app);
+auth = getAuth(app);
 
 export { app, db, auth };
