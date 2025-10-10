@@ -122,6 +122,25 @@ export async function createGame(
   }
 }
 
+/**
+ * NOTE: This is a placeholder for a real backend function.
+ * In a production app, you would have a Cloud Function that is triggered
+ * when a player document is created. This function would then use the
+ * Firebase Admin SDK to set a custom claim on the user's auth token.
+ * The security rules would then check `request.auth.token.games[gameId] === true`.
+ * For this prototype, we'll just log it.
+ */
+export async function addPlayerToGameClaim(userId: string, gameId: string) {
+    console.log(`SIMULATING: Setting custom claim for user ${userId} for game ${gameId}.`);
+    // In a real backend:
+    // const admin = require('firebase-admin');
+    // const currentClaims = (await admin.auth().getUser(userId)).customClaims || {};
+    // const newClaims = { ...currentClaims, games: { ...currentClaims.games, [gameId]: true } };
+    // await admin.auth().setCustomUserClaims(userId, newClaims);
+    return { success: true };
+}
+
+
 export async function joinGame(
   db: Firestore,
   gameId: string,
@@ -176,6 +195,9 @@ export async function joinGame(
       failingOp = { path: playerRef.path, operation: 'create', data: playerData };
       transaction.set(playerRef, playerData);
     });
+
+    // Simulate setting the custom claim after successfully joining
+    await addPlayerToGameClaim(userId, gameId);
     
     return { success: true };
 
@@ -339,6 +361,8 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
                 const playerRef = doc(db, 'games', gameId, 'players', player.userId);
                 failingOp = { path: playerRef.path, operation: 'update', data: { role: player.role } };
                 transaction.update(playerRef, { role: player.role });
+                // Simulate setting claims for all players at game start
+                addPlayerToGameClaim(player.userId, gameId);
             });
 
             failingOp = { path: gameRef.path, operation: 'update', data: { status: 'in_progress', phase: 'role_reveal', currentRound: 1 } };
