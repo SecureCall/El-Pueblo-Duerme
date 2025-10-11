@@ -15,7 +15,7 @@ export function HomePageAudio() {
     if (!musicAudioRef.current) {
         musicAudioRef.current = new Audio('/audio/menu-theme.mp3');
         musicAudioRef.current.loop = true;
-        musicAudioEfuserele.current.volume = 0.3;
+        musicAudioRef.current.volume = 0.3;
     }
     if (!narrationAudioRef.current) {
         narrationAudioRef.current = new Audio();
