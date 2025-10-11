@@ -11,7 +11,7 @@ export default function Home() {
 
   return (
     <>
-      <StaticMusic src="/audio/menu-theme.mp3" />
+      <StaticMusic src="/audio/voz/Que comience el juego..mp3" />
       <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 overflow-hidden">
         {bgImage && (
           <Image
