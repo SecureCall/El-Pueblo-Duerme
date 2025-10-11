@@ -113,9 +113,7 @@ const takeAITurnFlow = ai.defineFlow(
         outputSchema: TakeAITurnOutputSchema,
     },
     async (input) => {
-        const { output } = await takeAITurnPrompt(input, {
-            model: 'gemini-pro',
-        });
+        const { output } = await takeAITurnPrompt(input);
         return output!;
     }
 );
