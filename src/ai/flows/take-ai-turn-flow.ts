@@ -91,7 +91,7 @@ Ahora, proporciona tu razonamiento y acción para el estado actual del juego. Tu
 
     const response = await ai.generate({
         prompt: promptText,
-        model: googleAI.model('gemini-pro'),
+        model: googleAI.model('gemini-pro-latest'),
         config: {
             responseMimeType: 'application/json',
         },
