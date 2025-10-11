@@ -23,11 +23,9 @@ export function PlayerGrid({
 }: PlayerGridProps) {
   return (
     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
-      {players.map((player) => {
-        const highlight = highlightedPlayers.find(p => p.userId === player.userId);
-        return (
+      {players.map((player) => (
+        <div key={player.userId} className="aspect-[3/4]">
             <PlayerCard 
-                key={player.userId} 
                 player={player} 
                 onClick={onPlayerClick ? () => onPlayerClick(player) : undefined}
                 isClickable={clickable}
@@ -35,8 +33,8 @@ export function PlayerGrid({
                 highlightColor={highlight?.color}
                 votes={votesByPlayer[player.userId]}
             />
-        )
-      })}
+        </div>
+      ))}
     </div>
   );
 }

@@ -6,10 +6,11 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { Skull } from "lucide-react";
+import { Skull, Bot, Crown } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
-import { Bot, Crown } from "lucide-react";
+import { RoleRevealCard } from "./RoleRevealCard";
+import { useState, useEffect } from "react";
 
 interface PlayerCardProps {
   player: Player;
@@ -21,6 +22,20 @@ interface PlayerCardProps {
 }
 
 export function PlayerCard({ player, onClick, isClickable, isSelected, highlightColor, votes }: PlayerCardProps) {
+  const [isRevealed, setIsRevealed] = useState(false);
+
+  useEffect(() => {
+    if (!player.isAlive) {
+      // Delay the reveal animation slightly to make it more noticeable
+      const timer = setTimeout(() => {
+        setIsRevealed(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    } else {
+      setIsRevealed(false);
+    }
+  }, [player.isAlive]);
+  
   // Simple hash function to get a consistent avatar for a user
   const getAvatarId = (userId: string) => {
     let hash = 0;
@@ -38,18 +53,54 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
 
   const cardStyle = highlightColor ? { boxShadow: `0 0 15px 4px ${highlightColor}` } : {};
 
+  if (!player.isAlive) {
+    return (
+      <div className="relative perspective w-full h-full">
+        <div className={cn("relative w-full h-full preserve-3d transition-transform duration-700", isRevealed && "rotate-y-180")}>
+            {/* Front of the card (the player) */}
+            <div className="absolute w-full h-full backface-hidden">
+                <Card
+                  className={cn(
+                    "flex flex-col items-center justify-center p-4 h-full",
+                    "bg-muted/30 grayscale opacity-60",
+                  )}
+                >
+                  <CardContent className="p-0">
+                    <Avatar className="h-20 w-20 border-2 border-border">
+                      <AvatarImage src={avatarImage?.imageUrl || '/avatar-default.png'} data-ai-hint={avatarImage?.imageHint} />
+                      <AvatarFallback>{player.displayName.substring(0, 2)}</AvatarFallback>
+                    </Avatar>
+                  </CardContent>
+                  <CardFooter className="p-0 pt-3 flex flex-col items-center gap-1">
+                    <p className="font-semibold text-center truncate w-full">{player.displayName}</p>
+                    <div className="flex items-center gap-1 text-xs text-destructive">
+                         <Skull className="h-4 w-4" />
+                         <span>Eliminado</span>
+                    </div>
+                  </CardFooter>
+                </Card>
+            </div>
+            {/* Back of the card (the role reveal) */}
+            <div className="absolute w-full h-full backface-hidden rotate-y-180">
+               <RoleRevealCard player={player} />
+            </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
             <Card
               className={cn(
-                "flex flex-col items-center justify-center p-4 transition-all duration-300 relative",
-                !player.isAlive ? "bg-muted/30 grayscale opacity-60" : "bg-card/80",
-                isClickable && player.isAlive && "cursor-pointer hover:scale-105 hover:bg-card/100",
+                "flex flex-col items-center justify-center p-4 transition-all duration-300 relative h-full",
+                "bg-card/80",
+                isClickable && "cursor-pointer hover:scale-105 hover:bg-card/100",
                 isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
               )}
-              onClick={player.isAlive ? onClick : undefined}
+              onClick={onClick}
               style={cardStyle}
             >
               {votes && votes.length > 0 && (
@@ -69,15 +120,6 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
               </CardContent>
               <CardFooter className="p-0 pt-3 flex flex-col items-center gap-1">
                 <p className="font-semibold text-center truncate w-full">{player.displayName}</p>
-                {!player.isAlive && (
-                    <div className="flex items-center gap-1 text-xs text-destructive flex-col">
-                        <div className="flex items-center gap-1">
-                         <Skull className="h-4 w-4" />
-                         <span>Eliminado</span>
-                        </div>
-                        <span className="font-bold uppercase">{player.role}</span>
-                    </div>
-                )}
               </CardFooter>
             </Card>
         </TooltipTrigger>
