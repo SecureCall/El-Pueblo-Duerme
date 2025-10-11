@@ -117,11 +117,13 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     );
   }
 
+  const alivePlayers = players.filter(p => p.isAlive);
+
   const isHunterWaitingToShoot = game.phase === 'hunter_shot' && game.pendingHunterShot === currentPlayer.userId;
   if (isHunterWaitingToShoot) {
-      const alivePlayers = players.filter(p => p.isAlive && p.userId !== currentPlayer.userId);
+      const hunterAlivePlayers = players.filter(p => p.isAlive && p.userId !== currentPlayer.userId);
       return (
-        <HunterShot game={game} currentPlayer={currentPlayer} players={alivePlayers} />
+        <HunterShot game={game} currentPlayer={currentPlayer} players={hunterAlivePlayers} />
       );
   }
 
