@@ -164,11 +164,11 @@ export async function joinGame(
 }
 
 const generateRoles = (playerCount: number, settings: Game['settings']) => {
-    let roles: Player['role'][] = [];
+    let roles: (Player['role'])[] = [];
     
     const numWerewolves = Math.max(1, Math.floor(playerCount / 5));
     for (let i = 0; i < numWerewolves; i++) {
-        roles.push('werewolf');
+        if (roles.length < playerCount) roles.push('werewolf');
     }
     
     if (settings.wolf_cub && roles.length < playerCount) roles.push('wolf_cub');
@@ -210,24 +210,27 @@ const generateRoles = (playerCount: number, settings: Game['settings']) => {
         roles.push('villager');
     }
 
-    while (roles.length > playerCount) {
-      roles.pop();
-    }
-    
-    const hasWolfRole = roles.some(r => r === 'werewolf' || r === 'wolf_cub' || r === 'seeker_fairy');
+    // Ensure there is at least one werewolf if roles were manually selected
+    const wolfRoles: (Player['role'])[] = ['werewolf', 'wolf_cub', 'seeker_fairy'];
+    const hasWolfRole = roles.some(r => wolfRoles.includes(r));
     if (!hasWolfRole && playerCount > 0) {
-        const villagerIndex = roles.findIndex(r => r === 'villager');
+        const villagerIndex = roles.indexOf('villager');
         if (villagerIndex !== -1) {
+            // Replace a villager with a werewolf
             roles[villagerIndex] = 'werewolf';
         } else if (roles.length > 0) {
-            roles[0] = 'werewolf';
+            // If no villagers, replace the last role added
+            roles[roles.length - 1] = 'werewolf';
         } else {
+            // Should not happen if playerCount > 0, but as a fallback
             roles.push('werewolf');
         }
     }
     
-    return roles.sort(() => Math.random() - 0.5);
+    // Shuffle and trim to final player count
+    return roles.sort(() => Math.random() - 0.5).slice(0, playerCount);
 };
+
 
 const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
 
