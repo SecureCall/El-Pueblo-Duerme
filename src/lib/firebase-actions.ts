@@ -473,6 +473,7 @@ async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: bool
       pendingHunterShot: gameData.pendingHunterShot ?? null,
       wolfCubRevengeRound: gameData.wolfCubRevengeRound ?? 0,
       nightActions: gameData.nightActions ?? [],
+      events: gameData.events ?? [],
     };
 
     const alivePlayers = newGameData.players.filter(p => p.isAlive);
@@ -788,10 +789,31 @@ export async function processVotes(db: Firestore, gameId: string) {
             }
 
             const { game: finalGame, isOver } = await checkGameOver(game);
-            game = finalGame;
-
+            
             if (isOver) {
-                transaction.update(gameRef, game);
+                // Definitive fix: create a clean final object for the transaction.
+                const finalGameUpdate = {
+                    ...finalGame,
+                    players: finalGame.players.map(p => ({
+                        ...p,
+                        votedFor: p.votedFor ?? null,
+                        role: p.role ?? null,
+                        lastHealedRound: p.lastHealedRound ?? 0,
+                        isAI: p.isAI ?? false,
+                        potions: p.potions ?? { poison: null, save: null },
+                        priestSelfHealUsed: p.priestSelfHealUsed ?? false,
+                        princeRevealed: p.princeRevealed ?? false,
+                    })),
+                    phase: 'finished',
+                    status: 'finished',
+                    pendingHunterShot: null,
+                    wolfCubRevengeRound: finalGame.wolfCubRevengeRound ?? 0,
+                    nightActions: finalGame.nightActions ?? [],
+                    events: finalGame.events ?? [],
+                    lovers: finalGame.lovers ?? null,
+                    twins: finalGame.twins ?? null,
+                };
+                transaction.update(gameRef, finalGameUpdate);
                 return;
             }
             
