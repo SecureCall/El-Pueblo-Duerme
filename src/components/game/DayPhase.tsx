@@ -36,19 +36,26 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
     useEffect(() => {
         if (nightEvent) {
             const hasDeaths = nightEvent.data?.killedByWerewolfIds?.length > 0 || nightEvent.data?.killedByPoisonId;
-             // Delay to allow "Pueblo, despierta" to finish
-            setTimeout(() => {
+            
+            // 1. Wait for "Pueblo, despierta" to finish (approx 2.5s)
+            const nightResultTimer = setTimeout(() => {
+                // 2. Announce the result of the night
                 if (hasDeaths) {
                     playSoundEffect('Descanse en paz.mp3');
                 } else {
                     playSoundEffect('¡Milagro!.mp3');
                 }
+
+                // 3. Wait for the night result announcement to finish (approx 3s)
+                const debateStartTimer = setTimeout(() => {
+                    // 4. Announce the start of the debate
+                    playNarration('inicio_debate.mp3');
+                }, 3000);
+
+                return () => clearTimeout(debateStartTimer);
             }, 2500);
             
-            // Delay for debate start
-             setTimeout(() => {
-                playNarration('inicio_debate.mp3');
-            }, 5000);
+            return () => clearTimeout(nightResultTimer);
         }
     }, [nightEvent]);
 
