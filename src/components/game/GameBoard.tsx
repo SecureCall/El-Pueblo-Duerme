@@ -53,6 +53,7 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
             }
         }
         await playNarration('inicio_debate.mp3');
+        await playNarration('inicio_votacion.mp3');
     };
 
     if (prevPhase !== game.phase) {
@@ -70,7 +71,7 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
             playMorningSequence();
           break;
         case 'voting':
-           playNarration('inicio_votacion.mp3');
+           // Sound moved to day phase
            break;
       }
     }
