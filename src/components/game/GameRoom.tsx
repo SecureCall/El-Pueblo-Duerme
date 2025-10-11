@@ -37,7 +37,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
     setIsJoining(false);
   };
   
-  const isNight = !game || game.phase === 'night' || game.phase === 'role_reveal' || game.phase === 'hunter_shot' || game.status === 'waiting';
+  const isNight = !game || game.status === 'waiting' || game.phase === 'night' || game.phase === 'role_reveal' || game.phase === 'hunter_shot';
   const bgImageId = isNight ? 'game-bg-night' : 'game-bg-day';
   const bgImage = PlaceHolderImages.find((img) => img.id === bgImageId);
 
