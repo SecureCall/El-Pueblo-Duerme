@@ -80,7 +80,7 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
         const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
         if (voteEvent) {
              setTimeout(() => {
-                if (voteEvent.data?.lynchedPlayerId) {
+                if (voteEvent.data?.lynchedPlayerId && voteEvent.data.lynchedPlayerId === currentPlayer.userId) {
                      playSoundEffect('anuncio_exilio.mp3');
                 }
             }, 3000); // Delay to not overlap with other sounds
@@ -90,7 +90,7 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     prevPhaseRef.current = game.phase;
     prevRoundRef.current = game.currentRound;
 
-  }, [game.phase, game.currentRound, events]);
+  }, [game.phase, game.currentRound, events, currentPlayer.userId]);
 
 
   // Handle AI actions when phase changes
