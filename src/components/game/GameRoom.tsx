@@ -37,8 +37,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
     setIsJoining(false);
   };
   
-  const isDay = game?.phase === 'day';
-  const bgImageId = isDay ? 'game-bg-day' : 'game-bg-night';
+  const bgImageId = game?.phase === 'day' ? 'game-bg-day' : 'game-bg-night';
   const bgImage = PlaceHolderImages.find((img) => img.id === bgImageId);
 
   const renderContent = () => {
