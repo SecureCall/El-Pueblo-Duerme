@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui
 import { Copy } from "lucide-react";
 import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { playNarration } from "@/lib/sounds";
 
 interface GameLobbyProps {
   game: Game;
@@ -23,6 +24,10 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
       title: "ID de Partida Copiado",
       description: "¡Comparte el ID con tus amigos para que se unan!",
     });
+  };
+
+  const handleStartGame = () => {
+    playNarration('Que comience el juego..mp3');
   };
 
   return (
@@ -52,7 +57,7 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
       </div>
 
       {isCreator && (
-        <div className="text-center pt-4">
+        <div className="text-center pt-4" onClick={handleStartGame}>
           <StartGameButton game={game} playerCount={players.length} />
         </div>
       )}

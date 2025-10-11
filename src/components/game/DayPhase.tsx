@@ -12,6 +12,7 @@ import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { HeartCrack, SunIcon, Users } from 'lucide-react';
 import { useFirebase } from '@/firebase';
+import { playNarration, playSoundEffect } from '@/lib/sounds';
 
 interface DayPhaseProps {
     game: Game;
@@ -30,6 +31,27 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
 
     const hasVoted = !!currentPlayer.votedFor;
     const alivePlayers = players.filter(p => p.isAlive);
+
+    // Effect for night result narration
+    useEffect(() => {
+        if (nightEvent) {
+            const hasDeaths = nightEvent.data?.killedByWerewolfIds?.length > 0 || nightEvent.data?.killedByPoisonId;
+             // Delay to allow "Pueblo, despierta" to finish
+            setTimeout(() => {
+                if (hasDeaths) {
+                    playSoundEffect('Descanse en paz.mp3');
+                } else {
+                    playSoundEffect('¡Milagro!.mp3');
+                }
+            }, 2500);
+            
+            // Delay for debate start
+             setTimeout(() => {
+                playNarration('inicio_debate.mp3');
+            }, 5000);
+        }
+    }, [nightEvent]);
+
 
     const handlePlayerSelect = (player: Player) => {
         if (hasVoted || !currentPlayer.isAlive || !player.isAlive || player.userId === currentPlayer.userId) return;

@@ -1,11 +1,13 @@
 
 "use client";
 
+import { useEffect } from 'react';
 import type { GameEvent, Player } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import Link from 'next/link';
 import { Milestone, User, BotIcon } from 'lucide-react';
+import { playNarration } from '@/lib/sounds';
 
 
 interface GameOverProps {
@@ -14,6 +16,18 @@ interface GameOverProps {
 }
 
 export function GameOver({ event, players }: GameOverProps) {
+    
+    useEffect(() => {
+        if (event) {
+            const villagersWon = event.message.includes('pueblo ha ganado');
+            if (villagersWon) {
+                playNarration('victoria_aldeanos.mp3');
+            } else {
+                playNarration('victoria_lobos.mp3');
+            }
+        }
+    }, [event]);
+
     if (!event) {
         return (
             <div className="text-center">

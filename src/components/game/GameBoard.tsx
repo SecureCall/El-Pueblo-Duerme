@@ -5,7 +5,7 @@ import type { Game, Player, GameEvent } from "@/types";
 import { RoleReveal } from "./RoleReveal";
 import { PlayerGrid } from "./PlayerGrid";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { updateDoc, doc } from "firebase/firestore";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
@@ -17,6 +17,7 @@ import { HunterShot } from "./HunterShot";
 import { GameChronicle } from "./GameChronicle";
 import { PhaseTimer } from "./PhaseTimer";
 import { CurrentPlayerRole } from "./CurrentPlayerRole";
+import { playNarration, playSoundEffect } from "@/lib/sounds";
 
 interface GameBoardProps {
   game: Game;
@@ -28,6 +29,8 @@ interface GameBoardProps {
 export function GameBoard({ game, players, currentPlayer, events }: GameBoardProps) {
   const { firestore } = useFirebase();
   const [showRole, setShowRole] = useState(game.phase === 'role_reveal');
+  const prevPhaseRef = useRef<Game['phase']>();
+  const prevRoundRef = useRef<number>();
 
   useEffect(() => {
     if (game.phase === 'role_reveal') {
@@ -35,7 +38,45 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     } else {
       setShowRole(false);
     }
-  }, [game.phase]);
+
+    const prevPhase = prevPhaseRef.current;
+    if (prevPhase !== game.phase) {
+      switch (game.phase) {
+        case 'night':
+          if (game.currentRound === 1 && prevPhase === 'role_reveal') {
+            // First night after role reveal
+            playNarration('intro_epica.mp3');
+            setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 4000);
+          } else {
+            playNarration('noche_pueblo_duerme.mp3');
+          }
+          break;
+        case 'day':
+          playNarration('dia_pueblo_despierta.mp3');
+          break;
+        case 'voting':
+           playNarration('inicio_votacion.mp3');
+           break;
+      }
+    }
+    
+    // Announce lynch result at the start of the day
+    if (game.phase === 'day' && game.currentRound !== prevRoundRef.current && game.currentRound > 1) {
+        const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
+        if (voteEvent) {
+             setTimeout(() => {
+                if (voteEvent.data?.lynchedPlayerId) {
+                     playSoundEffect('anuncio_exilio.mp3');
+                }
+            }, 3000);
+        }
+    }
+
+    prevPhaseRef.current = game.phase;
+    prevRoundRef.current = game.currentRound;
+
+  }, [game.phase, game.currentRound, events]);
+
 
   // Handle AI actions when phase changes
   useEffect(() => {
@@ -49,16 +90,12 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
 
   const handleAcknowledgeRole = async () => {
     setShowRole(false);
-    // Only the creator should trigger the phase change to avoid race conditions
     if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId) {
-        // Add a delay to allow all players to see their roles
-        setTimeout(async () => {
-           if (firestore) {
-             await updateDoc(doc(firestore, "games", game.id), { 
-                  phase: 'night',
-              });
-           }
-        }, 5000); 
+        if (firestore) {
+            await updateDoc(doc(firestore, "games", game.id), { 
+                phase: 'night',
+            });
+        }
     }
   };
   
@@ -94,7 +131,6 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     );
   }
 
-  const alivePlayers = players.filter(p => p.isAlive);
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
   const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
