@@ -465,11 +465,15 @@ async function killPlayer(
 
 
 async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: boolean }> {
-    let newGameData = { ...gameData };
-    // Make sure fields are initialized
-    if (!newGameData.lovers) newGameData.lovers = null;
-    if (!newGameData.twins) newGameData.twins = null;
-    if (!newGameData.pendingHunterShot) newGameData.pendingHunterShot = null;
+    // Create a "safe" game data object to avoid undefined fields.
+    const newGameData = { 
+      ...gameData,
+      lovers: gameData.lovers ?? null,
+      twins: gameData.twins ?? null,
+      pendingHunterShot: gameData.pendingHunterShot ?? null,
+      wolfCubRevengeRound: gameData.wolfCubRevengeRound ?? 0,
+      nightActions: gameData.nightActions ?? [],
+    };
 
     const alivePlayers = newGameData.players.filter(p => p.isAlive);
     const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
