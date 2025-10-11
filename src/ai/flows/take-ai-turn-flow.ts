@@ -2,7 +2,7 @@
 
 import { ai } from '@/ai/genkit';
 import type { TakeAITurnInput, TakeAITurnOutput } from '@/types';
-import { TakeAITurnInputSchema, TakeAITurnOutputSchema } from '@/types';
+import { TakeAITurnOutputSchema } from '@/types';
 
 
 export async function takeAITurn(input: TakeAITurnInput): Promise<TakeAITurnOutput> {
