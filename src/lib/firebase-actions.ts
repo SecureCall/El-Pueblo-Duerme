@@ -11,6 +11,7 @@ import {
   runTransaction,
   type Firestore,
   type Transaction,
+  DocumentReference,
 } from "firebase/firestore";
 import type { Game, Player, NightAction, GameEvent, PlayerRole } from "@/types";
 import { takeAITurn } from "@/ai/flows/take-ai-turn-flow";
@@ -400,69 +401,68 @@ export async function submitCupidAction(db: Firestore, gameId: string, cupidId: 
 }
 
 async function killPlayer(
-  transaction: Transaction,
-  gameRef: any,
-  gameData: Game
-): Promise<{ game: Game, hunterId: string | null }> {
-  
-  const killedPlayerIds = gameData.players
-    .filter(p => p.isAlive && p.votedFor === 'TO_BE_KILLED')
-    .map(p => p.userId);
-  
-  if (killedPlayerIds.length === 0) {
-    return { game: gameData, hunterId: null };
-  }
-  
-  let newGameData = { ...gameData };
-  let hunterTriggeredId: string | null = null;
+    transaction: Transaction,
+    gameRef: DocumentReference,
+    gameData: Game
+): Promise<{ game: Game; hunterId: string | null }> {
+    let newGameData = { ...gameData };
+    let hunterTriggeredId: string | null = null;
 
-  for (const playerId of killedPlayerIds) {
-      const playerIndex = newGameData.players.findIndex(p => p.userId === playerId && p.isAlive);
-      if (playerIndex === -1) continue;
+    const playersToKill = newGameData.players.filter(p => p.votedFor === 'TO_BE_KILLED' && p.isAlive);
 
-      const playerToKill = newGameData.players[playerIndex];
-      newGameData.players[playerIndex].isAlive = false;
+    for (const playerToKill of playersToKill) {
+        const playerIndex = newGameData.players.findIndex(p => p.userId === playerToKill.userId);
+        if (playerIndex === -1) continue;
 
-      if (playerToKill.role === 'hunter' && newGameData.settings.hunter) {
-          hunterTriggeredId = playerId;
-      } else if (playerToKill.role === 'wolf_cub' && newGameData.settings.wolf_cub) {
-          newGameData.wolfCubRevengeRound = newGameData.currentRound + 1;
-      }
+        newGameData.players[playerIndex].isAlive = false;
 
-      if (newGameData.lovers && newGameData.lovers.includes(playerId)) {
-          const otherLoverId = newGameData.lovers.find(id => id !== playerId)!;
-          const otherLoverIndex = newGameData.players.findIndex(p => p.userId === otherLoverId && p.isAlive);
-          if (otherLoverIndex > -1) {
-              const otherLoverPlayer = newGameData.players[otherLoverIndex];
-              if (otherLoverPlayer.role === 'hunter' && newGameData.settings.hunter && !hunterTriggeredId) {
-                  hunterTriggeredId = otherLoverId;
-              } else {
-                  newGameData.players[otherLoverIndex].isAlive = false;
-                  const newEvent: GameEvent = {
-                      id: `evt_${Date.now()}_${Math.random()}`,
-                      gameId: newGameData.id,
-                      round: newGameData.currentRound,
-                      type: 'lover_death',
-                      message: `${otherLoverPlayer.displayName} no pudo soportar la pérdida de ${playerToKill.displayName} y ha muerto de desamor.`,
-                      createdAt: Timestamp.now(),
-                  };
-                  newGameData.events.push(newEvent);
-              }
-          }
-      }
-  }
-  
-  if (hunterTriggeredId) {
-    newGameData.pendingHunterShot = hunterTriggeredId;
-    newGameData.phase = 'hunter_shot';
-    newGameData.players.forEach(p => {
-        if (p.userId === hunterTriggeredId) p.votedFor = null; // Clear to-be-killed status
-    })
+        // Check for special roles on death
+        if (playerToKill.role === 'hunter' && newGameData.settings.hunter) {
+            hunterTriggeredId = playerToKill.userId;
+        } else if (playerToKill.role === 'wolf_cub' && newGameData.settings.wolf_cub) {
+            newGameData.wolfCubRevengeRound = newGameData.currentRound + 1;
+        }
+
+        // Check for lover's death
+        if (newGameData.lovers && newGameData.lovers.includes(playerToKill.userId)) {
+            const otherLoverId = newGameData.lovers.find(id => id !== playerToKill.userId)!;
+            const otherLoverIndex = newGameData.players.findIndex(p => p.userId === otherLoverId && p.isAlive);
+
+            if (otherLoverIndex > -1) {
+                const otherLover = newGameData.players[otherLoverIndex];
+                newGameData.players[otherLoverIndex].isAlive = false;
+
+                const newEvent: GameEvent = {
+                    id: `evt_${Date.now()}_${Math.random()}`,
+                    gameId: newGameData.id,
+                    round: newGameData.currentRound,
+                    type: 'lover_death',
+                    message: `${otherLover.displayName} no pudo soportar la pérdida de ${playerToKill.displayName} y ha muerto de desamor.`,
+                    createdAt: Timestamp.now(),
+                    data: { killedPlayerId: otherLoverId }
+                };
+                newGameData.events.push(newEvent);
+
+                if (otherLover.role === 'hunter' && newGameData.settings.hunter && !hunterTriggeredId) {
+                    hunterTriggeredId = otherLover.userId;
+                }
+            }
+        }
+    }
+    
+    if (hunterTriggeredId) {
+        newGameData.pendingHunterShot = hunterTriggeredId;
+        newGameData.phase = 'hunter_shot';
+        // Clear the 'TO_BE_KILLED' status from the hunter so they aren't processed again
+        const hunterIndex = newGameData.players.findIndex(p => p.userId === hunterTriggeredId);
+        if(hunterIndex > -1) {
+            newGameData.players[hunterIndex].votedFor = null;
+        }
+    }
+
     return { game: newGameData, hunterId: hunterTriggeredId };
-  }
-
-  return { game: newGameData, hunterId: null };
 }
+
 
 async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: boolean }> {
     let newGameData = { ...gameData };
@@ -785,7 +785,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                 transaction.update(gameRef, game);
                 return;
             }
-
+            
             // Reset votes for the next round
             game.players.forEach(p => {
                 p.votedFor = null;
@@ -1109,3 +1109,5 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
         console.error("Error in AI Actions:", e);
     }
 }
+
+    
