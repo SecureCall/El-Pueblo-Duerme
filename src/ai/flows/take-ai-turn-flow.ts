@@ -2,6 +2,7 @@
 'use server';
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'zod';
 import type { TakeAITurnInput } from '@/types';
 import { TakeAITurnOutputSchema, type TakeAITurnOutput } from '@/types';
@@ -90,7 +91,7 @@ Ahora, proporciona tu razonamiento y acción para el estado actual del juego. Tu
 
     const { output } = await ai.generate({
         prompt: promptText,
-        model: 'gemini-pro',
+        model: googleAI.model('gemini-1.0-pro'),
         output: {
             schema: TakeAITurnOutputSchema,
         },
