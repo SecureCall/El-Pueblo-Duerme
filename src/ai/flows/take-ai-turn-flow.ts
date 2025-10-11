@@ -89,7 +89,7 @@ Ahora, proporciona tu razonamiento y acción para el estado actual del juego. Tu
     // The context can be large, so we use a model that can handle it.
     const response = await ai.generate({
         prompt: prompt,
-        model: 'googleai/gemini-pro',
+        model: 'gemini-pro',
         config: {
             responseMimeType: 'application/json',
         }
