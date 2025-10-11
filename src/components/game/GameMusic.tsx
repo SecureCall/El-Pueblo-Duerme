@@ -1,71 +1,49 @@
 
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 interface GameMusicProps {
   src: string;
 }
 
-// A global ref to hold the single audio instance
-const audioRef = { current: (null as HTMLAudioElement | null) };
+// A global ref to hold the single audio instance. This ensures the same audio element is used across re-renders.
+let audio: HTMLAudioElement | null = null;
+if (typeof window !== 'undefined') {
+  audio = new Audio();
+  audio.loop = true;
+  audio.volume = 0.3;
+}
 
 export function GameMusic({ src }: GameMusicProps) {
   useEffect(() => {
-    // This component only manages the audio source and playback.
-    // It doesn't render anything.
-    if (typeof window === "undefined") return;
+    if (!audio) return;
 
-    let audio = audioRef.current;
-    
-    // Create audio element if it doesn't exist
-    if (!audio) {
-      audio = new Audio();
-      audioRef.current = audio;
-      audio.loop = true;
-      audio.volume = 0.3;
-    }
+    // Check if the new source is different from the current one.
+    // We compare the full URL to avoid issues with relative paths.
+    const newSrcUrl = new URL(src, window.location.origin).href;
 
-    const currentAudioSrc = audio.src ? new URL(audio.src).pathname : "";
-    const newAudioSrc = src;
-
-    // Change source only if it's different
-    if (currentAudioSrc !== newAudioSrc) {
-        // Fade out, change source, fade in
-        let fadeOut = setInterval(() => {
-            if (audio && audio.volume > 0.05) {
-                audio.volume -= 0.05;
-            } else {
-                clearInterval(fadeOut);
-                if (audio) {
-                    audio.pause();
-                    audio.src = newAudioSrc;
-                    const playPromise = audio.play();
-                    if(playPromise !== undefined) {
-                        playPromise.then(() => {
-                             // Fade in
-                            let fadeIn = setInterval(() => {
-                                if (audio && audio.volume < 0.29) {
-                                    audio.volume += 0.05;
-                                } else {
-                                    if(audio) audio.volume = 0.3;
-                                    clearInterval(fadeIn);
-                                }
-                            }, 100);
-                        }).catch(error => {
-                            console.error("Audio playback failed:", error);
-                        });
-                    }
-                }
-            }
-        }, 50);
+    if (audio.src !== newSrcUrl) {
+      audio.src = newSrcUrl;
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          // This catch block handles cases where autoplay is blocked by the browser.
+          // We don't need to log it as an error unless it's for debugging.
+          // The audio will likely play on the next user interaction anyway.
+        });
+      }
     } else if (audio.paused) {
-        // If the source is the same but paused, just play it
-        audio.play().catch(error => console.error("Audio playback failed:", error));
+      // If the source is the same but the audio is paused, play it.
+       const playPromise = audio.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {});
+        }
     }
 
-    // No cleanup function that stops the music, as it should persist across GameRoom re-renders
+    // There is no cleanup function here. The music should persist and only change
+    // when the `src` prop changes in a subsequent render.
   }, [src]);
 
-  return null;
+  return null; // This component does not render anything to the DOM.
 }
