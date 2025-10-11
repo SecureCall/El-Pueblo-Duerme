@@ -89,13 +89,17 @@ Ahora, proporciona tu razonamiento y acción para el estado actual del juego. Tu
 \`\`\`
 `;
 
-    const { output } = await ai.generate({
+    const response = await ai.generate({
         prompt: promptText,
-        model: googleAI.model('gemini-pro-latest'),
-        output: {
-            schema: TakeAITurnOutputSchema,
+        model: googleAI.model('gemini-pro'),
+        config: {
+            responseMimeType: 'application/json',
         },
     });
 
-    return output!;
+    const rawJsonText = response.text();
+    const output = JSON.parse(rawJsonText);
+    
+    // Validate the parsed output against the Zod schema
+    return TakeAITurnOutputSchema.parse(output);
 }
