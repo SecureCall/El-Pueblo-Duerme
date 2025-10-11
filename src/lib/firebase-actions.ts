@@ -786,6 +786,11 @@ export async function processVotes(db: Firestore, gameId: string) {
                 return;
             }
 
+            // Reset votes for the next round
+            game.players.forEach(p => {
+                p.votedFor = null;
+            });
+            
             game.phase = 'night';
             game.currentRound = game.currentRound + 1;
             
