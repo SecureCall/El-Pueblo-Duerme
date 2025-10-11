@@ -98,6 +98,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
           className="object-cover z-0 transition-opacity duration-1000"
           data-ai-hint={bgImage.imageHint}
           key={bgImage.id}
+          priority
         />
       )}
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
