@@ -4,10 +4,10 @@
 import { ai } from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import type { TakeAITurnInput } from '@/types';
-import { TakeAITurnOutputSchema } from '@/types';
+import { TakeAITurnOutputSchema, type TakeAITurnOutput } from '@/types';
 
-export async function takeAITurn(input: TakeAITurnInput) {
-  const prompt = `Eres un jugador experto en el juego 'El Pueblo Duerme' (similar a Mafia o Werewolf). Estás jugando como un bot de IA. Tu objetivo es ganar la partida para tu facción.
+export async function takeAITurn(input: TakeAITurnInput): Promise<TakeAITurnOutput> {
+    const prompt = `Eres un jugador experto en el juego 'El Pueblo Duerme' (similar a Mafia o Werewolf). Estás jugando como un bot de IA. Tu objetivo es ganar la partida para tu facción.
 
 Analiza el estado actual del juego y decide la mejor acción a tomar. Piensa paso a paso. You must respond in valid JSON format.
 
@@ -87,13 +87,16 @@ Ahora, proporciona tu razonamiento y acción para el estado actual del juego. Tu
 \`\`\`
 `;
 
-    const { output } = await ai.generate({
+    const { text } = await ai.generate({
         prompt: prompt,
         model: googleAI.model('gemini-pro'),
-        output: {
-            schema: TakeAITurnOutputSchema,
-        },
     });
+    
+    // Clean up the text response to ensure it's valid JSON
+    const cleanedText = text
+        .replace(/^```json\s*/, '')
+        .replace(/\s*```$/, '');
 
-    return output!;
+    const parsedOutput = JSON.parse(cleanedText);
+    return TakeAITurnOutputSchema.parse(parsedOutput);
 }
