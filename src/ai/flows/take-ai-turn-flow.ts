@@ -1,11 +1,29 @@
 'use server';
 
 import { ai } from '@/ai/genkit';
+import { z } from 'genkit/zod';
 import type { TakeAITurnInput } from '@/types';
 import { TakeAITurnOutputSchema, type TakeAITurnOutput } from '@/types';
 
 export async function takeAITurn(input: TakeAITurnInput): Promise<TakeAITurnOutput> {
-    const prompt = `Eres un jugador experto en el juego 'El Pueblo Duerme' (similar a Mafia o Werewolf). Estás jugando como un bot de IA. Tu objetivo es ganar la partida para tu facción.
+    return takeAITurnFlow(input);
+}
+
+const takeAITurnPrompt = ai.definePrompt(
+    {
+        name: 'takeAITurnPrompt',
+        input: {
+            schema: z.object({
+                game: z.string(),
+                players: z.string(),
+                events: z.string(),
+                currentPlayer: z.string(),
+            }),
+        },
+        output: {
+            schema: TakeAITurnOutputSchema,
+        },
+        prompt: `Eres un jugador experto en el juego 'El Pueblo Duerme' (similar a Mafia o Werewolf). Estás jugando como un bot de IA. Tu objetivo es ganar la partida para tu facción.
 
 Analiza el estado actual del juego y decide la mejor acción a tomar. Piensa paso a paso. You must respond in valid JSON format.
 
@@ -26,12 +44,12 @@ Analiza el estado actual del juego y decide la mejor acción a tomar. Piensa pas
 - Sacerdote: Cada noche, bendice a un jugador, haciéndolo inmune a cualquier ataque. Solo puede bendecirse a sí mismo una vez.
 
 **ESTADO ACTUAL DEL JUEGO (en formato JSON):**
-- Partida: ${input.game}
-- Todos los Jugadores: ${input.players}
-- Historial de Eventos: ${input.events}
+- Partida: {{{game}}}
+- Todos los Jugadores: {{{players}}}
+- Historial de Eventos: {{{events}}}
 
 **TU IDENTIDAD:**
-- Eres el jugador: ${input.currentPlayer}
+- Eres el jugador: {{{currentPlayer}}}
 
 **TAREA:**
 Basado en toda la información, y especialmente en tu identidad y rol dentro de 'currentPlayer', decide tu acción para la fase actual.
@@ -83,18 +101,20 @@ Ahora, proporciona tu razonamiento y acción para el estado actual del juego. Tu
   "action": "string"
 }
 \`\`\`
-`;
+`,
+    },
+);
 
-    const { text } = await ai.generate({
-        prompt: prompt,
-        model: 'gemini-pro',
-    });
-    
-    // Clean up the text response to ensure it's valid JSON
-    const cleanedText = text
-        .replace(/^```json\s*/, '')
-        .replace(/\s*```$/, '');
-
-    const parsedOutput = JSON.parse(cleanedText);
-    return TakeAITurnOutputSchema.parse(parsedOutput);
-}
+const takeAITurnFlow = ai.defineFlow(
+    {
+        name: 'takeAITurnFlow',
+        inputSchema: z.any(),
+        outputSchema: TakeAITurnOutputSchema,
+    },
+    async (input) => {
+        const { output } = await takeAITurnPrompt(input, {
+            model: 'gemini-pro',
+        });
+        return output!;
+    }
+);
