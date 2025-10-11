@@ -14,9 +14,9 @@
     },
     {
       "id": "game-bg-day",
-      "description": "A quiet, slightly eerie medieval village during the day.",
-      "imageUrl": "https://images.unsplash.com/photo-1568402132842-53a473435f79?q=80&w=1974&auto=format&fit=crop",
-      "imageHint": "medieval village"
+      "description": "A beautiful sunny meadow with a small village in the background.",
+      "imageUrl": "https://images.unsplash.com/photo-1433852893689-35c43f3b3633?q=80&w=2070&auto=format&fit=crop",
+      "imageHint": "sunny meadow"
     },
     {
       "id": "role-bg-werewolf",
