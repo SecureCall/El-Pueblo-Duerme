@@ -12,7 +12,7 @@ import {
   type Firestore,
   type Transaction,
 } from "firebase/firestore";
-import type { Game, Player, NightAction, GameEvent } from "@/types";
+import type { Game, Player, NightAction, GameEvent, PlayerRole } from "@/types";
 import { takeAITurn } from "@/ai/flows/take-ai-turn-flow";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
@@ -163,72 +163,55 @@ export async function joinGame(
   }
 }
 
-const generateRoles = (playerCount: number, settings: Game['settings']) => {
-    let roles: (Player['role'])[] = [];
-    
+const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
+    let roles: (PlayerRole)[] = [];
+    const specialRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[] = Object.keys(settings)
+        .filter(key => key !== 'werewolves' && key !== 'fillWithAI' && settings[key as keyof typeof settings] === true) as any;
+
+    // Add werewolves first
     const numWerewolves = Math.max(1, Math.floor(playerCount / 5));
     for (let i = 0; i < numWerewolves; i++) {
-        if (roles.length < playerCount) roles.push('werewolf');
+        if(roles.length < playerCount) roles.push('werewolf');
     }
-    
-    if (settings.wolf_cub && roles.length < playerCount) roles.push('wolf_cub');
-    if (settings.seeker_fairy && roles.length < playerCount) roles.push('seeker_fairy');
-    if (settings.seer && roles.length < playerCount) roles.push('seer');
-    if (settings.doctor && roles.length < playerCount) roles.push('doctor');
-    if (settings.hunter && roles.length < playerCount) roles.push('hunter');
-    if (settings.cupid && roles.length < playerCount) roles.push('cupid');
-    if (settings.hechicera && roles.length < playerCount) roles.push('hechicera');
-    if (settings.lycanthrope && roles.length < playerCount) roles.push('lycanthrope');
-    if (settings.prince && roles.length < playerCount) roles.push('prince');
-    if (settings.twin && (roles.length + 1) < playerCount) {
-      roles.push('twin');
-      roles.push('twin'); 
-    }
-    if (settings.guardian && roles.length < playerCount) roles.push('guardian');
-    if (settings.priest && roles.length < playerCount) roles.push('priest');
-    if (settings.cursed && roles.length < playerCount) roles.push('cursed');
-    if (settings.ghost && roles.length < playerCount) roles.push('ghost');
-    if (settings.virginia_woolf && roles.length < playerCount) roles.push('virginia_woolf');
-    if (settings.leprosa && roles.length < playerCount) roles.push('leprosa');
-    if (settings.river_siren && roles.length < playerCount) roles.push('river_siren');
-    if (settings.lookout && roles.length < playerCount) roles.push('lookout');
-    if (settings.troublemaker && roles.length < playerCount) roles.push('troublemaker');
-    if (settings.silencer && roles.length < playerCount) roles.push('silencer');
-    if (settings.seer_apprentice && roles.length < playerCount) roles.push('seer_apprentice');
-    if (settings.elder_leader && roles.length < playerCount) roles.push('elder_leader');
-    if (settings.sleeping_fairy && roles.length < playerCount) roles.push('sleeping_fairy');
-    
-    if (settings.shapeshifter && roles.length < playerCount) roles.push('shapeshifter');
-    if (settings.drunk_man && roles.length < playerCount) roles.push('drunk_man');
-    if (settings.cult_leader && roles.length < playerCount) roles.push('cult_leader');
-    if (settings.fisherman && roles.length < playerCount) roles.push('fisherman');
-    if (settings.vampire && roles.length < playerCount) roles.push('vampire');
-    if (settings.witch && roles.length < playerCount) roles.push('witch');
-    if (settings.banshee && roles.length < playerCount) roles.push('banshee');
 
+    // Add selected special roles
+    for (const role of specialRoles) {
+        if (role === 'twin') {
+            if (roles.length < playerCount - 1) {
+                roles.push('twin', 'twin');
+            }
+        } else {
+            if (roles.length < playerCount) {
+                roles.push(role);
+            }
+        }
+    }
+    
+    // Fill the rest with villagers
     while (roles.length < playerCount) {
         roles.push('villager');
     }
 
+    // Trim excess roles if any
+    roles = roles.slice(0, playerCount);
+
     // Ensure there is at least one werewolf if roles were manually selected
-    const wolfRoles: (Player['role'])[] = ['werewolf', 'wolf_cub', 'seeker_fairy'];
+    const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'seeker_fairy'];
     const hasWolfRole = roles.some(r => wolfRoles.includes(r));
+    
     if (!hasWolfRole && playerCount > 0) {
         const villagerIndex = roles.indexOf('villager');
         if (villagerIndex !== -1) {
-            // Replace a villager with a werewolf
             roles[villagerIndex] = 'werewolf';
-        } else if (roles.length > 0) {
-            // If no villagers, replace the last role added
+        } else if (roles.length > 0) { // If no villagers, replace the last role
             roles[roles.length - 1] = 'werewolf';
-        } else {
-            // Should not happen if playerCount > 0, but as a fallback
+        } else { // Should not happen, but as a fallback
             roles.push('werewolf');
         }
     }
     
-    // Shuffle and trim to final player count
-    return roles.sort(() => Math.random() - 0.5).slice(0, playerCount);
+    // Shuffle and return
+    return roles.sort(() => Math.random() - 0.5);
 };
 
 

@@ -14,6 +14,7 @@ import { GameBoard } from "./GameBoard";
 import Image from "next/image";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { useFirebase } from "@/firebase";
+import { GameMusic } from "./GameMusic";
 
 export function GameRoom({ gameId }: { gameId: string }) {
   const { userId, displayName, setDisplayName, isSessionLoaded } = useGameSession();
@@ -36,6 +37,22 @@ export function GameRoom({ gameId }: { gameId: string }) {
     setIsJoining(false);
   };
   
+  const getMusicSrc = () => {
+    if (!game) return "/audio/lobby-theme.mp3";
+    switch (game.phase) {
+      case 'day':
+        return "/audio/day-theme.mp3";
+      case 'night':
+      case 'role_reveal':
+      case 'hunter_shot':
+        return "/audio/night-theme.mp3";
+      case 'waiting':
+      case 'finished':
+      default:
+        return "/audio/lobby-theme.mp3";
+    }
+  };
+
   const bgImageId = game?.phase === 'day' ? 'game-bg-day' : 'game-bg-night';
   const bgImage = PlaceHolderImages.find((img) => img.id === bgImageId);
 
@@ -95,11 +112,12 @@ export function GameRoom({ gameId }: { gameId: string }) {
           fill
           className="object-cover z-0 transition-opacity duration-1000"
           data-ai-hint={bgImage.imageHint}
-          key={bgImage.id}
+          key={bgImage.id} // This is crucial to force re-render on image change
           priority
         />
       )}
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
+      <GameMusic src={getMusicSrc()} />
       <div className="relative z-10 w-full flex items-center justify-center">
         {renderContent()}
       </div>
