@@ -3,20 +3,20 @@
     {
       "id": "home-background",
       "description": "A mysterious, dark, misty forest at night.",
-      "imageUrl": "https://storage.googleapis.com/project-game-assets/backgrounds/night_village.png",
+      "imageUrl": "/noche.png",
       "imageHint": "night village"
     },
     {
       "id": "game-bg-night",
-      "description": "A mysterious village at night with a red moon.",
-      "imageUrl": "https://storage.googleapis.com/project-game-assets/backgrounds/night_village.png",
+      "description": "Fondo de noche para el juego.",
+      "imageUrl": "/noche.png",
       "imageHint": "night village"
     },
     {
       "id": "game-bg-day",
-      "description": "A beautiful sunny meadow with a small village in the background.",
-      "imageUrl": "https://images.unsplash.com/photo-1433852893689-35c43f3b3633?q=80&w=2070&auto=format&fit=crop",
-      "imageHint": "sunny meadow"
+      "description": "Fondo de día para el juego.",
+      "imageUrl": "/dia.png",
+      "imageHint": "day village"
     },
     {
       "id": "role-bg-werewolf",
