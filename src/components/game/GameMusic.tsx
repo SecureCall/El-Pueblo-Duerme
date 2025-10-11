@@ -26,7 +26,7 @@ export function GameMusic({ src }: GameMusicProps) {
       audio.volume = 0.3;
     }
 
-    const currentAudioSrc = new URL(audio.src).pathname;
+    const currentAudioSrc = audio.src ? new URL(audio.src).pathname : "";
     const newAudioSrc = src;
 
     // Change source only if it's different
