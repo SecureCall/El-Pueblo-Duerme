@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { Game, Player, GameEvent } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -12,7 +12,6 @@ import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { HeartCrack, SunIcon, Users } from 'lucide-react';
 import { useFirebase } from '@/firebase';
-import { playNarration, playSoundEffect } from '@/lib/sounds';
 
 interface DayPhaseProps {
     game: Game;
@@ -31,34 +30,6 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
 
     const hasVoted = !!currentPlayer.votedFor;
     const alivePlayers = players.filter(p => p.isAlive);
-
-    // Effect for night result narration
-    useEffect(() => {
-        if (nightEvent) {
-            const hasDeaths = nightEvent.data?.killedByWerewolfIds?.length > 0 || nightEvent.data?.killedByPoisonId;
-            
-            // 1. Wait for "Pueblo, despierta" to finish (approx 2.5s)
-            const nightResultTimer = setTimeout(() => {
-                // 2. Announce the result of the night
-                if (hasDeaths) {
-                    playSoundEffect('Descanse en paz.mp3');
-                } else {
-                    playSoundEffect('¡Milagro!.mp3');
-                }
-
-                // 3. Wait for the night result announcement to finish (approx 3s)
-                const debateStartTimer = setTimeout(() => {
-                    // 4. Announce the start of the debate
-                    playNarration('inicio_debate.mp3');
-                }, 3000);
-
-                return () => clearTimeout(debateStartTimer);
-            }, 2500);
-            
-            return () => clearTimeout(nightResultTimer);
-        }
-    }, [nightEvent]);
-
 
     const handlePlayerSelect = (player: Player) => {
         if (hasVoted || !currentPlayer.isAlive || !player.isAlive || player.userId === currentPlayer.userId) return;

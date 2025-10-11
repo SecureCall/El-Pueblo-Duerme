@@ -40,11 +40,12 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     }
 
     const prevPhase = prevPhaseRef.current;
+    const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
+
     if (prevPhase !== game.phase) {
       switch (game.phase) {
         case 'night':
           if (game.currentRound === 1 && prevPhase === 'role_reveal') {
-            // First night after role reveal
             playNarration('intro_epica.mp3');
             setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 4000);
           } else {
@@ -53,6 +54,24 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
           break;
         case 'day':
           playNarration('dia_pueblo_despierta.mp3');
+          // Start the morning announcement sequence here
+          setTimeout(() => {
+            if (nightEvent) {
+              const hasDeaths = nightEvent.data?.killedByWerewolfIds?.length > 0 || nightEvent.data?.killedByPoisonId;
+              if (hasDeaths) {
+                playSoundEffect('Descanse en paz.mp3');
+              } else {
+                playSoundEffect('¡Milagro!.mp3');
+              }
+              // Wait for death/miracle announcement to finish
+              setTimeout(() => {
+                playNarration('inicio_debate.mp3');
+              }, 3000);
+            } else {
+              // If for some reason there's no night event, just start debate
+              playNarration('inicio_debate.mp3');
+            }
+          }, 3000); // Wait for "pueblo despierta"
           break;
         case 'voting':
            playNarration('inicio_votacion.mp3');
@@ -68,7 +87,7 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
                 if (voteEvent.data?.lynchedPlayerId) {
                      playSoundEffect('anuncio_exilio.mp3');
                 }
-            }, 3000);
+            }, 3000); // Delay to not overlap with other sounds
         }
     }
 
