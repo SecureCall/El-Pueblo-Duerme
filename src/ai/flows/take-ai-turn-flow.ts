@@ -1,4 +1,3 @@
-
 'use server';
 
 import { ai } from '@/ai/genkit';
@@ -90,7 +89,7 @@ Ahora, proporciona tu razonamiento y acción para el estado actual del juego. Tu
 
     const { output } = await ai.generate({
         prompt: promptText,
-        model: 'gemini-pro',
+        model: 'googleai/gemini-1.5-flash-latest',
         output: {
             schema: TakeAITurnOutputSchema,
         }
