@@ -12,30 +12,48 @@ if (typeof window !== 'undefined') {
     soundEffectAudio.volume = 0.8;
 }
 
-const playAudio = (audioElement: HTMLAudioElement | null, src: string) => {
-    if (!audioElement || !src) return;
+const playAudio = (audioElement: HTMLAudioElement | null, src: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        if (!audioElement || !src) {
+            resolve();
+            return;
+        }
 
-    // Stop current playback before starting a new one
-    if (!audioElement.paused) {
-        audioElement.pause();
-        audioElement.currentTime = 0;
-    }
-    
-    audioElement.src = src;
-    const playPromise = audioElement.play();
+        // Stop current playback if any
+        if (!audioElement.paused) {
+            audioElement.pause();
+            audioElement.currentTime = 0;
+        }
 
-    if (playPromise !== undefined) {
-        playPromise.catch(error => {
-            // Autoplay was prevented. This is common, especially on first load.
-            // We don't need to log this as it's an expected browser behavior.
-        });
-    }
+        audioElement.src = src;
+
+        // Clear previous listeners to avoid memory leaks
+        audioElement.onended = null;
+        audioElement.onerror = null;
+
+        audioElement.onended = () => resolve();
+        audioElement.onerror = (e) => {
+            console.error("Error playing audio:", e);
+            // Resolve even on error to not block the audio sequence
+            resolve();
+        };
+        
+        const playPromise = audioElement.play();
+
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                console.warn("Audio autoplay was prevented:", error);
+                // Autoplay was prevented. Resolve to not block the sequence.
+                resolve();
+            });
+        }
+    });
 };
 
-export const playNarration = (narrationFile: string) => {
-    playAudio(narrationAudio, `/audio/voz/${narrationFile}`);
+export const playNarration = (narrationFile: string): Promise<void> => {
+    return playAudio(narrationAudio, `/audio/voz/${narrationFile}`);
 };
 
-export const playSoundEffect = (soundFile: string) => {
-    playAudio(soundEffectAudio, `/audio/voz/${soundFile}`);
+export const playSoundEffect = (soundFile: string): Promise<void> => {
+    return playAudio(soundEffectAudio, `/audio/voz/${soundFile}`);
 };

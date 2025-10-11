@@ -42,36 +42,32 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
     const prevPhase = prevPhaseRef.current;
     const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
 
+    const playMorningSequence = async () => {
+        await playNarration('dia_pueblo_despierta.mp3');
+        if (nightEvent) {
+            const hasDeaths = nightEvent.data?.killedByWerewolfIds?.length > 0 || nightEvent.data?.killedByPoisonId;
+            if (hasDeaths) {
+                await playSoundEffect('Descanse en paz.mp3');
+            } else {
+                await playSoundEffect('¡Milagro!.mp3');
+            }
+        }
+        await playNarration('inicio_debate.mp3');
+    };
+
     if (prevPhase !== game.phase) {
       switch (game.phase) {
         case 'night':
           if (game.currentRound === 1 && prevPhase === 'role_reveal') {
-            playNarration('intro_epica.mp3');
-            setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 4000);
+            playNarration('intro_epica.mp3').then(() => {
+              setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 1000);
+            });
           } else {
             playNarration('noche_pueblo_duerme.mp3');
           }
           break;
         case 'day':
-          playNarration('dia_pueblo_despierta.mp3');
-          // Start the morning announcement sequence here
-          setTimeout(() => {
-            if (nightEvent) {
-              const hasDeaths = nightEvent.data?.killedByWerewolfIds?.length > 0 || nightEvent.data?.killedByPoisonId;
-              if (hasDeaths) {
-                playSoundEffect('Descanse en paz.mp3');
-              } else {
-                playSoundEffect('¡Milagro!.mp3');
-              }
-              // Wait for death/miracle announcement to finish
-              setTimeout(() => {
-                playNarration('inicio_debate.mp3');
-              }, 3000);
-            } else {
-              // If for some reason there's no night event, just start debate
-              playNarration('inicio_debate.mp3');
-            }
-          }, 3000); // Wait for "pueblo despierta"
+            playMorningSequence();
           break;
         case 'voting':
            playNarration('inicio_votacion.mp3');
