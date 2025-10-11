@@ -1,17 +1,13 @@
+
 'use server';
 
 import { ai } from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/google-genai';
-import type { TakeAITurnInput, TakeAITurnOutput } from '@/types';
+import type { TakeAITurnInput } from '@/types';
 import { TakeAITurnOutputSchema } from '@/types';
 
-
-export async function takeAITurn(input: TakeAITurnInput): Promise<TakeAITurnOutput> {
-    return takeAITurnFlow(input);
-}
-
-
-const promptText = `Eres un jugador experto en el juego 'El Pueblo Duerme' (similar a Mafia o Werewolf). Estás jugando como un bot de IA. Tu objetivo es ganar la partida para tu facción.
+export async function takeAITurn(input: TakeAITurnInput) {
+  const prompt = `Eres un jugador experto en el juego 'El Pueblo Duerme' (similar a Mafia o Werewolf). Estás jugando como un bot de IA. Tu objetivo es ganar la partida para tu facción.
 
 Analiza el estado actual del juego y decide la mejor acción a tomar. Piensa paso a paso. You must respond in valid JSON format.
 
@@ -32,12 +28,12 @@ Analiza el estado actual del juego y decide la mejor acción a tomar. Piensa pas
 - Sacerdote: Cada noche, bendice a un jugador, haciéndolo inmune a cualquier ataque. Solo puede bendecirse a sí mismo una vez.
 
 **ESTADO ACTUAL DEL JUEGO (en formato JSON):**
-- Partida: ${"{{{game}}}"}
-- Todos los Jugadores: ${"{{{players}}}"}
-- Historial de Eventos: ${"{{{events}}}"}
+- Partida: ${input.game}
+- Todos los Jugadores: ${input.players}
+- Historial de Eventos: ${input.events}
 
 **TU IDENTIDAD:**
-- Eres el jugador: ${"{{{currentPlayer}}}"}
+- Eres el jugador: ${input.currentPlayer}
 
 **TAREA:**
 Basado en toda la información, y especialmente en tu identidad y rol dentro de 'currentPlayer', decide tu acción para la fase actual.
@@ -91,27 +87,13 @@ Ahora, proporciona tu razonamiento y acción para el estado actual del juego. Tu
 \`\`\`
 `;
 
-const takeAITurnPrompt = ai.definePrompt(
-  {
-    name: 'takeAITurnPrompt',
-    prompt: promptText,
-    output: {
-      schema: TakeAITurnOutputSchema,
-    },
-  },
-);
-
-const takeAITurnFlow = ai.defineFlow(
-  {
-    name: 'takeAITurnFlow',
-    inputSchema: TakeAITurnInputSchema,
-    outputSchema: TakeAITurnOutputSchema,
-  },
-  async (input) => {
-    // The context can be large, so we use a model that can handle it.
-    const { output } = await takeAITurnPrompt(input, {
-      model: googleAI.model('gemini-pro'),
+    const { output } = await ai.generate({
+        prompt: prompt,
+        model: googleAI.model('gemini-pro'),
+        output: {
+            schema: TakeAITurnOutputSchema,
+        },
     });
+
     return output!;
-  }
-);
+}
