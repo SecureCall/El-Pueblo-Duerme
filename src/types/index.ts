@@ -60,6 +60,7 @@ export interface Game {
     // Roles from user
     seer: boolean;
     doctor: boolean;
+
     hunter: boolean;
     cupid: boolean;
     guardian: boolean;

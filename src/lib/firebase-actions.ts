@@ -466,6 +466,11 @@ async function killPlayer(
 
 async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: boolean }> {
     let newGameData = { ...gameData };
+    // Make sure fields are initialized
+    if (!newGameData.lovers) newGameData.lovers = null;
+    if (!newGameData.twins) newGameData.twins = null;
+    if (!newGameData.pendingHunterShot) newGameData.pendingHunterShot = null;
+
     const alivePlayers = newGameData.players.filter(p => p.isAlive);
     const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
     const aliveWerewolves = alivePlayers.filter(p => wolfRoles.includes(p.role));
@@ -850,6 +855,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 type: 'hunter_shot',
                 message: `En su último aliento, ${hunterPlayer.displayName} dispara y se lleva consigo a ${targetPlayer.displayName}.`,
                 createdAt: Timestamp.now(),
+                data: {},
             });
             
             const targetIndex = game.players.findIndex(p => p.userId === targetId);
@@ -1109,5 +1115,3 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
         console.error("Error in AI Actions:", e);
     }
 }
-
-    
