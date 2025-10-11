@@ -1,7 +1,8 @@
+
 'use server';
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit/zod';
+import { z } from 'zod';
 import type { TakeAITurnInput } from '@/types';
 import { TakeAITurnOutputSchema, type TakeAITurnOutput } from '@/types';
 
