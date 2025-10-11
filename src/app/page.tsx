@@ -4,14 +4,14 @@ import { JoinGameForm } from '@/components/JoinGameForm';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
 import { BookOpen } from 'lucide-react';
-import { StaticMusic } from '@/components/StaticMusic';
+import { HomePageAudio } from '@/components/HomePageAudio';
 
 export default function Home() {
   const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
 
   return (
     <>
-      <StaticMusic src="/audio/voz/Que comience el juego..mp3" />
+      <HomePageAudio />
       <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 overflow-hidden">
         {bgImage && (
           <Image
