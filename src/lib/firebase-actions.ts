@@ -13,8 +13,7 @@ import {
   type Transaction,
   DocumentReference,
 } from "firebase/firestore";
-import type { Game, Player, NightAction, GameEvent, PlayerRole } from "@/types";
-import { takeAITurn } from "@/ai/flows/take-ai-turn-flow";
+import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType } from "@/types";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 
@@ -1010,24 +1009,47 @@ async function checkEndDayEarly(db: Firestore, gameId: string) {
     }
 }
 
-const toJSONCompatible = (obj: any): any => {
-    if (obj === null || obj === undefined) return obj;
-    if (typeof obj.toDate === 'function') {
-        return obj.toDate().toISOString();
-    }
-    if (Array.isArray(obj)) {
-        return obj.map(toJSONCompatible);
-    }
-    if (typeof obj === 'object') {
-        const newObj: { [key: string]: any } = {};
-        for (const key in obj) {
-            if (Object.prototype.hasOwnProperty.call(obj, key)) {
-                newObj[key] = toJSONCompatible(obj[key]);
-            }
+const getDeterministicAIAction = (
+    aiPlayer: Player,
+    game: Game,
+    alivePlayers: Player[]
+): { actionType: NightActionType | 'VOTE' | 'SHOOT' | 'NONE', targetId: string } => {
+    const { role, userId, lastHealedRound } = aiPlayer;
+    const { currentRound } = game;
+    const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed'];
+
+    const potentialTargets = alivePlayers.filter(p => p.userId !== userId);
+
+    const randomTarget = (targets: Player[]) => {
+        if (targets.length === 0) return '';
+        return targets[Math.floor(Math.random() * targets.length)].userId;
+    };
+
+    switch (role) {
+        case 'werewolf':
+        case 'wolf_cub': {
+            const nonWolves = potentialTargets.filter(p => !wolfRoles.includes(p.role));
+            return { actionType: 'werewolf_kill', targetId: randomTarget(nonWolves) };
         }
-        return newObj;
+        case 'seer':
+            return { actionType: 'seer_check', targetId: randomTarget(potentialTargets) };
+        case 'doctor': {
+            const healableTargets = potentialTargets.filter(p => p.lastHealedRound !== currentRound - 1);
+            return { actionType: 'doctor_heal', targetId: randomTarget(healableTargets) };
+        }
+        case 'guardian': {
+            return { actionType: 'guardian_protect', targetId: randomTarget(potentialTargets) };
+        }
+        // Simplified AI for other roles - they do nothing at night for now
+        default:
+            if (game.phase === 'day') {
+                return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
+            }
+             if (game.phase === 'hunter_shot' && game.pendingHunterShot === userId) {
+                return { actionType: 'SHOOT', targetId: randomTarget(potentialTargets) };
+            }
+            return { actionType: 'NONE', targetId: '' };
     }
-    return obj;
 };
 
 export async function runAIActions(db: Firestore, gameId: string, phase: Game['phase']) {
@@ -1048,91 +1070,26 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
             if (hasActed) continue;
             
             if (phase === 'hunter_shot' && ai.userId !== game.pendingHunterShot) continue;
-
-            const serializableGame = toJSONCompatible(game);
-            const serializablePlayers = toJSONCompatible(game.players);
-            const serializableEvents = toJSONCompatible(game.events);
-            const serializableCurrentPlayer = toJSONCompatible(ai);
-
-            const aiInput = {
-                game: JSON.stringify(serializableGame),
-                players: JSON.stringify(serializablePlayers),
-                events: JSON.stringify(serializableEvents),
-                currentPlayer: JSON.stringify(serializableCurrentPlayer),
-            };
-
-            const aiResult = await takeAITurn(aiInput);
-            console.log(`AI (${ai.displayName} as ${ai.role}) action: ${aiResult.action}. Reasoning: ${aiResult.reasoning}`);
-
-            const [actionType, targetData] = aiResult.action.split(':');
-
-            if (!actionType || actionType === 'NONE') continue;
-
-            const isValidTarget = (id: string | undefined): id is string => {
-                return !!id && alivePlayers.some(p => p.userId === id);
-            }
             
-             const isValidMultiTarget = (ids: string | undefined): ids is string => {
-                if (!ids) return false;
-                return ids.split('|').every(id => game.players.some(p => p.userId === id));
-            }
+            const { actionType, targetId } = getDeterministicAIAction(ai, game, alivePlayers);
+
+            if (!actionType || actionType === 'NONE' || !targetId) continue;
 
             switch(actionType) {
-                case 'KILL':
-                    if (phase === 'night' && (ai.role === 'werewolf' || ai.role === 'wolf_cub') && isValidMultiTarget(targetData)) {
-                        await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: 'werewolf_kill', targetId: targetData });
-                    }
-                    break;
-                case 'CHECK':
-                     if (phase === 'night' && ai.role === 'seer' && isValidTarget(targetData)) {
-                        await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: 'seer_check', targetId: targetData });
-                    }
-                    break;
-                case 'HEAL':
-                     if (phase === 'night' && ai.role === 'doctor' && isValidTarget(targetData)) {
-                        const targetPlayer = game.players.find(p => p.userId === targetData);
-                         if (targetPlayer && targetPlayer.lastHealedRound !== game.currentRound - 1) {
-                            await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: 'doctor_heal', targetId: targetData });
-                         }
-                    }
-                    break;
-                case 'PROTECT':
-                     if (phase === 'night' && ai.role === 'guardian' && isValidTarget(targetData) && targetData !== ai.userId) {
-                        await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: 'guardian_protect', targetId: targetData });
-                    }
-                    break;
-                case 'BLESS':
-                     if (phase === 'night' && ai.role === 'priest' && isValidTarget(targetData)) {
-                         if(targetData === ai.userId && ai.priestSelfHealUsed) continue;
-                        await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: 'priest_bless', targetId: targetData });
-                    }
-                    break;
-                case 'POISON':
-                    if (phase === 'night' && ai.role === 'hechicera' && isValidTarget(targetData) && !ai.potions?.poison) {
-                        await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: 'hechicera_poison', targetId: targetData });
-                    }
-                    break;
-                case 'SAVE':
-                    if (phase === 'night' && ai.role === 'hechicera' && isValidTarget(targetData) && !ai.potions?.save) {
-                        await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: 'hechicera_save', targetId: targetData });
-                    }
-                    break;
-                case 'ENCHANT':
-                    if (phase === 'night' && ai.role === 'cupid' && game.currentRound === 1 && isValidMultiTarget(targetData)) {
-                        const [target1Id, target2Id] = targetData.split('|');
-                        if (target1Id && target2Id) {
-                            await submitCupidAction(db, gameId, ai.userId, target1Id, target2Id);
-                        }
-                    }
+                case 'werewolf_kill':
+                case 'seer_check':
+                case 'doctor_heal':
+                case 'guardian_protect':
+                    await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
                     break;
                 case 'VOTE':
-                    if (phase === 'day' && isValidTarget(targetData)) {
-                        await submitVote(db, gameId, ai.userId, targetData);
+                    if (phase === 'day') {
+                        await submitVote(db, gameId, ai.userId, targetId);
                     }
                     break;
                 case 'SHOOT':
-                    if (phase === 'hunter_shot' && ai.userId === game.pendingHunterShot && isValidTarget(targetData)) {
-                        await submitHunterShot(db, gameId, ai.userId, targetData);
+                    if (phase === 'hunter_shot' && ai.userId === game.pendingHunterShot) {
+                        await submitHunterShot(db, gameId, ai.userId, targetId);
                     }
                     break;
             }
