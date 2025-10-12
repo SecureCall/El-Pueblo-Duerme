@@ -8,7 +8,11 @@ import { TakeAITurnOutputSchema, type TakeAITurnOutput } from '@/types';
 
 export async function takeAITurn(input: TakeAITurnInput): Promise<TakeAITurnOutput> {
     
-    const promptText = `Eres un jugador experto en el juego 'El Pueblo Duerme' (similar a Mafia o Werewolf). Estás jugando como un bot de IA. Tu objetivo es ganar la partida para tu facción.
+    const prompt = ai.definePrompt({
+        name: "takeAITurnPrompt",
+        input: { schema: TakeAITurnInputSchema },
+        output: { schema: TakeAITurnOutputSchema },
+        prompt: `Eres un jugador experto en el juego 'El Pueblo Duerme' (similar a Mafia o Werewolf). Estás jugando como un bot de IA. Tu objetivo es ganar la partida para tu facción.
 
 Analiza el estado actual del juego y decide la mejor acción a tomar. Piensa paso a paso. You must respond in valid JSON format.
 
@@ -29,12 +33,12 @@ Analiza el estado actual del juego y decide la mejor acción a tomar. Piensa pas
 - Sacerdote: Cada noche, bendice a un jugador, haciéndolo inmune a cualquier ataque. Solo puede bendecirse a sí mismo una vez.
 
 **ESTADO ACTUAL DEL JUEGO (en formato JSON):**
-- Partida: ${input.game}
-- Todos los Jugadores: ${input.players}
-- Historial de Eventos: ${input.events}
+- Partida: {{{game}}}
+- Todos los Jugadores: {{{players}}}
+- Historial de Eventos: {{{events}}}
 
 **TU IDENTIDAD:**
-- Eres el jugador: ${input.currentPlayer}
+- Eres el jugador: {{{currentPlayer}}}
 
 **TAREA:**
 Basado en toda la información, y especialmente en tu identidad y rol dentro de 'currentPlayer', decide tu acción para la fase actual.
@@ -86,19 +90,15 @@ Ahora, proporciona tu razonamiento y acción para el estado actual del juego. Tu
   "action": "string"
 }
 \`\`\`
-`;
-
-    const response = await ai.generate({
-        prompt: promptText,
-        model: 'googleai/gemini-1.0-pro',
-        config: {
-            responseMimeType: 'application/json',
-        },
+`,
     });
 
-    const rawJsonText = response.text();
-    const output = JSON.parse(rawJsonText);
+    const { output } = await prompt(input, { model: 'googleai/gemini-1.0-pro' });
     
-    // Validate the parsed output against the Zod schema
-    return TakeAITurnOutputSchema.parse(output);
+    if (!output) {
+      throw new Error("La IA no pudo generar una respuesta válida.");
+    }
+    
+    return output;
 }
+
