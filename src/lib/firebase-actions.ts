@@ -497,7 +497,7 @@ async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: bool
     let newGameData = { ...gameData };
 
     const alivePlayers = newGameData.players.filter(p => p.isAlive);
-    const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
+    const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
     const aliveWerewolves = alivePlayers.filter(p => wolfRoles.includes(p.role));
     const aliveVillagers = alivePlayers.filter(p => !wolfRoles.includes(p.role));
 
@@ -1101,5 +1101,3 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
         console.error("Error in AI Actions:", e);
     }
 }
-
-    
