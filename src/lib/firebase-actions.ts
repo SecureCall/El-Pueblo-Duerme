@@ -790,41 +790,45 @@ export async function processVotes(db: Firestore, gameId: string) {
             const { game: finalGame, isOver } = await checkGameOver(game);
             
             if (isOver) {
-                // Definitive fix: create a clean final object for the transaction.
                 const finalGameUpdate = {
-                    ...finalGame,
-                    players: finalGame.players.map(p => ({
-                        ...p,
-                        votedFor: p.votedFor ?? null,
-                        role: p.role ?? null,
-                        lastHealedRound: p.lastHealedRound ?? 0,
-                        isAI: p.isAI ?? false,
-                        potions: p.potions ?? { poison: null, save: null },
-                        priestSelfHealUsed: p.priestSelfHealUsed ?? false,
-                        princeRevealed: p.princeRevealed ?? false,
-                    })),
-                    phase: 'finished',
-                    status: 'finished',
-                    pendingHunterShot: null,
-                    wolfCubRevengeRound: finalGame.wolfCubRevengeRound ?? 0,
-                    nightActions: finalGame.nightActions ?? [],
-                    events: finalGame.events ?? [],
-                    lovers: finalGame.lovers ?? null,
-                    twins: finalGame.twins ?? null,
-                };
-                transaction.update(gameRef, finalGameUpdate);
-                return;
+                  ...finalGame,
+                  players: finalGame.players.map(p => ({
+                      ...p,
+                      votedFor: p.votedFor ?? null,
+                      role: p.role ?? null,
+                      lastHealedRound: p.lastHealedRound ?? 0,
+                      isAI: p.isAI ?? false,
+                      potions: p.potions ?? { poison: null, save: null },
+                      priestSelfHealUsed: p.priestSelfHealUsed ?? false,
+                      princeRevealed: p.princeRevealed ?? false,
+                  })),
+                  phase: 'finished',
+                  status: 'finished',
+                  pendingHunterShot: null,
+                  wolfCubRevengeRound: finalGame.wolfCubRevengeRound ?? 0,
+                  nightActions: finalGame.nightActions ?? [],
+                  events: finalGame.events ?? [],
+                  lovers: finalGame.lovers ?? null,
+                  twins: finalGame.twins ?? null,
+                  // Ensure settings are defined
+                  settings: finalGame.settings ?? game.settings
+              };
+              transaction.update(gameRef, finalGameUpdate);
+              return;
             }
             
+            // This is now `game` which was `finalGame` before being overwritten.
+            let nextGame = finalGame;
+            
             // Reset votes for the next round
-            game.players.forEach(p => {
+            nextGame.players.forEach(p => {
                 p.votedFor = null;
             });
             
-            game.phase = 'night';
-            game.currentRound = game.currentRound + 1;
+            nextGame.phase = 'night';
+            nextGame.currentRound = nextGame.currentRound + 1;
             
-            transaction.update(gameRef, game);
+            transaction.update(gameRef, nextGame);
         });
 
         return { success: true };
