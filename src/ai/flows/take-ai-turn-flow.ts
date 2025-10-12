@@ -4,7 +4,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import type { TakeAITurnInput } from '@/types';
-import { TakeAITurnOutputSchema, type TakeAITurnOutput } from '@/types';
+import { TakeAITurnInputSchema, TakeAITurnOutputSchema, type TakeAITurnOutput } from '@/types';
 
 export async function takeAITurn(input: TakeAITurnInput): Promise<TakeAITurnOutput> {
     
