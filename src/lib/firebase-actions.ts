@@ -463,17 +463,38 @@ async function killPlayer(
 }
 
 
-async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: boolean }> {
-    // Create a "safe" game data object to avoid undefined fields.
-    const newGameData = { 
-      ...gameData,
-      lovers: gameData.lovers ?? null,
-      twins: gameData.twins ?? null,
-      pendingHunterShot: gameData.pendingHunterShot ?? null,
-      wolfCubRevengeRound: gameData.wolfCubRevengeRound ?? 0,
-      nightActions: gameData.nightActions ?? [],
-      events: gameData.events ?? [],
+function sanitizeGameForUpdate(gameData: Game): Game {
+    const sanitizedPlayers = gameData.players.map(p => ({
+        ...p,
+        role: p.role ?? null,
+        votedFor: p.votedFor ?? null,
+        lastHealedRound: p.lastHealedRound ?? 0,
+        isAI: p.isAI ?? false,
+        potions: {
+            poison: p.potions?.poison ?? null,
+            save: p.potions?.save ?? null,
+        },
+        priestSelfHealUsed: p.priestSelfHealUsed ?? false,
+        princeRevealed: p.princeRevealed ?? false,
+    }));
+
+    return {
+        ...gameData,
+        players: sanitizedPlayers,
+        phase: gameData.phase ?? 'finished',
+        status: gameData.status ?? 'finished',
+        pendingHunterShot: gameData.pendingHunterShot ?? null,
+        wolfCubRevengeRound: gameData.wolfCubRevengeRound ?? 0,
+        nightActions: gameData.nightActions ?? [],
+        events: gameData.events ?? [],
+        lovers: gameData.lovers ?? null,
+        twins: gameData.twins ?? null,
     };
+}
+
+
+async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: boolean }> {
+    let newGameData = { ...gameData };
 
     const alivePlayers = newGameData.players.filter(p => p.isAlive);
     const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
@@ -522,11 +543,13 @@ async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: bool
             data: { winners },
             createdAt: Timestamp.now(),
         };
-        newGameData.events.push(newEvent);
+        newGameData.events = [...(newGameData.events || []), newEvent];
+        return { game: sanitizeGameForUpdate(newGameData), isOver: true };
     }
 
-    return { game: newGameData, isOver: gameOver };
+    return { game: newGameData, isOver: false };
 }
+
 
 export async function processNight(db: Firestore, gameId: string) {
     const gameRef = doc(db, 'games', gameId);
@@ -790,34 +813,10 @@ export async function processVotes(db: Firestore, gameId: string) {
             const { game: finalGame, isOver } = await checkGameOver(game);
             
             if (isOver) {
-                const finalGameUpdate = {
-                  ...finalGame,
-                  players: finalGame.players.map(p => ({
-                      ...p,
-                      votedFor: p.votedFor ?? null,
-                      role: p.role ?? null,
-                      lastHealedRound: p.lastHealedRound ?? 0,
-                      isAI: p.isAI ?? false,
-                      potions: p.potions ?? { poison: null, save: null },
-                      priestSelfHealUsed: p.priestSelfHealUsed ?? false,
-                      princeRevealed: p.princeRevealed ?? false,
-                  })),
-                  phase: 'finished',
-                  status: 'finished',
-                  pendingHunterShot: null,
-                  wolfCubRevengeRound: finalGame.wolfCubRevengeRound ?? 0,
-                  nightActions: finalGame.nightActions ?? [],
-                  events: finalGame.events ?? [],
-                  lovers: finalGame.lovers ?? null,
-                  twins: finalGame.twins ?? null,
-                  // Ensure settings are defined
-                  settings: finalGame.settings ?? game.settings
-              };
-              transaction.update(gameRef, finalGameUpdate);
+              transaction.update(gameRef, finalGame);
               return;
             }
             
-            // This is now `game` which was `finalGame` before being overwritten.
             let nextGame = finalGame;
             
             // Reset votes for the next round
