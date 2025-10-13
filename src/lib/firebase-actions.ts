@@ -915,15 +915,19 @@ export async function processVotes(db: Firestore, gameId: string) {
                         game = gameAfterKill;
                         
                         if (hunterId) {
-                           // Hunter shot phase will handle the next step
-                        } else {
-                            const { game: finalGameCheck, isOver } = await checkGameOver(game);
-                            game = finalGameCheck;
-                            if (isOver) {
-                                transaction.update(gameRef, sanitizeGameForUpdate(game));
-                                return;
-                            }
+                           // Hunter shot phase will handle the next step.
+                           // The transaction will be updated and function will terminate.
+                           transaction.update(gameRef, sanitizeGameForUpdate(game));
+                           return;
+                        } 
+                        
+                        const { game: finalGameCheck, isOver } = await checkGameOver(game);
+                        game = finalGameCheck;
+                        if (isOver) {
+                            transaction.update(gameRef, sanitizeGameForUpdate(game));
+                            return;
                         }
+                        
                     }
                 } else {
                     game.events.push({ id: `evt_${Date.now()}_${Math.random()}`, gameId, round: game.currentRound, type: 'vote_result', message: "El jugador a linchar no fue encontrado.", data: { lynchedPlayerId: null }, createdAt: Timestamp.now() });
@@ -1403,3 +1407,5 @@ export async function resetGame(db: Firestore, gameId: string) {
         return { error: e.message || 'No se pudo reiniciar la partida.' };
     }
 }
+
+    
