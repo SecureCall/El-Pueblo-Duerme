@@ -725,7 +725,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                         game.events.push({
                             id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result',
                             message: `${lynchedPlayer.displayName} ha sido sentenciado, pero revela su identidad como ¡el Príncipe! y sobrevive a la votación.`,
-                            data: { lynchedPlayerId: null }, createdAt: Timestamp.now(),
+                            createdAt: Timestamp.now(),
                         });
                     } else {
                         lynchedPlayerId = potentialLynchedId;
@@ -746,7 +746,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                     });
                 }
                 const eventMessage = mostVotedPlayerIds.length > 1 ? "La votación resultó en un empate. Nadie fue linchado hoy." : "El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.";
-                game.events.push({ id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: eventMessage, data: { lynchedPlayerId: null }, createdAt: Timestamp.now() });
+                game.events.push({ id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: eventMessage, createdAt: Timestamp.now() });
             }
             
             if (lynchedPlayerId) {
@@ -1059,6 +1059,8 @@ async function triggerAIAwake(db: Firestore, gameId: string, trigger: string) {
 
 export async function submitVote(db: Firestore, gameId: string, voterId: string, targetId: string) {
     const gameRef = doc(db, 'games', gameId);
+    let voterName: string | undefined;
+    let targetName: string | undefined;
     
     try {
        await runTransaction(db, async (transaction) => {
@@ -1071,20 +1073,20 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             const playerIndex = currentGame.players.findIndex(p => p.userId === voterId && p.isAlive);
             if (playerIndex === -1) throw new Error("Player not found or is not alive");
             
+            voterName = currentGame.players[playerIndex].displayName;
+            const targetPlayer = currentGame.players.find(p => p.userId === targetId);
+            if (!targetPlayer) throw new Error("Target player not found");
+            targetName = targetPlayer.displayName;
+
             currentGame.players[playerIndex].votedFor = targetId;
             transaction.update(gameRef, { players: currentGame.players });
         });
 
         // Trigger AI chat after vote is committed
-        const gameDoc = await getDoc(gameRef);
-        if (gameDoc.exists()) {
-            const game = gameDoc.data() as Game;
-            const target = game.players.find(p => p.userId === targetId);
-            const voter = game.players.find(p => p.userId === voterId);
-            if (target && voter) {
-                await triggerAIChat(db, gameId, `${voter.displayName} voted for ${target.displayName}.`, target.userId);
-            }
+        if (voterName && targetName) {
+            await triggerAIChat(db, gameId, `${voterName} voted for ${targetName}.`, targetId);
         }
+
 
         return { success: true };
     } catch (error: any) {
@@ -1249,4 +1251,3 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
     
 
     
-
