@@ -1,7 +1,6 @@
 
 "use client";
 
-import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { playNarration } from '@/lib/sounds';
 
@@ -26,12 +25,10 @@ export function YouAreDeadOverlay() {
             onClick={() => setIsVisible(false)}
         >
             <div className="relative h-64 w-64 md:h-80 md:w-80">
-                <Image
+                <img
                     src="/zarpa.svg"
                     alt="Has sido eliminado"
-                    fill
-                    className="object-contain brightness-0 invert"
-                    unoptimized
+                    className="h-full w-full object-contain brightness-0 invert"
                 />
             </div>
             <h1 className="font-headline text-5xl md:text-7xl font-bold text-destructive text-shadow-lg shadow-black/50 mt-8">

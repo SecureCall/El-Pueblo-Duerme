@@ -50,12 +50,10 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
         case 'werewolf_kill':
           return (
             <div className={cn(baseClasses, "p-2")}>
-                <Image
+                <img
                   src="/zarpa.svg" 
                   alt="Zarpazo" 
-                  fill
-                  className="object-contain opacity-90 brightness-0 invert"
-                  unoptimized
+                  className="h-full w-full object-contain opacity-90 brightness-0 invert"
                 />
             </div>
           );
