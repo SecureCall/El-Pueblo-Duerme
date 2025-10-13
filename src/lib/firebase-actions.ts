@@ -320,7 +320,15 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         const nightActions = game.nightActions ? [...game.nightActions] : [];
         const existingActionIndex = nightActions.findIndex(a => a.round === action.round && a.playerId === action.playerId);
 
-        // Server-side validations for unrecoverable states
+        // Client-side validation should prevent this, but double check on server
+        if (action.actionType === 'doctor_heal') {
+            const targetPlayer = game.players.find(p => p.userId === action.targetId);
+            if (targetPlayer?.lastHealedRound === game.currentRound - 1) {
+                // We don't throw an error, we just ignore the action.
+                console.warn(`Doctor ${action.playerId} tried to heal ${action.targetId} two nights in a row. Action ignored.`);
+                return; 
+            }
+        }
         if (action.actionType === 'hechicera_poison' && player.potions?.poison) throw new Error("Ya has usado tu poción de veneno.");
         if (action.actionType === 'hechicera_save' && player.potions?.save) throw new Error("Ya has usado tu poción de salvación.");
         if (action.actionType === 'priest_bless' && action.targetId === action.playerId && player.priestSelfHealUsed) {
@@ -473,17 +481,21 @@ async function killPlayer(
 
 function sanitizeValue(value: any): any {
     if (value instanceof Timestamp) {
-        return value; // Firestore Timestamps are fine
+        return value.toDate().toISOString(); // Convert Timestamp to ISO string
+    }
+    if (value instanceof Date) {
+        return value.toISOString(); // Convert Date to ISO string
     }
     if (value === undefined) {
-        return null; // Firestore doesn't support undefined
+        return null; // Firestore doesn't support undefined, use null instead
     }
-    if (value === null || typeof value !== 'object' || value instanceof Date) {
+    if (value === null || typeof value !== 'object') {
         return value;
     }
     if (Array.isArray(value)) {
         return value.map(sanitizeValue);
     }
+    // It's a plain object, recursively sanitize its properties
     const sanitizedObject: { [key: string]: any } = {};
     for (const key in value) {
         if (Object.prototype.hasOwnProperty.call(value, key)) {
@@ -511,7 +523,39 @@ function sanitizeGameForUpdate(gameData: Partial<Game>): { [key: string]: any } 
         }
     }
 
-    return sanitizedGame;
+    // This is a workaround for Firestore transactions which don't like ISO strings for dates
+    // We convert them back to Timestamps ONLY for the final update.
+    const finalUpdateObject = { ...sanitizedGame };
+    if (finalUpdateObject.createdAt && typeof finalUpdateObject.createdAt === 'string') {
+        finalUpdateObject.createdAt = Timestamp.fromDate(new Date(finalUpdateObject.createdAt));
+    }
+    if (finalUpdateObject.players) {
+        finalUpdateObject.players = finalUpdateObject.players.map((p: any) => ({
+            ...p,
+            joinedAt: (p.joinedAt && typeof p.joinedAt === 'string') ? Timestamp.fromDate(new Date(p.joinedAt)) : p.joinedAt
+        }));
+    }
+     if (finalUpdateObject.events) {
+        finalUpdateObject.events = finalUpdateObject.events.map((e: any) => ({
+            ...e,
+            createdAt: (e.createdAt && typeof e.createdAt === 'string') ? Timestamp.fromDate(new Date(e.createdAt)) : e.createdAt
+        }));
+    }
+    if (finalUpdateObject.chatMessages) {
+        finalUpdateObject.chatMessages = finalUpdateObject.chatMessages.map((m: any) => ({
+            ...m,
+            createdAt: (m.createdAt && typeof m.createdAt === 'string') ? Timestamp.fromDate(new Date(m.createdAt)) : m.createdAt
+        }));
+    }
+    if (finalUpdateObject.nightActions) {
+        finalUpdateObject.nightActions = finalUpdateObject.nightActions.map((a: any) => ({
+            ...a,
+            createdAt: (a.createdAt && typeof a.createdAt === 'string') ? Timestamp.fromDate(new Date(a.createdAt)) : a.createdAt
+        }));
+    }
+
+
+    return finalUpdateObject;
 }
 
 
@@ -1278,10 +1322,10 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
 
             if (mentionedPlayer) {
                  const perspective: AIPlayerPerspective = {
-                    game: sanitizeValue(game) as Game,
-                    aiPlayer: sanitizeValue(mentionedPlayer) as Player,
+                    game: sanitizeValue(game),
+                    aiPlayer: sanitizeValue(mentionedPlayer),
                     trigger: `${senderName} te ha mencionado en el chat: "${text.trim()}"`,
-                    players: sanitizeValue(game.players) as Player[],
+                    players: sanitizeValue(game.players),
                 };
                 
                 generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {

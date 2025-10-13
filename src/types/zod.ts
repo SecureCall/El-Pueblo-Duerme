@@ -7,7 +7,9 @@ const TimestampSchema = z.union([
     seconds: z.number(),
     nanoseconds: z.number(),
   }),
-  z.string(), // ISO 8601 string
+  z.string().refine(val => !isNaN(Date.parse(val)), {
+    message: "Invalid date string format",
+  }), // ISO 8601 string
 ]);
 
 
@@ -132,5 +134,3 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
-
-    
