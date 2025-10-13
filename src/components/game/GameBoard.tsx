@@ -304,3 +304,4 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
   );
 }
 
+
