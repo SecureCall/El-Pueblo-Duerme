@@ -80,23 +80,24 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
 
   }, [game.phase, game.currentRound, events, currentPlayer.userId]);
 
-  // Specific useEffect for night result sounds based on new events
-  useEffect(() => {
-    const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
-    if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
-        const hasDeaths = nightEvent.data?.killedPlayerIds?.length > 0;
-        if (hasDeaths) {
-            playSoundEffect('descanse_en_paz.mp3');
-        } else {
-            const wasSaved = nightEvent.data?.savedPlayerIds?.length > 0;
-            const wasAttack = game.nightActions?.some(a => a.round === game.currentRound && a.actionType === 'werewolf_kill');
-            if(wasSaved && wasAttack) {
-              playSoundEffect('milagro.mp3');
+    // Specific useEffect for night result sounds based on new events
+    useEffect(() => {
+        const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
+        if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
+            const hasDeaths = nightEvent.data?.killedPlayerIds?.length > 0;
+            if (hasDeaths) {
+                playSoundEffect('descanse_en_paz.mp3');
+            } else {
+                const wasSaved = nightEvent.data?.savedPlayerIds?.length > 0;
+                // Check if a werewolf attack was attempted
+                const wasAttack = game.nightActions?.some(a => a.round === game.currentRound && a.actionType === 'werewolf_kill');
+                if (wasSaved && wasAttack) {
+                    playSoundEffect('milagro.mp3');
+                }
             }
+            nightSoundsPlayedForRound.current = game.currentRound; // Mark as played for this round
         }
-        nightSoundsPlayedForRound.current = game.currentRound; // Mark as played for this round
-    }
-}, [events, game.currentRound, game.nightActions]);
+    }, [events, game.currentRound, game.nightActions]);
 
 
   // Handle AI actions when phase changes
@@ -143,22 +144,20 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
     );
   }
 
-  // Show the "You are dead" overlay if the current player is not alive
-  // and the game is still in progress.
+  if (currentPlayer && currentPlayer.role && game.phase === 'role_reveal' && showRole) {
+      return <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />;
+  }
+
+  // Show a non-blocking "You are dead" overlay if the current player is not alive
   if (!currentPlayer.isAlive && game.status === 'in_progress') {
     return (
         <>
             <YouAreDeadOverlay />
-            {/* Render the game board in the background for spectating */}
-            <div className="w-full max-w-7xl mx-auto p-4 space-y-6 opacity-50 pointer-events-none">
+            <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
                 <SpectatorGameBoard game={game} players={players} events={events} messages={messages} currentPlayer={currentPlayer} />
             </div>
         </>
     );
-  }
-
-  if (currentPlayer && currentPlayer.role && game.phase === 'role_reveal' && showRole) {
-      return <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />;
   }
 
   return (
@@ -170,7 +169,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
 
 
 // A simplified version of the board for spectating, without interactive elements.
-function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: Omit<GameBoardProps, 'currentPlayer' | 'messages'> & { currentPlayer?: Player, messages: ChatMessage[] }) {
+function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: Omit<GameBoardProps, 'currentPlayer' | 'messages'> & { currentPlayer: Player, messages: ChatMessage[] }) {
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
   const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
@@ -357,3 +356,5 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     </>
   );
 }
+
+    
