@@ -13,6 +13,17 @@ import { roleDetails, defaultRoleDetail } from "@/lib/roles";
 import Image from "next/image";
 import type { SVGProps } from "react";
 
+
+function ZarpazoIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path d="M10 10 L90 90" stroke="red" strokeWidth="5" strokeLinecap="round" transform="rotate(-15 50 50) translate(0, 0)"/>
+      <path d="M30 10 L110 90" stroke="red" strokeWidth="5" strokeLinecap="round" transform="rotate(-15 50 50) translate(-10, 0)" />
+      <path d="M50 10 L130 90" stroke="red" strokeWidth="5" strokeLinecap="round" transform="rotate(-15 50 50) translate(-20, 0)" />
+    </svg>
+  )
+}
+
 interface PlayerCardProps {
   player: Player & { causeOfDeath?: 'werewolf_kill' | 'vote_result' | 'other' };
   onClick?: () => void;
@@ -42,43 +53,47 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
 
  if (!player.isAlive) {
     const roleInfo = roleDetails[player.role!] ?? defaultRoleDetail;
+
     const DeathOverlay = () => {
-        switch (player.causeOfDeath) {
-            case 'werewolf_kill':
-                return (
-                    <div className="absolute inset-0 flex items-center justify-center z-20">
-                        <Image src="/zarpa.png" alt="Zarpazo" fill className="object-contain opacity-80" unoptimized />
-                    </div>
-                );
-            case 'vote_result':
-                 return (
-                    <div className="absolute inset-0 flex items-center justify-center z-20">
-                        <Gavel className="h-16 w-16 text-amber-800/80" />
-                    </div>
-                );
-            default:
-                return (
-                    <div className="absolute inset-0 flex items-center justify-center z-20">
-                        <Skull className="h-16 w-16 text-gray-400/80" />
-                    </div>
-                );
-        }
+      const baseClasses = "absolute inset-0 flex items-center justify-center z-20";
+      const iconClasses = "h-16 w-16 opacity-80";
+
+      switch (player.causeOfDeath) {
+        case 'werewolf_kill':
+          return (
+            <div className={baseClasses}>
+                <ZarpazoIcon className={cn(iconClasses, "text-red-500")} />
+            </div>
+          );
+        case 'vote_result':
+          return (
+            <div className={baseClasses}>
+              <Gavel className={cn(iconClasses, "text-amber-800")} />
+            </div>
+          );
+        default:
+          return (
+            <div className={baseClasses}>
+              <Skull className={cn(iconClasses, "text-gray-400")} />
+            </div>
+          );
+      }
     };
     
     return (
         <Card className="relative flex flex-col items-center justify-between p-2 h-full bg-card/50 rounded-lg overflow-hidden border-2 border-destructive/50">
-            <div className="absolute inset-0 bg-black/50 z-10" />
-            <div className="relative z-0 w-full h-full flex-grow">
-                 <Image 
+             <div className="absolute inset-0 z-0">
+                <Image 
                     src={roleInfo.image} 
                     alt={roleInfo.name}
                     fill
                     className="object-cover rounded-md"
                     unoptimized
                 />
-               <DeathOverlay />
             </div>
-            <div className="relative z-20 flex flex-col items-center gap-1 text-center w-full pt-2">
+            <div className="absolute inset-0 bg-black/60 z-10" />
+            <DeathOverlay />
+            <div className="relative z-20 flex flex-col items-center gap-1 text-center w-full mt-auto pt-2">
                 <p className="font-semibold text-center truncate w-full line-through text-lg text-primary-foreground">{player.displayName}</p>
                 <div className="text-sm font-bold text-center text-muted-foreground">
                     Era {roleInfo.name}
