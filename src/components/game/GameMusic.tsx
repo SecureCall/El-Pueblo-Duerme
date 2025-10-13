@@ -34,8 +34,8 @@ export function GameMusic({ src }: GameMusicProps) {
           }
         }
         // Always remove the listeners after the first successful interaction
-        window.removeEventListener('click', playOnInteraction);
-        window.removeEventListener('keydown', playOnInteraction);
+        window.removeEventListener('click', playOnInteraction, true);
+        window.removeEventListener('keydown', playOnInteraction, true);
     };
 
     const handlePlay = async () => {
@@ -67,8 +67,8 @@ export function GameMusic({ src }: GameMusicProps) {
         } catch (error) {
           console.warn("Audio play was prevented by the browser.", error);
           // If autoplay fails, we add listeners to try again on interaction
-          window.addEventListener('click', playOnInteraction);
-          window.addEventListener('keydown', playOnInteraction);
+          window.addEventListener('click', playOnInteraction, true);
+          window.addEventListener('keydown', playOnInteraction, true);
         }
       }
     };
@@ -77,8 +77,8 @@ export function GameMusic({ src }: GameMusicProps) {
 
     return () => {
       // Clean up interaction listeners when the component unmounts or src changes
-      window.removeEventListener('click', playOnInteraction);
-      window.removeEventListener('keydown', playOnInteraction);
+      window.removeEventListener('click', playOnInteraction, true);
+      window.removeEventListener('keydown', playOnInteraction, true);
     };
 
   }, [src]);
