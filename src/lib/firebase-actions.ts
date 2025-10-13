@@ -748,50 +748,52 @@ export async function processNight(db: Firestore, gameId: string) {
 
 export async function submitVote(db: Firestore, gameId: string, voterId: string, targetId: string) {
     const gameRef = doc(db, 'games', gameId);
+    let game: Game | null = null;
+    let targetPlayer: Player | undefined;
+    let voterPlayer: Player | undefined;
+
     try {
         await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
-            let game = gameSnap.data() as Game;
+            
+            const currentGame = gameSnap.data() as Game;
+            game = currentGame; // Store game state for use outside transaction
 
-            const playerIndex = game.players.findIndex(p => p.userId === voterId && p.isAlive);
+            const playerIndex = currentGame.players.findIndex(p => p.userId === voterId && p.isAlive);
             if (playerIndex === -1) throw new Error("Player not found or is not alive");
             
-            game.players[playerIndex].votedFor = targetId;
+            currentGame.players[playerIndex].votedFor = targetId;
 
-            // Check if the target is an AI and should respond
-            const targetPlayer = game.players.find(p => p.userId === targetId);
-            const voterPlayer = game.players.find(p => p.userId === voterId);
+            // Store players for AI trigger after transaction
+            targetPlayer = currentGame.players.find(p => p.userId === targetId);
+            voterPlayer = currentGame.players.find(p => p.userId === voterId);
 
-            if (targetPlayer?.isAI) {
-                const sanitizedGame = sanitizeValue(game);
-
-                const perspective: AIPlayerPerspective = {
-                    game: sanitizedGame,
-                    aiPlayer: sanitizeValue(targetPlayer),
-                    trigger: `${voterPlayer?.displayName || 'Someone'} te ha votado.`,
-                    players: sanitizeValue(game.players),
-                };
-                const { message, shouldSend } = await generateAIChatMessage(perspective);
-                if (shouldSend) {
-                    const newMessage: ChatMessage = {
-                        id: `${Date.now()}_${targetPlayer.userId}`,
-                        senderId: targetPlayer.userId,
-                        senderName: targetPlayer.displayName,
-                        text: message,
-                        round: game.currentRound,
-                        createdAt: Timestamp.now(),
-                    };
-                    if (game.chatMessages) {
-                      game.chatMessages.push(newMessage);
-                    } else {
-                      game.chatMessages = [newMessage];
-                    }
-                }
-            }
-
-            transaction.update(gameRef, { players: game.players, chatMessages: game.chatMessages });
+            transaction.update(gameRef, { players: currentGame.players });
         });
+
+        // Trigger AI response *after* the transaction is successful
+        if (game && targetPlayer?.isAI) {
+            const sanitizedGame = sanitizeValue(game);
+            const perspective: AIPlayerPerspective = {
+                game: sanitizedGame,
+                aiPlayer: sanitizeValue(targetPlayer),
+                trigger: `${voterPlayer?.displayName || 'Someone'} te ha votado.`,
+                players: sanitizeValue(game.players),
+            };
+
+            setTimeout(async () => {
+                try {
+                    const { message, shouldSend } = await generateAIChatMessage(perspective);
+                    if (shouldSend) {
+                        await sendChatMessage(db, gameId, targetPlayer!.userId, targetPlayer!.displayName, message);
+                    }
+                } catch (aiError) {
+                    console.error("Error generating AI chat message on vote:", aiError);
+                }
+            }, 500);
+        }
+
         await checkEndDayEarly(db, gameId);
         return { success: true };
     } catch (error: any) {
@@ -1176,7 +1178,17 @@ const getDeterministicAIAction = (
             }
             return { actionType: 'guardian_protect', targetId: randomTarget(potentialTargets) };
         }
-        // Simplified AI for other roles - they do nothing at night for now
+        case 'priest': {
+            if (game.phase === 'day') {
+                return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
+            }
+            const priestCanSelfHeal = !aiPlayer.priestSelfHealUsed;
+            let blessableTargets = potentialTargets;
+            if (priestCanSelfHeal) {
+                blessableTargets = alivePlayers;
+            }
+            return { actionType: 'priest_bless', targetId: randomTarget(blessableTargets) };
+        }
         default:
             if (game.phase === 'day') {
                 return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
@@ -1246,23 +1258,29 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
 
+    let mentionedAIPlayer: Player | undefined;
+    let game: Game | null = null;
     try {
         await runTransaction(db, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) {
                 throw new Error("Game not found");
             }
-            const game = gameDoc.data() as Game;
+            const currentGame = gameDoc.data() as Game;
+            game = currentGame;
             
-            const player = game.players.find(p => p.userId === senderId);
+            const player = currentGame.players.find(p => p.userId === senderId);
             if (!player || !player.isAlive) {
                 throw new Error('No puedes enviar mensajes.');
             }
             
             const mentionedPlayerIds: string[] = [];
-            for (const p of game.players) {
+            for (const p of currentGame.players) {
                 if (p.userId !== senderId && text.toLowerCase().includes(p.displayName.toLowerCase())) {
                     mentionedPlayerIds.push(p.userId);
+                    if (p.isAI && p.isAlive) {
+                        mentionedAIPlayer = p; // Store AI player to trigger response after transaction
+                    }
                 }
             }
 
@@ -1271,7 +1289,7 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
                 senderId,
                 senderName,
                 text: text.trim(),
-                round: game.currentRound,
+                round: currentGame.currentRound,
                 createdAt: Timestamp.now(),
             };
 
@@ -1279,37 +1297,32 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
                 newMessage.mentionedPlayerIds = mentionedPlayerIds;
             }
 
-            const currentChatMessages = game.chatMessages ? [...game.chatMessages, newMessage] : [newMessage];
-            
-            // Check if any mentioned players are AI and should respond
-            for (const mentionedId of mentionedPlayerIds) {
-                const mentionedPlayer = game.players.find(p => p.userId === mentionedId);
-                if (mentionedPlayer?.isAI && mentionedPlayer.isAlive) {
-                    const sanitizedGame = sanitizeValue(game);
-                    
-                    const perspective: AIPlayerPerspective = {
-                        game: sanitizedGame,
-                        aiPlayer: sanitizeValue(mentionedPlayer),
-                        trigger: `${senderName} te ha mencionado en el chat: "${text.trim()}"`,
-                        players: sanitizeValue(game.players),
-                    };
-
-                    // Use a timeout to prevent holding the transaction
-                    setTimeout(async () => {
-                        try {
-                            const { message, shouldSend } = await generateAIChatMessage(perspective);
-                            if (shouldSend) {
-                                await sendChatMessage(db, gameId, mentionedPlayer.userId, mentionedPlayer.displayName, message);
-                            }
-                        } catch (aiError) {
-                            console.error("Error generating AI chat message on mention:", aiError);
-                        }
-                    }, 500); // 500ms delay
-                }
-            }
-
-            transaction.update(gameRef, { chatMessages: currentChatMessages });
+            transaction.update(gameRef, { 
+                chatMessages: arrayUnion(newMessage)
+            });
         });
+
+        // Trigger AI response *after* the transaction is successful
+        if (game && mentionedAIPlayer) {
+            const sanitizedGame = sanitizeValue(game);
+            const perspective: AIPlayerPerspective = {
+                game: sanitizedGame,
+                aiPlayer: sanitizeValue(mentionedAIPlayer),
+                trigger: `${senderName} te ha mencionado en el chat: "${text.trim()}"`,
+                players: sanitizeValue(game.players),
+            };
+
+            setTimeout(async () => {
+                try {
+                    const { message, shouldSend } = await generateAIChatMessage(perspective);
+                    if (shouldSend) {
+                        await sendChatMessage(db, gameId, mentionedAIPlayer!.userId, mentionedAIPlayer!.displayName, message);
+                    }
+                } catch (aiError) {
+                    console.error("Error generating AI chat message on mention:", aiError);
+                }
+            }, 500);
+        }
 
         return { success: true };
     } catch (error: any) {
@@ -1326,7 +1339,3 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
         return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
     }
 }
-
-
-
-    
