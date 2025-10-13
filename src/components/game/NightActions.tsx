@@ -291,7 +291,6 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                             players={players.filter(p => {
                                 if (isCupidFirstNight) return true;
                                 if (isWerewolfTeam) return p.role !== 'werewolf' && p.role !== 'wolf_cub';
-                                if (currentPlayer.role === 'doctor' && p.lastHealedRound === game.currentRound - 1) return false;
                                 if (p.userId === currentPlayer.userId) {
                                     // Allow self-selection for Hechicera (save) and Priest (once)
                                     if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save') return true;
