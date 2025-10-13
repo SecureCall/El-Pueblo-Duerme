@@ -1,3 +1,4 @@
+
 // src/lib/sounds.ts
 "use client";
 
@@ -9,7 +10,7 @@ if (typeof window !== 'undefined') {
     narrationAudio.volume = 1.0;
 
     soundEffectAudio = new Audio();
-    soundEffectAudio.volume = 0.5; // Adjusted volume for sound effects
+    soundEffectAudio.volume = 0.8; // Increased volume for sound effects
 }
 
 const playAudio = (audioElement: HTMLAudioElement | null, src: string): Promise<void> => {
@@ -19,19 +20,10 @@ const playAudio = (audioElement: HTMLAudioElement | null, src: string): Promise<
             return;
         }
 
-        // Create a new Audio object for sound effects to allow overlap
-        if (audioElement === soundEffectAudio) {
-            const effect = new Audio(src);
-            effect.volume = audioElement.volume;
-            effect.play().then(resolve).catch(error => {
-                console.warn("Sound effect playback failed:", error);
-                resolve(); // Resolve anyway
-            });
-            return;
-        }
-
-        // For narration, use the single instance to prevent overlap
+        // For narration and sound effects, use the single instance to prevent overlap
         if (!audioElement.paused) {
+            // If it's already playing something, let it finish, or decide to interrupt.
+            // For now, we will interrupt.
             audioElement.pause();
             audioElement.currentTime = 0;
         }
@@ -46,10 +38,15 @@ const playAudio = (audioElement: HTMLAudioElement | null, src: string): Promise<
         const playPromise = audioElement.play();
 
         if (playPromise !== undefined) {
-            playPromise.catch(error => {
+            playPromise.then(() => {
+                // Autoplay started!
+            }).catch(error => {
                 console.warn("Audio autoplay was prevented:", error);
+                // We resolve anyway, so the game doesn't get stuck.
                 resolve();
             });
+        } else {
+            resolve();
         }
     });
 };
@@ -65,9 +62,10 @@ export const playSoundEffect = (soundFile: string): Promise<void> => {
     
     return new Promise(resolve => {
         const audio = new Audio(`/audio/effects/${soundFile}`);
-        audio.volume = 0.5;
+        audio.volume = 0.8; // Effects volume
         audio.play().catch(e => console.warn("Sound effect failed to play", e));
         // We resolve immediately, not waiting for the sound to end.
         resolve();
     });
 };
+

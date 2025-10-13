@@ -42,9 +42,9 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
     }
 
     const prevPhase = prevPhaseRef.current;
-    const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
-
+    
     const playMorningSequence = async () => {
+        const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
         await playNarration('dia_pueblo_despierta.mp3');
         if (nightEvent) {
             const hasDeaths = nightEvent.data?.killedByWerewolfIds?.length > 0 || nightEvent.data?.killedByPoisonId;
@@ -138,25 +138,27 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
   // Show the "You are dead" overlay if the current player is not alive
   // and the game is still in progress.
   if (!currentPlayer.isAlive && game.status === 'in_progress') {
-    return <YouAreDeadOverlay />;
-  }
-
-  const alivePlayers = players.filter(p => p.isAlive);
-
-  const isHunterWaitingToShoot = game.phase === 'hunter_shot' && game.pendingHunterShot === currentPlayer.userId;
-  if (isHunterWaitingToShoot) {
-      const hunterAlivePlayers = players.filter(p => p.isAlive && p.userId !== currentPlayer.userId);
-      return (
-        <HunterShot game={game} currentPlayer={currentPlayer} players={hunterAlivePlayers} />
-      );
-  }
-
-  if (showRole && currentPlayer.role) {
     return (
-        <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />
+        <>
+            <YouAreDeadOverlay />
+            {/* Render the game board in the background for spectating */}
+            <div className="opacity-30 w-full max-w-7xl mx-auto p-4 space-y-6">
+                <SpectatorGameBoard game={game} players={players} events={events} messages={messages} />
+            </div>
+        </>
     );
   }
 
+  return (
+    <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
+       <SpectatorGameBoard game={game} players={players} events={events} messages={messages} currentPlayer={currentPlayer} />
+    </div>
+  );
+}
+
+
+// A simplified version of the board for spectating, without interactive elements.
+function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: Omit<GameBoardProps, 'currentPlayer'> & { currentPlayer?: Player}) {
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
   const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
@@ -186,13 +188,13 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
       if (game.phase === 'night') return 45;
       return 0;
   }
-
-  const isLover = !!game.lovers?.includes(currentPlayer.userId);
-  const otherLoverId = isLover ? game.lovers!.find(id => id !== currentPlayer.userId) : null;
+  
+  const isLover = !!game.lovers?.includes(currentPlayer?.userId || '');
+  const otherLoverId = isLover ? game.lovers!.find(id => id !== currentPlayer!.userId) : null;
   const otherLover = otherLoverId ? players.find(p => p.userId === otherLoverId) : null;
   
-  const isTwin = currentPlayer.role === 'twin' && !!game.twins?.includes(currentPlayer.userId);
-  const otherTwinId = isTwin ? game.twins!.find(id => id !== currentPlayer.userId) : null;
+  const isTwin = currentPlayer?.role === 'twin' && !!game.twins?.includes(currentPlayer.userId);
+  const otherTwinId = isTwin ? game.twins!.find(id => id !== currentPlayer!.userId) : null;
   const otherTwin = otherTwinId ? players.find(p => p.userId === otherTwinId) : null;
 
   const highlightedPlayers = [];
@@ -203,9 +205,25 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
     highlightedPlayers.push({ userId: otherTwin.userId, color: 'rgba(135, 206, 250, 0.7)' });
   }
 
+  // Acknowledge role is a dummy function for spectators
+  const handleAcknowledgeRole = async () => {};
+  const handleTimerEnd = async () => {};
 
-  return (
-    <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
+  if (currentPlayer && currentPlayer.role && game.phase === 'role_reveal') {
+      return <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />;
+  }
+
+  const isHunterWaitingToShoot = game.phase === 'hunter_shot' && game.pendingHunterShot === currentPlayer?.userId;
+   if (isHunterWaitingToShoot && currentPlayer) {
+      const hunterAlivePlayers = players.filter(p => p.isAlive && p.userId !== currentPlayer.userId);
+      return (
+        <HunterShot game={game} currentPlayer={currentPlayer} players={hunterAlivePlayers} />
+      );
+  }
+
+
+   return (
+    <>
        <Card className="text-center bg-card/80">
         <CardHeader className="flex flex-row items-center justify-between p-4 pb-8 relative">
           <div className="absolute left-4 top-1/2 -translate-y-1/2">
@@ -229,7 +247,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
       
       <PlayerGrid players={players} highlightedPlayers={highlightedPlayers} />
 
-      {isLover && otherLover && (
+       {isLover && otherLover && currentPlayer?.isAlive && (
         <Card className="bg-pink-900/30 border-pink-400/50">
           <CardContent className="pt-6">
             <div className="flex items-center justify-center gap-3 text-pink-300">
@@ -240,7 +258,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
         </Card>
       )}
 
-      {isTwin && otherTwin && (
+      {isTwin && otherTwin && currentPlayer?.isAlive && (
         <Card className="bg-blue-900/30 border-blue-400/50">
           <CardContent className="pt-6">
             <div className="flex items-center justify-center gap-3 text-blue-300">
@@ -251,14 +269,14 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
         </Card>
       )}
 
-      {game.phase === 'night' && currentPlayer.isAlive && (
-        <NightActions game={game} players={alivePlayers} currentPlayer={currentPlayer} />
+      {currentPlayer && game.phase === 'night' && currentPlayer.isAlive && (
+        <NightActions game={game} players={players.filter(p=>p.isAlive)} currentPlayer={currentPlayer} />
       )}
       
-      {game.phase === 'day' && (
+      {currentPlayer && game.phase === 'day' && (
         <DayPhase 
             game={game} 
-            players={players} // Pass all players to show votes on dead players too
+            players={players}
             currentPlayer={currentPlayer}
             nightEvent={nightEvent}
             loverDeathEvents={loverDeathEvents}
@@ -279,9 +297,10 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
          </Card>
       )}
        
-       {currentPlayer.isAlive && game.status === 'in_progress' && game.phase !== 'role_reveal' && (
+       {currentPlayer && currentPlayer.isAlive && game.status === 'in_progress' && game.phase !== 'role_reveal' && (
         <CurrentPlayerRole player={currentPlayer} />
        )}
-    </div>
+    </>
   );
 }
+
