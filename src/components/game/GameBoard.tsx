@@ -44,7 +44,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
             if (hasDeaths) {
                 await playSoundEffect('descanse_en_paz.mp3');
             } else {
-                await playSoundEffect('¡Milagro!.mp3');
+                await playSoundEffect('milagro.mp3');
             }
         }
         await playNarration('inicio_debate.mp3');
@@ -100,17 +100,12 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
   }, [game.phase, game.id, game.creator, currentPlayer.userId, game.currentRound, game.settings.fillWithAI, firestore]);
 
   const handleAcknowledgeRole = async () => {
-    // Anyone can trigger the phase change, but it will only happen once.
     if (game.phase === 'role_reveal' && firestore) {
-        try {
-            // Firestore security rules should prevent this from being abused.
-            // A transaction in the backend could also enforce the phase change rule.
-            await updateDoc(doc(firestore, "games", game.id), { 
-                phase: 'night',
-            });
-        } catch (error) {
-            console.error("Failed to advance phase from role_reveal:", error);
-        }
+      try {
+        await updateDoc(doc(firestore, "games", game.id), { phase: 'night' });
+      } catch (error) {
+        console.error("Failed to advance phase from role_reveal:", error);
+      }
     }
   };
   

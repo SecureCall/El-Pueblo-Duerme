@@ -321,6 +321,12 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         const existingActionIndex = nightActions.findIndex(a => a.round === action.round && a.playerId === action.playerId);
 
         // Validations
+        if (action.actionType === 'doctor_heal') {
+            const targetPlayer = game.players.find(p => p.userId === action.targetId);
+            if (targetPlayer?.lastHealedRound === game.currentRound - 1) {
+                throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
+            }
+        }
         if (action.actionType === 'hechicera_poison' && player.potions?.poison) throw new Error("Ya has usado tu poción de veneno.");
         if (action.actionType === 'hechicera_save' && player.potions?.save) throw new Error("Ya has usado tu poción de salvación.");
         if (action.actionType === 'priest_bless' && action.targetId === action.playerId && player.priestSelfHealUsed) {
@@ -473,52 +479,41 @@ async function killPlayer(
 
 function sanitizeValue(value: any): any {
     if (value instanceof Timestamp) {
-        return value.toDate().toISOString();
+        return value; // Firestore Timestamps are fine
     }
     if (value === undefined) {
-        return null; // Convert undefined to null
+        return null; // Firestore doesn't support undefined
+    }
+    if (value === null || typeof value !== 'object' || value instanceof Date) {
+        return value;
     }
     if (Array.isArray(value)) {
         return value.map(sanitizeValue);
     }
-    if (value !== null && typeof value === 'object' && Object.prototype.toString.call(value) !== '[object Date]') {
-        const sanitizedObject: { [key: string]: any } = {};
-        for (const key in value) {
-             if (Object.prototype.hasOwnProperty.call(value, key)) {
-                const sanitized = sanitizeValue(value[key]);
-                sanitizedObject[key] = sanitized;
+    const sanitizedObject: { [key: string]: any } = {};
+    for (const key in value) {
+        if (Object.prototype.hasOwnProperty.call(value, key)) {
+            const sanitized = sanitizeValue(value[key]);
+            if (sanitized !== undefined) {
+                 sanitizedObject[key] = sanitized;
             }
         }
-        return sanitizedObject;
     }
-    return value;
+    return sanitizedObject;
 }
 
 
 function sanitizeGameForUpdate(gameData: Partial<Game>): { [key: string]: any } {
     const sanitizedGame = { ...gameData };
 
-    // Sanitize players array
-    if (sanitizedGame.players) {
-        sanitizedGame.players = sanitizedGame.players.map(player => sanitizeValue(player));
-    }
-    // Sanitize events array
-    if (sanitizedGame.events) {
-        sanitizedGame.events = sanitizedGame.events.map(event => sanitizeValue(event));
-    }
-    // Sanitize night actions array
-    if (sanitizedGame.nightActions) {
-        sanitizedGame.nightActions = sanitizedGame.nightActions.map(action => sanitizeValue(action));
-    }
-    // Sanitize chat messages array
-    if (sanitizedGame.chatMessages) {
-        sanitizedGame.chatMessages = sanitizedGame.chatMessages.map(message => sanitizeValue(message));
-    }
-
-    // Sanitize root level properties
     for (const key in sanitizedGame) {
-        if (sanitizedGame[key as keyof typeof sanitizedGame] === undefined) {
-            delete sanitizedGame[key as keyof typeof sanitizedGame];
+        if (Object.prototype.hasOwnProperty.call(sanitizedGame, key)) {
+            const typedKey = key as keyof Game;
+            if (sanitizedGame[typedKey] === undefined) {
+                delete sanitizedGame[typedKey];
+            } else {
+                 (sanitizedGame as any)[typedKey] = sanitizeValue(sanitizedGame[typedKey]);
+            }
         }
     }
 
@@ -1289,10 +1284,10 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
 
             if (mentionedPlayer) {
                  const perspective: AIPlayerPerspective = {
-                    game: sanitizeValue(game),
-                    aiPlayer: sanitizeValue(mentionedPlayer),
+                    game: sanitizeValue(game) as Game,
+                    aiPlayer: sanitizeValue(mentionedPlayer) as Player,
                     trigger: `${senderName} te ha mencionado en el chat: "${text.trim()}"`,
-                    players: sanitizeValue(game.players),
+                    players: sanitizeValue(game.players) as Player[],
                 };
                 
                 generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
@@ -1375,4 +1370,3 @@ export async function resetGame(db: Firestore, gameId: string) {
         return { error: e.message || 'No se pudo reiniciar la partida.' };
     }
 }
-
