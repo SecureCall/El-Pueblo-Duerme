@@ -1,11 +1,15 @@
 
 import { z } from 'zod';
 
-// Helper for Firebase Timestamps
-const TimestampSchema = z.object({
-  seconds: z.number(),
-  nanoseconds: z.number(),
-});
+// Helper for Firebase Timestamps - now accepting string for client-server transfer
+const TimestampSchema = z.union([
+  z.object({
+    seconds: z.number(),
+    nanoseconds: z.number(),
+  }),
+  z.string(), // ISO 8601 string
+]);
+
 
 export const PlayerRoleSchema = z.enum([
   "villager", "seer", "doctor", "hunter", "cupid", "guardian", "priest", "prince", "lycanthrope", "twin",
@@ -128,3 +132,5 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
+
+    

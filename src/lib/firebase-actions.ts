@@ -473,6 +473,9 @@ async function killPlayer(
 
 
 function sanitizeValue(value: any): any {
+    if (value instanceof Timestamp) {
+        return value.toDate().toISOString();
+    }
     if (value === undefined) {
         return null;
     }
@@ -501,6 +504,14 @@ function sanitizeGameForUpdate(gameData: Partial<Game>): { [key: string]: any } 
      // Ensure events array is sanitized deeply
     if (sanitizedGame.events && Array.isArray(sanitizedGame.events)) {
         sanitizedGame.events = sanitizedGame.events.map((event: any) => sanitizeValue(event));
+    }
+    // Ensure night actions are sanitized
+    if (sanitizedGame.nightActions && Array.isArray(sanitizedGame.nightActions)) {
+        sanitizedGame.nightActions = sanitizedGame.nightActions.map((action: any) => sanitizeValue(action));
+    }
+    // Ensure chat messages are sanitized
+    if (sanitizedGame.chatMessages && Array.isArray(sanitizedGame.chatMessages)) {
+        sanitizedGame.chatMessages = sanitizedGame.chatMessages.map((msg: any) => sanitizeValue(msg));
     }
     return sanitizedGame;
 }
@@ -737,11 +748,14 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             const voterPlayer = game.players.find(p => p.userId === voterId);
 
             if (targetPlayer?.isAI) {
+                // Sanitize the entire game object for the AI prompt
+                const sanitizedGame = sanitizeValue(game);
+
                 const perspective: AIPlayerPerspective = {
-                    game,
-                    aiPlayer: targetPlayer,
+                    game: sanitizedGame,
+                    aiPlayer: sanitizeValue(targetPlayer),
                     trigger: `${voterPlayer?.displayName || 'Someone'} has voted for you.`,
-                    players: game.players,
+                    players: game.players.map(p => sanitizeValue(p)),
                 };
                 const { message, shouldSend } = await generateAIChatMessage(perspective);
                 if (shouldSend) {
@@ -893,7 +907,11 @@ export async function processVotes(db: Firestore, gameId: string) {
             }
             
             // This was the issue. This must be outside the `if` conditions.
-            game.players.forEach(p => { p.votedFor = null; });
+            game.players.forEach(p => { 
+                if (p.votedFor !== 'TO_BE_KILLED') {
+                    p.votedFor = null; 
+                }
+            });
             
             const { game: gameOverCheckGame, isOver } = await checkGameOver(game);
             if (isOver) {
@@ -1259,3 +1277,6 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
     }
 }
 
+
+
+    
