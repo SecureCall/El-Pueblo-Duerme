@@ -103,10 +103,15 @@ export function GameChat({ gameId, currentPlayer, messages, players }: GameChatP
 
     const canChat = currentPlayer.isAlive;
     
-    const getDateFromTimestamp = (timestamp: Timestamp | { seconds: number; nanoseconds: number; }) => {
-        if ('toDate' in timestamp) {
+    const getDateFromTimestamp = (timestamp: Timestamp | { seconds: number; nanoseconds: number; } | string) => {
+        if (!timestamp) return new Date();
+        if (typeof timestamp === 'string') {
+            return new Date(timestamp);
+        }
+        if ('toDate' in timestamp && typeof timestamp.toDate === 'function') {
             return timestamp.toDate();
         }
+        // It's a plain object from JSON serialization
         return new Date(timestamp.seconds * 1000);
     }
 

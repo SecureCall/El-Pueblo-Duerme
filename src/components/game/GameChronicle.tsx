@@ -45,11 +45,15 @@ export function GameChronicle({ events }: GameChronicleProps) {
   // The events are already sorted by the useGameState hook.
   const sortedEvents = events; 
 
-  const getDateFromTimestamp = (timestamp: Timestamp | { seconds: number; nanoseconds: number; }) => {
-    if (!timestamp) return new Date(); // Should not happen
-    if ('toDate' in timestamp) {
+  const getDateFromTimestamp = (timestamp: Timestamp | { seconds: number; nanoseconds: number; } | string) => {
+    if (!timestamp) return new Date();
+    if (typeof timestamp === 'string') {
+        return new Date(timestamp);
+    }
+    if ('toDate' in timestamp && typeof timestamp.toDate === 'function') {
         return timestamp.toDate();
     }
+    // It's a plain object from JSON serialization
     return new Date(timestamp.seconds * 1000);
   }
 
