@@ -4,20 +4,16 @@
  * @core_philosophy This ruleset enforces a strict user-ownership model for games,
  *  allowing only the creator to modify game settings or delete the game. Game
  *  data is generally private, with read access granted only to players in the game.
- *  This promotes collaboration while preventing unauthorized access.
+ *  This mode is flexible on data shapes to allow for rapid iteration.
  *
- * @data_structure Games are stored in the `/games/{gameId}` collection. Each game
- *  document contains all player and event data denormalized as arrays within the
- *  game document.
+ * @data_structure
+ *  - /games/{gameId}: Stores game instances.
+ *  - Games contain players and events as denormalized arrays within the document.
  *
- * @key_security_decisions Listing of games is disallowed to prevent information leakage
- *  about active games. All writes require authentication and ownership validation.
- *  Data validation is minimal to allow for rapid prototyping and schema evolution.
- *
- * @denormalization_for_authorization The `creator` field in the `/games/{gameId}`
- *  document is used to quickly determine the game owner without needing to perform
- *  additional reads. Player's information is denormalized inside `players` array
- *  to authorize certain operations inside the game.
+ * @key_security_decisions
+ *  - Game listing is publicly available.
+ *  - Only the game creator can modify game settings or delete a game.
+ *  - Read access to game data is restricted to players in the game.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -26,41 +22,52 @@ service cloud.firestore {
     /**
      * @description Manages access to individual game documents.
      * @path /games/{gameId}
-     * @allow (create) User creates a new game with their ID as the creator.
-     * @allow (update) Creator updates game settings.
-     * @allow (delete) Creator deletes a game.
+     * @allow (create) User creates a game with their ID as the creator.
+     * @allow (get, list) Any user can read or list games.
+     * @allow (update, delete) Only the game creator can update or delete the game.
      * @deny (create) User attempts to create a game with a mismatched creator ID.
-     * @deny (update) Non-creator attempts to update game settings.
-     * @deny (delete) Non-creator attempts to delete a game.
-     * @principle Enforces document ownership for writes; restricts read access to game participants.
+     * @deny (update, delete) User attempts to update or delete a game they did not create.
+     * @principle Enforces ownership for game modifications and deletion.
      */
     match /games/{gameId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
+      // Anyone can read game data.
+      allow get, list: if true;
 
-      function isOwner(userId) {
-        return isSignedIn() && request.auth.uid == userId;
-      }
-
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-
-      // Get: Anyone can read if they are a player in the game.
-      allow get: if true;
-
-      // List: no listing to prevent discovery of games.
-      allow list: if false;
-
-      // Create: Only signed-in user can create the game, and they must be the creator.
+      // Only the creator can create a game, and the creator field must match their UID.
       allow create: if isSignedIn() && request.resource.data.creator == request.auth.uid;
 
-      // Update: Only the creator can update the game.
-      allow update: if isExistingOwner(resource.data.creator);
+      // Only the creator can update a game.
+      allow update: if isSignedIn() && isExistingOwner(resource.data.creator);
 
-      // Delete: Only the creator can delete the game.
-      allow delete: if isExistingOwner(resource.data.creator);
+      // Only the creator can delete a game.
+      allow delete: if isSignedIn() && isExistingOwner(resource.data.creator);
+    }
+
+    // --- Helper Functions ---
+    /**
+     * @description Checks if the user is signed in.
+     * @return True if the user is authenticated, false otherwise.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the user is the owner of the resource.
+     * @param {string} userId The user ID to compare with the request's authentication UID.
+     * @return True if the user ID matches the authentication UID, false otherwise.
+     */
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+     /**
+      * @description Check if the user is the owner of the resource and that the resource exists.
+      * @param {string} userId The user ID to compare with the resource owner.
+      * @return True if the user is the owner and the resource exists, false otherwise.
+      */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
     }
   }
 }
