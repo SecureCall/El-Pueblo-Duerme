@@ -198,6 +198,32 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     highlightedPlayers.push({ userId: otherTwin.userId, color: 'rgba(135, 206, 250, 0.7)' });
   }
 
+  const getCauseOfDeath = (playerId: string) => {
+    const deathEvent = events.find(e => {
+        if (e.type === 'night_result' && (e.data?.killedByWerewolfIds?.includes(playerId) || e.data?.killedByPoisonId === playerId)) {
+            return true;
+        }
+        if (e.type === 'vote_result' && e.data?.lynchedPlayerId === playerId) {
+            return true;
+        }
+        if ((e.type === 'lover_death' || e.type === 'hunter_shot') && e.data?.killedPlayerId === playerId) {
+            return true;
+        }
+        return false;
+    });
+
+    if (deathEvent) {
+      if (deathEvent.type === 'night_result') return 'werewolf_kill';
+      if (deathEvent.type === 'vote_result') return 'vote_result';
+    }
+    return 'other';
+  };
+  
+  const playersWithDeathCause = players.map(p => ({
+    ...p,
+    causeOfDeath: !p.isAlive ? getCauseOfDeath(p.userId) : undefined,
+  }));
+
   // Acknowledge role is a dummy function for spectators
   const handleAcknowledgeRole = async () => {
     if (firestore && game.phase === 'role_reveal') {
@@ -246,7 +272,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
         </CardHeader>
       </Card>
       
-      <PlayerGrid players={players} highlightedPlayers={highlightedPlayers} />
+      <PlayerGrid players={playersWithDeathCause} highlightedPlayers={highlightedPlayers} />
 
        {isLover && otherLover && currentPlayer?.isAlive && (
         <Card className="bg-pink-900/30 border-pink-400/50">

@@ -5,7 +5,7 @@ import type { Player } from "@/types";
 import { PlayerCard } from "./PlayerCard";
 
 interface PlayerGridProps {
-    players: Player[];
+    players: (Player & { causeOfDeath?: 'werewolf_kill' | 'vote_result' | 'other' })[];
     onPlayerClick?: (player: Player) => void;
     clickable?: boolean;
     selectedPlayerIds?: string[];
@@ -41,4 +41,3 @@ export function PlayerGrid({
     </div>
   );
 }
-

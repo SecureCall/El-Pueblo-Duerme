@@ -6,20 +6,36 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { Bot, Crown } from "lucide-react";
+import { Bot, Crown, Skull } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { roleDetails, defaultRoleDetail } from "@/lib/roles";
 import Image from "next/image";
+import type { SVGProps } from "react";
 
 interface PlayerCardProps {
-  player: Player;
+  player: Player & { causeOfDeath?: 'werewolf_kill' | 'vote_result' | 'other' };
   onClick?: () => void;
   isClickable?: boolean;
   isSelected?: boolean;
   highlightColor?: string;
   votes?: string[];
 }
+
+function GallowsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M12 2v2"/>
+      <path d="M12 4h8"/>
+      <path d="M18 4v5"/>
+      <path d="M12 14c0-2 2-4 4-4s4 2 4 4c0 2.2-1.8 4-4 4-4 0-4-2-4-2"/>
+      <path d="M12 22V10"/>
+      <path d="M6 22V4"/>
+      <path d: "M10 4H2"/>
+    </svg>
+  );
+}
+
 
 export function PlayerCard({ player, onClick, isClickable, isSelected, highlightColor, votes }: PlayerCardProps) {
   
@@ -42,6 +58,23 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
 
   if (!player.isAlive) {
     const roleInfo = roleDetails[player.role!] ?? defaultRoleDetail;
+    const DeathIcon = () => {
+        switch (player.causeOfDeath) {
+            case 'vote_result':
+                return <GallowsIcon className="absolute inset-0 m-auto h-16 w-16 text-amber-800/80 z-20" />;
+            case 'werewolf_kill':
+                 return (
+                    <div className="absolute inset-0 flex items-center justify-center overflow-hidden z-20">
+                        <Image src="/zarpa.png" alt="Zarpazo" width={80} height={80} className="absolute object-contain opacity-90 rotate-[20deg] scale-125" unoptimized />
+                        <Image src="/zarpa.png" alt="Zarpazo" width={60} height={60} className="absolute object-contain opacity-80 rotate-[-30deg] scale-100 translate-x-2" unoptimized />
+                        <Image src="/zarpa.png" alt="Zarpazo" width={70} height={70} className="absolute object-contain opacity-85 rotate-[10deg] scale-110 -translate-y-1" unoptimized />
+                    </div>
+                );
+            default:
+                return <Skull className="absolute inset-0 m-auto h-16 w-16 text-gray-400/80 z-20" />;
+        }
+    };
+    
     return (
         <div className="relative flex flex-col items-center justify-between p-4 h-full bg-muted/30 rounded-lg overflow-hidden">
             <div className="absolute inset-0 bg-black/60 z-10" />
@@ -51,34 +84,7 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
                         <AvatarImage src={avatarImage?.imageUrl || '/avatar-default.png'} data-ai-hint={avatarImage?.imageHint} />
                         <AvatarFallback>{player.displayName.substring(0, 2)}</AvatarFallback>
                     </Avatar>
-                    
-                    {/* Zarpazos superpuestos */}
-                    <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
-                        <Image
-                            src="/zarpa.png"
-                            alt="Zarpazo 1"
-                            width={80}
-                            height={80}
-                            className="absolute object-contain opacity-90 rotate-[20deg] scale-125"
-                            unoptimized
-                        />
-                        <Image
-                            src="/zarpa.png"
-                            alt="Zarpazo 2"
-                            width={60}
-                            height={60}
-                            className="absolute object-contain opacity-80 rotate-[-30deg] scale-100 translate-x-2"
-                            unoptimized
-                        />
-                        <Image
-                            src="/zarpa.png"
-                            alt="Zarpazo 3"
-                            width={70}
-                            height={70}
-                            className="absolute object-contain opacity-85 rotate-[10deg] scale-110 -translate-y-1"
-                            unoptimized
-                        />
-                    </div>
+                   <DeathIcon />
                 </div>
             </div>
             <div className="relative z-20 flex flex-col items-center gap-1 text-center w-full pt-3">
@@ -139,4 +145,3 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
     </TooltipProvider>
   );
 }
-
