@@ -748,7 +748,7 @@ export async function processNight(db: Firestore, gameId: string) {
             
             if (hunterId) {
                 transaction.update(gameRef, sanitizeGameForUpdate(game));
-                return;
+                return; // CRITICAL: Stop execution if hunter is triggered
             }
 
             const { game: finalGame, isOver } = await checkGameOver(game);
@@ -1139,7 +1139,7 @@ async function checkEndNightEarly(db: Firestore, gameId: string) {
 
     const allRequiredSubmitted = Array.from(requiredPlayerIds).every(id => submittedPlayerIds.has(id));
 
-    if (allRequiredSubmitted) {
+    if (allRequiredSubmitted && game.phase === 'night') {
         await processNight(db, gameId);
     }
 }
