@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { Game, Player, GameEvent } from "@/types";
+import type { Game, Player, GameEvent, ChatMessage } from "@/types";
 import { RoleReveal } from "./RoleReveal";
 import { PlayerGrid } from "./PlayerGrid";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -24,9 +24,10 @@ interface GameBoardProps {
   players: Player[];
   currentPlayer: Player;
   events: GameEvent[];
+  messages: ChatMessage[];
 }
 
-export function GameBoard({ game, players, currentPlayer, events }: GameBoardProps) {
+export function GameBoard({ game, players, currentPlayer, events, messages }: GameBoardProps) {
   const { firestore } = useFirebase();
   const [showRole, setShowRole] = useState(game.phase === 'role_reveal');
   const prevPhaseRef = useRef<Game['phase']>();
@@ -254,6 +255,7 @@ export function GameBoard({ game, players, currentPlayer, events }: GameBoardPro
             nightEvent={nightEvent}
             loverDeathEvents={loverDeathEvents}
             voteEvent={voteEvent}
+            chatMessages={messages}
         />
       )}
 

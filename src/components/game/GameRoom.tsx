@@ -18,7 +18,7 @@ import { GameMusic } from "./GameMusic";
 
 export function GameRoom({ gameId }: { gameId: string }) {
   const { userId, displayName, setDisplayName, isSessionLoaded } = useGameSession();
-  const { game, players, events, loading, error } = useGameState(gameId);
+  const { game, players, events, messages, loading, error } = useGameState(gameId);
   const [isJoining, setIsJoining] = useState(false);
   const { toast } = useToast();
   const { firestore } = useFirebase();
@@ -97,7 +97,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
         case 'finished':
             // Pass sorted events to game board
             const sortedEvents = [...events].sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis());
-            return <GameBoard game={game} players={players} currentPlayer={currentPlayer} events={sortedEvents} />;
+            return <GameBoard game={game} players={players} currentPlayer={currentPlayer} events={sortedEvents} messages={messages} />;
         default:
             return <p>Estado de la partida desconocido.</p>;
     }

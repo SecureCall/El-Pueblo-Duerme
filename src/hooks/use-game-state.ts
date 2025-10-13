@@ -48,12 +48,15 @@ export const useGameState = (gameId: string) => {
         setGame(gameData);
         setPlayers(gameData.players.sort((a, b) => a.joinedAt.toMillis() - b.joinedAt.toMillis()));
         setEvents(gameData.events?.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis()) || []);
+        // Only get messages for the current round
+        setMessages(gameData.chatMessages?.filter(m => m.round === gameData.currentRound) || []);
         setError(null);
       } else {
         setError('Partida no encontrada.');
         setGame(null);
         setPlayers([]);
         setEvents([]);
+        setMessages([]);
       }
       setLoading(false);
     }, (err: FirestoreError) => {

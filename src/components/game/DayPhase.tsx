@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from 'react';
-import type { Game, Player, GameEvent } from '@/types';
+import type { Game, Player, GameEvent, ChatMessage } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
@@ -12,6 +12,7 @@ import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { HeartCrack, SunIcon, Users } from 'lucide-react';
 import { useFirebase } from '@/firebase';
+import { GameChat } from './GameChat';
 
 interface DayPhaseProps {
     game: Game;
@@ -20,9 +21,10 @@ interface DayPhaseProps {
     nightEvent?: GameEvent;
     loverDeathEvents?: GameEvent[];
     voteEvent?: GameEvent;
+    chatMessages: ChatMessage[];
 }
 
-export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathEvents = [], voteEvent }: DayPhaseProps) {
+export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathEvents = [], voteEvent, chatMessages }: DayPhaseProps) {
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
@@ -69,84 +71,94 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
     }, {} as Record<string, string[]>);
 
     return (
-        <div className="mt-8 w-full">
-            <Card className="bg-card/80 w-full h-full">
-                <CardHeader>
-                    <CardTitle className="font-headline text-2xl">Debate y Votación</CardTitle>
-                    <CardDescription>El pueblo se reúne. Discutid y votad para linchar a un sospechoso.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {nightEvent && (
-                        <Alert className='mb-4 bg-background/50'>
-                            <SunIcon className="h-4 w-4" />
-                            <AlertTitle>Al Amanecer...</AlertTitle>
-                            <AlertDescription>
-                                {nightEvent.message}
-                            </AlertDescription>
-                        </Alert>
-                    )}
+        <div className="mt-8 w-full flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+                <Card className="bg-card/80 w-full h-full">
+                    <CardHeader>
+                        <CardTitle className="font-headline text-2xl">Debate y Votación</CardTitle>
+                        <CardDescription>El pueblo se reúne. Discutid y votad para linchar a un sospechoso.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {nightEvent && (
+                            <Alert className='mb-4 bg-background/50'>
+                                <SunIcon className="h-4 w-4" />
+                                <AlertTitle>Al Amanecer...</AlertTitle>
+                                <AlertDescription>
+                                    {nightEvent.message}
+                                </AlertDescription>
+                            </Alert>
+                        )}
 
-                    {loverDeathEvents.map(event => (
-                        <Alert key={event.createdAt.toMillis()} variant="destructive" className='mb-4 bg-destructive/20 border-destructive/50'>
-                            <HeartCrack className="h-4 w-4" />
-                            <AlertTitle>¡Una tragedia de amor!</AlertTitle>
-                            <AlertDescription>
-                                {event.message}
-                            </AlertDescription>
-                        </Alert>
-                    ))}
+                        {loverDeathEvents.map(event => (
+                            <Alert key={event.createdAt.toMillis()} variant="destructive" className='mb-4 bg-destructive/20 border-destructive/50'>
+                                <HeartCrack className="h-4 w-4" />
+                                <AlertTitle>¡Una tragedia de amor!</AlertTitle>
+                                <AlertDescription>
+                                    {event.message}
+                                </AlertDescription>
+                            </Alert>
+                        ))}
 
-                    {voteEvent && (
-                        <Alert className='mb-4 bg-background/50 border-blue-400/30'>
-                            <Users className="h-4 w-4" />
-                            <AlertTitle>Resultado de la Votación Anterior</AlertTitle>
-                            <AlertDescription>
-                                {voteEvent.message}
-                            </AlertDescription>
-                        </Alert>
-                    )}
-                    
-                    {currentPlayer.isAlive ? (
-                        hasVoted ? (
+                        {voteEvent && (
+                            <Alert className='mb-4 bg-background/50 border-blue-400/30'>
+                                <Users className="h-4 w-4" />
+                                <AlertTitle>Resultado de la Votación Anterior</AlertTitle>
+                                <AlertDescription>
+                                    {voteEvent.message}
+                                </AlertDescription>
+                            </Alert>
+                        )}
+                        
+                        {currentPlayer.isAlive ? (
+                            hasVoted ? (
+                                <div className="text-center py-4 space-y-4">
+                                    <p className="text-lg text-primary">
+                                        Has votado por {votedForPlayer?.displayName || 'alguien'}. Esperando al resto de jugadores...
+                                    </p>
+                                    <PlayerGrid 
+                                        players={alivePlayers}
+                                        votesByPlayer={votesByPlayer}
+                                    />
+                                </div>
+                            ) : (
+                                <>
+                                    <p className="text-center mb-4 text-muted-foreground">Selecciona al jugador que crees que es un Hombre Lobo.</p>
+                                    <PlayerGrid 
+                                        players={alivePlayers.filter(p => p.userId !== currentPlayer.userId)}
+                                        onPlayerClick={handlePlayerSelect}
+                                        clickable={true}
+                                        selectedPlayerIds={selectedPlayerId ? [selectedPlayerId] : []}
+                                        votesByPlayer={votesByPlayer}
+                                    />
+                                    <Button 
+                                        className="w-full mt-6 text-lg" 
+                                        onClick={handleVoteSubmit} 
+                                        disabled={!selectedPlayerId || isSubmitting}
+                                    >
+                                        {isSubmitting ? <Loader2 className="animate-spin" /> : `Votar por ${players.find(p=>p.userId === selectedPlayerId)?.displayName || '...'}`}
+                                    </Button>
+                                </>
+                            )
+                        ) : (
                             <div className="text-center py-4 space-y-4">
-                                <p className="text-lg text-primary">
-                                    Has votado por {votedForPlayer?.displayName || 'alguien'}. Esperando al resto de jugadores...
-                                </p>
+                                <p className="text-lg">Observas el debate desde el más allá...</p>
                                 <PlayerGrid 
                                     players={alivePlayers}
                                     votesByPlayer={votesByPlayer}
                                 />
                             </div>
-                        ) : (
-                            <>
-                                <p className="text-center mb-4 text-muted-foreground">Selecciona al jugador que crees que es un Hombre Lobo.</p>
-                                <PlayerGrid 
-                                    players={alivePlayers.filter(p => p.userId !== currentPlayer.userId)}
-                                    onPlayerClick={handlePlayerSelect}
-                                    clickable={true}
-                                    selectedPlayerIds={selectedPlayerId ? [selectedPlayerId] : []}
-                                    votesByPlayer={votesByPlayer}
-                                />
-                                <Button 
-                                    className="w-full mt-6 text-lg" 
-                                    onClick={handleVoteSubmit} 
-                                    disabled={!selectedPlayerId || isSubmitting}
-                                >
-                                    {isSubmitting ? <Loader2 className="animate-spin" /> : `Votar por ${players.find(p=>p.userId === selectedPlayerId)?.displayName || '...'}`}
-                                </Button>
-                            </>
-                        )
-                    ) : (
-                        <div className="text-center py-4 space-y-4">
-                            <p className="text-lg">Observas el debate desde el más allá...</p>
-                            <PlayerGrid 
-                                players={alivePlayers}
-                                votesByPlayer={votesByPlayer}
-                            />
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+             <div className="w-full md:w-96">
+                <GameChat 
+                    gameId={game.id} 
+                    currentPlayer={currentPlayer} 
+                    messages={chatMessages} 
+                    players={players}
+                />
+            </div>
         </div>
     );
 }

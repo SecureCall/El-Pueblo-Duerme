@@ -51,6 +51,7 @@ export interface Game {
   creator: string;
   players: Player[]; // Array of Player objects
   events: GameEvent[]; // Array of GameEvent objects
+  chatMessages?: ChatMessage[]; // Array of ChatMessage objects
   maxPlayers: number;
   createdAt: Timestamp;
   currentRound: number;

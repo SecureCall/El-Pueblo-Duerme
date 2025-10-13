@@ -75,6 +75,7 @@ export async function createGame(
       creator: userId,
       players: [], 
       events: [],
+      chatMessages: [],
       maxPlayers: maxPlayers,
       createdAt: Timestamp.now(),
       currentRound: 0,
@@ -494,7 +495,7 @@ function sanitizeGameForUpdate(gameData: Partial<Game>): Partial<Game> {
     }
     
     // Ensure top-level optional fields are at least null if they don't exist
-    const optionalFields: (keyof Game)[] = ['lovers', 'twins', 'pendingHunterShot', 'nightActions', 'events', 'phaseEndsAt'];
+    const optionalFields: (keyof Game)[] = ['lovers', 'twins', 'pendingHunterShot', 'nightActions', 'events', 'phaseEndsAt', 'chatMessages'];
     optionalFields.forEach(field => {
         if (!(field in sanitizedGame)) {
             // @ts-ignore
@@ -705,6 +706,7 @@ export async function processNight(db: Firestore, gameId: string) {
             
             game.players.forEach(p => p.votedFor = null);
             game.phase = 'day';
+            game.chatMessages = []; // Clear chat for the new day
             if (game.wolfCubRevengeRound === game.currentRound) {
                 game.wolfCubRevengeRound = 0;
             }
@@ -1129,5 +1131,53 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
         }
     } catch(e) {
         console.error("Error in AI Actions:", e);
+    }
+}
+
+export async function sendChatMessage(db: Firestore, gameId: string, senderId: string, senderName: string, text: string) {
+    const gameRef = doc(db, 'games', gameId);
+    
+    if (!text?.trim()) {
+        return { success: false, error: 'El mensaje no puede estar vacío.' };
+    }
+
+    try {
+        const gameDoc = await getDoc(gameRef);
+        if (!gameDoc.exists()) {
+            throw new Error("Game not found");
+        }
+        const game = gameDoc.data() as Game;
+        
+        const player = game.players.find(p => p.userId === senderId);
+        if (!player || !player.isAlive) {
+            return { success: false, error: 'No puedes enviar mensajes.' };
+        }
+        
+        const newMessage: ChatMessage = {
+            id: `${Date.now()}_${senderId}`,
+            senderId,
+            senderName,
+            text: text.trim(),
+            round: game.currentRound,
+            createdAt: Timestamp.now(),
+        };
+
+        await updateDoc(gameRef, {
+            chatMessages: arrayUnion(newMessage)
+        });
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error sending chat message: ", error);
+        if (error.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+                path: gameRef.path,
+                operation: 'update',
+                requestResourceData: { chatMessages: '...' }
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            return { error: 'Permiso denegado para enviar mensaje.' };
+        }
+        return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
     }
 }
