@@ -31,7 +31,7 @@ function GallowsIcon(props: SVGProps<SVGSVGElement>) {
       <path d="M12 14c0-2 2-4 4-4s4 2 4 4c0 2.2-1.8 4-4 4-4 0-4-2-4-2"/>
       <path d="M12 22V10"/>
       <path d="M6 22V4"/>
-      <path d: "M10 4H2"/>
+      <path d="M10 4H2"/>
     </svg>
   );
 }
