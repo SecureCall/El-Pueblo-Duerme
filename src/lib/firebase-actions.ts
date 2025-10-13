@@ -144,7 +144,7 @@ export async function joinGame(
       const playerExists = game.players.some(p => p.userId === userId);
       
       const nameExists = game.players.some(p => p.displayName.toLowerCase() === displayName.trim().toLowerCase());
-      if (nameExists) {
+      if (nameExists && !playerExists) {
         throw new Error("Ese nombre ya está en uso en esta partida.");
       }
 
@@ -1326,15 +1326,11 @@ export async function resetGame(db: Firestore, gameId: string) {
             }
             const game = gameSnap.data() as Game;
 
-            // Find the creator player object to keep them in the lobby
-            const creatorPlayer = game.players.find(p => p.userId === game.creator);
-            if (!creatorPlayer) {
-                throw new Error("No se ha podido encontrar al creador de la partida.");
-            }
+            // Filter for human players to keep them in the lobby
+            const humanPlayers = game.players.filter(p => !p.isAI);
 
-            // Reset the creator's state
-            const resetCreatorPlayer = {
-                ...creatorPlayer,
+            const resetHumanPlayers = humanPlayers.map(player => ({
+                ...player,
                 role: null,
                 isAlive: true,
                 votedFor: null,
@@ -1342,7 +1338,7 @@ export async function resetGame(db: Firestore, gameId: string) {
                 potions: { poison: null, save: null },
                 priestSelfHealUsed: false,
                 princeRevealed: false,
-            };
+            }));
 
             transaction.update(gameRef, {
                 status: 'waiting',
@@ -1355,8 +1351,7 @@ export async function resetGame(db: Firestore, gameId: string) {
                 twins: null,
                 pendingHunterShot: null,
                 wolfCubRevengeRound: 0,
-                // Keep only the reset creator in the players array
-                players: [resetCreatorPlayer], 
+                players: resetHumanPlayers, 
             });
         });
         return { success: true };

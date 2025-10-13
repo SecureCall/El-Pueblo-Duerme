@@ -29,6 +29,10 @@ const initializeAudio = () => {
             }
 
             // Play a tiny silent audio to unlock the context
+            const silentAudio = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+            narrationAudio.src = silentAudio;
+            soundEffectAudio.src = silentAudio;
+
             narrationAudio.play().catch(() => {});
             narrationAudio.pause();
             soundEffectAudio.play().catch(() => {});
@@ -56,8 +60,9 @@ const initializeAudio = () => {
 
 const onNarrationEnd = () => {
     isNarrationPlaying = false;
-    if (narrationQueue.length > 0) {
-        narrationQueue.shift()?.resolve();
+    const finishedNarration = narrationQueue.shift();
+    if (finishedNarration) {
+        finishedNarration.resolve();
     }
     playNextNarration();
 };
@@ -74,12 +79,12 @@ const playNextNarration = () => {
     narrationAudio.src = src;
     narrationAudio.play().catch(e => {
         console.warn(`Narration autoplay was prevented for ${src}:`, e);
-        // This will be handled by the 'error' event listener, which calls onNarrationEnd
+        onNarrationEnd();
     });
 };
 
 export const playNarration = (narrationFile: string): Promise<void> => {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         if (!isAudioInitialized) {
             console.warn("Audio not initialized. Queuing narration.");
         }
@@ -87,20 +92,16 @@ export const playNarration = (narrationFile: string): Promise<void> => {
         if (!isNarrationPlaying && isAudioInitialized) {
             playNextNarration();
         } else if (!isAudioInitialized) {
-            // If not initialized, we can't play, but we've queued it.
-            // We resolve immediately so game logic doesn't hang.
-            // The audio will play once the user interacts.
-            // This is a trade-off: audio might be delayed, but the app isn't stuck.
+             // Resolve immediately so game logic doesn't hang.
+             // Audio will attempt to play once user interacts.
              resolve();
-        } else {
-             // It's initialized and playing, so just wait for the queue.
         }
     });
 };
 
 export const playSoundEffect = (soundFile: string): Promise<void> => {
     return new Promise((resolve) => {
-        if (!isAudioInitialized || !soundEffectAudio) {
+        if (!isAudioInitialized) {
             console.warn("Audio not initialized. Cannot play sound effect.");
             resolve();
             return;
@@ -109,12 +110,23 @@ export const playSoundEffect = (soundFile: string): Promise<void> => {
         const audio = new Audio(`/audio/effects/${soundFile}`);
         audio.volume = 0.8;
         
+        const onEnd = () => {
+            audio.removeEventListener('ended', onEnd);
+            audio.removeEventListener('error', onError);
+            resolve();
+        };
+
+        const onError = () => {
+            console.error(`Sound effect ${soundFile} failed to play.`);
+            onEnd();
+        };
+
+        audio.addEventListener('ended', onEnd);
+        audio.addEventListener('error', onError);
+
         audio.play().catch(e => {
-            console.error(`Sound effect ${soundFile} failed to play:`, e)
+            console.error(`Sound effect ${soundFile} failed to play:`, e);
+            onError();
         });
-        
-        // We don't wait for the sound effect to end, so resolve immediately.
-        audio.addEventListener('ended', () => resolve());
-        audio.addEventListener('error', () => resolve());
     });
 };
