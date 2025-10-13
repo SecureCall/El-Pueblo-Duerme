@@ -26,7 +26,7 @@ export function YouAreDeadOverlay() {
             <div className="relative h-64 w-64 md:h-80 md:w-80 mb-4">
                 <img
                     src="/zarpa.png"
-                    alt="Zarpazo"
+                    alt="Zarpazo de lobo"
                     className="h-full w-full object-contain"
                 />
             </div>
