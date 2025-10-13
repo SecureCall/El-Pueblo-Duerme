@@ -32,8 +32,8 @@ service cloud.firestore {
      * @description Checks if the user is the existing owner of the resource (isSignedIn, isOwner, and resource exists).
      * @param {string} userId - The user ID to check against.
      */
-    function isExistingOwner(ownerId, gameId) {
-      return isSignedIn() && request.auth.uid == ownerId && existsAfter(/databases/$(database)/documents/games/$(gameId));
+    function isExistingOwner(gameId) {
+      return isSignedIn() && get(/databases/$(database)/documents/games/$(gameId)).data.creator == request.auth.uid;
     }
 
     /**
@@ -52,8 +52,8 @@ service cloud.firestore {
       allow get: if true;
       allow list: if true;
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && resource.data.creator == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.creator == request.auth.uid;
+      allow update: if isExistingOwner(gameId);
+      allow delete: if isExistingOwner(gameId);
     }
 
     /**
@@ -69,7 +69,7 @@ service cloud.firestore {
       allow get: if true;
       allow list: if true;
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
+      allow update: if false;
       allow delete: if false;
     }
   }
