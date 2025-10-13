@@ -51,8 +51,8 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
           return (
             <div className={cn(baseClasses, "p-2")}>
                 <img
-                  src="/zarpa.svg" 
-                  alt="Zarpazo" 
+                  src="/zarpa.svg"
+                  alt="Zarpazo"
                   className="h-full w-full object-contain opacity-90 brightness-0 invert"
                 />
             </div>
