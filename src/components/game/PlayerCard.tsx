@@ -46,7 +46,8 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
       <Card
         className="flex flex-col items-center justify-between p-4 h-full bg-muted/30 relative overflow-hidden"
       >
-        <CardContent className="p-0 relative">
+        <div className="absolute inset-0 bg-black/50 z-10" />
+        <CardContent className="p-0 relative z-20">
           <Avatar className="h-20 w-20 border-2 border-border grayscale">
             <AvatarImage src={avatarImage?.imageUrl || '/avatar-default.png'} data-ai-hint={avatarImage?.imageHint} />
             <AvatarFallback>{player.displayName.substring(0, 2)}</AvatarFallback>
@@ -62,13 +63,9 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
             />
           </div>
         </CardContent>
-        <CardFooter className="p-0 pt-3 flex flex-col items-center gap-1 text-center w-full">
+        <CardFooter className="p-0 pt-3 flex flex-col items-center gap-1 text-center w-full z-20">
           <p className="font-semibold text-center truncate w-full line-through">{player.displayName}</p>
-          <div 
-            className={cn(
-                "absolute bottom-0 left-0 right-0 p-1 text-xs font-bold text-center text-white bg-black/50",
-                roleInfo.color.replace('text-', 'bg-')
-            )}>
+          <div className="text-xs font-bold text-center">
               Era {roleInfo.name}
           </div>
         </CardFooter>
