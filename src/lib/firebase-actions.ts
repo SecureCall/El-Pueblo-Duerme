@@ -624,9 +624,9 @@ export async function processNight(db: Firestore, gameId: string) {
         await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found!");
+            
             let game = gameSnap.data() as Game;
-
-            if (game.phase !== 'night' || game.status !== 'in_progress') return;
+            if (game.phase !== 'night') return; // LOCK: Exit if phase has already changed
 
             const actions = game.nightActions?.filter(a => a.round === game.currentRound) || [];
             
@@ -918,7 +918,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                            // Hunter shot phase will handle the next step.
                            // The transaction will be updated and function will terminate.
                            transaction.update(gameRef, sanitizeGameForUpdate(game));
-                           return;
+                           return; // IMPORTANT: Stop execution here
                         } 
                         
                         const { game: finalGameCheck, isOver } = await checkGameOver(game);
@@ -1084,7 +1084,7 @@ async function checkEndNightEarly(db: Firestore, gameId: string) {
     if (!gameDoc.exists()) return;
 
     const game = gameDoc.data() as Game;
-    if (game.phase !== 'night') return;
+    if (game.phase !== 'night') return; // Exit if phase already changed
 
     const alivePlayers = game.players.filter(p => p.isAlive);
     const submittedActions = game.nightActions?.filter(a => a.round === game.currentRound) || [];
@@ -1407,5 +1407,7 @@ export async function resetGame(db: Firestore, gameId: string) {
         return { error: e.message || 'No se pudo reiniciar la partida.' };
     }
 }
+
+    
 
     
