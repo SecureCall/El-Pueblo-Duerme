@@ -1,17 +1,48 @@
+
+'use client';
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { JoinGameForm } from '@/components/JoinGameForm';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
 import { BookOpen } from 'lucide-react';
-import { HomePageAudio } from '@/components/HomePageAudio';
+import { GameMusic } from '@/components/game/GameMusic';
+import { useEffect, useRef } from 'react';
+import { playNarration } from '@/lib/sounds';
 
 export default function Home() {
   const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
+  const hasPlayedNarrationRef = useRef(false);
+
+  useEffect(() => {
+    const playNarrationSequence = async () => {
+        if (hasPlayedNarrationRef.current) return;
+        hasPlayedNarrationRef.current = true;
+
+        // The playNarration function returns a promise, allowing us to chain audio clips.
+        await playNarration('Que comience el juego..mp3');
+        await playNarration('salas.mp3');
+    };
+
+    // Delay the narration slightly to allow the page and music to settle.
+    const narrationTimeout = setTimeout(() => {
+        playNarrationSequence();
+    }, 1500);
+
+    // This is an effect that runs once on mount. The sounds will play,
+    // and the cleanup function for this effect will run when the component unmounts.
+    return () => {
+      clearTimeout(narrationTimeout);
+      // No need to stop sounds here as GameMusic will handle transitions.
+    };
+
+  }, []);
+
 
   return (
     <>
-      <HomePageAudio />
+      <GameMusic src="/audio/menu-theme.mp3" />
       <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 overflow-hidden">
         {bgImage && (
           <Image

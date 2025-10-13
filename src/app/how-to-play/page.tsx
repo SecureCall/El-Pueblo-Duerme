@@ -15,7 +15,7 @@ import { HomeIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { roleDetails } from '@/lib/roles';
 import type { PlayerRole } from '@/types';
-import { StaticMusic } from '@/components/StaticMusic';
+import { GameMusic } from '@/components/game/GameMusic';
 
 
 const aldeanoRoleKeys: NonNullable<PlayerRole>[] = [
@@ -75,7 +75,7 @@ export default function HowToPlayPage() {
 
     return (
         <>
-            <StaticMusic src="/audio/menu-theme.mp3" />
+            <GameMusic src="/audio/menu-theme.mp3" />
             <div className="relative min-h-screen w-full flex flex-col items-center p-4 overflow-y-auto">
                 {bgImage && (
                     <Image

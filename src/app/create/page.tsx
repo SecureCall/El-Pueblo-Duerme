@@ -1,13 +1,13 @@
 import { CreateGameForm } from '@/components/game/CreateGameForm';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { StaticMusic } from '@/components/StaticMusic';
+import { GameMusic } from '@/components/game/GameMusic';
 import Image from 'next/image';
 
 export default function CreateGamePage() {
     const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
     return (
         <>
-            <StaticMusic src="/audio/menu-theme.mp3" />
+            <GameMusic src="/audio/menu-theme.mp3" />
             <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 overflow-hidden">
                 {bgImage && (
                     <Image
