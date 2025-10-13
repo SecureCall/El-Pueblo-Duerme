@@ -316,6 +316,13 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         const existingActionIndex = nightActions.findIndex(a => a.round === action.round && a.playerId === action.playerId);
 
         // Validations
+        if (action.actionType === 'doctor_heal') {
+            const targetPlayer = game.players.find(p => p.userId === action.targetId);
+            if (!targetPlayer) throw new Error("Target player not found");
+            if (targetPlayer.lastHealedRound === action.round - 1) {
+                throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
+            }
+        }
         if (action.actionType === 'hechicera_poison' && player.potions?.poison) throw new Error("Ya has usado tu poción de veneno.");
         if (action.actionType === 'hechicera_save' && player.potions?.save) throw new Error("Ya has usado tu poción de salvación.");
         if (action.actionType === 'priest_bless' && action.targetId === action.playerId && player.priestSelfHealUsed) {
@@ -335,11 +342,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         if (action.actionType === 'doctor_heal') {
             const targetIndex = players.findIndex(p => p.userId === action.targetId);
             if (targetIndex > -1) {
-                if (players[targetIndex].lastHealedRound === action.round - 1) {
-                    throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
-                }
                 players[targetIndex].lastHealedRound = action.round;
-                newAction.targetId = action.targetId; // Confirm the action
             }
         } else if (action.actionType === 'hechicera_poison') {
             players[playerIndex].potions!.poison = action.round;
@@ -1348,8 +1351,15 @@ export async function resetGame(db: Firestore, gameId: string) {
             }
             const game = gameSnap.data() as Game;
 
-            const resetPlayers = game.players.map(p => ({
-                ...p,
+            // Find the creator player object to keep them in the lobby
+            const creatorPlayer = game.players.find(p => p.userId === game.creator);
+            if (!creatorPlayer) {
+                throw new Error("No se ha podido encontrar al creador de la partida.");
+            }
+
+            // Reset the creator's state
+            const resetCreatorPlayer = {
+                ...creatorPlayer,
                 role: null,
                 isAlive: true,
                 votedFor: null,
@@ -1357,7 +1367,7 @@ export async function resetGame(db: Firestore, gameId: string) {
                 potions: { poison: null, save: null },
                 priestSelfHealUsed: false,
                 princeRevealed: false,
-            }));
+            };
 
             transaction.update(gameRef, {
                 status: 'waiting',
@@ -1370,7 +1380,8 @@ export async function resetGame(db: Firestore, gameId: string) {
                 twins: null,
                 pendingHunterShot: null,
                 wolfCubRevengeRound: 0,
-                players: resetPlayers,
+                // Keep only the reset creator in the players array
+                players: [resetCreatorPlayer], 
             });
         });
         return { success: true };

@@ -104,10 +104,15 @@ export function GameOver({ game, event, players }: GameOverProps) {
                     <Button asChild size="lg">
                         <Link href="/">Volver al Inicio</Link>
                     </Button>
-                    {isCreator && (
+                    {isCreator ? (
                         <Button onClick={handleResetGame} size="lg" variant="secondary" disabled={isResetting}>
                             {isResetting ? <Loader2 className="animate-spin" /> : <Play className="mr-2 h-5 w-5" />}
-                            Volver a Jugar
+                            Reiniciar Sala
+                        </Button>
+                    ) : (
+                        <Button size="lg" variant="secondary" onClick={() => window.location.reload()}>
+                            <Play className="mr-2 h-5 w-5" />
+                            Jugar de Nuevo
                         </Button>
                     )}
                 </div>
