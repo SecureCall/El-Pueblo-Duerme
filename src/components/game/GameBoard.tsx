@@ -86,13 +86,13 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
         if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
             const hasDeaths = nightEvent.data?.killedPlayerIds?.length > 0;
             if (hasDeaths) {
-                playSoundEffect('descanse_en_paz.mp3');
+                playNarration('descanse_en_paz.mp3');
             } else {
                 const wasSaved = nightEvent.data?.savedPlayerIds?.length > 0;
                 // Check if a werewolf attack was attempted
                 const wasAttack = game.nightActions?.some(a => a.round === game.currentRound && a.actionType === 'werewolf_kill');
                 if (wasSaved && wasAttack) {
-                    playSoundEffect('milagro.mp3');
+                    playNarration('milagro.mp3');
                 }
             }
             nightSoundsPlayedForRound.current = game.currentRound; // Mark as played for this round
@@ -356,5 +356,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     </>
   );
 }
+
+    
 
     
