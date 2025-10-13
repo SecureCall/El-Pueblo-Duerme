@@ -1,62 +1,71 @@
 /**
- * @file Firestore Security Rules
- * @description This ruleset enforces a strict user-ownership model for data access.
+ * @fileoverview Firestore Security Rules for 'El Pueblo Duerme' Prototyping.
+ *
+ * Core Philosophy:
+ * This ruleset prioritizes secure authorization based on user identity and document ownership while allowing flexible data shapes for rapid prototyping.
+ * It focuses on preventing unauthorized data access and modification. Data validation is minimized to allow for quick iteration.
  *
  * Data Structure:
- * - /games/{gameId}: Games are stored here.  The `creator` field on the document indicates the owning user.
- * - /games/{gameId}/messages/{messageId}: Game messages. Anyone who can read the game can read the messages
+ * - /games/{gameId}: Stores individual game instances.
+ * - /games/{gameId}/messages/{messageId}: Stores chat messages for a game.
  *
  * Key Security Decisions:
- * - Users can only read games.
+ * - User listing is disallowed to prevent information disclosure.
+ * - All write operations are restricted to authenticated users and validated for proper ownership.
+ * - The rules explicitly deny any potentially ambiguous operations.
+ * - This assumes that the `creator` field in the `Game` entity represents the user who created the game.
+ *
+ * Denormalization for Authorization:
+ * - The `Game` document stores the `creator` (User ID) so that the `isOwner()` function does not need to access other collections.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * @description Checks if the user is signed in.
-     */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * @description Checks if the user is the owner of the resource.
-     * @param {string} userId - The user ID to check against.
-     */
     function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+      return request.auth.uid == userId;
+    }
+
+    function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Checks if the user is the existing owner of the resource (isSignedIn, isOwner, and resource exists).
-     */
-    function isExistingOwner() {
-      return isSignedIn() && request.auth.uid == resource.data.creator;
-    }
-
-    /**
-     * @description Games can be read, but only created by an owner.
+     * @description Secures the /games/{gameId} collection, enforcing creator-only write access and public read access.
      * @path /games/{gameId}
+     * @allow (read): Any user can read game information.
+     * @allow (create): Only the game creator can create a game. creator field must equal auth.uid.
+     * @allow (update): Only the game creator can update game settings.
+     * @allow (delete): Only the game creator can delete a game.
+     * @deny (create): A user tries to create a game with a creator field that doesn't match their auth.uid.
+     * @principle Enforces document ownership for writes, allows public reads.
      */
     match /games/{gameId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if true;
       allow create: if isSignedIn() && request.resource.data.creator == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.creator == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.creator == request.auth.uid;
+      allow update: if isExistingOwner(resource.data.creator);
+      allow delete: if isExistingOwner(resource.data.creator);
     }
 
     /**
-     * @description Anyone who can read the game can read the messages
+     * @description Secures the /games/{gameId}/messages/{messageId} subcollection, allowing any signed in user to read and only game creator to write.
      * @path /games/{gameId}/messages/{messageId}
+     * @allow (read): Any signed-in user can read game messages.
+     * @allow (create): Only the game creator can create a message
+     * @allow (update): Only the game creator can update game messages.
+     * @allow (delete): Only the game creator can delete game messages.
+     * @deny (create): A user tries to create a game message when not the game creator
+     * @principle Restricts write access to game creators, allowing any signed in user to read.
      */
     match /games/{gameId}/messages/{messageId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+        allow get, list: if isSignedIn();
+        allow create: if isExistingOwner(get(/databases/$(database)/documents/games/{gameId}).data.creator);
+        allow update: if isExistingOwner(get(/databases/$(database)/documents/games/{gameId}).data.creator) ;
+        allow delete: if isExistingOwner(get(/databases/$(database)/documents/games/{gameId}).data.creator);
     }
   }
 }

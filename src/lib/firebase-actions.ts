@@ -1165,3 +1165,5 @@ export async function submitChatMessage(db: Firestore, gameId: string, message: 
         return { error: 'No tienes permiso para enviar un mensaje en este chat.', success: false };
     }
 }
+
+    
