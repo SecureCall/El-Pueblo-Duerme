@@ -13,18 +13,6 @@ import { roleDetails, defaultRoleDetail } from "@/lib/roles";
 import Image from "next/image";
 import type { SVGProps } from "react";
 
-function ZarpazoIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" {...props}>
-        <g transform="rotate(-15 50 50)">
-            <path d="M10 10 L90 90" stroke="red" strokeWidth="5" strokeLinecap="round"/>
-            <path d="M30 10 L110 90" stroke="red" strokeWidth="5" strokeLinecap="round" />
-            <path d="M50 10 L130 90" stroke="red" strokeWidth="5" strokeLinecap="round" />
-        </g>
-    </svg>
-  )
-}
-
 interface PlayerCardProps {
   player: Player & { causeOfDeath?: 'werewolf_kill' | 'vote_result' | 'other' };
   onClick?: () => void;
@@ -61,8 +49,15 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
       switch (player.causeOfDeath) {
         case 'werewolf_kill':
           return (
-            <div className={baseClasses}>
-                <ZarpazoIcon className={cn(iconClasses, "text-red-500")} />
+            <div className={cn(baseClasses, "p-2")}>
+                <Image 
+                  src="/zapa.svg" 
+                  alt="Zarpazo" 
+                  layout="fill" 
+                  objectFit="contain"
+                  className="opacity-90"
+                  unoptimized
+                />
             </div>
           );
         case 'vote_result':
