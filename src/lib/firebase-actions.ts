@@ -820,10 +820,11 @@ export async function processVotes(db: Firestore, gameId: string) {
                  }
             }
             
-            const { game: finalGameStatus, isOver } = await checkGameOver(game);
-            game = finalGameStatus;
+            const { game: finalGame, isOver } = await checkGameOver(game);
             
-            if (!isOver) {
+            if (isOver) {
+                game = finalGame;
+            } else {
                 game.players.forEach(p => {
                     p.votedFor = null;
                 });
@@ -1108,28 +1109,27 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
 }
 
 export async function submitChatMessage(db: Firestore, gameId: string, message: Omit<ChatMessage, 'createdAt' | 'id'>) {
-  if (!message.text.trim()) {
-    return { error: 'El mensaje no puede estar vacío.' };
-  }
-  
-  const messagesCol = collection(db, 'games', gameId, 'messages');
-  try {
-    await addDoc(messagesCol, {
+    if (!message.text.trim()) {
+        return { error: 'El mensaje no puede estar vacío.' };
+    }
+    
+    const messagesColRef = collection(db, 'games', gameId, 'messages');
+    const messagePayload = {
       ...message,
       createdAt: Timestamp.now(),
-    });
-    return { success: true };
-  } catch (error: any) {
-     if (error.code === 'permission-denied') {
+    };
+
+    try {
+        await addDoc(messagesColRef, messagePayload);
+        return { success: true };
+    } catch (error: any) {
         const permissionError = new FirestorePermissionError({
             path: `games/${gameId}/messages`,
             operation: 'create',
-            requestResourceData: message,
+            requestResourceData: messagePayload,
         });
         errorEmitter.emit('permission-error', permissionError);
-        return { error: "Permiso denegado para enviar mensaje." };
+        // We return an error to the client so it can be handled in the UI if needed
+        return { error: 'No tienes permiso para enviar un mensaje en este chat.', success: false };
     }
-    console.error('Error sending message:', error);
-    return { error: 'No se pudo enviar el mensaje.' };
-  }
 }
