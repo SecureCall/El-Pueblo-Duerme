@@ -275,7 +275,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
             const newRoles = generateRoles(finalPlayers.length, game.settings);
             
             const assignedPlayers = finalPlayers.map((player, index) => {
-                const isAcknowledged = player.isAI || player.acknowledged; // Maintain acknowledged status
+                const isAcknowledged = player.isAI || player.acknowledged;
                 return { ...player, role: newRoles[index], acknowledged: isAcknowledged };
             });
 
@@ -663,62 +663,6 @@ export async function processNight(db: Firestore, gameId: string) {
 }
 
 
-export async function submitVote(db: Firestore, gameId: string, voterId: string, targetId: string) {
-    const gameRef = doc(db, 'games', gameId);
-    
-    try {
-       await runTransaction(db, async (transaction) => {
-            const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found");
-            
-            const currentGame = gameSnap.data() as Game;
-            if (currentGame.phase !== 'day') return;
-            
-            const playerIndex = currentGame.players.findIndex(p => p.userId === voterId && p.isAlive);
-            if (playerIndex === -1) throw new Error("Player not found or is not alive");
-            
-            currentGame.players[playerIndex].votedFor = targetId;
-            transaction.update(gameRef, { players: currentGame.players });
-        });
-
-        // Trigger AI *after* transaction
-        const gameDoc = await getDoc(gameRef);
-        if(gameDoc.exists()){
-            const game = gameDoc.data() as Game;
-            const targetPlayer = game.players.find(p => p.userId === targetId);
-            const voterPlayer = game.players.find(p => p.userId === voterId);
-
-            if (targetPlayer?.isAI) {
-                const perspective: AIPlayerPerspective = {
-                    game: sanitizeValue(game),
-                    aiPlayer: sanitizeValue(targetPlayer),
-                    trigger: `${voterPlayer?.displayName || 'Someone'} te ha votado.`,
-                    players: sanitizeValue(game.players),
-                };
-
-                generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
-                    if (shouldSend) {
-                        await sendChatMessage(db, gameId, targetPlayer!.userId, targetPlayer!.displayName, message);
-                    }
-                }).catch(aiError => console.error("Error generating AI chat message on vote:", aiError));
-            }
-        }
-
-        return { success: true };
-    } catch (error: any) {
-        if (error.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({
-                path: gameRef.path,
-                operation: 'update',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            return { error: "Permiso denegado al votar." };
-        }
-        console.error("Error submitting vote: ", error);
-        return { error: "No se pudo registrar tu voto." };
-    }
-}
-
 export async function processVotes(db: Firestore, gameId: string) {
     const gameRef = doc(db, 'games', gameId);
 
@@ -1061,6 +1005,62 @@ function sanitizeValue(value: any): any {
     return value;
 }
 
+export async function submitVote(db: Firestore, gameId: string, voterId: string, targetId: string) {
+    const gameRef = doc(db, 'games', gameId);
+    
+    try {
+       await runTransaction(db, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found");
+            
+            const currentGame = gameSnap.data() as Game;
+            if (currentGame.phase !== 'day') return;
+            
+            const playerIndex = currentGame.players.findIndex(p => p.userId === voterId && p.isAlive);
+            if (playerIndex === -1) throw new Error("Player not found or is not alive");
+            
+            currentGame.players[playerIndex].votedFor = targetId;
+            transaction.update(gameRef, { players: currentGame.players });
+        });
+
+        // Trigger AI *after* transaction
+        const gameDoc = await getDoc(gameRef);
+        if(gameDoc.exists()){
+            const game = gameDoc.data() as Game;
+            const targetPlayer = game.players.find(p => p.userId === targetId);
+            const voterPlayer = game.players.find(p => p.userId === voterId);
+
+            if (targetPlayer?.isAI) {
+                const perspective: AIPlayerPerspective = {
+                    game: sanitizeValue(game),
+                    aiPlayer: sanitizeValue(targetPlayer),
+                    trigger: `${voterPlayer?.displayName || 'Someone'} te ha votado.`,
+                    players: sanitizeValue(game.players),
+                };
+
+                generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
+                    if (shouldSend) {
+                        await sendChatMessage(db, gameId, targetPlayer!.userId, targetPlayer!.displayName, message);
+                    }
+                }).catch(aiError => console.error("Error generating AI chat message on vote:", aiError));
+            }
+        }
+
+        return { success: true };
+    } catch (error: any) {
+        if (error.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+                path: gameRef.path,
+                operation: 'update',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            return { error: "Permiso denegado al votar." };
+        }
+        console.error("Error submitting vote: ", error);
+        return { error: "No se pudo registrar tu voto." };
+    }
+}
+
 export async function sendChatMessage(db: Firestore, gameId: string, senderId: string, senderName: string, text: string) {
     const gameRef = doc(db, 'games', gameId);
     
@@ -1206,11 +1206,15 @@ export async function checkAndAdvanceFromRoleReveal(db: Firestore, gameId: strin
       const game = gameSnap.data() as Game;
 
       // Only advance if we are in the role reveal phase
-      if (game.phase !== 'role_reveal') return;
+      if (game.phase !== 'role_reveal') {
+        return;
+      }
 
+      // Check if all players have acknowledged their role
       const allAcknowledged = game.players.every(p => p.acknowledged);
 
       if (allAcknowledged) {
+        // If all have acknowledged, move to the next phase
         transaction.update(gameRef, { phase: 'night' });
       }
     });
@@ -1223,3 +1227,4 @@ export async function checkAndAdvanceFromRoleReveal(db: Firestore, gameId: strin
     
 
     
+
