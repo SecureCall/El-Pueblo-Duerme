@@ -320,13 +320,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         const nightActions = game.nightActions ? [...game.nightActions] : [];
         const existingActionIndex = nightActions.findIndex(a => a.round === action.round && a.playerId === action.playerId);
 
-        // Validations
-        if (action.actionType === 'doctor_heal') {
-            const targetPlayer = game.players.find(p => p.userId === action.targetId);
-            if (targetPlayer?.lastHealedRound === game.currentRound - 1) {
-                throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
-            }
-        }
+        // Server-side validations for unrecoverable states
         if (action.actionType === 'hechicera_poison' && player.potions?.poison) throw new Error("Ya has usado tu poción de veneno.");
         if (action.actionType === 'hechicera_save' && player.potions?.save) throw new Error("Ya has usado tu poción de salvación.");
         if (action.actionType === 'priest_bless' && action.targetId === action.playerId && player.priestSelfHealUsed) {
