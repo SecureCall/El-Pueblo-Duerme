@@ -366,7 +366,6 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         });
     });
 
-    await checkEndNightEarly(db, action.gameId);
     return { success: true };
 
   } catch (error: any) {
@@ -782,8 +781,6 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             }
         }
 
-
-        await checkEndDayEarly(db, gameId);
         return { success: true };
     } catch (error: any) {
         if (error.code === 'permission-denied') {
@@ -1013,90 +1010,6 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
         }
         console.error("Error submitting hunter shot: ", error);
         return { error: error.message || "No se pudo registrar el disparo." };
-    }
-}
-
-async function checkEndNightEarly(db: Firestore, gameId: string) {
-    const gameRef = doc(db, 'games', gameId);
-    const gameDoc = await getDoc(gameRef);
-    if (!gameDoc.exists()) return;
-
-    const game = gameDoc.data() as Game;
-    if (game.phase !== 'night') return; // Exit if phase already changed
-
-    const alivePlayers = game.players.filter(p => p.isAlive);
-    const submittedActions = game.nightActions?.filter(a => a.round === game.currentRound) || [];
-
-    const requiredPlayerIds = new Set<string>();
-
-    const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub'];
-    const werewolves = alivePlayers.filter(p => wolfRoles.includes(p.role));
-    if (werewolves.length > 0) {
-        werewolves.forEach(w => requiredPlayerIds.add(w.userId));
-    }
-
-    if (game.settings.seer) {
-        const seer = alivePlayers.find(p => p.role === 'seer');
-        if (seer) requiredPlayerIds.add(seer.userId);
-    }
-    
-    if (game.settings.doctor) {
-        const doctor = alivePlayers.find(p => p.role === 'doctor');
-        if (doctor) requiredPlayerIds.add(doctor.userId);
-    }
-    
-    if (game.settings.guardian) {
-        const guardian = alivePlayers.find(p => p.role === 'guardian');
-        if (guardian) requiredPlayerIds.add(guardian.userId);
-    }
-
-    if (game.settings.priest) {
-        const priest = alivePlayers.find(p => p.role === 'priest');
-        if (priest) requiredPlayerIds.add(priest.userId);
-    }
-
-    if (game.currentRound === 1 && game.settings.cupid) {
-        const cupid = alivePlayers.find(p => p.role === 'cupid');
-        if (cupid) requiredPlayerIds.add(cupid.userId);
-    }
-    
-    if (game.settings.hechicera) {
-        const hechicera = alivePlayers.find(p => p.role === 'hechicera');
-        if (hechicera && (!hechicera.potions?.poison || !hechicera.potions?.save)) {
-             requiredPlayerIds.add(hechicera.userId);
-        }
-    }
-    
-    const submittedPlayerIds = new Set(submittedActions.map(a => a.playerId));
-
-    // If at least one werewolf has submitted an action, we consider the werewolf team's action as complete.
-    const wolfActionSubmitted = werewolves.some(w => submittedPlayerIds.has(w.userId));
-    if (werewolves.length > 0 && wolfActionSubmitted) {
-        werewolves.forEach(w => requiredPlayerIds.delete(w.userId));
-    }
-
-
-    const allRequiredSubmitted = Array.from(requiredPlayerIds).every(id => submittedPlayerIds.has(id));
-
-    if (allRequiredSubmitted && game.phase === 'night') {
-        console.log("All required night actions submitted. Processing night...");
-        await processNight(db, gameId);
-    }
-}
-
-async function checkEndDayEarly(db: Firestore, gameId: string) {
-    const gameRef = doc(db, 'games', gameId);
-    const gameDoc = await getDoc(gameRef);
-    if (!gameDoc.exists()) return;
-
-    const game = gameDoc.data() as Game;
-    if (game.phase !== 'day') return;
-
-    const alivePlayers = game.players.filter(p => p.isAlive && !p.isAI);
-    const allPlayersVoted = alivePlayers.every(p => !!p.votedFor);
-    
-    if (allPlayersVoted && alivePlayers.length > 0) {
-        await processVotes(db, gameId);
     }
 }
 
