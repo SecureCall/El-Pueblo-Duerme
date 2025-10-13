@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { submitVote } from '@/lib/firebase-actions';
 import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
-import { HeartCrack, SunIcon, Users } from 'lucide-react';
+import { HeartCrack, SunIcon, Users, BrainCircuit } from 'lucide-react';
 import { useFirebase } from '@/firebase';
 import { GameChat } from './GameChat';
 
@@ -21,10 +21,11 @@ interface DayPhaseProps {
     nightEvent?: GameEvent;
     loverDeathEvents?: GameEvent[];
     voteEvent?: GameEvent;
+    behaviorClueEvent?: GameEvent;
     chatMessages: ChatMessage[];
 }
 
-export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathEvents = [], voteEvent, chatMessages }: DayPhaseProps) {
+export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathEvents = [], voteEvent, behaviorClueEvent, chatMessages }: DayPhaseProps) {
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
@@ -105,6 +106,16 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                                 <AlertTitle>Resultado de la Votación Anterior</AlertTitle>
                                 <AlertDescription>
                                     {voteEvent.message}
+                                </AlertDescription>
+                            </Alert>
+                        )}
+
+                        {behaviorClueEvent && (
+                             <Alert className='mb-4 bg-yellow-900/30 border-yellow-400/50'>
+                                <BrainCircuit className="h-4 w-4 text-yellow-300" />
+                                <AlertTitle className='text-yellow-300'>Pista de Comportamiento</AlertTitle>
+                                <AlertDescription>
+                                    {behaviorClueEvent.message}
                                 </AlertDescription>
                             </Alert>
                         )}

@@ -762,9 +762,11 @@ export async function processVotes(db: Firestore, gameId: string) {
 
             const alivePlayers = game.players.filter(p => p.isAlive);
             const voteCounts: Record<string, number> = {};
+            let totalVotes = 0;
             alivePlayers.forEach(player => {
                 if (player.votedFor) {
                     voteCounts[player.votedFor] = (voteCounts[player.votedFor] || 0) + 1;
+                    totalVotes++;
                 }
             });
 
@@ -782,6 +784,22 @@ export async function processVotes(db: Firestore, gameId: string) {
             let lynchedPlayerId: string | null = null;
             let eventMessage: string;
             
+            // Check for close vote clue
+            if (totalVotes > 2) {
+                const sortedVotes = Object.values(voteCounts).sort((a,b) => b - a);
+                if (sortedVotes.length > 1 && sortedVotes[0] - sortedVotes[1] <= 1) {
+                     game.events.push({
+                        id: `evt_${Date.now()}_clue`,
+                        gameId,
+                        round: game.currentRound,
+                        type: 'behavior_clue',
+                        message: "La votación de ayer estuvo muy reñida, dividiendo al pueblo casi por la mitad. ¿Alianza o confusión?",
+                        data: { voteCounts },
+                        createdAt: Timestamp.now(),
+                    });
+                }
+            }
+            
             if (mostVotedPlayerIds.length === 1 && maxVotes > 0) {
                 const potentialLynchedId = mostVotedPlayerIds[0];
                 const lynchedPlayerIndex = game.players.findIndex(p => p.userId === potentialLynchedId);
@@ -792,7 +810,8 @@ export async function processVotes(db: Firestore, gameId: string) {
                         // PRINCE IS REVEALED
                         game.players[lynchedPlayerIndex].princeRevealed = true;
                         eventMessage = `${lynchedPlayer.displayName} ha sido sentenciado, pero revela su identidad como ¡el Príncipe! y sobrevive a la votación.`;
-                        game.events.push({
+                        
+                        const newEvent: GameEvent = {
                             id: `evt_${Date.now()}_${Math.random()}`,
                             gameId,
                             round: game.currentRound,
@@ -800,7 +819,9 @@ export async function processVotes(db: Firestore, gameId: string) {
                             message: eventMessage,
                             data: { lynchedPlayerId: null },
                             createdAt: Timestamp.now(),
-                        });
+                        };
+                        game.events.push(newEvent);
+
                         game.players.forEach(p => { p.votedFor = null; });
                         game.phase = 'night';
                         game.currentRound = game.currentRound + 1;
@@ -847,6 +868,15 @@ export async function processVotes(db: Firestore, gameId: string) {
                  // TIE OR NO VOTES
                  if (mostVotedPlayerIds.length > 1) {
                     eventMessage = "La votación resultó en un empate. Nadie fue linchado hoy.";
+                     game.events.push({
+                        id: `evt_${Date.now()}_clue`,
+                        gameId,
+                        round: game.currentRound,
+                        type: 'behavior_clue',
+                        message: "Hubo un empate en la votación. ¿Estrategia coordinada o indecisión general?",
+                        data: { voteCounts },
+                        createdAt: Timestamp.now(),
+                    });
                 } else {
                     eventMessage = "El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.";
                 }
@@ -856,20 +886,19 @@ export async function processVotes(db: Firestore, gameId: string) {
                 game.currentRound = game.currentRound + 1;
             }
             
-            const finalGame = await checkGameOver(game);
-            if (finalGame.isOver) {
-                 transaction.update(gameRef, sanitizeGameForUpdate(finalGame.game));
-            } else {
-                 transaction.update(gameRef, sanitizeGameForUpdate(game));
+            let finalUpdateGame = game;
+            const { game: gameOverCheckGame, isOver } = await checkGameOver(game);
+            if (isOver) {
+                 finalUpdateGame = gameOverCheckGame;
             }
+
+            transaction.update(gameRef, sanitizeGameForUpdate(finalUpdateGame));
         });
 
         return { success: true };
     } catch (error) {
         console.error("Error processing votes:", error);
-        if (error instanceof Error && error.message.includes("invalid data")) {
-             // This indicates a likely 'undefined' value problem.
-             // We can try to fetch the game state again to debug.
+        if (error instanceof Error && (error.message.includes("invalid data") || error.message.includes("undefined"))) {
             try {
                 const gameDoc = await getDoc(gameRef);
                 if (gameDoc.exists()) {

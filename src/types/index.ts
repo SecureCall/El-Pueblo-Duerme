@@ -51,7 +51,7 @@ export interface Game {
   creator: string;
   players: Player[]; // Array of Player objects
   events: GameEvent[]; // Array of GameEvent objects
-  chatMessages?: ChatMessage[]; // Array of ChatMessage objects
+  chatMessages: ChatMessage[]; // Array of ChatMessage objects
   maxPlayers: number;
   createdAt: Timestamp;
   currentRound: number;
@@ -132,7 +132,7 @@ export interface GameEvent {
     id: string; // unique id for the event, can be generated on client
     gameId: string;
     round: number;
-    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot' | 'player_transformed';
+    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot' | 'player_transformed' | 'behavior_clue';
     message: string;
     data?: any;
     createdAt: Timestamp;
