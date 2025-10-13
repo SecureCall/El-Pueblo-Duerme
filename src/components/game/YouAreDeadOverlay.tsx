@@ -19,7 +19,7 @@ export function YouAreDeadOverlay() {
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm animate-in fade-in">
             <div className="relative h-64 w-64 md:h-80 md:w-80">
                 <Image
-                    src="/zapa.svg"
+                    src="/zarpazo.svg"
                     alt="Has sido eliminado"
                     fill
                     className="object-contain"

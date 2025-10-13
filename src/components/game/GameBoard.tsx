@@ -9,7 +9,7 @@ import { useEffect, useState, useRef } from "react";
 import { doc, runTransaction } from "firebase/firestore";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
-import { processNight, processVotes, runAIActions, advanceToNightPhase } from "@/lib/firebase-actions";
+import { processNight, processVotes, runAIActions, advanceToNightPhase, acknowledgeRole } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { HeartIcon, Moon, Sun, Users2, Gavel, Skull } from "lucide-react";
@@ -126,6 +126,11 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
       await processVotes(firestore, game.id);
     }
   };
+
+  const handleAcknowledgeRole = async () => {
+      if (!firestore) return;
+      setShowRole(false);
+  };
   
   if (game.status === 'finished') {
     const gameOverEvent = events.find(e => e.type === 'game_over');
@@ -149,7 +154,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
   }
 
   if (currentPlayer && currentPlayer.role && game.phase === 'role_reveal' && showRole) {
-      return <RoleReveal player={currentPlayer} onAcknowledge={() => setShowRole(false)} />;
+      return <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />;
   }
 
   return (
