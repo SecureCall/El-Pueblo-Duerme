@@ -1069,6 +1069,7 @@ async function checkEndNightEarly(db: Firestore, gameId: string) {
     
     const submittedPlayerIds = new Set(submittedActions.map(a => a.playerId));
 
+    // If at least one werewolf has submitted an action, we consider the werewolf team's action as complete.
     const wolfActionSubmitted = werewolves.some(w => submittedPlayerIds.has(w.userId));
     if (werewolves.length > 0 && wolfActionSubmitted) {
         werewolves.forEach(w => requiredPlayerIds.delete(w.userId));
@@ -1078,6 +1079,7 @@ async function checkEndNightEarly(db: Firestore, gameId: string) {
     const allRequiredSubmitted = Array.from(requiredPlayerIds).every(id => submittedPlayerIds.has(id));
 
     if (allRequiredSubmitted && game.phase === 'night') {
+        console.log("All required night actions submitted. Processing night...");
         await processNight(db, gameId);
     }
 }
