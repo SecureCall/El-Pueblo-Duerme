@@ -1,3 +1,4 @@
+
 "use client";
 
 import Image from 'next/image';
@@ -26,7 +27,7 @@ export function YouAreDeadOverlay() {
         >
             <div className="relative h-64 w-64 md:h-80 md:w-80">
                 <Image
-                    src="/zarpazo.svg"
+                    src="/zarpa.svg"
                     alt="Has sido eliminado"
                     fill
                     className="object-contain"
@@ -37,7 +38,7 @@ export function YouAreDeadOverlay() {
                 HAS SIDO DEVORADO
             </h1>
             <p className="text-lg text-primary-foreground/70 mt-4">
-                Ahora eres un espectador. (Toca para continuar)
+                Ahora eres un espectador. (Toca para espectar)
             </p>
         </div>
     );
