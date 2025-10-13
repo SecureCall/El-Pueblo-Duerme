@@ -275,7 +275,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
             const newRoles = generateRoles(finalPlayers.length, game.settings);
             const assignedPlayers = finalPlayers.map((player, index) => ({
                 ...player,
-                acknowledged: player.isAI, // Reset human acknowledged status, keep AI's
+                acknowledged: player.isAI,
                 role: newRoles[index],
             }));
 
