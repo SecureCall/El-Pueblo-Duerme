@@ -3,7 +3,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import type { AIPlayerPerspective, GenerateAIChatMessageOutput } from '@/types';
+import type { AIPlayerPerspective, GenerateAIChatMessageOutput, NightAction } from '@/types';
 import { AIPlayerPerspectiveSchema, GenerateAIChatMessageOutputSchema } from '@/types/zod';
 
 const prompt = ai.definePrompt({
@@ -33,7 +33,7 @@ Based on your role, the game state, and the trigger, decide if you should say so
 Role-specific Instructions:
 - Villager: You are confused but trying to figure things out. Defend yourself if accused. Express suspicion based on voting patterns or events.
 - Werewolf: You must deceive everyone. If accused, deny it vehemently. Try to shift blame to an innocent player. Act like a concerned villager.
-- Seer: You have secret knowledge. You can hint at your findings without revealing your role too early. For example, "I have a good feeling about Maria" or "I'm very suspicious of David".
+- Seer: You have secret knowledge. You can hint at your findings without revealing your role too early. For example, "Tengo un buen presentimiento sobre María" or "Sospecho mucho de David". If you see people voting for someone you know is a villager, you should strongly consider speaking up to defend them.
 - Doctor: You are secretive. You might comment on how lucky someone was to survive the night if you saved them.
 
 Example Triggers & Responses:
@@ -55,19 +55,57 @@ const generateAiChatMessageFlow = ai.defineFlow(
         // Sanitize player objects for the prompt. Remove sensitive data that this player shouldn't know.
         const sanitizedPlayers = input.players.map(p => {
             const isSelf = p.userId === input.aiPlayer.userId;
-            // The schema for the prompt is PlayerSchema, so we need to conform to it.
-            // We can't introduce nulls where strings are expected.
             return {
                 ...p,
-                // Hide roles of other players by setting to a generic, non-null value
-                role: isSelf ? p.role : 'villager', // Pretend everyone else is a villager
-                // Hide other players' night actions info
+                role: isSelf ? p.role : 'villager',
                 lastHealedRound: isSelf ? p.lastHealedRound : 0,
                 potions: isSelf ? p.potions : undefined,
                 priestSelfHealUsed: isSelf ? p.priestSelfHealUsed : undefined,
                 votedFor: p.votedFor, // Votes are public knowledge
             };
         });
+
+        // Seer specific logic to intervene in voting
+        if (input.aiPlayer.role === 'seer' && input.game.phase === 'day') {
+            const seerActions = input.game.nightActions?.filter(
+                (a: NightAction) => a.playerId === input.aiPlayer.userId && a.actionType === 'seer_check'
+            ) || [];
+
+            const knownVillagerIds = new Set<string>();
+            for (const action of seerActions) {
+                const targetPlayer = input.players.find(p => p.userId === action.targetId);
+                // The seer check returns true for werewolves. If it's false, they are not a werewolf.
+                const wolfRoles = ['werewolf', 'wolf_cub', 'cursed', 'lycanthrope'];
+                if (targetPlayer && !wolfRoles.includes(targetPlayer.role || '')) {
+                    knownVillagerIds.add(targetPlayer.userId);
+                }
+            }
+
+            const voteCounts: Record<string, number> = {};
+            input.players.forEach(p => {
+                if (p.isAlive && p.votedFor) {
+                    voteCounts[p.votedFor] = (voteCounts[p.votedFor] || 0) + 1;
+                }
+            });
+
+            let maxVotes = 0;
+            let mostVotedPlayerId = '';
+            for(const playerId in voteCounts) {
+                if(voteCounts[playerId] > maxVotes) {
+                    maxVotes = voteCounts[playerId];
+                    mostVotedPlayerId = playerId;
+                }
+            }
+            
+            if (maxVotes > 0 && knownVillagerIds.has(mostVotedPlayerId)) {
+                const innocentPlayer = input.players.find(p => p.userId === mostVotedPlayerId);
+                // High chance of intervening if an innocent is about to be lynched
+                if (Math.random() < 0.85) { 
+                    return { message: `¡Estáis cometiendo un error! Sé con certeza que ${innocentPlayer?.displayName} es inocente. ¡Tenemos que reconsiderar esto!`, shouldSend: true };
+                }
+            }
+        }
+
 
         const sanitizedGame = {
           ...input.game,

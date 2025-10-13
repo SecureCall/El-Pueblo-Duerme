@@ -478,7 +478,7 @@ async function killPlayer(
 
 function sanitizeValue(value: any): any {
     if (value instanceof Timestamp) {
-        return value; // Keep Timestamps as they are for Firestore
+        return value.toDate().toISOString();
     }
     if (value === undefined) {
         return null; // Convert undefined to null
@@ -764,13 +764,13 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             const voterPlayer = game.players.find(p => p.userId === voterId);
 
             if (targetPlayer?.isAI) {
-                const sanitizedGame = JSON.parse(JSON.stringify(game));
+                const sanitizedGame = sanitizeValue(game);
 
                 const perspective: AIPlayerPerspective = {
                     game: sanitizedGame,
-                    aiPlayer: JSON.parse(JSON.stringify(targetPlayer)),
+                    aiPlayer: sanitizeValue(targetPlayer),
                     trigger: `${voterPlayer?.displayName || 'Someone'} te ha votado.`,
-                    players: game.players.map(p => JSON.parse(JSON.stringify(p))),
+                    players: sanitizeValue(game.players),
                 };
                 const { message, shouldSend } = await generateAIChatMessage(perspective);
                 if (shouldSend) {
@@ -1247,39 +1247,68 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
     }
 
     try {
-        const gameDoc = await getDoc(gameRef);
-        if (!gameDoc.exists()) {
-            throw new Error("Game not found");
-        }
-        const game = gameDoc.data() as Game;
-        
-        const player = game.players.find(p => p.userId === senderId);
-        if (!player || !player.isAlive) {
-            return { success: false, error: 'No puedes enviar mensajes.' };
-        }
-        
-        const mentionedPlayerIds: string[] = [];
-        for (const p of game.players) {
-            if (p.userId !== senderId && text.toLowerCase().includes(p.displayName.toLowerCase())) {
-                mentionedPlayerIds.push(p.userId);
+        await runTransaction(db, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) {
+                throw new Error("Game not found");
             }
-        }
+            const game = gameDoc.data() as Game;
+            
+            const player = game.players.find(p => p.userId === senderId);
+            if (!player || !player.isAlive) {
+                throw new Error('No puedes enviar mensajes.');
+            }
+            
+            const mentionedPlayerIds: string[] = [];
+            for (const p of game.players) {
+                if (p.userId !== senderId && text.toLowerCase().includes(p.displayName.toLowerCase())) {
+                    mentionedPlayerIds.push(p.userId);
+                }
+            }
 
-        const newMessage: ChatMessage = {
-            id: `${Date.now()}_${senderId}`,
-            senderId,
-            senderName,
-            text: text.trim(),
-            round: game.currentRound,
-            createdAt: Timestamp.now(),
-        };
+            const newMessage: ChatMessage = {
+                id: `${Date.now()}_${senderId}`,
+                senderId,
+                senderName,
+                text: text.trim(),
+                round: game.currentRound,
+                createdAt: Timestamp.now(),
+            };
 
-        if (mentionedPlayerIds.length > 0) {
-            newMessage.mentionedPlayerIds = mentionedPlayerIds;
-        }
+            if (mentionedPlayerIds.length > 0) {
+                newMessage.mentionedPlayerIds = mentionedPlayerIds;
+            }
 
-        await updateDoc(gameRef, {
-            chatMessages: arrayUnion(newMessage)
+            const currentChatMessages = game.chatMessages ? [...game.chatMessages, newMessage] : [newMessage];
+            
+            // Check if any mentioned players are AI and should respond
+            for (const mentionedId of mentionedPlayerIds) {
+                const mentionedPlayer = game.players.find(p => p.userId === mentionedId);
+                if (mentionedPlayer?.isAI && mentionedPlayer.isAlive) {
+                    const sanitizedGame = sanitizeValue(game);
+                    
+                    const perspective: AIPlayerPerspective = {
+                        game: sanitizedGame,
+                        aiPlayer: sanitizeValue(mentionedPlayer),
+                        trigger: `${senderName} te ha mencionado en el chat: "${text.trim()}"`,
+                        players: sanitizeValue(game.players),
+                    };
+
+                    // Use a timeout to prevent holding the transaction
+                    setTimeout(async () => {
+                        try {
+                            const { message, shouldSend } = await generateAIChatMessage(perspective);
+                            if (shouldSend) {
+                                await sendChatMessage(db, gameId, mentionedPlayer.userId, mentionedPlayer.displayName, message);
+                            }
+                        } catch (aiError) {
+                            console.error("Error generating AI chat message on mention:", aiError);
+                        }
+                    }, 500); // 500ms delay
+                }
+            }
+
+            transaction.update(gameRef, { chatMessages: currentChatMessages });
         });
 
         return { success: true };
