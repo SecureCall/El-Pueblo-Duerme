@@ -41,7 +41,8 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
         await playNarration('dia_pueblo_despierta.mp3');
         const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
         if (nightEvent) {
-            const hasDeaths = nightEvent.data?.killedPlayerIds?.length > 0 || nightEvent.data?.killedByPoisonId;
+             // Correct logic: Check the message content.
+            const hasDeaths = nightEvent.message.toLowerCase().includes('perdió');
             if (hasDeaths) {
                 await playSoundEffect('descanse_en_paz.mp3');
             } else {
@@ -333,5 +334,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     </>
   );
 }
+
+    
 
     
