@@ -6,7 +6,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { Bot, Crown, Skull } from "lucide-react";
+import { Bot, Crown, Skull, Gavel } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { roleDetails, defaultRoleDetail } from "@/lib/roles";
@@ -21,21 +21,6 @@ interface PlayerCardProps {
   highlightColor?: string;
   votes?: string[];
 }
-
-function GallowsIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M12 2v2"/>
-      <path d="M12 4h8"/>
-      <path d="M18 4v5"/>
-      <path d="M12 14c0-2 2-4 4-4s4 2 4 4c0 2.2-1.8 4-4 4-4 0-4-2-4-2"/>
-      <path d="M12 22V10"/>
-      <path d="M6 22V4"/>
-      <path d="M10 4H2"/>
-    </svg>
-  );
-}
-
 
 export function PlayerCard({ player, onClick, isClickable, isSelected, highlightColor, votes }: PlayerCardProps) {
   
@@ -66,7 +51,7 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
                     </div>
                 );
             case 'vote_result':
-                return <GallowsIcon className="absolute inset-0 m-auto h-16 w-16 text-amber-800/80 z-20" />;
+                return <Gavel className="absolute inset-0 m-auto h-16 w-16 text-amber-800/80 z-20" />;
             default:
                 return <Skull className="absolute inset-0 m-auto h-16 w-16 text-gray-400/80 z-20" />;
         }
@@ -143,4 +128,3 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
     </TooltipProvider>
   );
 }
-
