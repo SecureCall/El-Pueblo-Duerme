@@ -29,12 +29,13 @@ export function GameMusic({ src }: GameMusicProps) {
           try {
             await audio.play();
             isPlayingRef.current = true;
-            window.removeEventListener('click', playOnInteraction);
-            window.removeEventListener('keydown', playOnInteraction);
           } catch (err) {
              console.warn("Audio play on interaction failed.", err);
           }
         }
+        // Always remove the listeners after the first successful interaction
+        window.removeEventListener('click', playOnInteraction);
+        window.removeEventListener('keydown', playOnInteraction);
     };
 
     const handlePlay = async () => {
@@ -66,8 +67,8 @@ export function GameMusic({ src }: GameMusicProps) {
         } catch (error) {
           console.warn("Audio play was prevented by the browser.", error);
           // If autoplay fails, we add listeners to try again on interaction
-          window.addEventListener('click', playOnInteraction, { once: true });
-          window.addEventListener('keydown', playOnInteraction, { once: true });
+          window.addEventListener('click', playOnInteraction);
+          window.addEventListener('keydown', playOnInteraction);
         }
       }
     };

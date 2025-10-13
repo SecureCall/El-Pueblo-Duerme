@@ -104,7 +104,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
     if (game.phase === 'role_reveal' && firestore) {
         try {
             // Firestore security rules should prevent this from being abused.
-            // Or the function that calls this could have a check.
+            // A transaction in the backend could also enforce the phase change rule.
             await updateDoc(doc(firestore, "games", game.id), { 
                 phase: 'night',
             });
@@ -160,6 +160,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
   const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
   const behaviorClueEvent = events.find(e => e.type === 'behavior_clue' && e.round === game.currentRound -1);
+  const { firestore } = useFirebase();
 
   const getPhaseTitle = () => {
     switch(game.phase) {
@@ -203,7 +204,15 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
   }
 
   // Acknowledge role is a dummy function for spectators
-  const handleAcknowledgeRole = async () => {};
+  const handleAcknowledgeRole = async () => {
+    if (firestore && game.phase === 'role_reveal') {
+        try {
+            await updateDoc(doc(firestore, "games", game.id), { phase: 'night' });
+        } catch (error) {
+            console.error("Failed to advance phase from role_reveal:", error);
+        }
+    }
+  };
   const handleTimerEnd = async () => {};
 
   if (currentPlayer && currentPlayer.role && game.phase === 'role_reveal') {
