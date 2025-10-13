@@ -13,13 +13,14 @@ import { roleDetails, defaultRoleDetail } from "@/lib/roles";
 import Image from "next/image";
 import type { SVGProps } from "react";
 
-
 function ZarpazoIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" {...props}>
-      <path d="M10 10 L90 90" stroke="red" strokeWidth="5" strokeLinecap="round" transform="rotate(-15 50 50) translate(0, 0)"/>
-      <path d="M30 10 L110 90" stroke="red" strokeWidth="5" strokeLinecap="round" transform="rotate(-15 50 50) translate(-10, 0)" />
-      <path d="M50 10 L130 90" stroke="red" strokeWidth="5" strokeLinecap="round" transform="rotate(-15 50 50) translate(-20, 0)" />
+        <g transform="rotate(-15 50 50)">
+            <path d="M10 10 L90 90" stroke="red" strokeWidth="5" strokeLinecap="round"/>
+            <path d="M30 10 L110 90" stroke="red" strokeWidth="5" strokeLinecap="round" />
+            <path d="M50 10 L130 90" stroke="red" strokeWidth="5" strokeLinecap="round" />
+        </g>
     </svg>
   )
 }
@@ -35,15 +36,14 @@ interface PlayerCardProps {
 
 export function PlayerCard({ player, onClick, isClickable, isSelected, highlightColor, votes }: PlayerCardProps) {
   
-  // Simple hash function to get a consistent avatar for a user
   const getAvatarId = (userId: string) => {
     let hash = 0;
     for (let i = 0; i < userId.length; i++) {
         const char = userId.charCodeAt(i);
         hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; // Convert to 32bit integer
+        hash = hash & hash;
     }
-    const totalAvatars = 16; // Should match number of avatars in placeholder-images.json
+    const totalAvatars = 16;
     return (Math.abs(hash) % totalAvatars) + 1;
   }
   
@@ -55,7 +55,7 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
     const roleInfo = roleDetails[player.role!] ?? defaultRoleDetail;
 
     const DeathOverlay = () => {
-      const baseClasses = "absolute inset-0 flex items-center justify-center z-20";
+      const baseClasses = "absolute inset-0 z-20 flex items-center justify-center";
       const iconClasses = "h-16 w-16 opacity-80";
 
       switch (player.causeOfDeath) {
@@ -82,7 +82,7 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
     
     return (
         <Card className="relative flex flex-col items-center justify-between p-2 h-full bg-card/50 rounded-lg overflow-hidden border-2 border-destructive/50">
-             <div className="absolute inset-0 z-0">
+            <div className="absolute inset-0 z-0">
                 <Image 
                     src={roleInfo.image} 
                     alt={roleInfo.name}
@@ -93,7 +93,7 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
             </div>
             <div className="absolute inset-0 bg-black/60 z-10" />
             <DeathOverlay />
-            <div className="relative z-20 flex flex-col items-center gap-1 text-center w-full mt-auto pt-2">
+            <div className="relative z-20 flex flex-col items-center gap-1 text-center w-full mt-auto pt-2 bg-black/50 pb-1">
                 <p className="font-semibold text-center truncate w-full line-through text-lg text-primary-foreground">{player.displayName}</p>
                 <div className="text-sm font-bold text-center text-muted-foreground">
                     Era {roleInfo.name}
