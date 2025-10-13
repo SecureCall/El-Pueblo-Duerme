@@ -44,8 +44,8 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
     const prevPhase = prevPhaseRef.current;
     
     const playMorningSequence = async () => {
-        const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
         await playNarration('dia_pueblo_despierta.mp3');
+        const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
         if (nightEvent) {
             const hasDeaths = nightEvent.data?.killedByWerewolfIds?.length > 0 || nightEvent.data?.killedByPoisonId;
             if (hasDeaths) {
@@ -305,3 +305,6 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
 }
 
 
+
+
+    
