@@ -43,35 +43,53 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
   if (!player.isAlive) {
     const roleInfo = roleDetails[player.role!] ?? defaultRoleDetail;
     return (
-      <div className="relative flex flex-col items-center justify-between p-4 h-full bg-muted/30 rounded-lg overflow-hidden">
-        <div className="absolute inset-0 bg-black/60 z-10" />
-        <div className="relative z-20 w-full flex flex-col items-center">
-            <div className="relative h-20 w-20">
-                <Avatar className="h-20 w-20 border-2 border-border grayscale">
-                    <AvatarImage src={avatarImage?.imageUrl || '/avatar-default.png'} data-ai-hint={avatarImage?.imageHint} />
-                    <AvatarFallback>{player.displayName.substring(0, 2)}</AvatarFallback>
-                </Avatar>
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <Image 
-                        src="/zarpa.png"
-                        alt="Eliminado"
-                        width={80}
-                        height={80}
-                        className="object-contain opacity-90"
-                        unoptimized
-                    />
+        <div className="relative flex flex-col items-center justify-between p-4 h-full bg-muted/30 rounded-lg overflow-hidden">
+            <div className="absolute inset-0 bg-black/60 z-10" />
+            <div className="relative z-20 w-full flex flex-col items-center">
+                <div className="relative h-20 w-20">
+                    <Avatar className="h-20 w-20 border-2 border-border grayscale">
+                        <AvatarImage src={avatarImage?.imageUrl || '/avatar-default.png'} data-ai-hint={avatarImage?.imageHint} />
+                        <AvatarFallback>{player.displayName.substring(0, 2)}</AvatarFallback>
+                    </Avatar>
+                    
+                    {/* Zarpazos superpuestos */}
+                    <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+                        <Image
+                            src="/zarpa.png"
+                            alt="Zarpazo 1"
+                            width={80}
+                            height={80}
+                            className="absolute object-contain opacity-90 rotate-[20deg] scale-125"
+                            unoptimized
+                        />
+                        <Image
+                            src="/zarpa.png"
+                            alt="Zarpazo 2"
+                            width={60}
+                            height={60}
+                            className="absolute object-contain opacity-80 rotate-[-30deg] scale-100 translate-x-2"
+                            unoptimized
+                        />
+                        <Image
+                            src="/zarpa.png"
+                            alt="Zarpazo 3"
+                            width={70}
+                            height={70}
+                            className="absolute object-contain opacity-85 rotate-[10deg] scale-110 -translate-y-1"
+                            unoptimized
+                        />
+                    </div>
+                </div>
+            </div>
+            <div className="relative z-20 flex flex-col items-center gap-1 text-center w-full pt-3">
+                <p className="font-semibold text-center truncate w-full line-through text-lg">{player.displayName}</p>
+                <div className="text-sm font-bold text-center text-muted-foreground">
+                    Era {roleInfo.name}
                 </div>
             </div>
         </div>
-        <div className="relative z-20 flex flex-col items-center gap-1 text-center w-full pt-3">
-            <p className="font-semibold text-center truncate w-full line-through">{player.displayName}</p>
-            <div className="text-xs font-bold text-center">
-                Era {roleInfo.name}
-            </div>
-        </div>
-      </div>
     );
-  }
+}
 
   return (
     <TooltipProvider>
@@ -121,3 +139,4 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
     </TooltipProvider>
   );
 }
+
