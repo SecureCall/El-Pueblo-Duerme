@@ -10,20 +10,34 @@ if (typeof window !== 'undefined') {
     narrationAudio.volume = 1.0;
 
     soundEffectAudio = new Audio();
-    soundEffectAudio.volume = 0.8; // Increased volume for sound effects
+    soundEffectAudio.volume = 0.8;
+}
+
+const playOnInteraction = async () => {
+    try {
+        if(narrationAudio && narrationAudio.paused) await narrationAudio.play().catch(()=>{});
+        if(soundEffectAudio && soundEffectAudio.paused) await soundEffectAudio.play().catch(()=>{});
+    } catch(err) {
+        console.warn("Audio play on interaction failed.", err);
+    } finally {
+        window.removeEventListener('click', playOnInteraction);
+        window.removeEventListener('keydown', playOnInteraction);
+    }
+}
+
+if (typeof window !== 'undefined') {
+    window.addEventListener('click', playOnInteraction);
+    window.addEventListener('keydown', playOnInteraction);
 }
 
 const playAudio = (audioElement: HTMLAudioElement | null, src: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         if (!audioElement || !src) {
             resolve();
             return;
         }
 
-        // For narration and sound effects, use the single instance to prevent overlap
         if (!audioElement.paused) {
-            // If it's already playing something, let it finish, or decide to interrupt.
-            // For now, we will interrupt.
             audioElement.pause();
             audioElement.currentTime = 0;
         }
@@ -38,11 +52,10 @@ const playAudio = (audioElement: HTMLAudioElement | null, src: string): Promise<
         const playPromise = audioElement.play();
 
         if (playPromise !== undefined) {
-            playPromise.then(() => {
-                // Autoplay started!
-            }).catch(error => {
-                console.warn("Audio autoplay was prevented:", error);
-                // We resolve anyway, so the game doesn't get stuck.
+            playPromise.catch(error => {
+                console.warn(`Audio autoplay was prevented: ${error}`);
+                // Resolve anyway so game doesn't get stuck.
+                // The interaction listener will hopefully pick it up.
                 resolve();
             });
         } else {
@@ -56,16 +69,13 @@ export const playNarration = (narrationFile: string): Promise<void> => {
 };
 
 export const playSoundEffect = (soundFile: string): Promise<void> => {
-    // For sound effects, we create a new audio object each time
-    // to allow multiple sounds to play, even overlapping.
     if (typeof window === 'undefined') return Promise.resolve();
     
     return new Promise(resolve => {
         const audio = new Audio(`/audio/effects/${soundFile}`);
-        audio.volume = 0.8; // Effects volume
+        audio.volume = 0.8;
         audio.play().catch(e => console.warn("Sound effect failed to play", e));
         // We resolve immediately, not waiting for the sound to end.
         resolve();
     });
 };
-

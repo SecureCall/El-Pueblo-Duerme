@@ -42,7 +42,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
         if (nightEvent) {
             const hasDeaths = nightEvent.data?.killedByWerewolfIds?.length > 0 || nightEvent.data?.killedByPoisonId;
             if (hasDeaths) {
-                await playSoundEffect('Descanse en paz.mp3');
+                await playSoundEffect('descanse_en_paz.mp3');
             } else {
                 await playSoundEffect('¡Milagro!.mp3');
             }
