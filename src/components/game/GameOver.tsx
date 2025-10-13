@@ -110,9 +110,8 @@ export function GameOver({ game, event, players }: GameOverProps) {
                             Reiniciar Sala
                         </Button>
                     ) : (
-                        <Button size="lg" variant="secondary" onClick={() => window.location.reload()}>
-                            <Play className="mr-2 h-5 w-5" />
-                            Jugar de Nuevo
+                         <Button size="lg" variant="secondary" disabled={true}>
+                            Esperando al creador para reiniciar...
                         </Button>
                     )}
                 </div>

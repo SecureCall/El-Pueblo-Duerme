@@ -28,6 +28,7 @@ export const PlayerSchema = z.object({
   votedFor: z.string().nullable(),
   displayName: z.string(),
   joinedAt: TimestampSchema,
+  acknowledged: z.boolean(),
   lastHealedRound: z.number(),
   isAI: z.boolean(),
   potions: z.object({
@@ -97,7 +98,7 @@ export const GameSettingsSchema = z.object({
     drunk_man: z.boolean(),
     cult_leader: z.boolean(),
     fisherman: z.boolean(),
-    vampire: z.boolean(),
+vampire: z.boolean(),
     witch: z.boolean(),
     banshee: z.boolean(),
 });

@@ -40,6 +40,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     votedFor: null,
     joinedAt: Timestamp.now(),
     isAI,
+    acknowledged: false, // Player has not seen their role yet
     lastHealedRound: 0,
     potions: {
         poison: null,
@@ -477,36 +478,15 @@ function killPlayer(
 
 
 function sanitizeGameForUpdate(gameData: Game): Partial<Game> {
-    const sanitized: Partial<Game> = { ...gameData };
+    const sanitized: { [key: string]: any } = {};
 
-    // Firestore cannot store `undefined` or custom objects that aren't registered.
-    // We convert Timestamps to a format Firestore understands if they got converted.
-    const convertTimestamps = (obj: any): any => {
-        if (!obj) return obj;
-        if (obj instanceof Timestamp) return obj;
-        if (obj.seconds !== undefined && obj.nanoseconds !== undefined) {
-             // It's a plain object that looks like a Timestamp
-            return new Timestamp(obj.seconds, obj.nanoseconds);
+    for (const key in gameData) {
+        const value = (gameData as any)[key];
+        if (value !== undefined) {
+            sanitized[key] = value;
         }
-        if (Array.isArray(obj)) {
-            return obj.map(convertTimestamps);
-        }
-        if (typeof obj === 'object') {
-            const newObj: { [key: string]: any } = {};
-            for (const key in obj) {
-                if (Object.prototype.hasOwnProperty.call(obj, key)) {
-                    const value = obj[key];
-                    if (value !== undefined) {
-                         newObj[key] = convertTimestamps(value);
-                    }
-                }
-            }
-            return newObj;
-        }
-        return obj;
-    };
-    
-    return convertTimestamps(sanitized) as Partial<Game>;
+    }
+    return sanitized;
 }
 
 
@@ -1210,6 +1190,7 @@ export async function resetGame(db: Firestore, gameId: string) {
                 role: null,
                 isAlive: true,
                 votedFor: null,
+                acknowledged: false,
                 lastHealedRound: 0,
                 potions: { poison: null, save: null },
                 priestSelfHealUsed: false,
@@ -1242,4 +1223,28 @@ export async function resetGame(db: Firestore, gameId: string) {
     }
 }
 
+export async function checkAndAdvanceFromRoleReveal(db: Firestore, gameId: string) {
+  const gameRef = doc(db, 'games', gameId);
+  try {
+    await runTransaction(db, async (transaction) => {
+      const gameSnap = await transaction.get(gameRef);
+      if (!gameSnap.exists()) throw new Error("Game not found");
+      const game = gameSnap.data() as Game;
+
+      // Only advance if we are in the role reveal phase
+      if (game.phase !== 'role_reveal') return;
+
+      const allAcknowledged = game.players.every(p => p.acknowledged);
+
+      if (allAcknowledged) {
+        transaction.update(gameRef, { phase: 'night' });
+      }
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error advancing from role reveal:", error);
+    return { success: false, error: (error as Error).message };
+  }
+}
     
+

@@ -109,6 +109,7 @@ export interface Player {
   votedFor: string | null; // userId
   displayName: string;
   joinedAt: Timestamp;
+  acknowledged: boolean; // Has the player seen their role?
   lastHealedRound: number;
   isAI: boolean;
   potions?: {
