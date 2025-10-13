@@ -145,4 +145,5 @@ export interface ChatMessage {
   text: string;
   round: number;
   createdAt: Timestamp;
+  mentionedPlayerIds?: string[];
 }

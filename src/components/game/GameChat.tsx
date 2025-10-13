@@ -7,13 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../ui/card
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
-import { Send } from 'lucide-react';
+import { Send, AlertTriangle } from 'lucide-react';
 import { useFirebase } from '@/firebase';
 import { sendChatMessage } from '@/lib/firebase-actions';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { playSoundEffect } from '@/lib/sounds';
 
 interface GameChatProps {
     gameId: string;
@@ -37,12 +38,31 @@ export function GameChat({ gameId, currentPlayer, messages, players }: GameChatP
     const { firestore } = useFirebase();
     const { toast } = useToast();
     const scrollAreaRef = useRef<HTMLDivElement>(null);
+    const lastMessageCount = useRef(messages.length);
 
     useEffect(() => {
         if (scrollAreaRef.current) {
-            scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
+            const isScrolledToBottom = scrollAreaRef.current.scrollHeight - scrollAreaRef.current.clientHeight <= scrollAreaRef.current.scrollTop + 1;
+            if (isScrolledToBottom) {
+                 setTimeout(() => {
+                    scrollAreaRef.current?.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
+                }, 100);
+            }
         }
-    }, [messages]);
+        
+        if (messages.length > lastMessageCount.current) {
+            const latestMessage = messages[messages.length - 1];
+            if (latestMessage.mentionedPlayerIds?.includes(currentPlayer.userId)) {
+                playSoundEffect('mention.mp3');
+                toast({
+                    title: `¡Te han mencionado!`,
+                    description: `${latestMessage.senderName}: "${latestMessage.text}"`,
+                });
+            }
+        }
+        lastMessageCount.current = messages.length;
+
+    }, [messages, currentPlayer.userId, toast]);
 
     const handleSendMessage = async (text?: string) => {
         const messageText = text || newMessage;
@@ -52,6 +72,11 @@ export function GameChat({ gameId, currentPlayer, messages, players }: GameChatP
 
         if (res.success) {
             setNewMessage('');
+             if (scrollAreaRef.current) {
+                setTimeout(() => {
+                    scrollAreaRef.current?.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
+                }, 100);
+            }
         } else {
             toast({
                 variant: 'destructive',
@@ -88,23 +113,31 @@ export function GameChat({ gameId, currentPlayer, messages, players }: GameChatP
                         {messages.length === 0 ? (
                             <p className="text-center text-muted-foreground">El debate comienza... El silencio puede ser sospechoso.</p>
                         ) : (
-                            messages.map((msg, index) => (
+                            messages.map((msg, index) => {
+                                const isOwnMessage = msg.senderId === currentPlayer.userId;
+                                const isMentioned = msg.mentionedPlayerIds?.includes(currentPlayer.userId);
+
+                                return (
                                 <div key={msg.id || index} className={cn(
                                     "flex flex-col",
-                                    msg.senderId === currentPlayer.userId ? "items-end" : "items-start"
+                                    isOwnMessage ? "items-end" : "items-start"
                                 )}>
                                     <div className={cn(
-                                        "rounded-lg px-3 py-2 max-w-xs",
-                                        msg.senderId === currentPlayer.userId ? "bg-primary text-primary-foreground" : "bg-muted"
+                                        "rounded-lg px-3 py-2 max-w-xs relative",
+                                        isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted",
+                                        isMentioned && "ring-2 ring-yellow-400"
                                     )}>
+                                        {isMentioned && (
+                                             <AlertTriangle className="absolute -top-2 -left-2 h-4 w-4 text-yellow-300 bg-background rounded-full" />
+                                        )}
                                         <p className="font-bold text-sm">{msg.senderName}</p>
-                                        <p className="text-base">{msg.text}</p>
+                                        <p className="text-base break-words">{msg.text}</p>
                                     </div>
                                     <p className="text-xs text-muted-foreground mt-1">
                                         {formatDistanceToNow(msg.createdAt.toDate(), { addSuffix: true, locale: es })}
                                     </p>
                                 </div>
-                            ))
+                            )})
                         )}
                     </div>
                 </ScrollArea>

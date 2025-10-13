@@ -9,7 +9,7 @@ if (typeof window !== 'undefined') {
     narrationAudio.volume = 1.0;
 
     soundEffectAudio = new Audio();
-    soundEffectAudio.volume = 0.8;
+    soundEffectAudio.volume = 0.5; // Adjusted volume for sound effects
 }
 
 const playAudio = (audioElement: HTMLAudioElement | null, src: string): Promise<void> => {
@@ -19,22 +19,27 @@ const playAudio = (audioElement: HTMLAudioElement | null, src: string): Promise<
             return;
         }
 
-        // Stop current playback if any
+        // Create a new Audio object for sound effects to allow overlap
+        if (audioElement === soundEffectAudio) {
+            const effect = new Audio(src);
+            effect.volume = audioElement.volume;
+            effect.play().then(resolve).catch(error => {
+                console.warn("Sound effect playback failed:", error);
+                resolve(); // Resolve anyway
+            });
+            return;
+        }
+
+        // For narration, use the single instance to prevent overlap
         if (!audioElement.paused) {
             audioElement.pause();
             audioElement.currentTime = 0;
         }
 
         audioElement.src = src;
-
-        // Clear previous listeners to avoid memory leaks
-        audioElement.onended = null;
-        audioElement.onerror = null;
-
         audioElement.onended = () => resolve();
         audioElement.onerror = (e) => {
             console.error("Error playing audio:", e);
-            // Resolve even on error to not block the audio sequence
             resolve();
         };
         
@@ -43,7 +48,6 @@ const playAudio = (audioElement: HTMLAudioElement | null, src: string): Promise<
         if (playPromise !== undefined) {
             playPromise.catch(error => {
                 console.warn("Audio autoplay was prevented:", error);
-                // Autoplay was prevented. Resolve to not block the sequence.
                 resolve();
             });
         }
@@ -55,5 +59,15 @@ export const playNarration = (narrationFile: string): Promise<void> => {
 };
 
 export const playSoundEffect = (soundFile: string): Promise<void> => {
-    return playAudio(soundEffectAudio, `/audio/voz/${soundFile}`);
+    // For sound effects, we create a new audio object each time
+    // to allow multiple sounds to play, even overlapping.
+    if (typeof window === 'undefined') return Promise.resolve();
+    
+    return new Promise(resolve => {
+        const audio = new Audio(`/audio/effects/${soundFile}`);
+        audio.volume = 0.5;
+        audio.play().catch(e => console.warn("Sound effect failed to play", e));
+        // We resolve immediately, not waiting for the sound to end.
+        resolve();
+    });
 };

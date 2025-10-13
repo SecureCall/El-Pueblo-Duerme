@@ -783,7 +783,8 @@ export async function processVotes(db: Firestore, gameId: string) {
 
             let lynchedPlayerId: string | null = null;
             let eventMessage: string;
-            
+            let finalUpdateGame: Partial<Game> = game;
+
             // Check for close vote clue
             if (totalVotes > 2) {
                 const sortedVotes = Object.values(voteCounts).sort((a,b) => b - a);
@@ -807,11 +808,10 @@ export async function processVotes(db: Firestore, gameId: string) {
                 if (lynchedPlayerIndex > -1) {
                     const lynchedPlayer = game.players[lynchedPlayerIndex];
                     if (lynchedPlayer.role === 'prince' && game.settings.prince && !lynchedPlayer.princeRevealed) {
-                        // PRINCE IS REVEALED
                         game.players[lynchedPlayerIndex].princeRevealed = true;
                         eventMessage = `${lynchedPlayer.displayName} ha sido sentenciado, pero revela su identidad como ¡el Príncipe! y sobrevive a la votación.`;
                         
-                        const newEvent: GameEvent = {
+                        game.events.push({
                             id: `evt_${Date.now()}_${Math.random()}`,
                             gameId,
                             round: game.currentRound,
@@ -819,15 +819,14 @@ export async function processVotes(db: Firestore, gameId: string) {
                             message: eventMessage,
                             data: { lynchedPlayerId: null },
                             createdAt: Timestamp.now(),
-                        };
-                        game.events.push(newEvent);
+                        });
 
                         game.players.forEach(p => { p.votedFor = null; });
                         game.phase = 'night';
                         game.currentRound = game.currentRound + 1;
+                        finalUpdateGame = game;
 
                     } else {
-                        // NORMAL LYNCH
                         lynchedPlayerId = potentialLynchedId;
                         eventMessage = `El pueblo ha decidido. ${lynchedPlayer.displayName} ha sido linchado.`;
                         game.players[lynchedPlayerIndex].votedFor = 'TO_BE_KILLED';
@@ -847,25 +846,25 @@ export async function processVotes(db: Firestore, gameId: string) {
                         if (hunterId) {
                            // Hunter shot phase will handle the next step
                         } else {
-                            const { game: finalGame, isOver } = await checkGameOver(game);
-                            game = finalGame;
+                            const { game: finalGameCheck, isOver } = await checkGameOver(game);
+                            game = finalGameCheck;
                             if (!isOver) {
                                 game.players.forEach(p => { p.votedFor = null; });
                                 game.phase = 'night';
                                 game.currentRound = game.currentRound + 1;
                             }
                         }
+                        finalUpdateGame = game;
                     }
                 } else {
-                     // This case should not happen if votes are cast correctly
                     eventMessage = "El jugador a linchar no fue encontrado.";
                     game.events.push({ id: `evt_${Date.now()}_${Math.random()}`, gameId, round: game.currentRound, type: 'vote_result', message: eventMessage, data: { lynchedPlayerId: null }, createdAt: Timestamp.now() });
                     game.players.forEach(p => { p.votedFor = null; });
                     game.phase = 'night';
                     game.currentRound = game.currentRound + 1;
+                    finalUpdateGame = game;
                 }
             } else {
-                 // TIE OR NO VOTES
                  if (mostVotedPlayerIds.length > 1) {
                     eventMessage = "La votación resultó en un empate. Nadie fue linchado hoy.";
                      game.events.push({
@@ -884,9 +883,9 @@ export async function processVotes(db: Firestore, gameId: string) {
                 game.players.forEach(p => { p.votedFor = null; });
                 game.phase = 'night';
                 game.currentRound = game.currentRound + 1;
+                finalUpdateGame = game;
             }
             
-            let finalUpdateGame = game;
             const { game: gameOverCheckGame, isOver } = await checkGameOver(game);
             if (isOver) {
                  finalUpdateGame = gameOverCheckGame;
@@ -1197,6 +1196,13 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
             return { success: false, error: 'No puedes enviar mensajes.' };
         }
         
+        const mentionedPlayerIds: string[] = [];
+        for (const p of game.players) {
+            if (p.userId !== senderId && text.toLowerCase().includes(p.displayName.toLowerCase())) {
+                mentionedPlayerIds.push(p.userId);
+            }
+        }
+
         const newMessage: ChatMessage = {
             id: `${Date.now()}_${senderId}`,
             senderId,
@@ -1204,6 +1210,7 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
             text: text.trim(),
             round: game.currentRound,
             createdAt: Timestamp.now(),
+            mentionedPlayerIds: mentionedPlayerIds.length > 0 ? mentionedPlayerIds : undefined,
         };
 
         await updateDoc(gameRef, {
