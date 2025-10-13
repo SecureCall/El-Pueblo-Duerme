@@ -47,7 +47,7 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
             case 'werewolf_kill':
                 return (
                     <div className="absolute inset-0 flex items-center justify-center overflow-hidden z-20">
-                        <Image src="/zarpa.png" alt="Zarpazo" layout="fill" className="absolute object-contain opacity-80" unoptimized />
+                        <Image src="/zarpa.png" alt="Zarpazo" fill className="object-contain opacity-80" unoptimized />
                     </div>
                 );
             case 'vote_result':
@@ -64,7 +64,7 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
                  <Image 
                     src={roleInfo.image} 
                     alt={roleInfo.name}
-                    layout="fill"
+                    fill
                     className="object-cover rounded-md"
                     unoptimized
                 />
