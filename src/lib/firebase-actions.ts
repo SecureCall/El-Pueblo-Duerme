@@ -1,4 +1,3 @@
-
 'use client';
 import { 
   doc,
@@ -1059,7 +1058,13 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
     }
 }
 
-export async function sendChatMessage(db: Firestore, gameId: string, senderId: string, senderName: string, text: string) {
+export async function sendChatMessage(
+    db: Firestore, 
+    gameId: string, 
+    senderId: string, 
+    senderName: string, 
+    text: string
+) {
     const gameRef = doc(db, 'games', gameId);
     
     if (!text?.trim()) {
@@ -1067,50 +1072,31 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
     }
 
     try {
-        let mentionedPlayerIds: string[] = [];
-        await runTransaction(db, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) {
-                throw new Error("Game not found");
-            }
-            const currentGame = gameDoc.data() as Game;
-            
-            const player = currentGame.players.find(p => p.userId === senderId);
-            if (!player || !player.isAlive) {
-                throw new Error('No puedes enviar mensajes.');
-            }
-            
-            // Populate mentionedPlayerIds inside the transaction
-            for (const p of currentGame.players) {
-                if (p.isAlive && p.userId !== senderId && text.toLowerCase().includes(p.displayName.toLowerCase())) {
-                    mentionedPlayerIds.push(p.userId);
-                }
-            }
-
-            const newMessage: ChatMessage = {
+        await updateDoc(gameRef, {
+            chatMessages: arrayUnion({
                 id: `${Date.now()}_${senderId}`,
                 senderId,
                 senderName,
                 text: text.trim(),
-                round: currentGame.currentRound,
+                round: (await getDoc(gameRef)).data()?.currentRound,
                 createdAt: Timestamp.now(),
-            };
-
-            if (mentionedPlayerIds.length > 0) {
-                newMessage.mentionedPlayerIds = mentionedPlayerIds;
-            }
-            
-            transaction.update(gameRef, { 
-                chatMessages: arrayUnion(newMessage)
-            });
+            } as ChatMessage)
         });
 
-        // Trigger AI responses *after* the transaction is successful, for all mentioned AI players
-        if (mentionedPlayerIds.length > 0) {
-            const gameDoc = await getDoc(gameRef); // Re-fetch the latest game state
-            if (gameDoc.exists()) {
-                const game = gameDoc.data() as Game;
-                const aiPlayersToRespond = game.players.filter(p => 
+        // Trigger AI responses after the message is committed
+        const gameDoc = await getDoc(gameRef);
+        if (gameDoc.exists()) {
+            const game = gameDoc.data() as Game;
+            const mentionedPlayerIds: string[] = [];
+
+            for (const p of game.players) {
+                if (p.isAlive && p.userId !== senderId && text.toLowerCase().includes(p.displayName.toLowerCase())) {
+                    mentionedPlayerIds.push(p.userId);
+                }
+            }
+            
+            if (mentionedPlayerIds.length > 0) {
+                 const aiPlayersToRespond = game.players.filter(p => 
                     p.isAI && p.isAlive && mentionedPlayerIds.includes(p.userId)
                 );
 
@@ -1125,7 +1111,6 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
                     // Fire-and-forget the AI generation
                     generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
                         if (shouldSend) {
-                             // Add a small delay to make AI responses feel more natural
                             await new Promise(resolve => setTimeout(resolve, Math.random() * 1500 + 500));
                             await sendChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName, message);
                         }
@@ -1135,6 +1120,7 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
         }
 
         return { success: true };
+
     } catch (error: any) {
         console.error("Error sending chat message: ", error);
         if (error.code === 'permission-denied') {
@@ -1149,6 +1135,7 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
         return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
     }
 }
+
 
 export async function resetGame(db: Firestore, gameId: string) {
     const gameRef = doc(db, 'games', gameId);
@@ -1226,5 +1213,7 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
 
 
 
+
+    
 
     
