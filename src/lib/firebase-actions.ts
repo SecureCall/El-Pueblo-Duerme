@@ -92,8 +92,11 @@ export async function createGame(
   try {
     await setDoc(gameRef, gameData);
     
+    // Unirse a la partida después de crearla
     const joinResult = await joinGame(db, gameId, userId, displayName);
     if (joinResult.error) {
+      // A pesar de que la partida se creó, si el creador no puede unirse, es un error crítico.
+      console.error(`Game created (${gameId}), but creator failed to join:`, joinResult.error);
       return { error: `La partida se creó, pero no se pudo unir: ${joinResult.error}` };
     }
 
@@ -120,7 +123,6 @@ export async function joinGame(
   displayName: string
 ) {
   const gameRef = doc(db, "games", gameId);
-  const playerDocRef = doc(db, "games", gameId, "players", userId);
   const newPlayer = createPlayerObject(userId, gameId, displayName, false);
   
   try {
@@ -147,8 +149,6 @@ export async function joinGame(
         transaction.update(gameRef, {
           players: arrayUnion(newPlayer),
         });
-        // Create a document in the players subcollection for security rules
-        transaction.set(playerDocRef, { userId: userId, displayName: displayName });
       }
     });
 
@@ -245,7 +245,6 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
             }
             
             let finalPlayers = [...game.players];
-            const batch = writeBatch(db);
 
             if (game.settings.fillWithAI && finalPlayers.length < game.maxPlayers) {
                 const aiPlayerCount = game.maxPlayers - finalPlayers.length;
@@ -256,10 +255,6 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
                     const aiName = availableAINames[i % availableAINames.length] || `Bot ${i + 1}`;
                     const aiPlayerData = createPlayerObject(aiUserId, gameId, aiName, true);
                     finalPlayers.push(aiPlayerData);
-                    
-                    // Add AI player to the players subcollection
-                    const aiPlayerDocRef = doc(db, "games", gameId, "players", aiUserId);
-                    batch.set(aiPlayerDocRef, { userId: aiUserId, displayName: aiName });
                 }
             }
             
@@ -283,9 +278,6 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
                 phase: 'role_reveal',
                 currentRound: 1,
             });
-            
-            // Commit the batch write for AI players
-            await batch.commit();
         });
         
         return { success: true };
