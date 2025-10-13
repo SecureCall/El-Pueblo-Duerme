@@ -828,7 +828,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                         finalUpdateGame = game;
 
                     } else {
-                        lynchedPlayerId = potentialLynchedId;
+                        let lynchedPlayerId = potentialLynchedId;
                         game.players[lynchedPlayerIndex].votedFor = 'TO_BE_KILLED';
                         
                         game.events.push({
@@ -1110,7 +1110,7 @@ const getDeterministicAIAction = (
         case 'seer':
             return { actionType: 'seer_check', targetId: randomTarget(potentialTargets) };
         case 'doctor': {
-            const healableTargets = potentialTargets.filter(p => p.lastHealedRound !== currentRound - 1);
+            const healableTargets = potentialTargets.filter(p => (p.lastHealedRound || 0) < currentRound - 1);
             return { actionType: 'doctor_heal', targetId: randomTarget(healableTargets) };
         }
         case 'guardian': {
@@ -1233,3 +1233,4 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
         return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
     }
 }
+
