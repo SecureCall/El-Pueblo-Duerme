@@ -41,7 +41,8 @@ function getEventIcon(type: GameEvent['type']) {
 }
 
 export function GameChronicle({ events }: GameChronicleProps) {
-  const sortedEvents = [...events].sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+  // The events are already sorted by the useGameState hook. Sorting again here would cause an error.
+  const sortedEvents = events; 
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -65,7 +66,7 @@ export function GameChronicle({ events }: GameChronicleProps) {
                 <div className="flex-1">
                   <p className="text-sm text-foreground">{event.message}</p>
                   <p className="text-xs text-muted-foreground">
-                    {`Ronda ${event.round} - ${formatDistanceToNow(event.createdAt.toDate(), { addSuffix: true, locale: es })}`}
+                    {`Ronda ${event.round} - ${event.createdAt ? formatDistanceToNow(new Date(event.createdAt.seconds * 1000), { addSuffix: true, locale: es }) : ''}`}
                   </p>
                 </div>
               </div>
