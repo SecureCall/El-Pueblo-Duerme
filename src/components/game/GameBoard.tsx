@@ -12,7 +12,7 @@ import { NightActions } from "./NightActions";
 import { processNight, processVotes, runAIActions, advanceToNightPhase, acknowledgeRole } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
-import { HeartIcon, Moon, Sun, Users2, Gavel, Skull } from "lucide-react";
+import { HeartIcon, Moon, Sun, Users2, Gavel, Skull, Milestone, Swords, Repeat, BrainCircuit } from "lucide-react";
 import { HunterShot } from "./HunterShot";
 import { GameChronicle } from "./GameChronicle";
 import { PhaseTimer } from "./PhaseTimer";
@@ -86,18 +86,11 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
         if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
             const hasDeaths = nightEvent.data?.killedPlayerIds?.length > 0;
             if (hasDeaths) {
-                playNarration('descanse_en_paz.mp3');
-            } else {
-                const wasSaved = nightEvent.data?.savedPlayerIds?.length > 0;
-                // Check if a werewolf attack was attempted
-                const wasAttack = game.nightActions?.some(a => a.round === game.currentRound && a.actionType === 'werewolf_kill');
-                if (wasSaved && wasAttack) {
-                    playNarration('milagro.mp3');
-                }
+                playSoundEffect('anuncio_exilio.mp3');
             }
             nightSoundsPlayedForRound.current = game.currentRound; // Mark as played for this round
         }
-    }, [events, game.currentRound, game.nightActions]);
+    }, [events, game.currentRound]);
 
 
   // Handle AI actions when phase changes
@@ -217,6 +210,18 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     highlightedPlayers.push({ userId: otherTwin.userId, color: 'rgba(135, 206, 250, 0.7)' });
   }
 
+  const DeathOverlayIcon = ({cause}: {cause: 'werewolf_kill' | 'vote_result' | 'other'}) => {
+    const iconClasses = "h-16 w-16 opacity-80";
+    switch (cause) {
+      case 'werewolf_kill':
+        return <img src="/zarpazo.svg" alt="Muerte por lobo" className={`${iconClasses} filter-destructive`} />;
+      case 'vote_result':
+        return <Gavel className={`${iconClasses} text-amber-800`} />;
+      default:
+        return <Skull className={`${iconClasses} text-gray-400`} />;
+    }
+  };
+
   const getCauseOfDeath = (playerId: string): 'werewolf_kill' | 'vote_result' | 'other' => {
       // Find the most recent event related to this player's death
       const deathEvent = events
@@ -326,7 +331,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
         <NightActions game={game} players={players.filter(p=>p.isAlive)} currentPlayer={currentPlayer} />
       )}
       
-      {currentPlayer && game.phase === 'day' && (
+      {game.phase === 'day' && (
         <DayPhase 
             game={game} 
             players={players}
@@ -356,7 +361,3 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     </>
   );
 }
-
-    
-
-    
