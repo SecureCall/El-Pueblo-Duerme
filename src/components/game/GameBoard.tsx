@@ -33,26 +33,13 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
   const { firestore } = useFirebase();
   const prevPhaseRef = useRef<Game['phase']>();
   const prevRoundRef = useRef<number>();
+  const nightSoundsPlayedForRound = useRef<number>(0);
 
+  // Sound effect logic
   useEffect(() => {
     const prevPhase = prevPhaseRef.current;
-    
-    const playMorningSequence = async () => {
-        await playNarration('dia_pueblo_despierta.mp3');
-        const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
-        if (nightEvent) {
-             // Correct logic: Check the message content.
-            const hasDeaths = nightEvent.message.toLowerCase().includes('perdió');
-            if (hasDeaths) {
-                await playSoundEffect('descanse_en_paz.mp3');
-            } else {
-                await playSoundEffect('milagro.mp3');
-            }
-        }
-        await playNarration('inicio_debate.mp3');
-        await playNarration('inicio_votacion.mp3');
-    };
 
+    // Phase change narrations
     if (prevPhase !== game.phase) {
       switch (game.phase) {
         case 'night':
@@ -65,25 +52,40 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
           }
           break;
         case 'day':
-            playMorningSequence();
+          playNarration('dia_pueblo_despierta.mp3').then(() => {
+            playNarration('inicio_debate.mp3');
+          });
           break;
         case 'voting':
-           // Sound moved to day phase
+           playNarration('inicio_votacion.mp3');
            break;
       }
     }
-    
-    // Announce lynch result at the start of the day
+
+    // Lynch result announcement
     if (game.phase === 'day' && game.currentRound !== prevRoundRef.current && game.currentRound > 1) {
         const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
         if (voteEvent) {
              setTimeout(() => {
-                if (voteEvent.data?.lynchedPlayerId && voteEvent.data.lynchedPlayerId === currentPlayer.userId) {
+                if (voteEvent.data?.lynchedPlayerId) {
                      playSoundEffect('anuncio_exilio.mp3');
                 }
             }, 3000); // Delay to not overlap with other sounds
         }
     }
+    
+    // This effect runs whenever events update. It specifically checks for the night_result event.
+    const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
+    if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
+        const hasDeaths = nightEvent.message.toLowerCase().includes('perdió');
+        if (hasDeaths) {
+            playSoundEffect('descanse_en_paz.mp3');
+        } else {
+            playSoundEffect('milagro.mp3');
+        }
+        nightSoundsPlayedForRound.current = game.currentRound; // Mark as played for this round
+    }
+
 
     prevPhaseRef.current = game.phase;
     prevRoundRef.current = game.currentRound;
