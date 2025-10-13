@@ -450,7 +450,7 @@ function killPlayer(
                 killedThisTurn.add(otherLoverId);
                 
                 gameData.events.push({
-                    id: `evt_${Date.now()}_${Math.random()}`,
+                    id: `evt_lover_${Date.now()}`,
                     gameId: gameData.id,
                     round: gameData.currentRound,
                     type: 'lover_death',
@@ -517,7 +517,7 @@ async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: bool
         newGameData.status = 'finished';
         newGameData.phase = 'finished';
         const newEvent: GameEvent = {
-            id: `evt_${Date.now()}_${Math.random()}`,
+            id: `evt_gameover_${Date.now()}`,
             gameId: newGameData.id,
             round: newGameData.currentRound,
             type: 'game_over',
@@ -590,7 +590,7 @@ export async function processNight(db: Firestore, gameId: string) {
                     } else if (targetPlayer.role === 'cursed' && game.settings.cursed) {
                         const playerIndex = game.players.findIndex(p => p.userId === targetId);
                         if (playerIndex > -1) game.players[playerIndex].role = 'werewolf';
-                        game.events.push({ id: `evt_transform_${targetId}`, gameId, round: game.currentRound, type: 'player_transformed', message: `${targetPlayer.displayName} ha sido transformado en Hombre Lobo.`, data: { playerId: targetId }, createdAt: Timestamp.now() });
+                        game.events.push({ id: `evt_transform_${Date.now()}`, gameId, round: game.currentRound, type: 'player_transformed', message: `${targetPlayer.displayName} ha sido transformado en Hombre Lobo.`, data: { playerId: targetId }, createdAt: Timestamp.now() });
                     } else {
                         finalKilledPlayerIds.push(targetId);
                     }
@@ -701,7 +701,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                 const sortedVotes = Object.values(voteCounts).sort((a,b) => b - a);
                 if (sortedVotes.length > 1 && sortedVotes[0] - sortedVotes[1] <= 1) {
                      game.events.push({
-                        id: `evt_${Date.now()}_clue`,
+                        id: `evt_clue_${Date.now()}`,
                         gameId,
                         round: game.currentRound,
                         type: 'behavior_clue',
@@ -726,6 +726,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                             id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result',
                             message: `${lynchedPlayer.displayName} ha sido sentenciado, pero revela su identidad como ¡el Príncipe! y sobrevive a la votación.`,
                             createdAt: Timestamp.now(),
+                            data: { lynchedPlayerId: null },
                         });
                     } else {
                         lynchedPlayerId = potentialLynchedId;
@@ -740,13 +741,13 @@ export async function processVotes(db: Firestore, gameId: string) {
             } else {
                  if (mostVotedPlayerIds.length > 1) {
                     game.events.push({
-                        id: `evt_${Date.now()}_clue`, gameId, round: game.currentRound, type: 'behavior_clue',
+                        id: `evt_clue_${Date.now()}`, gameId, round: game.currentRound, type: 'behavior_clue',
                         message: "Hubo un empate en la votación. ¿Estrategia coordinada o indecisión general?",
                         data: { voteCounts }, createdAt: Timestamp.now(),
                     });
                 }
                 const eventMessage = mostVotedPlayerIds.length > 1 ? "La votación resultó en un empate. Nadie fue linchado hoy." : "El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.";
-                game.events.push({ id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: eventMessage, createdAt: Timestamp.now() });
+                game.events.push({ id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: eventMessage, data: { lynchedPlayerId: null }, createdAt: Timestamp.now() });
             }
             
             if (lynchedPlayerId) {
@@ -1084,7 +1085,12 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
 
         // Trigger AI chat after vote is committed
         if (voterName && targetName) {
-            await triggerAIChat(db, gameId, `${voterName} voted for ${targetName}.`, targetId);
+             const allPlayers = (await getDoc(gameRef)).data()?.players || [];
+             for (const p of allPlayers) {
+                if (p.isAI && p.isAlive) {
+                     await triggerAIChat(db, gameId, `${voterName} ha votado por ${targetName}.`, p.userId);
+                }
+            }
         }
 
 
@@ -1116,39 +1122,47 @@ export async function sendChatMessage(
     }
 
     const gameRef = doc(db, 'games', gameId);
+    let mentionedPlayerIds: string[] = [];
+    let game: Game;
 
     try {
-        const gameDoc = await getDoc(gameRef);
-        if (!gameDoc.exists()) throw new Error('Game not found');
-        const game = gameDoc.data() as Game;
-        
-        const mentionedPlayerIds: string[] = [];
-        const textLowerCase = text.toLowerCase();
-        for (const p of game.players) {
-            if (textLowerCase.includes(p.displayName.toLowerCase())) {
-                mentionedPlayerIds.push(p.userId);
+        await runTransaction(db, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error('Game not found');
+            game = gameDoc.data() as Game;
+            
+            const textLowerCase = text.toLowerCase();
+            for (const p of game.players) {
+                if (textLowerCase.includes(p.displayName.toLowerCase())) {
+                    mentionedPlayerIds.push(p.userId);
+                }
             }
-        }
-        
-        const messageData: ChatMessage = {
-            id: `${Date.now()}_${senderId}`,
-            senderId,
-            senderName,
-            text: text.trim(),
-            round: game.currentRound,
-            createdAt: Timestamp.now(),
-            mentionedPlayerIds,
-        };
+            
+            const messageData: ChatMessage = {
+                id: `${Date.now()}_${senderId}`,
+                senderId,
+                senderName,
+                text: text.trim(),
+                round: game.currentRound,
+                createdAt: Timestamp.now(),
+                mentionedPlayerIds,
+            };
 
-        await updateDoc(gameRef, {
-            chatMessages: arrayUnion(messageData)
+            transaction.update(gameRef, {
+                chatMessages: arrayUnion(messageData)
+            });
         });
 
         // Only trigger AI responses if the message is from a human
         if (!isFromAI) {
-            for (const p of game.players) {
-                if (p.isAI && p.isAlive && p.userId !== senderId && mentionedPlayerIds.includes(p.userId)) {
-                    await triggerAIChat(db, gameId, `${senderName} te ha mencionado: "${text.trim()}"`, p.userId);
+            // Re-fetch game to get latest state
+            const latestGameDoc = await getDoc(gameRef);
+            if(latestGameDoc.exists()){
+                const latestGame = latestGameDoc.data() as Game;
+                for (const p of latestGame.players) {
+                    if (p.isAI && p.isAlive && p.userId !== senderId && mentionedPlayerIds.includes(p.userId)) {
+                        await triggerAIChat(db, gameId, `${senderName} te ha mencionado: "${text.trim()}"`, p.userId);
+                    }
                 }
             }
         }
@@ -1251,3 +1265,4 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
     
 
     
+
