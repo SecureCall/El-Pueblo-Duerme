@@ -275,6 +275,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
             const newRoles = generateRoles(finalPlayers.length, game.settings);
             const assignedPlayers = finalPlayers.map((player, index) => ({
                 ...player,
+                acknowledged: player.isAI, // Reset human acknowledged status, keep AI's
                 role: newRoles[index],
             }));
 
@@ -314,6 +315,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         if (!gameSnap.exists()) throw new Error("Game not found");
         
         let game = gameSnap.data() as Game;
+        if (game.phase !== 'night') return;
         const player = game.players.find(p => p.userId === action.playerId);
         if (!player) throw new Error("Player not found");
         
@@ -476,21 +478,6 @@ function killPlayer(
 }
 
 
-function sanitizeGameForUpdate(gameData: Game): Partial<Game> {
-    const sanitized: { [key: string]: any } = {};
-
-    for (const key in gameData) {
-        if (Object.prototype.hasOwnProperty.call(gameData, key)) {
-            const value = (gameData as any)[key];
-            if (value !== undefined) {
-                sanitized[key] = value;
-            }
-        }
-    }
-    return sanitized;
-}
-
-
 async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: boolean }> {
     let newGameData = { ...gameData };
 
@@ -609,8 +596,6 @@ export async function processNight(db: Firestore, gameId: string) {
                         game.events.push({ id: `evt_transform_${targetId}`, gameId, round: game.currentRound, type: 'player_transformed', message: `${targetPlayer.displayName} ha sido transformado en Hombre Lobo.`, data: { playerId: targetId }, createdAt: Timestamp.now() });
                     } else {
                         finalKilledPlayerIds.push(targetId);
-                        const roleName = roleDetails[targetPlayer.role!]?.name || 'un rol desconocido';
-                        killedPlayerNamesAndRoles.push(`${targetPlayer.displayName} (que era ${roleName})`);
                     }
                 }
             }
@@ -621,15 +606,23 @@ export async function processNight(db: Firestore, gameId: string) {
                 if (allProtectedIds.has(poisonAction.targetId)) {
                     // Saved
                 } else {
-                    const killedPlayer = game.players.find(p => p.userId === poisonAction.targetId)!;
-                    const roleName = roleDetails[killedPlayer.role!]?.name || 'un rol desconocido';
-                    killedPlayerNamesAndRoles.push(`${killedPlayer.displayName} (que era ${roleName})`);
                     finalKilledPlayerIds.push(poisonAction.targetId);
                 }
             }
 
-            if (killedPlayerNamesAndRoles.length > 0) {
-                 messages.push(`Anoche, el pueblo perdió a ${killedPlayerNamesAndRoles.join(' y a ')}.`);
+            // 3. Apply Kills and check consequences
+            if (finalKilledPlayerIds.length > 0) {
+                const killedPlayers = game.players.filter(p => finalKilledPlayerIds.includes(p.userId));
+                killedPlayerNamesAndRoles = killedPlayers.map(p => `${p.displayName} (que era ${roleDetails[p.role!]?.name || 'un rol desconocido'})`);
+                messages.push(`Anoche, el pueblo perdió a ${killedPlayerNamesAndRoles.join(' y a ')}.`);
+
+                const { updatedGame, triggeredHunterId } = killPlayer(game, finalKilledPlayerIds);
+                game = updatedGame;
+                
+                if (triggeredHunterId) {
+                    transaction.update(gameRef, game);
+                    return; // Stop here, phase is now 'hunter_shot'
+                }
             } else if(allProtectedIds.size > 0 && werewolfVotes.length > 0) {
                  messages.push("Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!");
             } else {
@@ -642,24 +635,13 @@ export async function processNight(db: Firestore, gameId: string) {
                 data: { killedPlayerIds: finalKilledPlayerIds, savedPlayerIds: Array.from(allProtectedIds) },
                 createdAt: Timestamp.now(),
             });
-
-            // 3. Apply Kills and check consequences
-            if (finalKilledPlayerIds.length > 0) {
-                const { updatedGame, triggeredHunterId } = killPlayer(game, finalKilledPlayerIds);
-                game = updatedGame;
-                
-                if (triggeredHunterId) {
-                    transaction.update(gameRef, sanitizeGameForUpdate(game));
-                    return; // Stop here, phase is now 'hunter_shot'
-                }
-            }
             
             // 4. Check for game over
             const { game: finalGame, isOver } = await checkGameOver(game);
             game = finalGame;
 
             if (isOver) {
-                transaction.update(gameRef, sanitizeGameForUpdate(game));
+                transaction.update(gameRef, game);
                 return;
             }
 
@@ -671,7 +653,7 @@ export async function processNight(db: Firestore, gameId: string) {
                 game.wolfCubRevengeRound = 0; // Reset revenge flag
             }
             
-            transaction.update(gameRef, sanitizeGameForUpdate(game));
+            transaction.update(gameRef, game);
         });
         return { success: true };
     } catch (error) {
@@ -690,6 +672,7 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             if (!gameSnap.exists()) throw new Error("Game not found");
             
             const currentGame = gameSnap.data() as Game;
+            if (currentGame.phase !== 'day') return;
             
             const playerIndex = currentGame.players.findIndex(p => p.userId === voterId && p.isAlive);
             if (playerIndex === -1) throw new Error("Player not found or is not alive");
@@ -826,7 +809,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                 game = updatedGame;
                 
                 if (triggeredHunterId) {
-                   transaction.update(gameRef, sanitizeGameForUpdate(game));
+                   transaction.update(gameRef, game);
                    return; // Stop execution here
                 } 
             }
@@ -835,7 +818,7 @@ export async function processVotes(db: Firestore, gameId: string) {
             game = gameOverCheckGame;
 
             if (isOver) {
-                 transaction.update(gameRef, sanitizeGameForUpdate(game));
+                 transaction.update(gameRef, game);
                  return;
             }
 
@@ -844,22 +827,12 @@ export async function processVotes(db: Firestore, gameId: string) {
             game.phase = 'night';
             game.currentRound += 1;
 
-            transaction.update(gameRef, sanitizeGameForUpdate(game));
+            transaction.update(gameRef, game);
         });
 
         return { success: true };
     } catch (error) {
         console.error("Error processing votes:", error);
-        if (error instanceof Error && (error.message.includes("invalid data") || error.message.includes("undefined"))) {
-            try {
-                const gameDoc = await getDoc(gameRef);
-                if (gameDoc.exists()) {
-                    console.error("Game state at time of error:", JSON.stringify(gameDoc.data(), null, 2));
-                }
-            } catch (e) {
-                console.error("Could not fetch game state for debugging.", e)
-            }
-        }
         return { error: "Hubo un problema al procesar la votación." };
     }
 }
@@ -917,7 +890,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             if (triggeredHunterId) { // Another hunter was killed by the shot
                 // The game phase is already 'hunter_shot', we just update the pending ID
                 game.pendingHunterShot = triggeredHunterId;
-                transaction.update(gameRef, sanitizeGameForUpdate(game));
+                transaction.update(gameRef, game);
                 return;
             }
 
@@ -925,7 +898,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             game = finalGame;
 
             if (isOver) {
-                transaction.update(gameRef, sanitizeGameForUpdate(game));
+                transaction.update(gameRef, game);
                 return;
             }
             
@@ -937,7 +910,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             game.currentRound = voteEvent ? game.currentRound + 1 : game.currentRound;
             game.pendingHunterShot = null;
 
-            transaction.update(gameRef, sanitizeGameForUpdate(game));
+            transaction.update(gameRef, game);
         });
         return { success: true };
     } catch (error: any) {
