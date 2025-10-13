@@ -17,7 +17,7 @@ import {
   addDoc,
   writeBatch,
 } from "firebase/firestore";
-import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage } from "@/types";
+import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage, AIPlayerPerspective } from "@/types";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
@@ -728,7 +728,7 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             const voterPlayer = game.players.find(p => p.userId === voterId);
 
             if (targetPlayer?.isAI) {
-                const perspective = {
+                const perspective: AIPlayerPerspective = {
                     game,
                     aiPlayer: targetPlayer,
                     trigger: `${voterPlayer?.displayName || 'Someone'} has voted for you.`,
@@ -736,12 +736,20 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
                 };
                 const { message, shouldSend } = await generateAIChatMessage(perspective);
                 if (shouldSend) {
-                   await sendChatMessage(db, gameId, targetPlayer.userId, targetPlayer.displayName, message);
+                    const newMessage: ChatMessage = {
+                        id: `${Date.now()}_${targetPlayer.userId}`,
+                        senderId: targetPlayer.userId,
+                        senderName: targetPlayer.displayName,
+                        text: message,
+                        round: game.currentRound,
+                        createdAt: Timestamp.now(),
+                    };
+                    // We need to update the game object within the transaction
+                    game.chatMessages = [...(game.chatMessages || []), newMessage];
                 }
             }
 
-
-            transaction.update(gameRef, { players: game.players });
+            transaction.update(gameRef, { players: game.players, chatMessages: game.chatMessages });
         });
         await checkEndDayEarly(db, gameId);
         return { success: true };
@@ -875,12 +883,14 @@ export async function processVotes(db: Firestore, gameId: string) {
                 game.events.push({ id: `evt_${Date.now()}_${Math.random()}`, gameId, round: game.currentRound, type: 'vote_result', message: eventMessage, data: { lynchedPlayerId: null }, createdAt: Timestamp.now() });
             }
             
+            // This was the issue. This must be outside the `if` conditions.
+            game.players.forEach(p => { p.votedFor = null; });
+            
             const { game: gameOverCheckGame, isOver } = await checkGameOver(game);
             if (isOver) {
                  game = gameOverCheckGame;
-            } else {
+            } else if (!game.pendingHunterShot) { // Don't advance phase if hunter needs to shoot
                 // If game is not over, transition to night
-                game.players.forEach(p => { p.votedFor = null; });
                 game.phase = 'night';
                 game.currentRound = game.currentRound + 1;
             }
@@ -1076,7 +1086,7 @@ async function checkEndDayEarly(db: Firestore, gameId: string) {
     const alivePlayers = game.players.filter(p => p.isAlive && !p.isAI);
     const allPlayersVoted = alivePlayers.every(p => !!p.votedFor);
     
-    if (allPlayersVoted) {
+    if (allPlayersVoted && alivePlayers.length > 0) {
         await processVotes(db, gameId);
     }
 }
@@ -1239,5 +1249,6 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
         return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
     }
 }
+
 
 

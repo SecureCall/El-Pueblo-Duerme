@@ -3,24 +3,8 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { Game, Player } from '@/types';
-import { GameSchema, PlayerSchema } from '@/types/zod';
-
-export const AIPlayerPerspectiveSchema = z.object({
-  game: GameSchema,
-  aiPlayer: PlayerSchema,
-  trigger: z.string().describe('The event that prompted the AI to speak. E.g., "Another player voted for you", "The day has started", "A player was eliminated at night".'),
-  players: z.array(PlayerSchema)
-});
-
-export type AIPlayerPerspective = z.infer<typeof AIPlayerPerspectiveSchema>;
-
-export const GenerateAIChatMessageOutputSchema = z.object({
-    message: z.string().min(1).max(140).describe("The generated chat message. Keep it short and in character."),
-    shouldSend: z.boolean().describe("Whether the AI should send the message. The AI should not always respond, only when it has something relevant to say.")
-});
-
-export type GenerateAIChatMessageOutput = z.infer<typeof GenerateAIChatMessageOutputSchema>;
+import type { AIPlayerPerspective, GenerateAIChatMessageOutput } from '@/types';
+import { AIPlayerPerspectiveSchema, GenerateAIChatMessageOutputSchema } from '@/types/zod';
 
 const prompt = ai.definePrompt({
     name: 'generateAIChatMessagePrompt',
@@ -71,10 +55,12 @@ const generateAiChatMessageFlow = ai.defineFlow(
         // Sanitize player objects for the prompt. Remove sensitive data that this player shouldn't know.
         const sanitizedPlayers = input.players.map(p => {
             const isSelf = p.userId === input.aiPlayer.userId;
+            // The schema for the prompt is PlayerSchema, so we need to conform to it.
+            // We can't introduce nulls where strings are expected.
             return {
                 ...p,
-                // Hide roles of other players
-                role: isSelf ? p.role : null,
+                // Hide roles of other players by setting to a generic, non-null value
+                role: isSelf ? p.role : 'villager', // Pretend everyone else is a villager
                 // Hide other players' night actions info
                 lastHealedRound: isSelf ? p.lastHealedRound : 0,
                 potions: isSelf ? p.potions : undefined,

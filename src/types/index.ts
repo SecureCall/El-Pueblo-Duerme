@@ -2,6 +2,7 @@
 
 import type { Timestamp } from 'firebase/firestore';
 import { z } from 'zod';
+import type { GameSchema, PlayerSchema } from './zod';
 
 export type GameStatus = "waiting" | "in_progress" | "finished";
 export type GamePhase = "role_reveal" | "night" | "day" | "voting" | "hunter_shot" | "finished";
@@ -148,3 +149,17 @@ export interface ChatMessage {
   createdAt: Timestamp;
   mentionedPlayerIds?: string[];
 }
+
+
+export interface AIPlayerPerspective {
+  game: z.infer<typeof GameSchema>;
+  aiPlayer: z.infer<typeof PlayerSchema>;
+  trigger: string;
+  players: z.infer<typeof PlayerSchema>[];
+};
+
+
+export interface GenerateAIChatMessageOutput {
+    message: string;
+    shouldSend: boolean;
+};

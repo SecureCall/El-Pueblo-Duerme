@@ -116,3 +116,15 @@ export const GameSchema = z.object({
   wolfCubRevengeRound: z.number(),
   nightActions: z.array(NightActionSchema).optional(),
 });
+
+export const AIPlayerPerspectiveSchema = z.object({
+  game: GameSchema,
+  aiPlayer: PlayerSchema,
+  trigger: z.string(),
+  players: z.array(PlayerSchema),
+});
+
+export const GenerateAIChatMessageOutputSchema = z.object({
+  message: z.string(),
+  shouldSend: z.boolean(),
+});
