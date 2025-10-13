@@ -23,10 +23,10 @@ export function YouAreDeadOverlay() {
             className="fixed inset-0 z-50 flex cursor-pointer flex-col items-center justify-center bg-black/90 backdrop-blur-sm animate-in fade-in"
             onClick={() => setIsVisible(false)}
         >
-            <div className="relative h-64 w-64 md:h-80 md:w-80">
+            <div className="relative h-64 w-64 md:h-80 md:w-80 mb-4">
                 <img
                     src="/zarpa.png"
-                    alt="Zarpazo"
+                    alt="Zarpazo de lobo"
                     className="h-full w-full object-contain"
                 />
             </div>
