@@ -10,6 +10,7 @@ const TimestampSchema = z.union([
   z.string().refine(val => !isNaN(Date.parse(val)), {
     message: "Invalid date string format",
   }), // ISO 8601 string
+  z.date(), // Accept Date objects as well
 ]);
 
 

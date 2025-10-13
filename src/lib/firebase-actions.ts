@@ -652,6 +652,10 @@ export async function processNight(db: Firestore, gameId: string) {
             
             transaction.update(gameRef, game);
         });
+
+        // Trigger AI day actions after night processing is complete
+        await triggerAIAwake(db, gameId, `Comienza el día ${gameId}.`);
+        
         return { success: true };
     } catch (error) {
         console.error("Error processing night:", error);
@@ -770,6 +774,9 @@ export async function processVotes(db: Firestore, gameId: string) {
 
             transaction.update(gameRef, game);
         });
+
+        // Trigger AI night actions after vote processing is complete
+        await runAIActions(db, gameId, 'night');
 
         return { success: true };
     } catch (error) {
@@ -1002,6 +1009,54 @@ function sanitizeValue(value: any): any {
     return value;
 }
 
+// This function triggers AI players to potentially chat based on a trigger.
+async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: string, mentionedPlayerId?: string) {
+    try {
+        const gameDoc = await getDoc(doc(db, 'games', gameId));
+        if (!gameDoc.exists()) return;
+
+        const game = gameDoc.data() as Game;
+        const aiPlayersToTrigger = game.players.filter(p => 
+            p.isAI && 
+            p.isAlive &&
+            // If a specific player was mentioned, only trigger them. Otherwise, trigger all.
+            (!mentionedPlayerId || p.userId === mentionedPlayerId)
+        );
+
+        for (const aiPlayer of aiPlayersToTrigger) {
+            const perspective: AIPlayerPerspective = {
+                game: sanitizeValue(game),
+                aiPlayer: sanitizeValue(aiPlayer),
+                trigger: triggerMessage,
+                players: sanitizeValue(game.players),
+            };
+
+            // Fire-and-forget generation
+            generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
+                if (shouldSend && message) {
+                    await new Promise(resolve => setTimeout(resolve, Math.random() * 2500 + 1000));
+                    await sendChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName, message, true); // Pass true to prevent recursion
+                }
+            }).catch(aiError => console.error(`Error generating AI chat for ${aiPlayer.displayName}:`, aiError));
+        }
+    } catch (e) {
+        console.error("Error in triggerAIChat:", e);
+    }
+}
+
+async function triggerAIAwake(db: Firestore, gameId: string, trigger: string) {
+     const gameDoc = await getDoc(doc(db, 'games', gameId));
+    if (!gameDoc.exists()) return;
+    const game = gameDoc.data() as Game;
+
+    for (const p of game.players) {
+        if (p.isAI && p.isAlive) {
+            await triggerAIChat(db, gameId, trigger, p.userId);
+        }
+    }
+}
+
+
 export async function submitVote(db: Firestore, gameId: string, voterId: string, targetId: string) {
     const gameRef = doc(db, 'games', gameId);
     
@@ -1020,26 +1075,14 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             transaction.update(gameRef, { players: currentGame.players });
         });
 
-        // Trigger AI *after* transaction
+        // Trigger AI chat after vote is committed
         const gameDoc = await getDoc(gameRef);
-        if(gameDoc.exists()){
+        if (gameDoc.exists()) {
             const game = gameDoc.data() as Game;
-            const targetPlayer = game.players.find(p => p.userId === targetId);
-            const voterPlayer = game.players.find(p => p.userId === voterId);
-
-            if (targetPlayer?.isAI && targetPlayer.isAlive) {
-                const perspective: AIPlayerPerspective = {
-                    game: sanitizeValue(game),
-                    aiPlayer: sanitizeValue(targetPlayer),
-                    trigger: `${voterPlayer?.displayName || 'Someone'} te ha votado.`,
-                    players: sanitizeValue(game.players),
-                };
-
-                generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
-                    if (shouldSend) {
-                        await sendChatMessage(db, gameId, targetPlayer!.userId, targetPlayer!.displayName, message);
-                    }
-                }).catch(aiError => console.error("Error generating AI chat message on vote:", aiError));
+            const target = game.players.find(p => p.userId === targetId);
+            const voter = game.players.find(p => p.userId === voterId);
+            if (target && voter) {
+                await triggerAIChat(db, gameId, `${voter.displayName} voted for ${target.displayName}.`, target.userId);
             }
         }
 
@@ -1063,7 +1106,8 @@ export async function sendChatMessage(
     gameId: string,
     senderId: string,
     senderName: string,
-    text: string
+    text: string,
+    isFromAI: boolean = false // Add flag to prevent recursive calls
 ) {
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
@@ -1073,10 +1117,16 @@ export async function sendChatMessage(
 
     try {
         const gameDoc = await getDoc(gameRef);
-        if (!gameDoc.exists()) {
-            throw new Error('Game not found');
-        }
+        if (!gameDoc.exists()) throw new Error('Game not found');
         const game = gameDoc.data() as Game;
+        
+        const mentionedPlayerIds: string[] = [];
+        const textLowerCase = text.toLowerCase();
+        for (const p of game.players) {
+            if (textLowerCase.includes(p.displayName.toLowerCase())) {
+                mentionedPlayerIds.push(p.userId);
+            }
+        }
         
         const messageData: ChatMessage = {
             id: `${Date.now()}_${senderId}`,
@@ -1085,43 +1135,19 @@ export async function sendChatMessage(
             text: text.trim(),
             round: game.currentRound,
             createdAt: Timestamp.now(),
+            mentionedPlayerIds,
         };
 
         await updateDoc(gameRef, {
             chatMessages: arrayUnion(messageData)
         });
 
-        // Trigger AI responses after the message is committed
-        // Re-fetch the game state to ensure it's the latest
-        const updatedGameDoc = await getDoc(gameRef);
-        if (updatedGameDoc.exists()) {
-            const updatedGame = updatedGameDoc.data() as Game;
-            const mentionedAiPlayers: Player[] = [];
-            const textLowerCase = text.toLowerCase();
-
-            for (const p of updatedGame.players) {
-                if (p.isAI && p.isAlive && p.userId !== senderId) {
-                    if (textLowerCase.includes(p.displayName.toLowerCase())) {
-                        mentionedAiPlayers.push(p);
-                    }
+        // Only trigger AI responses if the message is from a human
+        if (!isFromAI) {
+            for (const p of game.players) {
+                if (p.isAI && p.isAlive && p.userId !== senderId && mentionedPlayerIds.includes(p.userId)) {
+                    await triggerAIChat(db, gameId, `${senderName} te ha mencionado: "${text.trim()}"`, p.userId);
                 }
-            }
-            
-            for (const aiPlayer of mentionedAiPlayers) {
-                const perspective: AIPlayerPerspective = {
-                    game: sanitizeValue(updatedGame),
-                    aiPlayer: sanitizeValue(aiPlayer),
-                    trigger: `${senderName} te ha mencionado en el chat: "${text.trim()}"`,
-                    players: sanitizeValue(updatedGame.players),
-                };
-                
-                // Fire-and-forget the AI generation
-                generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
-                    if (shouldSend) {
-                        await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
-                        await sendChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName, message);
-                    }
-                }).catch(aiError => console.error(`Error generating AI chat message for ${aiPlayer.displayName}:`, aiError));
             }
         }
 

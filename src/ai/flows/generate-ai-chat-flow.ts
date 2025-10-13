@@ -11,8 +11,8 @@ const prompt = ai.definePrompt({
     input: { schema: AIPlayerPerspectiveSchema },
     output: { schema: GenerateAIChatMessageOutputSchema },
     prompt: `You are an AI player in a social deduction game called "El Pueblo Duerme", similar to Werewolf/Mafia.
-You must stay in character. Your response will be a JSON object with a 'message' and a 'shouldSend' boolean.
-Only set shouldSend to true if you have a compelling, in-character reason to speak. Do not respond to every single event. Be more selective and human.
+You must stay in character. Your response will be a JSON object with a 'message' (in Spanish) and a 'shouldSend' boolean.
+Only set shouldSend to true if you have a compelling, in-character reason to speak. Do not respond to every single event. Be more selective and human. If the chat is quiet during the day, consider starting a conversation.
 
 Your Identity:
 - Your Name: {{{aiPlayer.displayName}}}
@@ -28,7 +28,7 @@ Game State:
 Triggering Event: "{{{trigger}}}"
 
 Your Task:
-Based on your role, the game state, and the trigger, decide if you should say something. If so, generate a short, believable chat message (in Spanish).
+Based on your role, the game state, and the trigger, decide if you should say something. If so, generate a short, believable chat message.
 
 Role-specific Instructions:
 - Villager: You are trying to figure things out. Express suspicion based on voting patterns or strange behaviors. Defend yourself if accused.
@@ -55,12 +55,12 @@ const generateAiChatMessageFlow = ai.defineFlow(
         // Sanitize player objects for the prompt.
         const sanitizedPlayers = input.players.map(p => ({
             ...p,
-            role: p.userId === input.aiPlayer.userId ? p.role : undefined, // Hide roles of others
+            role: p.userId === input.aiPlayer.userId ? p.role : 'unknown', // Hide roles of others
         }));
 
         const isSeer = input.aiPlayer.role === 'seer';
 
-        if (isSeer && input.game.phase === 'day' && input.trigger.includes('voted')) {
+        if (isSeer && input.game.phase === 'day' && input.trigger.toLowerCase().includes('voted')) {
             const seerActions = input.game.nightActions?.filter(
                 (a: NightAction) => a.playerId === input.aiPlayer.userId && a.actionType === 'seer_check'
             ) || [];
@@ -80,20 +80,17 @@ const generateAiChatMessageFlow = ai.defineFlow(
                 }
             }
 
-            // Find who is being voted for in the trigger
             const votedForMatch = input.trigger.match(/(\w+) voted for (\w+)/);
             if (votedForMatch) {
                 const targetName = votedForMatch[2];
                 const targetPlayer = input.players.find(p => p.displayName === targetName);
 
                 if (targetPlayer && knownGoodPlayers.has(targetPlayer.userId)) {
-                    // High chance of intervening if an innocent is being voted on
                     if (Math.random() < 0.85) { 
                         return { message: `¡Estáis cometiendo un error! ${targetPlayer.displayName} es de confianza. ¡Tenemos que reconsiderar esto!`, shouldSend: true };
                     }
                 }
                  if (targetPlayer && knownWolfPlayers.has(targetPlayer.userId)) {
-                    // Lower chance of speaking out directly, but can express suspicion
                     if (Math.random() < 0.6) {
                         return { message: `El voto contra ${targetPlayer.displayName} es interesante... tengo un mal presentimiento sobre esa persona.`, shouldSend: true };
                     }
@@ -101,14 +98,12 @@ const generateAiChatMessageFlow = ai.defineFlow(
             }
         }
 
-
         const sanitizedGame = {
           ...input.game,
           players: sanitizedPlayers,
-          // Hide sensitive top-level game info
-          nightActions: [],
-          lovers: null,
-          twins: null,
+          nightActions: undefined,
+          lovers: undefined,
+          twins: undefined,
         }
 
         const { output } = await prompt({ ...input, game: sanitizedGame, players: sanitizedPlayers });
