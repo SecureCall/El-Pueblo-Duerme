@@ -1,5 +1,4 @@
 
-
 'use client';
 import { 
   doc,
@@ -329,8 +328,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         }
 
         const newAction: NightAction = { ...action, createdAt: Timestamp.now() };
-        nightActions.push(newAction);
-
+        
         let players = [...game.players];
         const playerIndex = players.findIndex(p => p.userId === action.playerId);
         
@@ -341,6 +339,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
                     throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
                 }
                 players[targetIndex].lastHealedRound = action.round;
+                newAction.targetId = action.targetId; // Confirm the action
             }
         } else if (action.actionType === 'hechicera_poison') {
             players[playerIndex].potions!.poison = action.round;
@@ -350,8 +349,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
             players[playerIndex].priestSelfHealUsed = true;
         }
 
-        game.nightActions = nightActions;
-        game.players = players;
+        nightActions.push(newAction);
 
         transaction.update(gameRef, {
             nightActions,
@@ -1336,5 +1334,53 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
             return { error: 'Permiso denegado para enviar mensaje.' };
         }
         return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
+    }
+}
+
+export async function resetGame(db: Firestore, gameId: string) {
+    const gameRef = doc(db, 'games', gameId);
+
+    try {
+        await runTransaction(db, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) {
+                throw new Error("Partida no encontrada.");
+            }
+            const game = gameSnap.data() as Game;
+
+            const resetPlayers = game.players.map(p => ({
+                ...p,
+                role: null,
+                isAlive: true,
+                votedFor: null,
+                lastHealedRound: 0,
+                potions: { poison: null, save: null },
+                priestSelfHealUsed: false,
+                princeRevealed: false,
+            }));
+
+            transaction.update(gameRef, {
+                status: 'waiting',
+                phase: 'waiting',
+                currentRound: 0,
+                events: [],
+                chatMessages: [],
+                nightActions: [],
+                lovers: null,
+                twins: null,
+                pendingHunterShot: null,
+                wolfCubRevengeRound: 0,
+                players: resetPlayers,
+            });
+        });
+        return { success: true };
+    } catch (e: any) {
+        if (e.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
+            errorEmitter.emit('permission-error', permissionError);
+            return { error: "Permiso denegado para reiniciar la partida." };
+        }
+        console.error("Error resetting game:", e);
+        return { error: e.message || 'No se pudo reiniciar la partida.' };
     }
 }

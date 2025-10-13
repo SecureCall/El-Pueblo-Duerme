@@ -131,7 +131,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
   if (game.status === 'finished') {
     const gameOverEvent = events.find(e => e.type === 'game_over');
     return (
-        <GameOver event={gameOverEvent} players={players} />
+        <GameOver game={game} event={gameOverEvent} players={players} />
     );
   }
 

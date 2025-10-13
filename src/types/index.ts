@@ -5,7 +5,7 @@ import { z } from 'zod';
 import type { GameSchema, PlayerSchema } from './zod';
 
 export type GameStatus = "waiting" | "in_progress" | "finished";
-export type GamePhase = "role_reveal" | "night" | "day" | "voting" | "hunter_shot" | "finished";
+export type GamePhase = "waiting" | "role_reveal" | "night" | "day" | "voting" | "hunter_shot" | "finished";
 export type PlayerRole = 
   // Aldeanos
   "villager" | 

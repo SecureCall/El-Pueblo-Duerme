@@ -1,23 +1,34 @@
 
 "use client";
 
-import { useEffect } from 'react';
-import type { GameEvent, Player } from '@/types';
+import { useEffect, useState } from 'react';
+import type { GameEvent, Game, Player } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import Link from 'next/link';
-import { Milestone, User, BotIcon } from 'lucide-react';
+import { Milestone, User, BotIcon, Loader2, Play } from 'lucide-react';
 import { playNarration } from '@/lib/sounds';
 import { roleDetails } from '@/lib/roles';
+import { useGameSession } from '@/hooks/use-game-session';
+import { useFirebase } from '@/firebase';
+import { resetGame } from '@/lib/firebase-actions';
+import { useToast } from '@/hooks/use-toast';
 
 
 interface GameOverProps {
+    game: Game;
     event?: GameEvent;
     players: Player[];
 }
 
-export function GameOver({ event, players }: GameOverProps) {
-    
+export function GameOver({ game, event, players }: GameOverProps) {
+    const { userId } = useGameSession();
+    const { firestore } = useFirebase();
+    const { toast } = useToast();
+    const [isResetting, setIsResetting] = useState(false);
+
+    const isCreator = game.creator === userId;
+
     useEffect(() => {
         if (event) {
             const villagersWon = event.message.includes('pueblo ha ganado');
@@ -28,6 +39,21 @@ export function GameOver({ event, players }: GameOverProps) {
             }
         }
     }, [event]);
+
+    const handleResetGame = async () => {
+        if (!firestore || !isCreator) return;
+        setIsResetting(true);
+        const result = await resetGame(firestore, game.id);
+        if (result.error) {
+            toast({
+                variant: 'destructive',
+                title: 'Error al reiniciar',
+                description: result.error,
+            });
+            setIsResetting(false);
+        }
+        // On success, the game state will change and this component will unmount
+    };
 
     if (!event) {
         return (
@@ -74,9 +100,17 @@ export function GameOver({ event, players }: GameOverProps) {
                         ))}
                     </ul>
                 </div>
-                <Button asChild size="lg" className="mt-6">
-                    <Link href="/">Volver al Inicio</Link>
-                </Button>
+                <div className='flex items-center justify-center gap-4 pt-6'>
+                    <Button asChild size="lg">
+                        <Link href="/">Volver al Inicio</Link>
+                    </Button>
+                    {isCreator && (
+                        <Button onClick={handleResetGame} size="lg" variant="secondary" disabled={isResetting}>
+                            {isResetting ? <Loader2 className="animate-spin" /> : <Play className="mr-2 h-5 w-5" />}
+                            Volver a Jugar
+                        </Button>
+                    )}
+                </div>
             </CardContent>
         </Card>
     )

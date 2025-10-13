@@ -104,7 +104,7 @@ export const GameSchema = z.object({
   id: z.string(),
   name: z.string(),
   status: z.enum(["waiting", "in_progress", "finished"]),
-  phase: z.enum(["role_reveal", "night", "day", "voting", "hunter_shot", "finished"]),
+  phase: z.enum(["waiting", "role_reveal", "night", "day", "voting", "hunter_shot", "finished"]),
   creator: z.string(),
   players: z.array(PlayerSchema),
   events: z.array(GameEventSchema),
