@@ -30,8 +30,9 @@ const initializeAudio = () => {
 
             // Play a tiny silent audio to unlock the context
             const silentAudio = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
-            narrationAudio.src = silentAudio;
-            soundEffectAudio.src = silentAudio;
+            
+            if (narrationAudio.src !== silentAudio) narrationAudio.src = silentAudio;
+            if (soundEffectAudio.src !== silentAudio) soundEffectAudio.src = silentAudio;
 
             narrationAudio.play().catch(() => {});
             narrationAudio.pause();
@@ -101,14 +102,15 @@ export const playNarration = (narrationFile: string): Promise<void> => {
 
 export const playSoundEffect = (soundFile: string): Promise<void> => {
     return new Promise((resolve) => {
-        if (!isAudioInitialized) {
+        if (!soundEffectAudio || !isAudioInitialized) {
             console.warn("Audio not initialized. Cannot play sound effect.");
             resolve();
             return;
         }
-        // Use a new audio object for each sound effect to allow for overlaps
-        const audio = new Audio(`/audio/effects/${soundFile}`);
-        audio.volume = 0.8;
+        
+        // Clone the main audio element to allow for overlapping sounds
+        const audio = soundEffectAudio.cloneNode(true) as HTMLAudioElement;
+        audio.src = `/audio/effects/${soundFile}`;
         
         const onEnd = () => {
             audio.removeEventListener('ended', onEnd);
@@ -116,8 +118,8 @@ export const playSoundEffect = (soundFile: string): Promise<void> => {
             resolve();
         };
 
-        const onError = () => {
-            console.error(`Sound effect ${soundFile} failed to play.`);
+        const onError = (e: Event) => {
+            console.error(`Sound effect ${soundFile} failed to play.`, e);
             onEnd();
         };
 
@@ -125,8 +127,9 @@ export const playSoundEffect = (soundFile: string): Promise<void> => {
         audio.addEventListener('error', onError);
 
         audio.play().catch(e => {
-            console.error(`Sound effect ${soundFile} failed to play:`, e);
-            onError();
+            // This catch block will handle browser autoplay restrictions
+            console.error(`Error playing sound effect ${soundFile}:`, e);
+            onError(e as Event);
         });
     });
 };
