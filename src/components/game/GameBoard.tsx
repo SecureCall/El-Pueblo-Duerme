@@ -80,18 +80,18 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
 
   }, [game.phase, game.currentRound, events, currentPlayer.userId]);
 
-  // Specific useEffect for night result sounds
+  // Specific useEffect for night result sounds based on new events
   useEffect(() => {
-    const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
-    if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
-        const hasDeaths = nightEvent.message.toLowerCase().includes('perdió');
-        if (hasDeaths) {
-            playSoundEffect('descanse_en_paz.mp3');
-        } else {
-            playSoundEffect('milagro.mp3');
-        }
-        nightSoundsPlayedForRound.current = game.currentRound; // Mark as played for this round
-    }
+      const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
+      if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
+          const hasDeaths = nightEvent.message.toLowerCase().includes('perdió');
+          if (hasDeaths) {
+              playSoundEffect('descanse_en_paz.mp3');
+          } else {
+              playSoundEffect('milagro.mp3');
+          }
+          nightSoundsPlayedForRound.current = game.currentRound; // Mark as played for this round
+      }
   }, [events, game.currentRound]);
 
 
@@ -141,7 +141,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
         <>
             <YouAreDeadOverlay />
             {/* Render the game board in the background for spectating */}
-            <div className="opacity-30 w-full max-w-7xl mx-auto p-4 space-y-6">
+            <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
                 <SpectatorGameBoard game={game} players={players} events={events} messages={messages} />
             </div>
         </>
@@ -348,5 +348,3 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     </>
   );
 }
-
-    
