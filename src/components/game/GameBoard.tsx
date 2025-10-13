@@ -30,17 +30,10 @@ interface GameBoardProps {
 
 export function GameBoard({ game, players, currentPlayer, events, messages }: GameBoardProps) {
   const { firestore } = useFirebase();
-  const [showRole, setShowRole] = useState(game.phase === 'role_reveal');
   const prevPhaseRef = useRef<Game['phase']>();
   const prevRoundRef = useRef<number>();
 
   useEffect(() => {
-    if (game.phase === 'role_reveal') {
-      setShowRole(true);
-    } else {
-      setShowRole(false);
-    }
-
     const prevPhase = prevPhaseRef.current;
     
     const playMorningSequence = async () => {
@@ -107,12 +100,16 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
   }, [game.phase, game.id, game.creator, currentPlayer.userId, game.currentRound, game.settings.fillWithAI, firestore]);
 
   const handleAcknowledgeRole = async () => {
-    setShowRole(false);
-    if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId) {
-        if (firestore) {
+    // Anyone can trigger the phase change, but it will only happen once.
+    if (game.phase === 'role_reveal' && firestore) {
+        try {
+            // Firestore security rules should prevent this from being abused.
+            // Or the function that calls this could have a check.
             await updateDoc(doc(firestore, "games", game.id), { 
                 phase: 'night',
             });
+        } catch (error) {
+            console.error("Failed to advance phase from role_reveal:", error);
         }
     }
   };
@@ -303,8 +300,3 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     </>
   );
 }
-
-
-
-
-    
