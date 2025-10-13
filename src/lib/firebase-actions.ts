@@ -308,7 +308,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         const gameSnap = await transaction.get(gameRef);
         if (!gameSnap.exists()) throw new Error("Game not found");
         
-        const game = gameSnap.data() as Game;
+        let game = gameSnap.data() as Game;
         const player = game.players.find(p => p.userId === action.playerId);
         if (!player) throw new Error("Player not found");
         
@@ -352,6 +352,9 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         } else if (action.actionType === 'priest_bless' && action.targetId === action.playerId) {
             players[playerIndex].priestSelfHealUsed = true;
         }
+
+        game.nightActions = nightActions;
+        game.players = players;
 
         transaction.update(gameRef, {
             nightActions,
@@ -474,19 +477,22 @@ async function killPlayer(
 
 function sanitizeValue(value: any): any {
     if (value instanceof Timestamp) {
-        return value.toDate().toISOString();
+        return value; // Keep Timestamps as they are for Firestore
     }
     if (value === undefined) {
-        return null;
+        return null; // Convert undefined to null
     }
     if (Array.isArray(value)) {
         return value.map(sanitizeValue);
     }
-    if (value !== null && typeof value === 'object' && !('seconds' in value && 'nanoseconds' in value) && Object.prototype.toString.call(value) !== '[object Date]') {
+    if (value !== null && typeof value === 'object' && Object.prototype.toString.call(value) !== '[object Date]') {
         const sanitizedObject: { [key: string]: any } = {};
         for (const key in value) {
              if (Object.prototype.hasOwnProperty.call(value, key)) {
-                sanitizedObject[key] = sanitizeValue(value[key]);
+                const sanitized = sanitizeValue(value[key]);
+                if (sanitized !== null) { // Only add non-null values
+                    sanitizedObject[key] = sanitized;
+                }
             }
         }
         return sanitizedObject;
@@ -496,23 +502,32 @@ function sanitizeValue(value: any): any {
 
 
 function sanitizeGameForUpdate(gameData: Partial<Game>): { [key: string]: any } {
-    const sanitizedGame = sanitizeValue({ ...gameData });
-    // Ensure players array is sanitized deeply
-    if (sanitizedGame.players && Array.isArray(sanitizedGame.players)) {
-        sanitizedGame.players = sanitizedGame.players.map((player: any) => sanitizeValue(player));
+    const sanitizedGame = { ...gameData };
+
+    // Sanitize players array
+    if (sanitizedGame.players) {
+        sanitizedGame.players = sanitizedGame.players.map(player => sanitizeValue(player));
     }
-     // Ensure events array is sanitized deeply
-    if (sanitizedGame.events && Array.isArray(sanitizedGame.events)) {
-        sanitizedGame.events = sanitizedGame.events.map((event: any) => sanitizeValue(event));
+    // Sanitize events array
+    if (sanitizedGame.events) {
+        sanitizedGame.events = sanitizedGame.events.map(event => sanitizeValue(event));
     }
-    // Ensure night actions are sanitized
-    if (sanitizedGame.nightActions && Array.isArray(sanitizedGame.nightActions)) {
-        sanitizedGame.nightActions = sanitizedGame.nightActions.map((action: any) => sanitizeValue(action));
+    // Sanitize night actions array
+    if (sanitizedGame.nightActions) {
+        sanitizedGame.nightActions = sanitizedGame.nightActions.map(action => sanitizeValue(action));
     }
-    // Ensure chat messages are sanitized
-    if (sanitizedGame.chatMessages && Array.isArray(sanitizedGame.chatMessages)) {
-        sanitizedGame.chatMessages = sanitizedGame.chatMessages.map((msg: any) => sanitizeValue(msg));
+    // Sanitize chat messages array
+    if (sanitizedGame.chatMessages) {
+        sanitizedGame.chatMessages = sanitizedGame.chatMessages.map(message => sanitizeValue(message));
     }
+
+    // Sanitize root level properties
+    for (const key in sanitizedGame) {
+        if (sanitizedGame[key as keyof typeof sanitizedGame] === undefined) {
+            delete sanitizedGame[key as keyof typeof sanitizedGame];
+        }
+    }
+
     return sanitizedGame;
 }
 
@@ -664,7 +679,11 @@ export async function processNight(db: Firestore, gameId: string) {
                     messages.push("Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!");
                 } else {
                     const killedPlayer = game.players.find(p => p.userId === killedId)!;
-                    messages.push(`${killedPlayer.displayName} fue atacado en la noche.`);
+                    let message = `${killedPlayer.displayName} fue asesinado por los lobos.`;
+                    if (killedPlayer.role === 'villager') {
+                        message += " Era un simple aldeano.";
+                    }
+                    messages.push(message);
                     markPlayerForDeath(killedId);
                 }
             }
@@ -749,13 +768,13 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
 
             if (targetPlayer?.isAI) {
                 // Sanitize the entire game object for the AI prompt
-                const sanitizedGame = sanitizeValue(game);
+                const sanitizedGame = JSON.parse(JSON.stringify(game));
 
                 const perspective: AIPlayerPerspective = {
                     game: sanitizedGame,
-                    aiPlayer: sanitizeValue(targetPlayer),
+                    aiPlayer: JSON.parse(JSON.stringify(targetPlayer)),
                     trigger: `${voterPlayer?.displayName || 'Someone'} has voted for you.`,
-                    players: game.players.map(p => sanitizeValue(p)),
+                    players: game.players.map(p => JSON.parse(JSON.stringify(p))),
                 };
                 const { message, shouldSend } = await generateAIChatMessage(perspective);
                 if (shouldSend) {
