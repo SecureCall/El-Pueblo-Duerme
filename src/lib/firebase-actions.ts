@@ -464,40 +464,37 @@ async function killPlayer(
 
 
 function sanitizeGameForUpdate(gameData: Game): Partial<Game> {
-    const sanitizedGame: Partial<Game> = { ...gameData };
+    const sanitizedGame: { [key: string]: any } = { ...gameData };
 
-    // Sanitize top-level fields
     for (const key in sanitizedGame) {
-        if (sanitizedGame[key as keyof Game] === undefined) {
-            sanitizedGame[key as keyof Game] = null as any;
+        if (sanitizedGame[key] === undefined) {
+            sanitizedGame[key] = null;
         }
     }
 
-    // Sanitize players array
     if (sanitizedGame.players) {
-        sanitizedGame.players = sanitizedGame.players.map(p => {
-            const sanitizedPlayer: Player = { ...p };
+        sanitizedGame.players = sanitizedGame.players.map((p: { [key: string]: any }) => {
+            const sanitizedPlayer = { ...p };
             for (const playerKey in sanitizedPlayer) {
-                if (sanitizedPlayer[playerKey as keyof Player] === undefined) {
-                    sanitizedPlayer[playerKey as keyof Player] = null as any;
+                if (sanitizedPlayer[playerKey] === undefined) {
+                    sanitizedPlayer[playerKey] = null;
                 }
             }
-            if (sanitizedPlayer.potions === undefined) {
+            if (sanitizedPlayer.potions === null || sanitizedPlayer.potions === undefined) {
                 sanitizedPlayer.potions = { poison: null, save: null };
             }
-            return sanitizedPlayer;
+            return sanitizedPlayer as Player;
         });
     }
-
-    // Ensure potentially undefined top-level objects are at least null
+    
+    // Ensure top-level optional fields are at least null
     sanitizedGame.lovers = sanitizedGame.lovers ?? null;
     sanitizedGame.twins = sanitizedGame.twins ?? null;
     sanitizedGame.pendingHunterShot = sanitizedGame.pendingHunterShot ?? null;
     sanitizedGame.nightActions = sanitizedGame.nightActions ?? [];
     sanitizedGame.events = sanitizedGame.events ?? [];
-    sanitizedGame.phaseEndsAt = sanitizedGame.phaseEndsAt ?? undefined; // Firestore handles Timestamp or undefined, but not `null` if it's a Timestamp field. Let's remove it if undefined.
-    if(sanitizedGame.phaseEndsAt === undefined) delete sanitizedGame.phaseEndsAt;
-
+    
+    delete sanitizedGame.phaseEndsAt; // Always remove this as it's not being used
 
     return sanitizedGame;
 }
@@ -822,21 +819,17 @@ export async function processVotes(db: Firestore, gameId: string) {
 
             const { game: finalGame, isOver } = await checkGameOver(game);
             
-            let gameToUpdate: Partial<Game>;
+            let gameToUpdate: Game = finalGame;
             
-            if (isOver) {
-                gameToUpdate = finalGame;
-            } else {
-                let nextGame = { ...finalGame };
-                nextGame.players.forEach(p => {
+            if (!isOver) {
+                gameToUpdate.players.forEach(p => {
                     p.votedFor = null;
                 });
-                nextGame.phase = 'night';
-                nextGame.currentRound = nextGame.currentRound + 1;
-                gameToUpdate = nextGame;
+                gameToUpdate.phase = 'night';
+                gameToUpdate.currentRound = gameToUpdate.currentRound + 1;
             }
             
-            transaction.update(gameRef, sanitizeGameForUpdate(gameToUpdate as Game));
+            transaction.update(gameRef, sanitizeGameForUpdate(gameToUpdate));
         });
 
         return { success: true };
