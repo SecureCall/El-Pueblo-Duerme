@@ -102,8 +102,6 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
   const handleAcknowledgeRole = async () => {
     if (game.phase === 'role_reveal' && firestore) {
       try {
-        // Anyone can advance the phase after seeing their role. The server-side logic
-        // in firebase-actions.ts should prevent this from being abused.
         await updateDoc(doc(firestore, "games", game.id), { phase: 'night' });
       } catch (error) {
         console.error("Failed to advance phase from role_reveal:", error);
