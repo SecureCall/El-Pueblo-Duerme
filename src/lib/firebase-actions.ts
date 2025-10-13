@@ -273,11 +273,11 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
             }
             
             const newRoles = generateRoles(finalPlayers.length, game.settings);
-            const assignedPlayers = finalPlayers.map((player, index) => ({
-                ...player,
-                acknowledged: player.isAI,
-                role: newRoles[index],
-            }));
+            
+            const assignedPlayers = finalPlayers.map((player, index) => {
+                const isAcknowledged = player.isAI || player.acknowledged; // Maintain acknowledged status
+                return { ...player, role: newRoles[index], acknowledged: isAcknowledged };
+            });
 
             const twinUserIds = assignedPlayers.filter(p => p.role === 'twin').map(p => p.userId);
             
