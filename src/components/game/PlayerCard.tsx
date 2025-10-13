@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { Player } from "@/types";
@@ -6,7 +5,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { Bot, Crown, Skull, Gavel } from "lucide-react";
+import { Bot, Crown, Gavel } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { roleDetails, defaultRoleDetail } from "@/lib/roles";
@@ -50,7 +49,7 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
         case 'werewolf_kill':
           return (
             <div className={cn(baseClasses)}>
-                <Skull className={cn(iconClasses, "text-white")} />
+                <img src="/zarpazo.svg" alt="Muerte por lobo" className={cn(iconClasses, "brightness-0 invert")} />
             </div>
           );
         case 'vote_result':
@@ -61,8 +60,8 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
           );
         default:
           return (
-            <div className={baseClasses}>
-              <Skull className={cn(iconClasses, "text-gray-400")} />
+             <div className={cn(baseClasses)}>
+                <img src="/zarpazo.svg" alt="Muerto" className={cn(iconClasses, "brightness-0 invert opacity-50")} />
             </div>
           );
       }
