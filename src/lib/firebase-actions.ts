@@ -124,7 +124,6 @@ export async function joinGame(
   displayName: string
 ) {
   const gameRef = doc(db, "games", gameId);
-  const newPlayer = createPlayerObject(userId, gameId, displayName, false);
   
   try {
     await runTransaction(db, async (transaction) => {
@@ -147,6 +146,7 @@ export async function joinGame(
       }
       
       if (!playerExists) {
+        const newPlayer = createPlayerObject(userId, gameId, displayName, false);
         transaction.update(gameRef, {
           players: arrayUnion(newPlayer),
         });
@@ -160,7 +160,7 @@ export async function joinGame(
         const permissionError = new FirestorePermissionError({
             path: gameRef.path,
             operation: 'update',
-            requestResourceData: { players: arrayUnion(newPlayer) },
+            requestResourceData: { players: '...' },
         });
         errorEmitter.emit('permission-error', permissionError);
         return { error: "Permiso denegado al unirse a la partida." };
@@ -829,6 +829,7 @@ export async function processVotes(db: Firestore, gameId: string) {
 
                     } else {
                         let lynchedPlayerId = potentialLynchedId;
+                        if (!lynchedPlayerId) throw new Error("lynchedPlayerId is not defined.");
                         game.players[lynchedPlayerIndex].votedFor = 'TO_BE_KILLED';
                         
                         game.events.push({
@@ -1111,7 +1112,10 @@ const getDeterministicAIAction = (
             return { actionType: 'seer_check', targetId: randomTarget(potentialTargets) };
         case 'doctor': {
             const healableTargets = potentialTargets.filter(p => (p.lastHealedRound || 0) < currentRound - 1);
-            return { actionType: 'doctor_heal', targetId: randomTarget(healableTargets) };
+            if (game.phase === 'day') { // During the day, doctor AI votes like a villager
+                return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
+            }
+            return { actionType: 'doctor_heal', targetId: randomTarget(healableTargets.length > 0 ? healableTargets : potentialTargets) };
         }
         case 'guardian': {
             return { actionType: 'guardian_protect', targetId: randomTarget(potentialTargets) };
@@ -1233,4 +1237,3 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
         return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
     }
 }
-
