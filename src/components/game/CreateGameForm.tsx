@@ -123,6 +123,12 @@ export function CreateGameForm() {
     }
   }, [displayName, form]);
 
+  const selectAllRoles = (select: boolean) => {
+    specialRoles.forEach(roleId => {
+      form.setValue(roleId, select);
+    });
+  };
+
   async function onSubmit(data: CreateGameFormValues) {
     if (!isSessionLoaded || !userId || !firestore) {
         toast({
@@ -231,7 +237,15 @@ export function CreateGameForm() {
             <div>
               <Label className="text-base">Roles Especiales</Label>
               <FormDescription>Selecciona los roles que quieres incluir en la partida.</FormDescription>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+              <div className="flex gap-2 mt-2 mb-4">
+                  <Button type="button" variant="outline" size="sm" onClick={() => selectAllRoles(true)}>
+                      Seleccionar Todos
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => selectAllRoles(false)}>
+                      Deseleccionar Todos
+                  </Button>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {specialRoles.map(roleId => {
                     const details = roleDetails[roleId];
                     if (!details) return null;
