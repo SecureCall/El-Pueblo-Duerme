@@ -1,76 +1,87 @@
 /**
  * @file Firestore Security Rules
- * @description This ruleset enforces a strict user-ownership model for data access.
+ * @description This ruleset enforces a role-based access control model for the 'El Pueblo Duerme' application.
  *
  * Data Structure:
- * - /games/{gameId}: Games are stored here.  The `creator` field on the document indicates the owning user.
- * - /games/{gameId}/messages/{messageId}: Game messages. Anyone who can read the game can read the messages
+ * - /games/{gameId}: Stores game instances. Access is controlled based on player roles within the game.
+ * - /games/{gameId}/messages: Stores messages for each game. Access is controlled based on player roles within the game.
  *
  * Key Security Decisions:
- * - Users can only read games.
+ * - User listing is disallowed.
+ * - Default security posture is strict; ambiguous relationships are denied.
+ * - All write operations require authentication.
+ *
+ * Denormalization for Authorization:
+ * - The `/games/{gameId}` document should contain a `members` map (e.g., `{ members: { 'user_abc': 'editor' } }`)
+ *   to store user roles for the game. This allows for efficient role-based access control without needing separate lookups.
+ *
+ * Structural Segregation:
+ * - No clear structural segregation is defined; however, the ruleset assumes that some game data may be public (readable),
+ *   while writes are restricted to authenticated users with appropriate roles within the game.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
+     * @description Allows access to the messages subcollection of a game based on user role.
+     * @path /games/{gameId}/messages
+     * @allow (list) - Authenticated user who is a member of the game can list messages.
+     * @deny (list) - Authenticated user who is not a member of the game cannot list messages.
+     * @principle Role-based access control; enforces that only game members can access messages.
+     */
+    match /games/{gameId}/messages/{messageId} {
+      allow get: if isGameMember(gameId);
+      allow list: if isGameMember(gameId);
+      allow create: if isGameMember(gameId);
+      allow update: if isGameMember(gameId);
+      allow delete: if isGameMember(gameId);
+    }
+
+    /**
+     * @description Manages access to game documents.
+     * @path /games/{gameId}
+     * @allow (get, list) - All users can read game details.
+     * @allow (create) - Only authenticated users can create a game.
+     * @allow (update, delete) - Only the game creator can modify or delete the game.
+     * @deny (create) - Unauthenticated users cannot create games.
+     * @deny (update, delete) - Users who are not the game creator cannot modify or delete the game.
+     * @principle Enforces document ownership for writes.
+     */
+    match /games/{gameId} {
+      allow get, list: if true;
+      allow create: if isSignedIn();
+      allow update: if isGameCreator(gameId);
+      allow delete: if isGameCreator(gameId);
+    }
+
+    // ----- Helper Functions -----
+
+    /**
      * @description Checks if the user is signed in.
+     * @return {boolean} True if the user is signed in, false otherwise.
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * @description Checks if the user is the owner of the resource.
-     * @param {string} userId - The user ID to check against.
+     * @description Checks if the user is the creator of the game.
+     * @param {string} gameId - The ID of the game.
+     * @return {boolean} True if the user is the game creator, false otherwise.
      */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    function isGameCreator(gameId) {
+      return isSignedIn() && resource.data.creator == request.auth.uid;
     }
 
     /**
-     * @description Checks if the user is the existing owner of the resource (isSignedIn, isOwner, and resource exists).
-     * @param {string} userId - The user ID to check against.
+     * @description Checks if the user is a member of the game.
+     * @param {string} gameId - The ID of the game.
+     * @return {boolean} True if the user is a game member, false otherwise.
      */
-    function isExistingOwner(gameId) {
-      return isSignedIn() && get(/databases/$(database)/documents/games/$(gameId)).data.creator == request.auth.uid;
-    }
-
-    /**
-     * @description Games can be read, but only created by an owner.
-     * @path /games/{gameId}
-     * @allow (get, list) if true
-     * @allow (create) if request.auth.uid == request.resource.data.creator
-     * @deny (create) if request.auth.uid != request.resource.data.creator
-     * @allow (update) if isExistingOwner(resource.data.creator)
-     * @deny (update) if !isExistingOwner(resource.data.creator)
-     * @allow (delete) if isExistingOwner(resource.data.creator)
-     * @deny (delete) if !isExistingOwner(resource.data.creator)
-     * @principle Enforces document ownership for writes.  Allows public reads.
-     */
-    match /games/{gameId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isSignedIn();
-      allow update: if isExistingOwner(gameId);
-      allow delete: if isExistingOwner(gameId);
-    }
-
-    /**
-     * @description Anyone who can read the game can read the messages
-     * @path /games/{gameId}/messages/{messageId}
-     * @allow (get, list) if true
-     * @allow (create) if true
-     * @allow (update) if false
-     * @allow (delete) if false
-     * @principle Enforces document ownership for writes.  Allows public reads.
-     */
-    match /games/{gameId}/messages/{messageId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+    function isGameMember(gameId) {
+      let game = get(/databases/$(database)/documents/games/$(gameId)).data;
+      return isSignedIn() && game.players is list && request.auth.uid in game.players;
     }
   }
 }

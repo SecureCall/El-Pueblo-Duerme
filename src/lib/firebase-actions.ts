@@ -1131,31 +1131,3 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
         console.error("Error in AI Actions:", e);
     }
 }
-
-export async function submitChatMessage(db: Firestore, gameId: string, message: Omit<ChatMessage, 'createdAt' | 'id'>) {
-    if (!message.text.trim()) {
-        return { error: 'El mensaje no puede estar vacío.' };
-    }
-    
-    const messagesColRef = collection(db, 'games', gameId, 'messages');
-    const messagePayload = {
-      ...message,
-      createdAt: Timestamp.now(),
-    };
-
-    try {
-        await addDoc(messagesColRef, messagePayload);
-        return { success: true };
-    } catch (error: any) {
-        const permissionError = new FirestorePermissionError({
-            path: `games/${gameId}/messages`,
-            operation: 'create',
-            requestResourceData: messagePayload,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        // We return an error to the client so it can be handled in the UI if needed
-        return { error: 'No tienes permiso para enviar un mensaje en este chat.', success: false };
-    }
-}
-
-    

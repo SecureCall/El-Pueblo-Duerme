@@ -33,16 +33,6 @@ export const useGameState = (gameId: string) => {
     return doc(firestore, 'games', gameId);
   }, [gameId, firestore]);
 
-  const messagesQuery = useMemoFirebase(() => {
-    if (!gameId || !firestore || !game) return null;
-    return query(
-      collection(firestore, 'games', gameId, 'messages'),
-      where('round', '==', game.currentRound),
-      orderBy('createdAt', 'asc')
-    );
-  }, [gameId, firestore, game?.currentRound]);
-
-
   useEffect(() => {
     if (!gameRef) {
         setLoading(false);
@@ -82,28 +72,5 @@ export const useGameState = (gameId: string) => {
     };
   }, [gameId, firestore, gameRef]);
 
-  useEffect(() => {
-      if (!messagesQuery) {
-          setMessages([]);
-          return;
-      };
-      
-      const unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
-          const newMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage));
-          setMessages(newMessages);
-      }, (err: FirestoreError) => {
-          const contextualError = new FirestorePermissionError({
-            operation: 'list',
-            path: `games/${gameId}/messages`,
-          });
-          setError("No se pudieron cargar los mensajes del chat. Permisos insuficientes.");
-          errorEmitter.emit('permission-error', contextualError);
-      });
-
-      return () => unsubscribeMessages();
-  }, [messagesQuery, gameId]);
-
-
   return { game, players, events, messages, loading, error };
 };
-
