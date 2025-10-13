@@ -4,31 +4,32 @@
 
 let narrationAudio: HTMLAudioElement | null = null;
 let soundEffectAudio: HTMLAudioElement | null = null;
+let isAudioInitialized = false;
 
-if (typeof window !== 'undefined') {
+// Function to initialize audio on first user interaction
+const initializeAudio = () => {
+    if (isAudioInitialized || typeof window === 'undefined') return;
+
     narrationAudio = new Audio();
     narrationAudio.volume = 1.0;
 
     soundEffectAudio = new Audio();
     soundEffectAudio.volume = 0.8;
-}
+    
+    // Play a tiny silent sound to unlock audio playback
+    narrationAudio.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+    soundEffectAudio.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
 
-const playOnInteraction = async () => {
-    try {
-        if(narrationAudio && narrationAudio.paused) await narrationAudio.play().catch(()=>{});
-        if(soundEffectAudio && soundEffectAudio.paused) await soundEffectAudio.play().catch(()=>{});
-    } catch(err) {
-        console.warn("Audio play on interaction failed.", err);
-    } finally {
-        window.removeEventListener('click', playOnInteraction);
-        window.removeEventListener('keydown', playOnInteraction);
-    }
-}
+    isAudioInitialized = true;
+    window.removeEventListener('click', initializeAudio);
+    window.removeEventListener('keydown', initializeAudio);
+};
 
 if (typeof window !== 'undefined') {
-    window.addEventListener('click', playOnInteraction);
-    window.addEventListener('keydown', playOnInteraction);
+    window.addEventListener('click', initializeAudio);
+    window.addEventListener('keydown', initializeAudio);
 }
+
 
 const playAudio = (audioElement: HTMLAudioElement | null, src: string): Promise<void> => {
     return new Promise((resolve) => {
@@ -37,29 +38,37 @@ const playAudio = (audioElement: HTMLAudioElement | null, src: string): Promise<
             return;
         }
 
+        // Function to play the audio
+        const play = () => {
+            audioElement.src = src;
+            audioElement.onended = () => resolve();
+            audioElement.onerror = (e) => {
+                console.error(`Error playing audio: ${src}`, e);
+                resolve(); // Resolve even on error to not block game flow
+            };
+
+            const playPromise = audioElement.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.warn(`Audio autoplay was prevented for ${src}:`, error);
+                    // If play fails, it means we still need user interaction.
+                    // The main listeners should handle this. We resolve to not block.
+                    resolve();
+                });
+            } else {
+                 resolve();
+            }
+        };
+
         if (!audioElement.paused) {
             audioElement.pause();
-            audioElement.currentTime = 0;
-        }
-
-        audioElement.src = src;
-        audioElement.onended = () => resolve();
-        audioElement.onerror = (e) => {
-            console.error("Error playing audio:", e);
-            resolve();
-        };
-        
-        const playPromise = audioElement.play();
-
-        if (playPromise !== undefined) {
-            playPromise.catch(error => {
-                console.warn(`Audio autoplay was prevented: ${error}`);
-                // Resolve anyway so game doesn't get stuck.
-                // The interaction listener will hopefully pick it up.
-                resolve();
-            });
+            // Wait for pause to complete before playing next
+            audioElement.onpause = () => {
+                audioElement.onpause = null; // Clean up listener
+                play();
+            };
         } else {
-            resolve();
+            play();
         }
     });
 };
@@ -72,10 +81,13 @@ export const playSoundEffect = (soundFile: string): Promise<void> => {
     if (typeof window === 'undefined') return Promise.resolve();
     
     return new Promise(resolve => {
+        // Use a new audio object for sound effects to allow overlap
         const audio = new Audio(`/audio/effects/${soundFile}`);
         audio.volume = 0.8;
-        audio.play().catch(e => console.warn("Sound effect failed to play", e));
-        // We resolve immediately, not waiting for the sound to end.
+        
+        audio.play().catch(e => console.warn(`Sound effect ${soundFile} failed to play:`, e));
+        
+        // Resolve immediately, don't wait for the sound to end.
         resolve();
     });
 };
