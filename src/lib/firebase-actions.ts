@@ -1059,63 +1059,69 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
 }
 
 export async function sendChatMessage(
-    db: Firestore, 
-    gameId: string, 
-    senderId: string, 
-    senderName: string, 
+    db: Firestore,
+    gameId: string,
+    senderId: string,
+    senderName: string,
     text: string
 ) {
-    const gameRef = doc(db, 'games', gameId);
-    
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
 
+    const gameRef = doc(db, 'games', gameId);
+
     try {
+        const gameDoc = await getDoc(gameRef);
+        if (!gameDoc.exists()) {
+            throw new Error('Game not found');
+        }
+        const game = gameDoc.data() as Game;
+        
+        const messageData: ChatMessage = {
+            id: `${Date.now()}_${senderId}`,
+            senderId,
+            senderName,
+            text: text.trim(),
+            round: game.currentRound,
+            createdAt: Timestamp.now(),
+        };
+
         await updateDoc(gameRef, {
-            chatMessages: arrayUnion({
-                id: `${Date.now()}_${senderId}`,
-                senderId,
-                senderName,
-                text: text.trim(),
-                round: (await getDoc(gameRef)).data()?.currentRound,
-                createdAt: Timestamp.now(),
-            } as ChatMessage)
+            chatMessages: arrayUnion(messageData)
         });
 
         // Trigger AI responses after the message is committed
-        const gameDoc = await getDoc(gameRef);
-        if (gameDoc.exists()) {
-            const game = gameDoc.data() as Game;
-            const mentionedPlayerIds: string[] = [];
+        // Re-fetch the game state to ensure it's the latest
+        const updatedGameDoc = await getDoc(gameRef);
+        if (updatedGameDoc.exists()) {
+            const updatedGame = updatedGameDoc.data() as Game;
+            const mentionedAiPlayers: Player[] = [];
+            const textLowerCase = text.toLowerCase();
 
-            for (const p of game.players) {
-                if (p.isAlive && p.userId !== senderId && text.toLowerCase().includes(p.displayName.toLowerCase())) {
-                    mentionedPlayerIds.push(p.userId);
+            for (const p of updatedGame.players) {
+                if (p.isAI && p.isAlive && p.userId !== senderId) {
+                    if (textLowerCase.includes(p.displayName.toLowerCase())) {
+                        mentionedAiPlayers.push(p);
+                    }
                 }
             }
             
-            if (mentionedPlayerIds.length > 0) {
-                 const aiPlayersToRespond = game.players.filter(p => 
-                    p.isAI && p.isAlive && mentionedPlayerIds.includes(p.userId)
-                );
-
-                for (const aiPlayer of aiPlayersToRespond) {
-                    const perspective: AIPlayerPerspective = {
-                        game: sanitizeValue(game),
-                        aiPlayer: sanitizeValue(aiPlayer),
-                        trigger: `${senderName} te ha mencionado en el chat: "${text.trim()}"`,
-                        players: sanitizeValue(game.players),
-                    };
-                    
-                    // Fire-and-forget the AI generation
-                    generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
-                        if (shouldSend) {
-                            await new Promise(resolve => setTimeout(resolve, Math.random() * 1500 + 500));
-                            await sendChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName, message);
-                        }
-                    }).catch(aiError => console.error(`Error generating AI chat message for ${aiPlayer.displayName}:`, aiError));
-                }
+            for (const aiPlayer of mentionedAiPlayers) {
+                const perspective: AIPlayerPerspective = {
+                    game: sanitizeValue(updatedGame),
+                    aiPlayer: sanitizeValue(aiPlayer),
+                    trigger: `${senderName} te ha mencionado en el chat: "${text.trim()}"`,
+                    players: sanitizeValue(updatedGame.players),
+                };
+                
+                // Fire-and-forget the AI generation
+                generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
+                    if (shouldSend) {
+                        await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+                        await sendChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName, message);
+                    }
+                }).catch(aiError => console.error(`Error generating AI chat message for ${aiPlayer.displayName}:`, aiError));
             }
         }
 
