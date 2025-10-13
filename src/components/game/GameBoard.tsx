@@ -6,7 +6,7 @@ import { RoleReveal } from "./RoleReveal";
 import { PlayerGrid } from "./PlayerGrid";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { useEffect, useState, useRef } from "react";
-import { updateDoc, doc, runTransaction } from "firebase/firestore";
+import { doc, runTransaction } from "firebase/firestore";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
 import { processNight, processVotes, runAIActions, checkAndAdvanceFromRoleReveal } from "@/lib/firebase-actions";
@@ -135,16 +135,46 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
     );
   }
 
+  const handleAcknowledgeRole = async () => {
+    if (!firestore || !currentPlayer || game.phase !== 'role_reveal') return;
+
+    const gameRef = doc(firestore, 'games', game.id);
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found");
+            const currentGame = gameSnap.data() as Game;
+
+            const playerIndex = currentGame.players.findIndex(p => p.userId === currentPlayer.userId);
+            if (playerIndex > -1) {
+                const updatedPlayers = [...currentGame.players];
+                updatedPlayers[playerIndex].acknowledged = true;
+                transaction.update(gameRef, { players: updatedPlayers });
+            }
+        });
+
+        // After successfully acknowledging, check if the game can advance
+        await checkAndAdvanceFromRoleReveal(firestore, game.id);
+        
+    } catch (error) {
+        console.error("Error acknowledging role:", error);
+    }
+  };
+
+  if (currentPlayer && currentPlayer.role && game.phase === 'role_reveal' && !currentPlayer.acknowledged) {
+      return <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />;
+  }
+
   return (
     <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
-       <SpectatorGameBoard game={game} players={players} events={events} messages={messages} currentPlayer={currentPlayer} />
+       <SpectatorGameBoard game={game} players={players} events={events} messages={messages} currentPlayer={currentPlayer} handleAcknowledgeRole={handleAcknowledgeRole} />
     </div>
   );
 }
 
 
 // A simplified version of the board for spectating, without interactive elements.
-function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: Omit<GameBoardProps, 'currentPlayer'> & { currentPlayer?: Player}) {
+function SpectatorGameBoard({ game, players, events, messages, currentPlayer, handleAcknowledgeRole }: Omit<GameBoardProps, 'currentPlayer'> & { currentPlayer?: Player, handleAcknowledgeRole?: () => void }) {
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
   const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
@@ -214,33 +244,6 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     causeOfDeath: !p.isAlive ? getCauseOfDeath(p.userId) : undefined,
   }));
 
-  const handleAcknowledgeRole = async () => {
-    if (!firestore || !currentPlayer || game.phase !== 'role_reveal') return;
-
-    const gameRef = doc(firestore, 'games', game.id);
-    try {
-        await runTransaction(firestore, async (transaction) => {
-            const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found");
-            const currentGame = gameSnap.data() as Game;
-
-            const playerIndex = currentGame.players.findIndex(p => p.userId === currentPlayer.userId);
-            if (playerIndex > -1) {
-                const updatedPlayers = [...currentGame.players];
-                updatedPlayers[playerIndex].acknowledged = true;
-                transaction.update(gameRef, { players: updatedPlayers });
-
-                const allAcknowledged = updatedPlayers.every(p => p.acknowledged);
-                if (allAcknowledged) {
-                    transaction.update(gameRef, { phase: 'night' });
-                }
-            }
-        });
-        
-    } catch (error) {
-        console.error("Error acknowledging role:", error);
-    }
-  };
 
   const handleTimerEnd = async () => {
      // Only creator processes the phase end to prevent multiple executions
@@ -253,7 +256,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     }
   };
 
-  if (currentPlayer && currentPlayer.role && game.phase === 'role_reveal' && !currentPlayer.acknowledged) {
+  if (currentPlayer && currentPlayer.role && game.phase === 'role_reveal' && !currentPlayer.acknowledged && handleAcknowledgeRole) {
       return <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />;
   }
 
@@ -351,4 +354,5 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     
 
     
+
 
