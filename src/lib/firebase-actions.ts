@@ -493,7 +493,16 @@ function sanitizeValue(value: any): any {
 
 
 function sanitizeGameForUpdate(gameData: Partial<Game>): { [key: string]: any } {
-    return sanitizeValue({ ...gameData });
+    const sanitizedGame = sanitizeValue({ ...gameData });
+    // Ensure players array is sanitized deeply
+    if (sanitizedGame.players && Array.isArray(sanitizedGame.players)) {
+        sanitizedGame.players = sanitizedGame.players.map((player: any) => sanitizeValue(player));
+    }
+     // Ensure events array is sanitized deeply
+    if (sanitizedGame.events && Array.isArray(sanitizedGame.events)) {
+        sanitizedGame.events = sanitizedGame.events.map((event: any) => sanitizeValue(event));
+    }
+    return sanitizedGame;
 }
 
 
@@ -841,7 +850,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                         game.players[lynchedPlayerIndex].votedFor = 'TO_BE_KILLED';
                         
                         game.events.push({
-                            id: `evt_${Date.now()}_${Math.random()}`,
+                            id: `evt_${Date.Now()}_${Math.random()}`,
                             gameId,
                             round: game.currentRound,
                             type: 'vote_result',
@@ -1114,7 +1123,7 @@ const getDeterministicAIAction = (
             return { actionType: 'werewolf_kill', targetId: randomTarget(nonWolves) };
         }
         case 'seer':
-             if (game.phase === 'day') {
+            if (game.phase === 'day') {
                 return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
             }
             return { actionType: 'seer_check', targetId: randomTarget(potentialTargets) };
@@ -1122,7 +1131,7 @@ const getDeterministicAIAction = (
             if (game.phase === 'day') {
                 return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
             }
-            const healableTargets = potentialTargets.filter(p => p.userId !== userId && (p.lastHealedRound || 0) < currentRound - 1);
+            const healableTargets = potentialTargets.filter(p => p.lastHealedRound < currentRound - 1);
             return { actionType: 'doctor_heal', targetId: randomTarget(healableTargets.length > 0 ? healableTargets : potentialTargets) };
         }
         case 'guardian': {
@@ -1249,6 +1258,3 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
         return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
     }
 }
-
-
-
