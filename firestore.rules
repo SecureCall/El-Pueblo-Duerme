@@ -1,14 +1,13 @@
 /**
  * @file Firestore Security Rules
- * @description This ruleset enforces a security model based on user authentication and ownership.
+ * @description This ruleset enforces a strict user-ownership model for data access.
  *
  * Data Structure:
- * - /games/{gameId}: Stores individual game instances.
- * - /games/{gameId}/messages/{messageId}: Stores messages for a specific game.
+ * - /games/{gameId}: Games are stored here.  The `creator` field on the document indicates the owning user.
+ * - /games/{gameId}/messages/{messageId}: Game messages. Anyone who can read the game can read the messages
  *
  * Key Security Decisions:
- * - Users must be authenticated to create, update, or delete data.
- * - Only authenticated users can read the messages of a game.
+ * - Users can only read games.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -22,51 +21,42 @@ service cloud.firestore {
     }
 
     /**
-     * @description Checks if the authenticated user's ID matches the provided userId.
+     * @description Checks if the user is the owner of the resource.
+     * @param {string} userId - The user ID to check against.
      */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
     /**
-     * @description Checks if the authenticated user is the owner of the existing document.
+     * @description Checks if the user is the existing owner of the resource (isSignedIn, isOwner, and resource exists).
      */
-    function isExistingOwner(userId) {
-      return isOwner(userId);
+    function isExistingOwner() {
+      return isSignedIn() && request.auth.uid == resource.data.creator;
     }
 
     /**
-     * @description Games collection: Enforce authentication for write operations.
+     * @description Games can be read, but only created by an owner.
      * @path /games/{gameId}
-     * @allow (create) User 'user123' can create a new game if they are authenticated.
-     * @deny (create) Unauthenticated user cannot create a game.
-     * @allow (update) User 'user123' can update an existing game if they are the creator.
-     * @deny (update) User 'user456' cannot update a game created by 'user123'.
-     * @principle Enforces authentication and ownership for game creation and modification.
      */
     match /games/{gameId} {
       allow get: if true;
       allow list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && request.auth.uid == resource.data.uid;
-      allow delete: if isSignedIn() && request.auth.uid == resource.data.uid;
+      allow create: if isSignedIn() && request.resource.data.creator == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.creator == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.creator == request.auth.uid;
     }
 
     /**
-     * @description Messages subcollection: Enforce authentication for write operations.
+     * @description Anyone who can read the game can read the messages
      * @path /games/{gameId}/messages/{messageId}
-     * @allow (create) User 'user123' can create a message in game 'game123' if they are authenticated.
-     * @deny (create) Unauthenticated user cannot create a message in game 'game123'.
-     * @allow (update) User 'user123' can update a message in game 'game123' if they are the creator.
-     * @deny (update) User 'user456' cannot update a message in game 'game123' created by 'user123'.
-     * @principle Enforces authentication and ownership for message creation and modification.
      */
     match /games/{gameId}/messages/{messageId} {
-      allow get: if isSignedIn();
-      allow list: if false; // Removing list since it's not generally needed and can be a security risk
+      allow get: if true;
+      allow list: if true;
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && request.auth.uid == resource.data.uid;
-      allow delete: if isSignedIn() && request.auth.uid == resource.data.uid;
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }
