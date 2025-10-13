@@ -8,6 +8,7 @@ import { Button } from '../ui/button';
 import Link from 'next/link';
 import { Milestone, User, BotIcon } from 'lucide-react';
 import { playNarration } from '@/lib/sounds';
+import { roleDetails } from '@/lib/roles';
 
 
 interface GameOverProps {
@@ -40,6 +41,11 @@ export function GameOver({ event, players }: GameOverProps) {
     const werewolves = players.filter(p => p.role === 'werewolf' || p.role === 'wolf_cub' || p.role === 'cursed');
     const villagers = players.filter(p => p.role !== 'werewolf' && p.role !== 'wolf_cub' && p.role !== 'cursed');
 
+    const getRoleName = (role: Player['role']) => {
+        if (!role) return 'Desconocido';
+        return roleDetails[role]?.name || role;
+    }
+
     return (
         <Card className="w-full max-w-2xl mx-auto text-center bg-card/90">
             <CardHeader>
@@ -56,7 +62,7 @@ export function GameOver({ event, players }: GameOverProps) {
                     <h3 className="text-2xl font-bold flex items-center justify-center gap-2"><BotIcon /> Hombres Lobo</h3>
                     <ul className="list-none p-0">
                         {werewolves.map(p => (
-                            <li key={p.userId} className="text-lg text-muted-foreground">{p.displayName} ({p.role})</li>
+                            <li key={p.userId} className="text-lg text-muted-foreground">{p.displayName} ({getRoleName(p.role)})</li>
                         ))}
                     </ul>
                 </div>
@@ -64,7 +70,7 @@ export function GameOver({ event, players }: GameOverProps) {
                     <h3 className="text-2xl font-bold flex items-center justify-center gap-2"><User /> Pueblo</h3>
                     <ul className="list-none p-0">
                         {villagers.map(p => (
-                             <li key={p.userId} className="text-lg text-muted-foreground">{p.displayName} ({p.role})</li>
+                             <li key={p.userId} className="text-lg text-muted-foreground">{p.displayName} ({getRoleName(p.role)})</li>
                         ))}
                     </ul>
                 </div>
