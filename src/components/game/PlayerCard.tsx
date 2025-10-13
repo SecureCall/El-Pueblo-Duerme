@@ -43,33 +43,33 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
   if (!player.isAlive) {
     const roleInfo = roleDetails[player.role!] ?? defaultRoleDetail;
     return (
-      <Card
-        className="flex flex-col items-center justify-between p-4 h-full bg-muted/30 relative overflow-hidden"
-      >
-        <div className="absolute inset-0 bg-black/50 z-10" />
-        <CardContent className="p-0 relative z-20">
-          <Avatar className="h-20 w-20 border-2 border-border grayscale">
-            <AvatarImage src={avatarImage?.imageUrl || '/avatar-default.png'} data-ai-hint={avatarImage?.imageHint} />
-            <AvatarFallback>{player.displayName.substring(0, 2)}</AvatarFallback>
-          </Avatar>
-           <div className="absolute inset-0 flex items-center justify-center">
-            <Image 
-                src="/zarpa.png"
-                alt="Eliminado"
-                width={100}
-                height={100}
-                className="object-contain opacity-80"
-                unoptimized
-            />
-          </div>
-        </CardContent>
-        <CardFooter className="p-0 pt-3 flex flex-col items-center gap-1 text-center w-full z-20">
-          <p className="font-semibold text-center truncate w-full line-through">{player.displayName}</p>
-          <div className="text-xs font-bold text-center">
-              Era {roleInfo.name}
-          </div>
-        </CardFooter>
-      </Card>
+      <div className="relative flex flex-col items-center justify-between p-4 h-full bg-muted/30 rounded-lg overflow-hidden">
+        <div className="absolute inset-0 bg-black/60 z-10" />
+        <div className="relative z-20 w-full flex flex-col items-center">
+            <div className="relative h-20 w-20">
+                <Avatar className="h-20 w-20 border-2 border-border grayscale">
+                    <AvatarImage src={avatarImage?.imageUrl || '/avatar-default.png'} data-ai-hint={avatarImage?.imageHint} />
+                    <AvatarFallback>{player.displayName.substring(0, 2)}</AvatarFallback>
+                </Avatar>
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <Image 
+                        src="/zarpa.png"
+                        alt="Eliminado"
+                        width={80}
+                        height={80}
+                        className="object-contain opacity-90"
+                        unoptimized
+                    />
+                </div>
+            </div>
+        </div>
+        <div className="relative z-20 flex flex-col items-center gap-1 text-center w-full pt-3">
+            <p className="font-semibold text-center truncate w-full line-through">{player.displayName}</p>
+            <div className="text-xs font-bold text-center">
+                Era {roleInfo.name}
+            </div>
+        </div>
+      </div>
     );
   }
 
