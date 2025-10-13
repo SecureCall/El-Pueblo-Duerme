@@ -455,8 +455,8 @@ function killPlayer(
                     round: gameData.currentRound,
                     type: 'lover_death',
                     message: `${otherLover.displayName} no pudo soportar la pérdida de ${playerToKill.displayName} y ha muerto de desamor.`,
+                    data: { killedPlayerId: otherLoverId },
                     createdAt: Timestamp.now(),
-                    data: { killedPlayerId: otherLoverId }
                 });
 
                 if (otherLover.role === 'hunter' && gameData.settings.hunter && !hunterTriggeredId) {
@@ -1107,7 +1107,7 @@ export async function sendChatMessage(
     senderId: string,
     senderName: string,
     text: string,
-    isFromAI: boolean = false // Add flag to prevent recursive calls
+    isFromAI: boolean = false // Add flag to prevent recursion
 ) {
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
@@ -1249,3 +1249,4 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
     
 
     
+
