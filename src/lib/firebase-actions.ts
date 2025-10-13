@@ -490,6 +490,10 @@ function sanitizeGameForUpdate(gameData: Partial<Game>): { [key: string]: any } 
             if (!sanitizedPlayer.potions) {
                 sanitizedPlayer.potions = { poison: null, save: null };
             }
+             // Ensure lastHealedRound is always a number
+            if (typeof sanitizedPlayer.lastHealedRound !== 'number') {
+                sanitizedPlayer.lastHealedRound = 0;
+            }
             return sanitizedPlayer;
         });
     }
@@ -780,9 +784,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                     mostVotedPlayerIds.push(playerId);
                 }
             }
-
-            let lynchedPlayerId: string | null = null;
-            let eventMessage: string;
+            
             let finalUpdateGame: Partial<Game> = game;
 
             // Check for close vote clue
@@ -809,14 +811,13 @@ export async function processVotes(db: Firestore, gameId: string) {
                     const lynchedPlayer = game.players[lynchedPlayerIndex];
                     if (lynchedPlayer.role === 'prince' && game.settings.prince && !lynchedPlayer.princeRevealed) {
                         game.players[lynchedPlayerIndex].princeRevealed = true;
-                        eventMessage = `${lynchedPlayer.displayName} ha sido sentenciado, pero revela su identidad como ¡el Príncipe! y sobrevive a la votación.`;
                         
                         game.events.push({
                             id: `evt_${Date.now()}_${Math.random()}`,
                             gameId,
                             round: game.currentRound,
                             type: 'vote_result',
-                            message: eventMessage,
+                            message: `${lynchedPlayer.displayName} ha sido sentenciado, pero revela su identidad como ¡el Príncipe! y sobrevive a la votación.`,
                             data: { lynchedPlayerId: null },
                             createdAt: Timestamp.now(),
                         });
@@ -828,14 +829,14 @@ export async function processVotes(db: Firestore, gameId: string) {
 
                     } else {
                         lynchedPlayerId = potentialLynchedId;
-                        eventMessage = `El pueblo ha decidido. ${lynchedPlayer.displayName} ha sido linchado.`;
                         game.players[lynchedPlayerIndex].votedFor = 'TO_BE_KILLED';
-                         game.events.push({
+                        
+                        game.events.push({
                             id: `evt_${Date.now()}_${Math.random()}`,
                             gameId,
                             round: game.currentRound,
                             type: 'vote_result',
-                            message: eventMessage,
+                            message: `El pueblo ha decidido. ${lynchedPlayer.displayName} ha sido linchado.`,
                             data: { lynchedPlayerId },
                             createdAt: Timestamp.now(),
                         });
@@ -857,8 +858,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                         finalUpdateGame = game;
                     }
                 } else {
-                    eventMessage = "El jugador a linchar no fue encontrado.";
-                    game.events.push({ id: `evt_${Date.now()}_${Math.random()}`, gameId, round: game.currentRound, type: 'vote_result', message: eventMessage, data: { lynchedPlayerId: null }, createdAt: Timestamp.now() });
+                    game.events.push({ id: `evt_${Date.now()}_${Math.random()}`, gameId, round: game.currentRound, type: 'vote_result', message: "El jugador a linchar no fue encontrado.", data: { lynchedPlayerId: null }, createdAt: Timestamp.now() });
                     game.players.forEach(p => { p.votedFor = null; });
                     game.phase = 'night';
                     game.currentRound = game.currentRound + 1;
@@ -866,8 +866,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                 }
             } else {
                  if (mostVotedPlayerIds.length > 1) {
-                    eventMessage = "La votación resultó en un empate. Nadie fue linchado hoy.";
-                     game.events.push({
+                    game.events.push({
                         id: `evt_${Date.now()}_clue`,
                         gameId,
                         round: game.currentRound,
@@ -876,9 +875,8 @@ export async function processVotes(db: Firestore, gameId: string) {
                         data: { voteCounts },
                         createdAt: Timestamp.now(),
                     });
-                } else {
-                    eventMessage = "El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.";
                 }
+                const eventMessage = mostVotedPlayerIds.length > 1 ? "La votación resultó en un empate. Nadie fue linchado hoy." : "El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.";
                 game.events.push({ id: `evt_${Date.now()}_${Math.random()}`, gameId, round: game.currentRound, type: 'vote_result', message: eventMessage, data: { lynchedPlayerId: null }, createdAt: Timestamp.now() });
                 game.players.forEach(p => { p.votedFor = null; });
                 game.phase = 'night';
@@ -1152,6 +1150,9 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
             const { actionType, targetId } = getDeterministicAIAction(ai, game, alivePlayers);
 
             if (!actionType || actionType === 'NONE' || !targetId) continue;
+
+            // Introduce a random delay for each AI action to make them feel more natural
+            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
 
             switch(actionType) {
                 case 'werewolf_kill':
