@@ -26,12 +26,11 @@ export function YouAreDeadOverlay() {
             onClick={() => setIsVisible(false)}
         >
             <div className="relative h-64 w-64 md:h-80 md:w-80">
-                <Image
+                {/* Usando una etiqueta <img> estándar para asegurar la compatibilidad con SVG */}
+                <img
                     src="/zarpa.svg"
                     alt="Has sido eliminado"
-                    fill
-                    className="object-contain"
-                    unoptimized
+                    className="object-contain h-full w-full"
                 />
             </div>
             <h1 className="font-headline text-5xl md:text-7xl font-bold text-destructive text-shadow-lg shadow-black/50 mt-8">
