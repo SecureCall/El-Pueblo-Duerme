@@ -132,9 +132,14 @@ export function CreateGameForm() {
         });
         return;
     }
+    
+    if (!data.displayName.trim()) {
+        form.setError("displayName", { type: "manual", message: "Tu nombre no puede estar vacío." });
+        return;
+    }
 
     setIsSubmitting(true);
-    setDisplayName(data.displayName);
+    setDisplayName(data.displayName.trim());
 
     const { gameName, displayName: pName, maxPlayers, fillWithAI, ...roles } = data;
 
@@ -153,7 +158,7 @@ export function CreateGameForm() {
     const response = await createGame(
       firestore,
       userId,
-      pName,
+      pName.trim(),
       gameName,
       maxPlayers,
       gameSettings
