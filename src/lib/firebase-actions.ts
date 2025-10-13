@@ -470,47 +470,26 @@ async function killPlayer(
 }
 
 
+function sanitizeValue(value: any): any {
+    if (value === undefined) {
+        return null;
+    }
+    if (Array.isArray(value)) {
+        return value.map(sanitizeValue);
+    }
+    if (value !== null && typeof value === 'object' && !('seconds' in value && 'nanoseconds' in value)) {
+        // This is a plain object, not a Firestore Timestamp. Recurse into it.
+        const sanitizedObject: { [key: string]: any } = {};
+        for (const key in value) {
+            sanitizedObject[key] = sanitizeValue(value[key]);
+        }
+        return sanitizedObject;
+    }
+    return value;
+}
+
 function sanitizeGameForUpdate(gameData: Partial<Game>): { [key: string]: any } {
-    const sanitizedGame: { [key: string]: any } = { ...gameData };
-
-    for (const key in sanitizedGame) {
-        if (sanitizedGame[key] === undefined) {
-             // Replace undefined with null for Firestore compatibility
-            sanitizedGame[key] = null;
-        }
-    }
-
-    if (sanitizedGame.players) {
-        sanitizedGame.players = sanitizedGame.players.map((p: any) => {
-            const sanitizedPlayer: { [key: string]: any } = { ...p };
-            for (const playerKey in sanitizedPlayer) {
-                if (sanitizedPlayer[playerKey] === undefined) {
-                    sanitizedPlayer[playerKey] = null;
-                }
-            }
-            if (!sanitizedPlayer.potions) {
-                sanitizedPlayer.potions = { poison: null, save: null };
-            }
-             // Ensure lastHealedRound is always a number
-            if (typeof sanitizedPlayer.lastHealedRound !== 'number') {
-                sanitizedPlayer.lastHealedRound = 0;
-            }
-            // Ensure votedFor is null if it's undefined
-            if (sanitizedPlayer.votedFor === undefined) {
-                sanitizedPlayer.votedFor = null;
-            }
-            return sanitizedPlayer;
-        });
-    }
-
-    const topLevelOptionalFields: (keyof Game)[] = ['lovers', 'twins', 'pendingHunterShot', 'nightActions', 'events', 'phaseEndsAt', 'chatMessages'];
-    topLevelOptionalFields.forEach(field => {
-        if (sanitizedGame[field] === undefined) {
-             sanitizedGame[field] = null;
-        }
-    });
-
-    return sanitizedGame;
+    return sanitizeValue({ ...gameData });
 }
 
 
@@ -790,8 +769,6 @@ export async function processVotes(db: Firestore, gameId: string) {
                 }
             }
             
-            let finalUpdateGame: Partial<Game> = {};
-
             // Check for close vote clue
             if (totalVotes > 2) {
                 const sortedVotes = Object.values(voteCounts).sort((a,b) => b - a);
@@ -827,13 +804,8 @@ export async function processVotes(db: Firestore, gameId: string) {
                             createdAt: Timestamp.now(),
                         });
 
-                        game.players.forEach(p => { p.votedFor = null; });
-                        game.phase = 'night';
-                        game.currentRound = game.currentRound + 1;
-                        finalUpdateGame = game;
-
                     } else {
-                        let lynchedPlayerId = potentialLynchedId;
+                        const lynchedPlayerId = potentialLynchedId;
                         game.players[lynchedPlayerIndex].votedFor = 'TO_BE_KILLED';
                         
                         game.events.push({
@@ -854,20 +826,14 @@ export async function processVotes(db: Firestore, gameId: string) {
                         } else {
                             const { game: finalGameCheck, isOver } = await checkGameOver(game);
                             game = finalGameCheck;
-                            if (!isOver) {
-                                game.players.forEach(p => { p.votedFor = null; });
-                                game.phase = 'night';
-                                game.currentRound = game.currentRound + 1;
+                            if (isOver) {
+                                transaction.update(gameRef, sanitizeGameForUpdate(game));
+                                return;
                             }
                         }
-                        finalUpdateGame = game;
                     }
                 } else {
                     game.events.push({ id: `evt_${Date.now()}_${Math.random()}`, gameId, round: game.currentRound, type: 'vote_result', message: "El jugador a linchar no fue encontrado.", data: { lynchedPlayerId: null }, createdAt: Timestamp.now() });
-                    game.players.forEach(p => { p.votedFor = null; });
-                    game.phase = 'night';
-                    game.currentRound = game.currentRound + 1;
-                    finalUpdateGame = game;
                 }
             } else {
                  if (mostVotedPlayerIds.length > 1) {
@@ -883,18 +849,19 @@ export async function processVotes(db: Firestore, gameId: string) {
                 }
                 const eventMessage = mostVotedPlayerIds.length > 1 ? "La votación resultó en un empate. Nadie fue linchado hoy." : "El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.";
                 game.events.push({ id: `evt_${Date.now()}_${Math.random()}`, gameId, round: game.currentRound, type: 'vote_result', message: eventMessage, data: { lynchedPlayerId: null }, createdAt: Timestamp.now() });
-                game.players.forEach(p => { p.votedFor = null; });
-                game.phase = 'night';
-                game.currentRound = game.currentRound + 1;
-                finalUpdateGame = game;
             }
             
             const { game: gameOverCheckGame, isOver } = await checkGameOver(game);
             if (isOver) {
-                 finalUpdateGame = gameOverCheckGame;
+                 game = gameOverCheckGame;
+            } else {
+                // If game is not over, transition to night
+                game.players.forEach(p => { p.votedFor = null; });
+                game.phase = 'night';
+                game.currentRound = game.currentRound + 1;
             }
 
-            transaction.update(gameRef, sanitizeGameForUpdate(finalUpdateGame));
+            transaction.update(gameRef, sanitizeGameForUpdate(game));
         });
 
         return { success: true };
@@ -1115,10 +1082,10 @@ const getDeterministicAIAction = (
         case 'seer':
             return { actionType: 'seer_check', targetId: randomTarget(potentialTargets) };
         case 'doctor': {
-            const healableTargets = potentialTargets.filter(p => (p.lastHealedRound || 0) < currentRound - 1);
-            if (game.phase === 'day') { // During the day, doctor AI votes like a villager
+            if (game.phase === 'day') {
                 return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
             }
+            const healableTargets = potentialTargets.filter(p => (p.lastHealedRound || 0) < currentRound - 1);
             return { actionType: 'doctor_heal', targetId: randomTarget(healableTargets.length > 0 ? healableTargets : potentialTargets) };
         }
         case 'guardian': {
@@ -1242,3 +1209,4 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
         return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
     }
 }
+
