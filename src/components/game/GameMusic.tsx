@@ -24,6 +24,19 @@ export function GameMusic({ src }: GameMusicProps) {
 
     const newSrcUrl = new URL(src, window.location.origin).href;
 
+    const playOnInteraction = async () => {
+        if (audio && audio.paused) {
+          try {
+            await audio.play();
+            isPlayingRef.current = true;
+            window.removeEventListener('click', playOnInteraction);
+            window.removeEventListener('keydown', playOnInteraction);
+          } catch (err) {
+             console.warn("Audio play on interaction failed.", err);
+          }
+        }
+    };
+
     const handlePlay = async () => {
       // If the source is different, fade out, change src, and fade in
       if (currentSrc && currentSrc !== newSrcUrl) {
@@ -53,19 +66,6 @@ export function GameMusic({ src }: GameMusicProps) {
         } catch (error) {
           console.warn("Audio play was prevented by the browser.", error);
           // If autoplay fails, we add listeners to try again on interaction
-          const playOnInteraction = async () => {
-            if (audio && audio.paused) {
-              try {
-                await audio.play();
-                isPlayingRef.current = true;
-                // Clean up listeners once played successfully
-                window.removeEventListener('click', playOnInteraction);
-                window.removeEventListener('keydown', playOnInteraction);
-              } catch (err) {
-                 console.warn("Audio play on interaction failed.", err);
-              }
-            }
-          };
           window.addEventListener('click', playOnInteraction, { once: true });
           window.addEventListener('keydown', playOnInteraction, { once: true });
         }
@@ -73,11 +73,12 @@ export function GameMusic({ src }: GameMusicProps) {
     };
     
     handlePlay();
-    
-    // The component only manages starting/changing music. 
-    // It does not have a cleanup function to stop the music,
-    // allowing it to persist across pages that use GameMusic.
-    // The fade-out logic handles the transition between different tracks.
+
+    return () => {
+      // Clean up interaction listeners when the component unmounts or src changes
+      window.removeEventListener('click', playOnInteraction);
+      window.removeEventListener('keydown', playOnInteraction);
+    };
 
   }, [src]);
 

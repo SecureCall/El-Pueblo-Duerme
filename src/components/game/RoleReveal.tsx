@@ -36,6 +36,7 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
                 fill
                 className="object-cover z-0"
                 data-ai-hint={bgImage.imageHint}
+                priority
             />
         )}
         <div className="absolute inset-0 bg-background/70 backdrop-blur-md" />
@@ -55,6 +56,7 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
                         fill
                         className="object-contain"
                         unoptimized
+                        priority
                     />
                 </div>
                 <p className="text-lg font-bold italic text-primary-foreground/90">
