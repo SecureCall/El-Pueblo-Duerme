@@ -49,7 +49,7 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
         case 'werewolf_kill':
           return (
             <div className={cn(baseClasses)}>
-                <img src="/zarpazo.svg" alt="Muerte por lobo" className={cn(iconClasses, "brightness-0 invert")} />
+                <img src="/zarpazo.svg" alt="Muerte por lobo" className={cn(iconClasses, "filter-destructive")} />
             </div>
           );
         case 'vote_result':
@@ -61,7 +61,7 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
         default:
           return (
              <div className={cn(baseClasses)}>
-                <img src="/zarpazo.svg" alt="Muerto" className={cn(iconClasses, "brightness-0 invert opacity-50")} />
+                <img src="/zarpazo.svg" alt="Muerto" className={cn(iconClasses, "opacity-50 filter-destructive")} />
             </div>
           );
       }

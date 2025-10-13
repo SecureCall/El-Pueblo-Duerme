@@ -101,4 +101,7 @@ body {
   .rotate-y-180 {
     transform: rotateY(180deg);
   }
+  .filter-destructive {
+    filter: invert(30%) sepia(90%) saturate(2500%) hue-rotate(345deg) brightness(100%) contrast(100%);
+  }
 }

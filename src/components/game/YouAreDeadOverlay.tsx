@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { playNarration } from '@/lib/sounds';
+import { cn } from '@/lib/utils';
 
 export function YouAreDeadOverlay() {
     const hasPlayedSound = useRef(false);
@@ -27,7 +28,7 @@ export function YouAreDeadOverlay() {
                 <img
                     src="/zarpazo.svg"
                     alt="Zarpazo"
-                    className="h-full w-full object-contain brightness-0 invert"
+                    className="h-full w-full object-contain filter-destructive"
                 />
             </div>
             <h1 className="font-headline text-5xl md:text-7xl font-bold text-destructive text-shadow-lg shadow-black/50 mt-8">
