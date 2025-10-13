@@ -1,3 +1,4 @@
+
 'use client';
 import { 
   doc,
@@ -11,8 +12,10 @@ import {
   type Firestore,
   type Transaction,
   DocumentReference,
+  collection,
+  addDoc,
 } from "firebase/firestore";
-import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType } from "@/types";
+import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage } from "@/types";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 
@@ -462,12 +465,12 @@ async function killPlayer(
 }
 
 
-function sanitizeGameForUpdate(gameData: Game): Partial<Game> {
+function sanitizeGameForUpdate(gameData: Partial<Game>): Partial<Game> {
     const sanitizedGame: { [key: string]: any } = { ...gameData };
 
     for (const key in sanitizedGame) {
         if (sanitizedGame[key] === undefined) {
-            sanitizedGame[key] = null;
+            delete sanitizedGame[key];
         }
     }
 
@@ -486,15 +489,15 @@ function sanitizeGameForUpdate(gameData: Game): Partial<Game> {
         });
     }
     
-    // Ensure top-level optional fields are at least null
-    sanitizedGame.lovers = sanitizedGame.lovers ?? null;
-    sanitizedGame.twins = sanitizedGame.twins ?? null;
-    sanitizedGame.pendingHunterShot = sanitizedGame.pendingHunterShot ?? null;
-    sanitizedGame.nightActions = sanitizedGame.nightActions ?? [];
-    sanitizedGame.events = sanitizedGame.events ?? [];
+    // Ensure top-level optional fields are at least null if they don't exist
+    const optionalFields: (keyof Game)[] = ['lovers', 'twins', 'pendingHunterShot', 'nightActions', 'events', 'phaseEndsAt'];
+    optionalFields.forEach(field => {
+        if (!(field in sanitizedGame)) {
+            // @ts-ignore
+            sanitizedGame[field] = null;
+        }
+    });
     
-    delete sanitizedGame.phaseEndsAt; // Always remove this as it's not being used
-
     return sanitizedGame;
 }
 
@@ -550,7 +553,7 @@ async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: bool
             createdAt: Timestamp.now(),
         };
         newGameData.events = [...(newGameData.events || []), newEvent];
-        return { game: sanitizeGameForUpdate(newGameData) as Game, isOver: true };
+        return { game: newGameData, isOver: true };
     }
 
     return { game: newGameData, isOver: false };
@@ -774,8 +777,7 @@ export async function processVotes(db: Firestore, gameId: string) {
 
             let lynchedPlayerId: string | null = null;
             let eventMessage: string;
-            let princeSaved = false;
-
+            
             if (mostVotedPlayerIds.length === 1 && maxVotes > 0) {
                 const potentialLynchedId = mostVotedPlayerIds[0];
                 const lynchedPlayerIndex = game.players.findIndex(p => p.userId === potentialLynchedId);
@@ -785,7 +787,6 @@ export async function processVotes(db: Firestore, gameId: string) {
                     if (lynchedPlayer.role === 'prince' && game.settings.prince && !lynchedPlayer.princeRevealed) {
                         eventMessage = `${lynchedPlayer.displayName} ha sido sentenciado, pero revela su identidad como ¡el Príncipe! y sobrevive a la votación.`;
                         game.players[lynchedPlayerIndex].princeRevealed = true;
-                        princeSaved = true;
                     } else {
                         lynchedPlayerId = potentialLynchedId;
                         eventMessage = `El pueblo ha decidido. ${lynchedPlayer.displayName} ha sido linchado.`;
@@ -819,8 +820,8 @@ export async function processVotes(db: Firestore, gameId: string) {
                  }
             }
             
-            const { game: finalGame, isOver } = await checkGameOver(game);
-            game = finalGame;
+            const { game: finalGameStatus, isOver } = await checkGameOver(game);
+            game = finalGameStatus;
             
             if (!isOver) {
                 game.players.forEach(p => {
@@ -830,7 +831,8 @@ export async function processVotes(db: Firestore, gameId: string) {
                 game.currentRound = game.currentRound + 1;
             }
             
-            transaction.update(gameRef, sanitizeGameForUpdate(game));
+            const gameToUpdate = sanitizeGameForUpdate(game);
+            transaction.update(gameRef, gameToUpdate);
         });
 
         return { success: true };
@@ -852,7 +854,7 @@ export async function getSeerResult(db: Firestore, gameId: string, seerId: strin
     const targetPlayer = game.players.find(p => p.userId === targetId);
     if (!targetPlayer) throw new Error("Target player not found");
 
-    const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
+    const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
     const isWerewolf = wolfRoles.includes(targetPlayer.role) || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope);
 
     return { success: true, isWerewolf, targetName: targetPlayer.displayName };
@@ -1103,4 +1105,31 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
     } catch(e) {
         console.error("Error in AI Actions:", e);
     }
+}
+
+export async function submitChatMessage(db: Firestore, gameId: string, message: Omit<ChatMessage, 'createdAt' | 'id'>) {
+  if (!message.text.trim()) {
+    return { error: 'El mensaje no puede estar vacío.' };
+  }
+  
+  const messagesCol = collection(db, 'games', gameId, 'messages');
+  try {
+    await addDoc(messagesCol, {
+      ...message,
+      createdAt: Timestamp.now(),
+    });
+    return { success: true };
+  } catch (error: any) {
+     if (error.code === 'permission-denied') {
+        const permissionError = new FirestorePermissionError({
+            path: `games/${gameId}/messages`,
+            operation: 'create',
+            requestResourceData: message,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        return { error: "Permiso denegado para enviar mensaje." };
+    }
+    console.error('Error sending message:', error);
+    return { error: 'No se pudo enviar el mensaje.' };
+  }
 }

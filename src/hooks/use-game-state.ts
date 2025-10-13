@@ -1,16 +1,20 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { 
   doc, 
+  collection,
+  query,
+  where,
+  orderBy,
   onSnapshot, 
   type DocumentData, 
   type DocumentSnapshot, 
   type FirestoreError,
 } from 'firebase/firestore';
-import type { Game, Player, GameEvent } from '@/types';
-import { useFirebase } from '@/firebase';
+import type { Game, Player, GameEvent, ChatMessage } from '@/types';
+import { useFirebase, useMemoFirebase } from '@/firebase';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -20,11 +24,27 @@ export const useGameState = (gameId: string) => {
   const [game, setGame] = useState<Game | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [events, setEvents] = useState<GameEvent[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const gameRef = useMemoFirebase(() => {
+    if (!gameId || !firestore) return null;
+    return doc(firestore, 'games', gameId);
+  }, [gameId, firestore]);
+
+  const messagesQuery = useMemoFirebase(() => {
+    if (!gameId || !firestore || !game) return null;
+    return query(
+      collection(firestore, 'games', gameId, 'messages'),
+      where('round', '==', game.currentRound),
+      orderBy('createdAt', 'asc')
+    );
+  }, [gameId, firestore, game?.currentRound]);
+
+
   useEffect(() => {
-    if (!gameId || !firestore) {
+    if (!gameRef) {
         setLoading(false);
         if (!gameId) setError("No game ID provided.");
         return;
@@ -32,7 +52,6 @@ export const useGameState = (gameId: string) => {
 
     setLoading(true);
 
-    const gameRef = doc(firestore, 'games', gameId);
     const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
         const gameData = { ...snapshot.data() as Game, id: snapshot.id };
@@ -61,7 +80,25 @@ export const useGameState = (gameId: string) => {
     return () => {
       unsubscribeGame();
     };
-  }, [gameId, firestore]);
+  }, [gameId, firestore, gameRef]);
 
-  return { game, players, events, loading, error };
+  useEffect(() => {
+      if (!messagesQuery) {
+          setMessages([]);
+          return;
+      };
+      
+      const unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
+          const newMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage));
+          setMessages(newMessages);
+      }, (err) => {
+          console.error("Error fetching chat messages:", err);
+          setError("No se pudieron cargar los mensajes del chat.");
+      });
+
+      return () => unsubscribeMessages();
+  }, [messagesQuery]);
+
+
+  return { game, players, events, messages, loading, error };
 };

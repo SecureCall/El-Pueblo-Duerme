@@ -137,19 +137,11 @@ export interface GameEvent {
     createdAt: Timestamp;
 }
 
-// AI Input/Output Types
-export const TakeAITurnInputSchema = z.object({
-    game: z.string().describe("A JSON string representing the entire game state object."),
-    players: z.string().describe("A JSON string representing an array of all player objects in the game."),
-    events: z.string().describe("A JSON string representing an array of all game events that have occurred."),
-    currentPlayer: z.string().describe("A JSON string representing the player object for the AI that is taking its turn."),
-});
-
-export type TakeAITurnInput = z.infer<typeof TakeAITurnInputSchema>;
-
-export const TakeAITurnOutputSchema = z.object({
-    reasoning: z.string().describe("Your step-by-step thought process to arrive at this action."),
-    action: z.string().describe("The action to take. Format: 'TYPE:TARGET_ID' or 'TYPE:TARGET_ID1|TARGET_ID2' or 'TYPE'. Examples: 'VOTE:player123', 'KILL:player456', 'KILL:player456|player789', 'HEAL:player789', 'CHECK:playerABC', 'SHOOT:playerXYZ', 'POISON:player111', 'SAVE:player222', 'PROTECT:player333', 'ENCHANT:playerABC|playerDEF'. If no action is possible, return 'NONE'."),
-});
-
-export type TakeAITurnOutput = z.infer<typeof TakeAITurnOutputSchema>;
+export interface ChatMessage {
+  id?: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  round: number;
+  createdAt: Timestamp;
+}
