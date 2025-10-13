@@ -6,11 +6,11 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { Skull, Bot, Crown } from "lucide-react";
+import { Bot, Crown } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
-import { RoleRevealCard } from "./RoleRevealCard";
-import { useState, useEffect } from "react";
+import { roleDetails, defaultRoleDetail } from "@/lib/roles";
+import Image from "next/image";
 
 interface PlayerCardProps {
   player: Player;
@@ -22,19 +22,6 @@ interface PlayerCardProps {
 }
 
 export function PlayerCard({ player, onClick, isClickable, isSelected, highlightColor, votes }: PlayerCardProps) {
-  const [isRevealed, setIsRevealed] = useState(false);
-
-  useEffect(() => {
-    if (!player.isAlive) {
-      // Delay the reveal animation slightly to make it more noticeable
-      const timer = setTimeout(() => {
-        setIsRevealed(true);
-      }, 500);
-      return () => clearTimeout(timer);
-    } else {
-      setIsRevealed(false);
-    }
-  }, [player.isAlive]);
   
   // Simple hash function to get a consistent avatar for a user
   const getAvatarId = (userId: string) => {
@@ -54,38 +41,38 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
   const cardStyle = highlightColor ? { boxShadow: `0 0 15px 4px ${highlightColor}` } : {};
 
   if (!player.isAlive) {
+    const roleInfo = roleDetails[player.role!] ?? defaultRoleDetail;
     return (
-      <div className="relative perspective w-full h-full">
-        <div className={cn("relative w-full h-full preserve-3d transition-transform duration-700", isRevealed && "rotate-y-180")}>
-            {/* Front of the card (the player) */}
-            <div className="absolute w-full h-full backface-hidden">
-                <Card
-                  className={cn(
-                    "flex flex-col items-center justify-center p-4 h-full",
-                    "bg-muted/30 grayscale opacity-60",
-                  )}
-                >
-                  <CardContent className="p-0">
-                    <Avatar className="h-20 w-20 border-2 border-border">
-                      <AvatarImage src={avatarImage?.imageUrl || '/avatar-default.png'} data-ai-hint={avatarImage?.imageHint} />
-                      <AvatarFallback>{player.displayName.substring(0, 2)}</AvatarFallback>
-                    </Avatar>
-                  </CardContent>
-                  <CardFooter className="p-0 pt-3 flex flex-col items-center gap-1">
-                    <p className="font-semibold text-center truncate w-full">{player.displayName}</p>
-                    <div className="flex items-center gap-1 text-xs text-destructive">
-                         <Skull className="h-4 w-4" />
-                         <span>Eliminado</span>
-                    </div>
-                  </CardFooter>
-                </Card>
-            </div>
-            {/* Back of the card (the role reveal) */}
-            <div className="absolute w-full h-full backface-hidden rotate-y-180">
-               <RoleRevealCard player={player} />
-            </div>
-        </div>
-      </div>
+      <Card
+        className="flex flex-col items-center justify-between p-4 h-full bg-muted/30 relative overflow-hidden"
+      >
+        <CardContent className="p-0 relative">
+          <Avatar className="h-20 w-20 border-2 border-border grayscale">
+            <AvatarImage src={avatarImage?.imageUrl || '/avatar-default.png'} data-ai-hint={avatarImage?.imageHint} />
+            <AvatarFallback>{player.displayName.substring(0, 2)}</AvatarFallback>
+          </Avatar>
+           <div className="absolute inset-0 flex items-center justify-center">
+            <Image 
+                src="/zarpa.png"
+                alt="Eliminado"
+                width={100}
+                height={100}
+                className="object-contain opacity-80"
+                unoptimized
+            />
+          </div>
+        </CardContent>
+        <CardFooter className="p-0 pt-3 flex flex-col items-center gap-1 text-center w-full">
+          <p className="font-semibold text-center truncate w-full line-through">{player.displayName}</p>
+          <div 
+            className={cn(
+                "absolute bottom-0 left-0 right-0 p-1 text-xs font-bold text-center text-white bg-black/50",
+                roleInfo.color.replace('text-', 'bg-')
+            )}>
+              Era {roleInfo.name}
+          </div>
+        </CardFooter>
+      </Card>
     );
   }
 
