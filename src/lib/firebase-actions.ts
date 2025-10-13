@@ -1,4 +1,5 @@
 
+
 'use client';
 import { 
   doc,
@@ -19,6 +20,7 @@ import {
 import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage } from "@/types";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
+import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -337,7 +339,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
 
         let players = [...game.players];
         const playerIndex = players.findIndex(p => p.userId === action.playerId);
-
+        
         if (action.actionType === 'doctor_heal') {
             const targetIndex = players.findIndex(p => p.userId === action.targetId);
             if (targetIndex > -1) {
@@ -477,16 +479,18 @@ function sanitizeValue(value: any): any {
     if (Array.isArray(value)) {
         return value.map(sanitizeValue);
     }
-    if (value !== null && typeof value === 'object' && !('seconds' in value && 'nanoseconds' in value)) {
-        // This is a plain object, not a Firestore Timestamp. Recurse into it.
+    if (value !== null && typeof value === 'object' && !('seconds' in value && 'nanoseconds' in value) && Object.prototype.toString.call(value) !== '[object Date]') {
         const sanitizedObject: { [key: string]: any } = {};
         for (const key in value) {
-            sanitizedObject[key] = sanitizeValue(value[key]);
+             if (Object.prototype.hasOwnProperty.call(value, key)) {
+                sanitizedObject[key] = sanitizeValue(value[key]);
+            }
         }
         return sanitizedObject;
     }
     return value;
 }
+
 
 function sanitizeGameForUpdate(gameData: Partial<Game>): { [key: string]: any } {
     return sanitizeValue({ ...gameData });
@@ -712,12 +716,30 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
         await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
-            const game = gameSnap.data() as Game;
+            let game = gameSnap.data() as Game;
 
             const playerIndex = game.players.findIndex(p => p.userId === voterId && p.isAlive);
             if (playerIndex === -1) throw new Error("Player not found or is not alive");
             
             game.players[playerIndex].votedFor = targetId;
+
+            // Check if the target is an AI and should respond
+            const targetPlayer = game.players.find(p => p.userId === targetId);
+            const voterPlayer = game.players.find(p => p.userId === voterId);
+
+            if (targetPlayer?.isAI) {
+                const perspective = {
+                    game,
+                    aiPlayer: targetPlayer,
+                    trigger: `${voterPlayer?.displayName || 'Someone'} has voted for you.`,
+                    players: game.players,
+                };
+                const { message, shouldSend } = await generateAIChatMessage(perspective);
+                if (shouldSend) {
+                   await sendChatMessage(db, gameId, targetPlayer.userId, targetPlayer.displayName, message);
+                }
+            }
+
 
             transaction.update(gameRef, { players: game.players });
         });
@@ -788,6 +810,8 @@ export async function processVotes(db: Firestore, gameId: string) {
             if (mostVotedPlayerIds.length === 1 && maxVotes > 0) {
                 const potentialLynchedId = mostVotedPlayerIds[0];
                 const lynchedPlayerIndex = game.players.findIndex(p => p.userId === potentialLynchedId);
+                let lynchedPlayerId: string | null = null;
+
 
                 if (lynchedPlayerIndex > -1) {
                     const lynchedPlayer = game.players[lynchedPlayerIndex];
@@ -805,7 +829,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                         });
 
                     } else {
-                        const lynchedPlayerId = potentialLynchedId;
+                        lynchedPlayerId = potentialLynchedId;
                         game.players[lynchedPlayerIndex].votedFor = 'TO_BE_KILLED';
                         
                         game.events.push({
@@ -1080,15 +1104,21 @@ const getDeterministicAIAction = (
             return { actionType: 'werewolf_kill', targetId: randomTarget(nonWolves) };
         }
         case 'seer':
+             if (game.phase === 'day') {
+                return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
+            }
             return { actionType: 'seer_check', targetId: randomTarget(potentialTargets) };
         case 'doctor': {
             if (game.phase === 'day') {
                 return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
             }
-            const healableTargets = potentialTargets.filter(p => (p.lastHealedRound || 0) < currentRound - 1);
+            const healableTargets = potentialTargets.filter(p => p.userId !== userId && (p.lastHealedRound || 0) < currentRound - 1);
             return { actionType: 'doctor_heal', targetId: randomTarget(healableTargets.length > 0 ? healableTargets : potentialTargets) };
         }
         case 'guardian': {
+             if (game.phase === 'day') {
+                return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
+            }
             return { actionType: 'guardian_protect', targetId: randomTarget(potentialTargets) };
         }
         // Simplified AI for other roles - they do nothing at night for now
@@ -1209,4 +1239,5 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
         return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
     }
 }
+
 
