@@ -91,14 +91,19 @@ export const useGameState = (gameId: string) => {
       const unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
           const newMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage));
           setMessages(newMessages);
-      }, (err) => {
-          console.error("Error fetching chat messages:", err);
-          setError("No se pudieron cargar los mensajes del chat.");
+      }, (err: FirestoreError) => {
+          const contextualError = new FirestorePermissionError({
+            operation: 'list',
+            path: `games/${gameId}/messages`,
+          });
+          setError("No se pudieron cargar los mensajes del chat. Permisos insuficientes.");
+          errorEmitter.emit('permission-error', contextualError);
       });
 
       return () => unsubscribeMessages();
-  }, [messagesQuery]);
+  }, [messagesQuery, gameId]);
 
 
   return { game, players, events, messages, loading, error };
 };
+
