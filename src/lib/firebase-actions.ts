@@ -21,6 +21,7 @@ import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType,
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
+import { roleDetails } from "@/lib/roles";
 
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -490,9 +491,7 @@ function sanitizeValue(value: any): any {
         for (const key in value) {
              if (Object.prototype.hasOwnProperty.call(value, key)) {
                 const sanitized = sanitizeValue(value[key]);
-                if (sanitized !== null) { // Only add non-null values
-                    sanitizedObject[key] = sanitized;
-                }
+                sanitizedObject[key] = sanitized;
             }
         }
         return sanitizedObject;
@@ -679,10 +678,8 @@ export async function processNight(db: Firestore, gameId: string) {
                     messages.push("Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!");
                 } else {
                     const killedPlayer = game.players.find(p => p.userId === killedId)!;
-                    let message = `${killedPlayer.displayName} fue asesinado por los lobos.`;
-                    if (killedPlayer.role === 'villager') {
-                        message += " Era un simple aldeano.";
-                    }
+                    const roleName = roleDetails[killedPlayer.role!]?.name || 'un rol desconocido';
+                    let message = `${killedPlayer.displayName} fue asesinado y era ${roleName}.`;
                     messages.push(message);
                     markPlayerForDeath(killedId);
                 }
@@ -767,13 +764,12 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             const voterPlayer = game.players.find(p => p.userId === voterId);
 
             if (targetPlayer?.isAI) {
-                // Sanitize the entire game object for the AI prompt
                 const sanitizedGame = JSON.parse(JSON.stringify(game));
 
                 const perspective: AIPlayerPerspective = {
                     game: sanitizedGame,
                     aiPlayer: JSON.parse(JSON.stringify(targetPlayer)),
-                    trigger: `${voterPlayer?.displayName || 'Someone'} has voted for you.`,
+                    trigger: `${voterPlayer?.displayName || 'Someone'} te ha votado.`,
                     players: game.players.map(p => JSON.parse(JSON.stringify(p))),
                 };
                 const { message, shouldSend } = await generateAIChatMessage(perspective);
@@ -786,8 +782,11 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
                         round: game.currentRound,
                         createdAt: Timestamp.now(),
                     };
-                    // We need to update the game object within the transaction
-                    game.chatMessages = [...(game.chatMessages || []), newMessage];
+                    if (game.chatMessages) {
+                      game.chatMessages.push(newMessage);
+                    } else {
+                      game.chatMessages = [newMessage];
+                    }
                 }
             }
 
@@ -887,7 +886,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                             gameId,
                             round: game.currentRound,
                             type: 'vote_result',
-                            message: `El pueblo ha decidido. ${lynchedPlayer.displayName} ha sido linchado.`,
+                            message: `${lynchedPlayer.displayName} fue apedreado por nuestros votos.`,
                             data: { lynchedPlayerId },
                             createdAt: Timestamp.now(),
                         });
