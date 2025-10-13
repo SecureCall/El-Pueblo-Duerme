@@ -85,8 +85,12 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
         const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
         if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
             const hasDeaths = nightEvent.data?.killedPlayerIds?.length > 0;
+            const wasSaved = !hasDeaths && nightEvent.data?.savedPlayerIds?.length > 0;
+            
             if (hasDeaths) {
-                playSoundEffect('anuncio_exilio.mp3');
+                playNarration('Descanse en paz.mp3');
+            } else if (wasSaved) {
+                playNarration('¡Milagro!.mp3');
             }
             nightSoundsPlayedForRound.current = game.currentRound; // Mark as played for this round
         }
@@ -361,3 +365,6 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     </>
   );
 }
+
+
+    
