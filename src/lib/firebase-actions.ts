@@ -476,18 +476,37 @@ function killPlayer(
 }
 
 
-function sanitizeGameForUpdate(updateData: { [key: string]: any }): { [key: string]: any } {
-    const sanitized: { [key: string]: any } = {};
-    for (const key in updateData) {
-        if (Object.prototype.hasOwnProperty.call(updateData, key)) {
-            const value = updateData[key];
-            if (value !== undefined) {
-                // Firestore does not allow 'undefined'. We simply omit these fields.
-                 sanitized[key] = value;
-            }
+function sanitizeGameForUpdate(gameData: Game): Partial<Game> {
+    const sanitized: Partial<Game> = { ...gameData };
+
+    // Firestore cannot store `undefined` or custom objects that aren't registered.
+    // We convert Timestamps to a format Firestore understands if they got converted.
+    const convertTimestamps = (obj: any): any => {
+        if (!obj) return obj;
+        if (obj instanceof Timestamp) return obj;
+        if (obj.seconds !== undefined && obj.nanoseconds !== undefined) {
+             // It's a plain object that looks like a Timestamp
+            return new Timestamp(obj.seconds, obj.nanoseconds);
         }
-    }
-    return sanitized;
+        if (Array.isArray(obj)) {
+            return obj.map(convertTimestamps);
+        }
+        if (typeof obj === 'object') {
+            const newObj: { [key: string]: any } = {};
+            for (const key in obj) {
+                if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                    const value = obj[key];
+                    if (value !== undefined) {
+                         newObj[key] = convertTimestamps(value);
+                    }
+                }
+            }
+            return newObj;
+        }
+        return obj;
+    };
+    
+    return convertTimestamps(sanitized) as Partial<Game>;
 }
 
 
@@ -1065,6 +1084,27 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
     } catch(e) {
         console.error("Error in AI Actions:", e);
     }
+}
+
+// Deep-copies and converts Timestamps to ISO strings for AI prompt
+function sanitizeValue(value: any): any {
+    if (!value) return value;
+    if (value instanceof Timestamp) {
+        return value.toDate().toISOString();
+    }
+    if (Array.isArray(value)) {
+        return value.map(v => sanitizeValue(v));
+    }
+    if (typeof value === 'object') {
+        const newObj: { [key: string]: any } = {};
+        for (const key in value) {
+            if (Object.prototype.hasOwnProperty.call(value, key)) {
+                newObj[key] = sanitizeValue(value[key]);
+            }
+        }
+        return newObj;
+    }
+    return value;
 }
 
 export async function sendChatMessage(db: Firestore, gameId: string, senderId: string, senderName: string, text: string) {
