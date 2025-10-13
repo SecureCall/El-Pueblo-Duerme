@@ -49,12 +49,8 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
       switch (player.causeOfDeath) {
         case 'werewolf_kill':
           return (
-            <div className={cn(baseClasses, "p-2")}>
-                <img
-                  src="/zarpa.svg"
-                  alt="Zarpazo"
-                  className="h-full w-full object-contain opacity-90 brightness-0 invert"
-                />
+            <div className={cn(baseClasses)}>
+                <Skull className={cn(iconClasses, "text-white")} />
             </div>
           );
         case 'vote_result':
