@@ -40,20 +40,28 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
 
   const cardStyle = highlightColor ? { boxShadow: `0 0 15px 4px ${highlightColor}` } : {};
 
-  if (!player.isAlive) {
+ if (!player.isAlive) {
     const roleInfo = roleDetails[player.role!] ?? defaultRoleDetail;
     const DeathOverlay = () => {
         switch (player.causeOfDeath) {
             case 'werewolf_kill':
                 return (
-                    <div className="absolute inset-0 flex items-center justify-center overflow-hidden z-20">
+                    <div className="absolute inset-0 flex items-center justify-center z-20">
                         <Image src="/zarpa.png" alt="Zarpazo" fill className="object-contain opacity-80" unoptimized />
                     </div>
                 );
             case 'vote_result':
-                return <Gavel className="absolute inset-0 m-auto h-16 w-16 text-amber-800/80 z-20" />;
+                 return (
+                    <div className="absolute inset-0 flex items-center justify-center z-20">
+                        <Gavel className="h-16 w-16 text-amber-800/80" />
+                    </div>
+                );
             default:
-                return <Skull className="absolute inset-0 m-auto h-16 w-16 text-gray-400/80 z-20" />;
+                return (
+                    <div className="absolute inset-0 flex items-center justify-center z-20">
+                        <Skull className="h-16 w-16 text-gray-400/80" />
+                    </div>
+                );
         }
     };
     
