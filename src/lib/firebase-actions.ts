@@ -470,7 +470,7 @@ async function killPlayer(
 }
 
 
-function sanitizeGameForUpdate(gameData: Partial<Game>): Partial<Game> {
+function sanitizeGameForUpdate(gameData: Partial<Game>): { [key: string]: any } {
     const sanitizedGame: { [key: string]: any } = { ...gameData };
 
     for (const key in sanitizedGame) {
@@ -480,29 +480,27 @@ function sanitizeGameForUpdate(gameData: Partial<Game>): Partial<Game> {
     }
 
     if (sanitizedGame.players) {
-        sanitizedGame.players = sanitizedGame.players.map((p: { [key: string]: any }) => {
-            const sanitizedPlayer = { ...p };
+        sanitizedGame.players = sanitizedGame.players.map((p: any) => {
+            const sanitizedPlayer: { [key: string]: any } = { ...p };
             for (const playerKey in sanitizedPlayer) {
                 if (sanitizedPlayer[playerKey] === undefined) {
                     sanitizedPlayer[playerKey] = null;
                 }
             }
-            if (sanitizedPlayer.potions === null || sanitizedPlayer.potions === undefined) {
+            if (!sanitizedPlayer.potions) {
                 sanitizedPlayer.potions = { poison: null, save: null };
             }
-            return sanitizedPlayer as Player;
+            return sanitizedPlayer;
         });
     }
-    
-    // Ensure top-level optional fields are at least null if they don't exist
-    const optionalFields: (keyof Game)[] = ['lovers', 'twins', 'pendingHunterShot', 'nightActions', 'events', 'phaseEndsAt', 'chatMessages'];
-    optionalFields.forEach(field => {
-        if (!(field in sanitizedGame)) {
-            // @ts-ignore
-            sanitizedGame[field] = null;
+
+    const topLevelOptionalFields: (keyof Game)[] = ['lovers', 'twins', 'pendingHunterShot', 'nightActions', 'events', 'phaseEndsAt', 'chatMessages'];
+    topLevelOptionalFields.forEach(field => {
+        if (sanitizedGame[field] === undefined) {
+             sanitizedGame[field] = null;
         }
     });
-    
+
     return sanitizedGame;
 }
 
@@ -558,7 +556,7 @@ async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: bool
             createdAt: Timestamp.now(),
         };
         newGameData.events = [...(newGameData.events || []), newEvent];
-        return { game: sanitizeGameForUpdate(newGameData) as Game, isOver: true };
+        return { game: newGameData, isOver: true };
     }
 
     return { game: newGameData, isOver: false };
@@ -753,7 +751,7 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
 
 export async function processVotes(db: Firestore, gameId: string) {
     const gameRef = doc(db, 'games', gameId);
-    
+
     try {
         await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
@@ -783,17 +781,17 @@ export async function processVotes(db: Firestore, gameId: string) {
 
             let lynchedPlayerId: string | null = null;
             let eventMessage: string;
-            let gameToUpdate: Partial<Game>;
             
             if (mostVotedPlayerIds.length === 1 && maxVotes > 0) {
                 const potentialLynchedId = mostVotedPlayerIds[0];
                 const lynchedPlayerIndex = game.players.findIndex(p => p.userId === potentialLynchedId);
-                
+
                 if (lynchedPlayerIndex > -1) {
                     const lynchedPlayer = game.players[lynchedPlayerIndex];
                     if (lynchedPlayer.role === 'prince' && game.settings.prince && !lynchedPlayer.princeRevealed) {
+                        // PRINCE IS REVEALED
                         game.players[lynchedPlayerIndex].princeRevealed = true;
-                         eventMessage = `${lynchedPlayer.displayName} ha sido sentenciado, pero revela su identidad como ¡el Príncipe! y sobrevive a la votación.`;
+                        eventMessage = `${lynchedPlayer.displayName} ha sido sentenciado, pero revela su identidad como ¡el Príncipe! y sobrevive a la votación.`;
                         game.events.push({
                             id: `evt_${Date.now()}_${Math.random()}`,
                             gameId,
@@ -806,9 +804,9 @@ export async function processVotes(db: Firestore, gameId: string) {
                         game.players.forEach(p => { p.votedFor = null; });
                         game.phase = 'night';
                         game.currentRound = game.currentRound + 1;
-                        gameToUpdate = game;
 
                     } else {
+                        // NORMAL LYNCH
                         lynchedPlayerId = potentialLynchedId;
                         eventMessage = `El pueblo ha decidido. ${lynchedPlayer.displayName} ha sido linchado.`;
                         game.players[lynchedPlayerIndex].votedFor = 'TO_BE_KILLED';
@@ -824,29 +822,29 @@ export async function processVotes(db: Firestore, gameId: string) {
 
                         const { game: gameAfterKill, hunterId } = await killPlayer(transaction, gameRef, game);
                         game = gameAfterKill;
+                        
                         if (hunterId) {
-                            gameToUpdate = game;
+                           // Hunter shot phase will handle the next step
                         } else {
                             const { game: finalGame, isOver } = await checkGameOver(game);
-                            if (isOver) {
-                                gameToUpdate = finalGame;
-                            } else {
-                                finalGame.players.forEach(p => { p.votedFor = null; });
-                                finalGame.phase = 'night';
-                                finalGame.currentRound = finalGame.currentRound + 1;
-                                gameToUpdate = finalGame;
+                            game = finalGame;
+                            if (!isOver) {
+                                game.players.forEach(p => { p.votedFor = null; });
+                                game.phase = 'night';
+                                game.currentRound = game.currentRound + 1;
                             }
                         }
                     }
                 } else {
+                     // This case should not happen if votes are cast correctly
                     eventMessage = "El jugador a linchar no fue encontrado.";
                     game.events.push({ id: `evt_${Date.now()}_${Math.random()}`, gameId, round: game.currentRound, type: 'vote_result', message: eventMessage, data: { lynchedPlayerId: null }, createdAt: Timestamp.now() });
                     game.players.forEach(p => { p.votedFor = null; });
                     game.phase = 'night';
                     game.currentRound = game.currentRound + 1;
-                    gameToUpdate = game;
                 }
             } else {
+                 // TIE OR NO VOTES
                  if (mostVotedPlayerIds.length > 1) {
                     eventMessage = "La votación resultó en un empate. Nadie fue linchado hoy.";
                 } else {
@@ -856,18 +854,35 @@ export async function processVotes(db: Firestore, gameId: string) {
                 game.players.forEach(p => { p.votedFor = null; });
                 game.phase = 'night';
                 game.currentRound = game.currentRound + 1;
-                gameToUpdate = game;
             }
             
-            transaction.update(gameRef, sanitizeGameForUpdate(gameToUpdate));
+            const finalGame = await checkGameOver(game);
+            if (finalGame.isOver) {
+                 transaction.update(gameRef, sanitizeGameForUpdate(finalGame.game));
+            } else {
+                 transaction.update(gameRef, sanitizeGameForUpdate(game));
+            }
         });
 
         return { success: true };
     } catch (error) {
         console.error("Error processing votes:", error);
+        if (error instanceof Error && error.message.includes("invalid data")) {
+             // This indicates a likely 'undefined' value problem.
+             // We can try to fetch the game state again to debug.
+            try {
+                const gameDoc = await getDoc(gameRef);
+                if (gameDoc.exists()) {
+                    console.error("Game state at time of error:", JSON.stringify(gameDoc.data(), null, 2));
+                }
+            } catch (e) {
+                console.error("Could not fetch game state for debugging.", e)
+            }
+        }
         return { error: "Hubo un problema al procesar la votación." };
     }
 }
+
 
 export async function getSeerResult(db: Firestore, gameId: string, seerId: string, targetId: string) {
   try {
