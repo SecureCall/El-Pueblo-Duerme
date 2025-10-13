@@ -86,9 +86,9 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
       if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
           const hasDeaths = nightEvent.data?.killedPlayerIds?.length > 0;
           if (hasDeaths) {
-              playSoundEffect('descanse_en_paz.mp3');
+              playNarration('descanse_en_paz.mp3');
           } else {
-              playSoundEffect('milagro.mp3');
+              playNarration('milagro.mp3');
           }
           nightSoundsPlayedForRound.current = game.currentRound; // Mark as played for this round
       }
