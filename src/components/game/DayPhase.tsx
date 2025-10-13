@@ -154,7 +154,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                             <div className="text-center py-4 space-y-4">
                                 <p className="text-lg">Observas el debate desde el más allá...</p>
                                 <PlayerGrid 
-                                    players={alivePlayers}
+                                    players={players}
                                     votesByPlayer={votesByPlayer}
                                 />
                             </div>
@@ -173,3 +173,5 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
         </div>
     );
 }
+
+    

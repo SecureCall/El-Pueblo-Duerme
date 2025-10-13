@@ -41,7 +41,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
         await playNarration('dia_pueblo_despierta.mp3');
         const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
         if (nightEvent) {
-            const hasDeaths = nightEvent.data?.killedByWerewolfIds?.length > 0 || nightEvent.data?.killedByPoisonId;
+            const hasDeaths = nightEvent.data?.killedPlayerIds?.length > 0 || nightEvent.data?.killedByPoisonId;
             if (hasDeaths) {
                 await playSoundEffect('descanse_en_paz.mp3');
             } else {
@@ -99,16 +99,6 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
       }
     }
   }, [game.phase, game.id, game.creator, currentPlayer.userId, game.currentRound, game.settings.fillWithAI, firestore]);
-
-  const handleAcknowledgeRole = async () => {
-    if (game.phase === 'role_reveal' && firestore) {
-      try {
-        await updateDoc(doc(firestore, "games", game.id), { phase: 'night' });
-      } catch (error) {
-        console.error("Failed to advance phase from role_reveal:", error);
-      }
-    }
-  };
   
    const handleTimerEnd = async () => {
     // Only creator processes the phase end to prevent multiple executions
@@ -179,7 +169,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
   
   const getTimerDuration = () => {
       if (game.phase === 'day') return 90;
-      if (game.phase === 'night') return 45;
+      if (game.phase === 'night') return 60;
       return 0;
   }
   
@@ -200,24 +190,20 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
   }
 
   const getCauseOfDeath = (playerId: string): 'werewolf_kill' | 'vote_result' | 'other' => {
-    const deathEvent = events.find(e => {
-        if (e.type === 'night_result' && (e.data?.killedByWerewolfIds?.includes(playerId) || e.data?.killedByPoisonId === playerId)) {
-            return true;
-        }
-        if (e.type === 'vote_result' && e.data?.lynchedPlayerId === playerId) {
-            return true;
-        }
-        if ((e.type === 'lover_death' || e.type === 'hunter_shot') && e.data?.killedPlayerId === playerId) {
-            return true;
-        }
-        return false;
-    });
+      // Find the most recent event related to this player's death
+      const deathEvent = events
+          .filter(e =>
+              (e.type === 'night_result' && (e.data?.killedPlayerIds?.includes(playerId) || e.data?.killedByPoisonId === playerId)) ||
+              (e.type === 'vote_result' && e.data?.lynchedPlayerId === playerId) ||
+              ((e.type === 'lover_death' || e.type === 'hunter_shot') && e.data?.killedPlayerId === playerId)
+          )
+          .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())[0];
 
-    if (deathEvent) {
-      if (deathEvent.type === 'night_result') return 'werewolf_kill';
-      if (deathEvent.type === 'vote_result') return 'vote_result';
-    }
-    return 'other';
+      if (deathEvent) {
+          if (deathEvent.type === 'night_result') return 'werewolf_kill';
+          if (deathEvent.type === 'vote_result') return 'vote_result';
+      }
+      return 'other';
   };
   
   const playersWithDeathCause = players.map(p => ({
@@ -227,15 +213,31 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
 
   // Acknowledge role is a dummy function for spectators
   const handleAcknowledgeRole = async () => {
-    if (firestore && game.phase === 'role_reveal') {
+    if (firestore && game.phase === 'role_reveal' && currentPlayer) {
         try {
-            await updateDoc(doc(firestore, "games", game.id), { phase: 'night' });
+            // A non-creator player trying to acknowledge role to advance the game.
+            // This is just to satisfy the button, the creator's acknowledgement is what matters.
+            const playerIndex = game.players.findIndex(p => p.userId === currentPlayer.userId);
+            if (playerIndex > -1) {
+                const updatedPlayers = [...game.players];
+                // updatedPlayers[playerIndex].acknowledged = true;
+                // await updateDoc(doc(firestore, "games", game.id), { players: updatedPlayers });
+            }
         } catch (error) {
-            console.error("Failed to advance phase from role_reveal:", error);
+            console.error("Spectator failed to acknowledge role:", error);
         }
     }
   };
-  const handleTimerEnd = async () => {};
+  const handleTimerEnd = async () => {
+     // Only creator processes the phase end to prevent multiple executions
+    if (!currentPlayer || game.creator !== currentPlayer.userId || !firestore) return;
+
+    if (game.phase === 'night' && game.status === 'in_progress') {
+      await processNight(firestore, game.id);
+    } else if (game.phase === 'day' && game.status === 'in_progress') {
+      await processVotes(firestore, game.id);
+    }
+  };
 
   if (currentPlayer && currentPlayer.role && game.phase === 'role_reveal') {
       return <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />;
@@ -331,3 +333,5 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     </>
   );
 }
+
+    

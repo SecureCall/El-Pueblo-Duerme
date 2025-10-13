@@ -476,83 +476,18 @@ function killPlayer(
 }
 
 
-function sanitizeValue(value: any): any {
-    if (value instanceof Timestamp) {
-        return value.toDate().toISOString(); // Convert Timestamp to ISO string
-    }
-    if (value instanceof Date) {
-        return value.toISOString(); // Convert Date to ISO string
-    }
-    if (value === undefined) {
-        return null; // Firestore doesn't support undefined, use null instead
-    }
-    if (value === null || typeof value !== 'object') {
-        return value;
-    }
-    if (Array.isArray(value)) {
-        return value.map(sanitizeValue);
-    }
-    // It's a plain object, recursively sanitize its properties
-    const sanitizedObject: { [key: string]: any } = {};
-    for (const key in value) {
-        if (Object.prototype.hasOwnProperty.call(value, key)) {
-            const sanitized = sanitizeValue(value[key]);
-            if (sanitized !== undefined) {
-                 sanitizedObject[key] = sanitized;
+function sanitizeGameForUpdate(updateData: { [key: string]: any }): { [key: string]: any } {
+    const sanitized: { [key: string]: any } = {};
+    for (const key in updateData) {
+        if (Object.prototype.hasOwnProperty.call(updateData, key)) {
+            const value = updateData[key];
+            if (value !== undefined) {
+                // Firestore does not allow 'undefined'. We simply omit these fields.
+                 sanitized[key] = value;
             }
         }
     }
-    return sanitizedObject;
-}
-
-
-function sanitizeGameForUpdate(gameData: Partial<Game>): { [key: string]: any } {
-    const sanitizedGame = { ...gameData };
-
-    for (const key in sanitizedGame) {
-        if (Object.prototype.hasOwnProperty.call(sanitizedGame, key)) {
-            const typedKey = key as keyof Game;
-            if (sanitizedGame[typedKey] === undefined) {
-                delete sanitizedGame[typedKey];
-            } else {
-                 (sanitizedGame as any)[typedKey] = sanitizeValue(sanitizedGame[typedKey]);
-            }
-        }
-    }
-
-    // This is a workaround for Firestore transactions which don't like ISO strings for dates
-    // We convert them back to Timestamps ONLY for the final update.
-    const finalUpdateObject = { ...sanitizedGame };
-    if (finalUpdateObject.createdAt && typeof finalUpdateObject.createdAt === 'string') {
-        finalUpdateObject.createdAt = Timestamp.fromDate(new Date(finalUpdateObject.createdAt));
-    }
-    if (finalUpdateObject.players) {
-        finalUpdateObject.players = finalUpdateObject.players.map((p: any) => ({
-            ...p,
-            joinedAt: (p.joinedAt && typeof p.joinedAt === 'string') ? Timestamp.fromDate(new Date(p.joinedAt)) : p.joinedAt
-        }));
-    }
-     if (finalUpdateObject.events) {
-        finalUpdateObject.events = finalUpdateObject.events.map((e: any) => ({
-            ...e,
-            createdAt: (e.createdAt && typeof e.createdAt === 'string') ? Timestamp.fromDate(new Date(e.createdAt)) : e.createdAt
-        }));
-    }
-    if (finalUpdateObject.chatMessages) {
-        finalUpdateObject.chatMessages = finalUpdateObject.chatMessages.map((m: any) => ({
-            ...m,
-            createdAt: (m.createdAt && typeof m.createdAt === 'string') ? Timestamp.fromDate(new Date(m.createdAt)) : m.createdAt
-        }));
-    }
-    if (finalUpdateObject.nightActions) {
-        finalUpdateObject.nightActions = finalUpdateObject.nightActions.map((a: any) => ({
-            ...a,
-            createdAt: (a.createdAt && typeof a.createdAt === 'string') ? Timestamp.fromDate(new Date(a.createdAt)) : a.createdAt
-        }));
-    }
-
-
-    return finalUpdateObject;
+    return sanitized;
 }
 
 
@@ -629,6 +564,7 @@ export async function processNight(db: Firestore, gameId: string) {
             
             let finalKilledPlayerIds: string[] = [];
             let messages: string[] = [];
+            let killedPlayerNamesAndRoles = [];
 
             const savedByDoctorId = actions.find(a => a.actionType === 'doctor_heal')?.targetId || null;
             const savedByHechiceraId = actions.find(a => a.actionType === 'hechicera_save')?.targetId || null;
@@ -666,16 +602,15 @@ export async function processNight(db: Firestore, gameId: string) {
                     if (!targetPlayer) continue;
 
                     if (allProtectedIds.has(targetId)) {
-                        messages.push("Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!");
+                       // No message needed, will be covered by the generic save message
                     } else if (targetPlayer.role === 'cursed' && game.settings.cursed) {
                         const playerIndex = game.players.findIndex(p => p.userId === targetId);
                         if (playerIndex > -1) game.players[playerIndex].role = 'werewolf';
-                        messages.push(`En la oscuridad, ${targetPlayer.displayName} no muere, ¡sino que se une a la manada! Ahora es un Hombre Lobo.`);
                         game.events.push({ id: `evt_transform_${targetId}`, gameId, round: game.currentRound, type: 'player_transformed', message: `${targetPlayer.displayName} ha sido transformado en Hombre Lobo.`, data: { playerId: targetId }, createdAt: Timestamp.now() });
                     } else {
                         finalKilledPlayerIds.push(targetId);
                         const roleName = roleDetails[targetPlayer.role!]?.name || 'un rol desconocido';
-                        messages.push(`${targetPlayer.displayName} fue asesinado y era ${roleName}.`);
+                        killedPlayerNamesAndRoles.push(`${targetPlayer.displayName} (que era ${roleName})`);
                     }
                 }
             }
@@ -684,16 +619,21 @@ export async function processNight(db: Firestore, gameId: string) {
             const poisonAction = actions.find(a => a.actionType === 'hechicera_poison');
             if (poisonAction && poisonAction.targetId && !finalKilledPlayerIds.includes(poisonAction.targetId)) {
                 if (allProtectedIds.has(poisonAction.targetId)) {
-                    messages.push("La poción de una hechicera ha salvado a alguien de un veneno.");
+                    // Saved
                 } else {
                     const killedPlayer = game.players.find(p => p.userId === poisonAction.targetId)!;
-                    messages.push(`${killedPlayer.displayName} ha muerto misteriosamente, víctima de un veneno.`);
+                    const roleName = roleDetails[killedPlayer.role!]?.name || 'un rol desconocido';
+                    killedPlayerNamesAndRoles.push(`${killedPlayer.displayName} (que era ${roleName})`);
                     finalKilledPlayerIds.push(poisonAction.targetId);
                 }
             }
 
-            if (messages.length === 0) {
-                messages.push("La noche transcurre en un inquietante silencio.");
+            if (killedPlayerNamesAndRoles.length > 0) {
+                 messages.push(`Anoche, el pueblo perdió a ${killedPlayerNamesAndRoles.join(' y a ')}.`);
+            } else if(allProtectedIds.size > 0 && werewolfVotes.length > 0) {
+                 messages.push("Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!");
+            } else {
+                 messages.push("La noche transcurre en un inquietante silencio. Nadie ha muerto.");
             }
             
             game.events.push({
@@ -861,9 +801,10 @@ export async function processVotes(db: Firestore, gameId: string) {
                         });
                     } else {
                         lynchedPlayerId = potentialLynchedId;
+                        const lynchedPlayerRole = roleDetails[lynchedPlayer.role!]?.name || 'un rol desconocido';
                         game.events.push({
                             id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result',
-                            message: `${lynchedPlayer.displayName} fue apedreado por nuestros votos.`,
+                            message: `${lynchedPlayer.displayName} fue linchado por el pueblo. Su rol era: ${lynchedPlayerRole}.`,
                             data: { lynchedPlayerId }, createdAt: Timestamp.now(),
                         });
                     }
@@ -1260,9 +1201,5 @@ export async function resetGame(db: Firestore, gameId: string) {
         return { error: e.message || 'No se pudo reiniciar la partida.' };
     }
 }
-
-    
-
-    
 
     
