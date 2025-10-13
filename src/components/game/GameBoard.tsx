@@ -18,6 +18,7 @@ import { GameChronicle } from "./GameChronicle";
 import { PhaseTimer } from "./PhaseTimer";
 import { CurrentPlayerRole } from "./CurrentPlayerRole";
 import { playNarration, playSoundEffect } from "@/lib/sounds";
+import { YouAreDeadOverlay } from "./YouAreDeadOverlay";
 
 interface GameBoardProps {
   game: Game;
@@ -132,6 +133,12 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
     return (
         <GameOver event={gameOverEvent} players={players} />
     );
+  }
+
+  // Show the "You are dead" overlay if the current player is not alive
+  // and the game is still in progress.
+  if (!currentPlayer.isAlive && game.status === 'in_progress') {
+    return <YouAreDeadOverlay />;
   }
 
   const alivePlayers = players.filter(p => p.isAlive);
@@ -271,18 +278,6 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
             </CardContent>
          </Card>
       )}
-       
-       { !currentPlayer.isAlive && !isHunterWaitingToShoot && game.status === 'in_progress' && (
-         <Card className="mt-8 bg-card/80">
-            <CardHeader>
-              <CardTitle className="font-headline text-2xl">Has Sido Eliminado</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <p>Tu rol era: <span className="font-bold">{currentPlayer.role}</span>.</p>
-                <p className="text-destructive font-bold mt-2">Ahora eres un espectador. No puedes hablar ni votar.</p>
-            </CardContent>
-         </Card>
-       )}
        
        {currentPlayer.isAlive && game.status === 'in_progress' && game.phase !== 'role_reveal' && (
         <CurrentPlayerRole player={currentPlayer} />
