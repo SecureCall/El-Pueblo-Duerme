@@ -317,13 +317,6 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         const existingActionIndex = nightActions.findIndex(a => a.round === action.round && a.playerId === action.playerId);
 
         // Validations
-        if (action.actionType === 'doctor_heal') {
-            const targetPlayer = game.players.find(p => p.userId === action.targetId);
-            if (!targetPlayer) throw new Error("Target player not found");
-            if (targetPlayer.lastHealedRound === action.round - 1) {
-                throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
-            }
-        }
         if (action.actionType === 'hechicera_poison' && player.potions?.poison) throw new Error("Ya has usado tu poción de veneno.");
         if (action.actionType === 'hechicera_save' && player.potions?.save) throw new Error("Ya has usado tu poción de salvación.");
         if (action.actionType === 'priest_bless' && action.targetId === action.playerId && player.priestSelfHealUsed) {
@@ -344,6 +337,9 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         if (action.actionType === 'doctor_heal') {
             const targetIndex = players.findIndex(p => p.userId === action.targetId);
             if (targetIndex > -1) {
+                if (players[targetIndex].lastHealedRound === action.round - 1) {
+                    throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
+                }
                 players[targetIndex].lastHealedRound = action.round;
             }
         } else if (action.actionType === 'hechicera_poison') {
@@ -751,6 +747,7 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
     let game: Game | null = null;
     let targetPlayer: Player | undefined;
     let voterPlayer: Player | undefined;
+    let shouldTriggerAI = false;
 
     try {
         await runTransaction(db, async (transaction) => {
@@ -758,22 +755,25 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             if (!gameSnap.exists()) throw new Error("Game not found");
             
             const currentGame = gameSnap.data() as Game;
-            game = currentGame; // Store game state for use outside transaction
-
+            
             const playerIndex = currentGame.players.findIndex(p => p.userId === voterId && p.isAlive);
             if (playerIndex === -1) throw new Error("Player not found or is not alive");
             
             currentGame.players[playerIndex].votedFor = targetId;
 
-            // Store players for AI trigger after transaction
+            // Store info for AI trigger after transaction
             targetPlayer = currentGame.players.find(p => p.userId === targetId);
-            voterPlayer = currentGame.players.find(p => p.userId === voterId);
+            if (targetPlayer?.isAI) {
+                shouldTriggerAI = true;
+                voterPlayer = currentGame.players.find(p => p.userId === voterId);
+                game = currentGame; // Make game state available for AI call
+            }
 
             transaction.update(gameRef, { players: currentGame.players });
         });
 
         // Trigger AI response *after* the transaction is successful
-        if (game && targetPlayer?.isAI) {
+        if (shouldTriggerAI && game && targetPlayer) {
             const sanitizedGame = sanitizeValue(game);
             const perspective: AIPlayerPerspective = {
                 game: sanitizedGame,
@@ -782,16 +782,14 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
                 players: sanitizeValue(game.players),
             };
 
-            setTimeout(async () => {
-                try {
-                    const { message, shouldSend } = await generateAIChatMessage(perspective);
-                    if (shouldSend) {
-                        await sendChatMessage(db, gameId, targetPlayer!.userId, targetPlayer!.displayName, message);
-                    }
-                } catch (aiError) {
-                    console.error("Error generating AI chat message on vote:", aiError);
+            // Use a non-blocking call for the AI
+            generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
+                if (shouldSend) {
+                    await sendChatMessage(db, gameId, targetPlayer!.userId, targetPlayer!.displayName, message);
                 }
-            }, 500);
+            }).catch(aiError => {
+                console.error("Error generating AI chat message on vote:", aiError);
+            });
         }
 
         await checkEndDayEarly(db, gameId);
@@ -861,9 +859,7 @@ export async function processVotes(db: Firestore, gameId: string) {
             if (mostVotedPlayerIds.length === 1 && maxVotes > 0) {
                 const potentialLynchedId = mostVotedPlayerIds[0];
                 const lynchedPlayerIndex = game.players.findIndex(p => p.userId === potentialLynchedId);
-                let lynchedPlayerId: string | null = null;
-
-
+                
                 if (lynchedPlayerIndex > -1) {
                     const lynchedPlayer = game.players[lynchedPlayerIndex];
                     if (lynchedPlayer.role === 'prince' && game.settings.prince && !lynchedPlayer.princeRevealed) {
@@ -880,7 +876,6 @@ export async function processVotes(db: Firestore, gameId: string) {
                         });
 
                     } else {
-                        lynchedPlayerId = potentialLynchedId;
                         game.players[lynchedPlayerIndex].votedFor = 'TO_BE_KILLED';
                         
                         game.events.push({
@@ -889,7 +884,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                             round: game.currentRound,
                             type: 'vote_result',
                             message: `${lynchedPlayer.displayName} fue apedreado por nuestros votos.`,
-                            data: { lynchedPlayerId },
+                            data: { lynchedPlayerId: potentialLynchedId },
                             createdAt: Timestamp.now(),
                         });
 
@@ -1258,8 +1253,10 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
 
-    let mentionedAIPlayer: Player | undefined;
     let game: Game | null = null;
+    let mentionedAIPlayer: Player | undefined;
+    let shouldTriggerAI = false;
+
     try {
         await runTransaction(db, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
@@ -1267,7 +1264,6 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
                 throw new Error("Game not found");
             }
             const currentGame = gameDoc.data() as Game;
-            game = currentGame;
             
             const player = currentGame.players.find(p => p.userId === senderId);
             if (!player || !player.isAlive) {
@@ -1280,6 +1276,7 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
                     mentionedPlayerIds.push(p.userId);
                     if (p.isAI && p.isAlive) {
                         mentionedAIPlayer = p; // Store AI player to trigger response after transaction
+                        shouldTriggerAI = true;
                     }
                 }
             }
@@ -1295,7 +1292,11 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
 
             if (mentionedPlayerIds.length > 0) {
                 newMessage.mentionedPlayerIds = mentionedPlayerIds;
+            } else {
+                delete newMessage.mentionedPlayerIds;
             }
+            
+            game = currentGame; // Store game state for AI call after transaction
 
             transaction.update(gameRef, { 
                 chatMessages: arrayUnion(newMessage)
@@ -1303,7 +1304,7 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
         });
 
         // Trigger AI response *after* the transaction is successful
-        if (game && mentionedAIPlayer) {
+        if (shouldTriggerAI && game && mentionedAIPlayer) {
             const sanitizedGame = sanitizeValue(game);
             const perspective: AIPlayerPerspective = {
                 game: sanitizedGame,
@@ -1311,17 +1312,15 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
                 trigger: `${senderName} te ha mencionado en el chat: "${text.trim()}"`,
                 players: sanitizeValue(game.players),
             };
-
-            setTimeout(async () => {
-                try {
-                    const { message, shouldSend } = await generateAIChatMessage(perspective);
-                    if (shouldSend) {
-                        await sendChatMessage(db, gameId, mentionedAIPlayer!.userId, mentionedAIPlayer!.displayName, message);
-                    }
-                } catch (aiError) {
-                    console.error("Error generating AI chat message on mention:", aiError);
+            
+            // Non-blocking call to the AI
+            generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
+                if (shouldSend) {
+                    await sendChatMessage(db, gameId, mentionedAIPlayer!.userId, mentionedAIPlayer!.displayName, message);
                 }
-            }, 500);
+            }).catch(aiError => {
+                console.error("Error generating AI chat message on mention:", aiError);
+            });
         }
 
         return { success: true };
