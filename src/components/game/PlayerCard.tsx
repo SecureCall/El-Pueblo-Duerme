@@ -51,42 +51,42 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
     return (Math.abs(hash) % totalAvatars) + 1;
   }
   
-  const avatarId = getAvatarId(player.userId);
-  const avatarImage = PlaceHolderImages.find((img) => img.id === `avatar-${avatarId}`);
+  const avatarImage = PlaceHolderImages.find((img) => img.id === `avatar-${getAvatarId(player.userId)}`);
 
   const cardStyle = highlightColor ? { boxShadow: `0 0 15px 4px ${highlightColor}` } : {};
 
   if (!player.isAlive) {
     const roleInfo = roleDetails[player.role!] ?? defaultRoleDetail;
-    const DeathIcon = () => {
+    const DeathOverlay = () => {
         switch (player.causeOfDeath) {
-            case 'vote_result':
-                return <GallowsIcon className="absolute inset-0 m-auto h-16 w-16 text-amber-800/80 z-20" />;
             case 'werewolf_kill':
-                 return (
+                return (
                     <div className="absolute inset-0 flex items-center justify-center overflow-hidden z-20">
-                        <Image src="/zarpa.png" alt="Zarpazo" width={120} height={120} className="absolute object-contain opacity-90 scale-150" unoptimized />
+                        <Image src="/zarpa.png" alt="Zarpazo" layout="fill" className="absolute object-contain opacity-80" unoptimized />
                     </div>
                 );
+            case 'vote_result':
+                return <GallowsIcon className="absolute inset-0 m-auto h-16 w-16 text-amber-800/80 z-20" />;
             default:
                 return <Skull className="absolute inset-0 m-auto h-16 w-16 text-gray-400/80 z-20" />;
         }
     };
     
     return (
-        <Card className="relative flex flex-col items-center justify-between p-4 h-full bg-muted/30 rounded-lg overflow-hidden">
-            <div className="absolute inset-0 bg-black/60 z-10" />
-            <div className="relative z-20 w-full flex flex-col items-center">
-                <div className="relative h-20 w-20">
-                    <Avatar className="h-20 w-20 border-2 border-border grayscale">
-                        <AvatarImage src={avatarImage?.imageUrl || '/avatar-default.png'} data-ai-hint={avatarImage?.imageHint} />
-                        <AvatarFallback>{player.displayName.substring(0, 2)}</AvatarFallback>
-                    </Avatar>
-                   <DeathIcon />
-                </div>
+        <Card className="relative flex flex-col items-center justify-between p-2 h-full bg-card/50 rounded-lg overflow-hidden border-2 border-destructive/50">
+            <div className="absolute inset-0 bg-black/50 z-10" />
+            <div className="relative z-0 w-full h-full flex-grow">
+                 <Image 
+                    src={roleInfo.image} 
+                    alt={roleInfo.name}
+                    layout="fill"
+                    className="object-cover rounded-md"
+                    unoptimized
+                />
+               <DeathOverlay />
             </div>
-            <div className="relative z-20 flex flex-col items-center gap-1 text-center w-full pt-3">
-                <p className="font-semibold text-center truncate w-full line-through text-lg">{player.displayName}</p>
+            <div className="relative z-20 flex flex-col items-center gap-1 text-center w-full pt-2">
+                <p className="font-semibold text-center truncate w-full line-through text-lg text-primary-foreground">{player.displayName}</p>
                 <div className="text-sm font-bold text-center text-muted-foreground">
                     Era {roleInfo.name}
                 </div>
@@ -143,3 +143,4 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
     </TooltipProvider>
   );
 }
+
