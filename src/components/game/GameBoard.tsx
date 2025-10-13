@@ -84,7 +84,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
   useEffect(() => {
       const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
       if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
-          const hasDeaths = nightEvent.message.toLowerCase().includes('perdió');
+          const hasDeaths = nightEvent.data?.killedPlayerIds?.length > 0;
           if (hasDeaths) {
               playSoundEffect('descanse_en_paz.mp3');
           } else {
@@ -353,3 +353,5 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     </>
   );
 }
+
+    
