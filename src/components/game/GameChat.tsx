@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { playSoundEffect } from '@/lib/sounds';
+import type { Timestamp } from 'firebase/firestore';
 
 interface GameChatProps {
     gameId: string;
@@ -101,6 +102,13 @@ export function GameChat({ gameId, currentPlayer, messages, players }: GameChatP
     };
 
     const canChat = currentPlayer.isAlive;
+    
+    const getDateFromTimestamp = (timestamp: Timestamp | { seconds: number; nanoseconds: number; }) => {
+        if ('toDate' in timestamp) {
+            return timestamp.toDate();
+        }
+        return new Date(timestamp.seconds * 1000);
+    }
 
     return (
         <Card className="bg-card/80 flex flex-col h-full">
@@ -134,7 +142,7 @@ export function GameChat({ gameId, currentPlayer, messages, players }: GameChatP
                                         <p className="text-base break-words">{msg.text}</p>
                                     </div>
                                     <p className="text-xs text-muted-foreground mt-1">
-                                        {formatDistanceToNow(msg.createdAt.toDate(), { addSuffix: true, locale: es })}
+                                        {formatDistanceToNow(getDateFromTimestamp(msg.createdAt), { addSuffix: true, locale: es })}
                                     </p>
                                 </div>
                             )})

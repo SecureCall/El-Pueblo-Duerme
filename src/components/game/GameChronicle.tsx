@@ -15,6 +15,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { ScrollText, SunIcon, MoonIcon, Swords, Milestone, Repeat, BrainCircuit } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
+import type { Timestamp } from 'firebase/firestore';
 
 interface GameChronicleProps {
   events: GameEvent[];
@@ -41,8 +42,17 @@ function getEventIcon(type: GameEvent['type']) {
 }
 
 export function GameChronicle({ events }: GameChronicleProps) {
-  // The events are already sorted by the useGameState hook. Sorting again here would cause an error.
+  // The events are already sorted by the useGameState hook.
   const sortedEvents = events; 
+
+  const getDateFromTimestamp = (timestamp: Timestamp | { seconds: number; nanoseconds: number; }) => {
+    if (!timestamp) return new Date(); // Should not happen
+    if ('toDate' in timestamp) {
+        return timestamp.toDate();
+    }
+    return new Date(timestamp.seconds * 1000);
+  }
+
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -66,7 +76,7 @@ export function GameChronicle({ events }: GameChronicleProps) {
                 <div className="flex-1">
                   <p className="text-sm text-foreground">{event.message}</p>
                   <p className="text-xs text-muted-foreground">
-                    {`Ronda ${event.round} - ${event.createdAt ? formatDistanceToNow(new Date(event.createdAt.seconds * 1000), { addSuffix: true, locale: es }) : ''}`}
+                    {`Ronda ${event.round} - ${event.createdAt ? formatDistanceToNow(getDateFromTimestamp(event.createdAt), { addSuffix: true, locale: es }) : ''}`}
                   </p>
                 </div>
               </div>
