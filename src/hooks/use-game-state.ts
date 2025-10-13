@@ -12,6 +12,7 @@ import {
   type DocumentData, 
   type DocumentSnapshot, 
   type FirestoreError,
+  Timestamp,
 } from 'firebase/firestore';
 import type { Game, Player, GameEvent, ChatMessage } from '@/types';
 import { useFirebase, useMemoFirebase } from '@/firebase';
@@ -33,6 +34,15 @@ export const useGameState = (gameId: string) => {
     return doc(firestore, 'games', gameId);
   }, [gameId, firestore]);
 
+  // Helper to safely get milliseconds from either a Timestamp object or a plain object
+  const getMillis = (timestamp: Timestamp | { seconds: number, nanoseconds: number }): number => {
+    if (timestamp instanceof Timestamp) {
+      return timestamp.toMillis();
+    }
+    // It's a plain object from JSON serialization
+    return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
+  };
+
   useEffect(() => {
     if (!gameRef) {
         setLoading(false);
@@ -46,8 +56,10 @@ export const useGameState = (gameId: string) => {
       if (snapshot.exists()) {
         const gameData = { ...snapshot.data() as Game, id: snapshot.id };
         setGame(gameData);
-        setPlayers(gameData.players.sort((a, b) => a.joinedAt.toMillis() - b.joinedAt.toMillis()));
-        setEvents(gameData.events?.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis()) || []);
+        // Use the safe getMillis function for sorting
+        setPlayers([...gameData.players].sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt)));
+        setEvents([...(gameData.events || [])].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)));
+        
         // Only get messages for the current round
         setMessages(gameData.chatMessages?.filter(m => m.round === gameData.currentRound) || []);
         setError(null);
