@@ -1273,8 +1273,11 @@ export async function sendChatMessage(db: Firestore, gameId: string, senderId: s
             text: text.trim(),
             round: game.currentRound,
             createdAt: Timestamp.now(),
-            mentionedPlayerIds: mentionedPlayerIds.length > 0 ? mentionedPlayerIds : undefined,
         };
+
+        if (mentionedPlayerIds.length > 0) {
+            newMessage.mentionedPlayerIds = mentionedPlayerIds;
+        }
 
         await updateDoc(gameRef, {
             chatMessages: arrayUnion(newMessage)
