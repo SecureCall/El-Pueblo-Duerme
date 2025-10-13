@@ -1,4 +1,3 @@
-
 'use client';
 import { 
   doc,
@@ -551,7 +550,7 @@ async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: bool
             createdAt: Timestamp.now(),
         };
         newGameData.events = [...(newGameData.events || []), newEvent];
-        return { game: newGameData, isOver: true };
+        return { game: sanitizeGameForUpdate(newGameData) as Game, isOver: true };
     }
 
     return { game: newGameData, isOver: false };
@@ -775,6 +774,7 @@ export async function processVotes(db: Firestore, gameId: string) {
 
             let lynchedPlayerId: string | null = null;
             let eventMessage: string;
+            let princeSaved = false;
 
             if (mostVotedPlayerIds.length === 1 && maxVotes > 0) {
                 const potentialLynchedId = mostVotedPlayerIds[0];
@@ -785,6 +785,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                     if (lynchedPlayer.role === 'prince' && game.settings.prince && !lynchedPlayer.princeRevealed) {
                         eventMessage = `${lynchedPlayer.displayName} ha sido sentenciado, pero revela su identidad como ¡el Príncipe! y sobrevive a la votación.`;
                         game.players[lynchedPlayerIndex].princeRevealed = true;
+                        princeSaved = true;
                     } else {
                         lynchedPlayerId = potentialLynchedId;
                         eventMessage = `El pueblo ha decidido. ${lynchedPlayer.displayName} ha sido linchado.`;
@@ -809,27 +810,27 @@ export async function processVotes(db: Firestore, gameId: string) {
                 createdAt: Timestamp.now(),
             });
             
-            const { game: gameAfterKill, hunterId } = await killPlayer(transaction, gameRef, game);
-            game = gameAfterKill;
-
-            if (hunterId) {
-                transaction.update(gameRef, sanitizeGameForUpdate(game));
-                return;
+            if (lynchedPlayerId) {
+                 const { game: gameAfterKill, hunterId } = await killPlayer(transaction, gameRef, game);
+                 game = gameAfterKill;
+                 if (hunterId) {
+                     transaction.update(gameRef, sanitizeGameForUpdate(game));
+                     return;
+                 }
             }
-
-            const { game: finalGame, isOver } = await checkGameOver(game);
             
-            let gameToUpdate: Game = finalGame;
+            const { game: finalGame, isOver } = await checkGameOver(game);
+            game = finalGame;
             
             if (!isOver) {
-                gameToUpdate.players.forEach(p => {
+                game.players.forEach(p => {
                     p.votedFor = null;
                 });
-                gameToUpdate.phase = 'night';
-                gameToUpdate.currentRound = gameToUpdate.currentRound + 1;
+                game.phase = 'night';
+                game.currentRound = game.currentRound + 1;
             }
             
-            transaction.update(gameRef, sanitizeGameForUpdate(gameToUpdate));
+            transaction.update(gameRef, sanitizeGameForUpdate(game));
         });
 
         return { success: true };
