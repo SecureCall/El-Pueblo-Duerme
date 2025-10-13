@@ -65,9 +65,7 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
             case 'werewolf_kill':
                  return (
                     <div className="absolute inset-0 flex items-center justify-center overflow-hidden z-20">
-                        <Image src="/zarpa.png" alt="Zarpazo" width={80} height={80} className="absolute object-contain opacity-90 rotate-[20deg] scale-125" unoptimized />
-                        <Image src="/zarpa.png" alt="Zarpazo" width={60} height={60} className="absolute object-contain opacity-80 rotate-[-30deg] scale-100 translate-x-2" unoptimized />
-                        <Image src="/zarpa.png" alt="Zarpazo" width={70} height={70} className="absolute object-contain opacity-85 rotate-[10deg] scale-110 -translate-y-1" unoptimized />
+                        <Image src="/zarpa.png" alt="Zarpazo" width={120} height={120} className="absolute object-contain opacity-90 scale-150" unoptimized />
                     </div>
                 );
             default:
@@ -76,7 +74,7 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
     };
     
     return (
-        <div className="relative flex flex-col items-center justify-between p-4 h-full bg-muted/30 rounded-lg overflow-hidden">
+        <Card className="relative flex flex-col items-center justify-between p-4 h-full bg-muted/30 rounded-lg overflow-hidden">
             <div className="absolute inset-0 bg-black/60 z-10" />
             <div className="relative z-20 w-full flex flex-col items-center">
                 <div className="relative h-20 w-20">
@@ -93,7 +91,7 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
                     Era {roleInfo.name}
                 </div>
             </div>
-        </div>
+        </Card>
     );
 }
 
