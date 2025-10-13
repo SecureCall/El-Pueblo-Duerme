@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
@@ -27,7 +26,7 @@ export function YouAreDeadOverlay() {
             <div className="relative h-64 w-64 md:h-80 md:w-80">
                 <img
                     src="/zarpa.png"
-                    alt="Has sido eliminado"
+                    alt="Zarpazo"
                     className="h-full w-full object-contain"
                 />
             </div>
@@ -40,5 +39,3 @@ export function YouAreDeadOverlay() {
         </div>
     );
 }
-
-    
