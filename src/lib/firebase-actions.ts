@@ -475,7 +475,8 @@ function sanitizeGameForUpdate(gameData: Partial<Game>): { [key: string]: any } 
 
     for (const key in sanitizedGame) {
         if (sanitizedGame[key] === undefined) {
-            delete sanitizedGame[key];
+             // Replace undefined with null for Firestore compatibility
+            sanitizedGame[key] = null;
         }
     }
 
@@ -493,6 +494,10 @@ function sanitizeGameForUpdate(gameData: Partial<Game>): { [key: string]: any } 
              // Ensure lastHealedRound is always a number
             if (typeof sanitizedPlayer.lastHealedRound !== 'number') {
                 sanitizedPlayer.lastHealedRound = 0;
+            }
+            // Ensure votedFor is null if it's undefined
+            if (sanitizedPlayer.votedFor === undefined) {
+                sanitizedPlayer.votedFor = null;
             }
             return sanitizedPlayer;
         });
@@ -785,7 +790,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                 }
             }
             
-            let finalUpdateGame: Partial<Game> = game;
+            let finalUpdateGame: Partial<Game> = {};
 
             // Check for close vote clue
             if (totalVotes > 2) {
@@ -829,7 +834,6 @@ export async function processVotes(db: Firestore, gameId: string) {
 
                     } else {
                         let lynchedPlayerId = potentialLynchedId;
-                        if (!lynchedPlayerId) throw new Error("lynchedPlayerId is not defined.");
                         game.players[lynchedPlayerIndex].votedFor = 'TO_BE_KILLED';
                         
                         game.events.push({
@@ -1163,6 +1167,7 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
                 case 'seer_check':
                 case 'doctor_heal':
                 case 'guardian_protect':
+                case 'priest_bless':
                     await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
                     break;
                 case 'VOTE':
