@@ -10,41 +10,56 @@ let isNarrationPlaying = false;
 const initializeAudio = () => {
     if (typeof window === 'undefined' || isAudioInitialized) return;
 
-    narrationAudio = new Audio();
-    narrationAudio.volume = 1.0;
-
-    soundEffectAudio = new Audio();
-    soundEffectAudio.volume = 0.8;
-
-    const onNarrationEnd = () => {
-        isNarrationPlaying = false;
-        narrationQueue.shift()?.resolve();
-        playNextNarration();
-    };
-
-    narrationAudio.addEventListener('ended', onNarrationEnd);
-    narrationAudio.addEventListener('error', (e) => {
-        console.error("Narration audio error:", e);
-        onNarrationEnd(); // Skip the failing audio and move on
-    });
-
     const unlockAudio = () => {
-        if (!isAudioInitialized) {
+        if (isAudioInitialized) return;
+        
+        try {
+            if (!narrationAudio) {
+                narrationAudio = new Audio();
+                narrationAudio.volume = 1.0;
+                narrationAudio.addEventListener('ended', onNarrationEnd);
+                narrationAudio.addEventListener('error', (e) => {
+                    console.error("Narration audio error:", e);
+                    onNarrationEnd(); 
+                });
+            }
+             if (!soundEffectAudio) {
+                soundEffectAudio = new Audio();
+                soundEffectAudio.volume = 0.8;
+            }
+
+            // Play a tiny silent audio to unlock the context
+            narrationAudio.play().catch(() => {});
+            narrationAudio.pause();
+            soundEffectAudio.play().catch(() => {});
+            soundEffectAudio.pause();
+            
             isAudioInitialized = true;
-            // Play a tiny silent audio file to unlock the audio context
-            narrationAudio?.play().catch(() => {});
-            narrationAudio?.pause();
-            soundEffectAudio?.play().catch(() => {});
-            soundEffectAudio?.pause();
+            console.log("Audio context unlocked.");
+            
             document.removeEventListener('click', unlockAudio, true);
             document.removeEventListener('keydown', unlockAudio, true);
             document.removeEventListener('touchstart', unlockAudio, true);
+
+            // Start playing any queued narration
+            playNextNarration();
+
+        } catch (error) {
+            console.error("Error initializing audio:", error);
         }
     };
     
     document.addEventListener('click', unlockAudio, true);
     document.addEventListener('keydown', unlockAudio, true);
     document.addEventListener('touchstart', unlockAudio, true);
+};
+
+const onNarrationEnd = () => {
+    isNarrationPlaying = false;
+    if (narrationQueue.length > 0) {
+        narrationQueue.shift()?.resolve();
+    }
+    playNextNarration();
 };
 
 initializeAudio();
@@ -66,15 +81,19 @@ const playNextNarration = () => {
 export const playNarration = (narrationFile: string): Promise<void> => {
     return new Promise((resolve) => {
         if (!isAudioInitialized) {
-            // If audio is not unlocked yet, we resolve immediately.
-            // The sounds might not play, but we don't block the game logic.
-            console.warn("Audio not initialized. Cannot play narration.");
-            resolve();
-            return;
+            console.warn("Audio not initialized. Queuing narration.");
         }
         narrationQueue.push({ src: `/audio/voz/${narrationFile}`, resolve });
-        if (!isNarrationPlaying) {
+        if (!isNarrationPlaying && isAudioInitialized) {
             playNextNarration();
+        } else if (!isAudioInitialized) {
+            // If not initialized, we can't play, but we've queued it.
+            // We resolve immediately so game logic doesn't hang.
+            // The audio will play once the user interacts.
+            // This is a trade-off: audio might be delayed, but the app isn't stuck.
+             resolve();
+        } else {
+             // It's initialized and playing, so just wait for the queue.
         }
     });
 };
@@ -89,10 +108,13 @@ export const playSoundEffect = (soundFile: string): Promise<void> => {
         // Use a new audio object for each sound effect to allow for overlaps
         const audio = new Audio(`/audio/effects/${soundFile}`);
         audio.volume = 0.8;
+        
         audio.play().catch(e => {
             console.error(`Sound effect ${soundFile} failed to play:`, e)
         });
+        
         // We don't wait for the sound effect to end, so resolve immediately.
-        resolve();
+        audio.addEventListener('ended', () => resolve());
+        audio.addEventListener('error', () => resolve());
     });
 };
