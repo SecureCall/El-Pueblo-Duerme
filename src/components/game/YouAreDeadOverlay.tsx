@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
@@ -12,6 +13,13 @@ export function YouAreDeadOverlay() {
         if (isVisible && !hasPlayedSound.current) {
             playNarration('muerto.mp3');
             hasPlayedSound.current = true;
+        }
+    }, [isVisible]);
+
+    useEffect(() => {
+        if(isVisible) {
+            const timer = setTimeout(() => setIsVisible(false), 5000);
+            return () => clearTimeout(timer);
         }
     }, [isVisible]);
 
@@ -35,7 +43,7 @@ export function YouAreDeadOverlay() {
                 HAS SIDO DEVORADO
             </h1>
             <p className="text-lg text-primary-foreground/70 mt-4">
-                Ahora eres un espectador. (Toca para espectar)
+                Ahora eres un espectador. (Toca para continuar)
             </p>
         </div>
     );
