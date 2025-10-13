@@ -1,35 +1,45 @@
-
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Progress } from '../ui/progress';
 
 interface PhaseTimerProps {
     duration: number; // in seconds
     onTimerEnd: () => void;
+    // Add key to force re-mount
+    timerKey: string;
 }
 
-export function PhaseTimer({ duration, onTimerEnd }: PhaseTimerProps) {
+export function PhaseTimer({ duration, onTimerEnd, timerKey }: PhaseTimerProps) {
     const [timeLeft, setTimeLeft] = useState(duration);
-    
+    const onTimerEndRef = useRef(onTimerEnd);
+
+    // Keep the onTimerEnd callback fresh without causing re-renders.
     useEffect(() => {
+        onTimerEndRef.current = onTimerEnd;
+    }, [onTimerEnd]);
+
+    useEffect(() => {
+        // Reset timeLeft when the key changes (new phase/round starts)
+        setTimeLeft(duration);
+        
         if (duration <= 0) return;
 
-        setTimeLeft(duration);
         const interval = setInterval(() => {
             setTimeLeft(prev => {
                 if (prev <= 1) {
                     clearInterval(interval);
-                    onTimerEnd();
+                    // Call the callback once when time is up.
+                    onTimerEndRef.current();
                     return 0;
                 }
                 return prev - 1;
             });
         }, 1000);
 
+        // Cleanup function to clear the interval when the component unmounts or the key changes.
         return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [duration, onTimerEnd]);
+    }, [timerKey, duration]); // Depend on the key to reset the timer
 
     if (duration <= 0) return null;
 

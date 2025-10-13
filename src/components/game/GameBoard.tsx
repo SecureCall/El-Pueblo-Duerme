@@ -12,13 +12,14 @@ import { NightActions } from "./NightActions";
 import { processNight, processVotes, runAIActions } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
-import { HeartIcon, Moon, Sun, Users2 } from "lucide-react";
+import { HeartIcon, Moon, Sun, Users2, Gavel, Skull } from "lucide-react";
 import { HunterShot } from "./HunterShot";
 import { GameChronicle } from "./GameChronicle";
 import { PhaseTimer } from "./PhaseTimer";
 import { CurrentPlayerRole } from "./CurrentPlayerRole";
 import { playNarration, playSoundEffect } from "@/lib/sounds";
 import { YouAreDeadOverlay } from "./YouAreDeadOverlay";
+import Image from 'next/image';
 
 interface GameBoardProps {
   game: Game;
@@ -198,7 +199,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     highlightedPlayers.push({ userId: otherTwin.userId, color: 'rgba(135, 206, 250, 0.7)' });
   }
 
-  const getCauseOfDeath = (playerId: string) => {
+  const getCauseOfDeath = (playerId: string): 'werewolf_kill' | 'vote_result' | 'other' => {
     const deathEvent = events.find(e => {
         if (e.type === 'night_result' && (e.data?.killedByWerewolfIds?.includes(playerId) || e.data?.killedByPoisonId === playerId)) {
             return true;
@@ -264,7 +265,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
           </div>
            { (game.phase === 'night' || game.phase === 'day') && game.status === 'in_progress' && (
             <PhaseTimer 
-                key={`${game.id}-${game.phase}-${game.currentRound}`}
+                timerKey={`${game.id}-${game.phase}-${game.currentRound}`}
                 duration={getTimerDuration()} 
                 onTimerEnd={handleTimerEnd}
             />
