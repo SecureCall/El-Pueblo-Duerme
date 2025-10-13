@@ -9,7 +9,7 @@ import { useEffect, useState, useRef } from "react";
 import { doc, runTransaction } from "firebase/firestore";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
-import { processNight, processVotes, runAIActions, checkAndAdvanceFromRoleReveal } from "@/lib/firebase-actions";
+import { processNight, processVotes, runAIActions, advanceToNightPhase } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { HeartIcon, Moon, Sun, Users2, Gavel, Skull } from "lucide-react";
@@ -34,6 +34,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
   const prevPhaseRef = useRef<Game['phase']>();
   const prevRoundRef = useRef<number>();
   const nightSoundsPlayedForRound = useRef<number>(0);
+  const [showRole, setShowRole] = useState(true);
 
   // Sound effect logic
   useEffect(() => {
@@ -74,7 +75,13 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
         }
     }
     
-    // This effect runs whenever events update. It specifically checks for the night_result event.
+    prevPhaseRef.current = game.phase;
+    prevRoundRef.current = game.currentRound;
+
+  }, [game.phase, game.currentRound, events, currentPlayer.userId]);
+
+  // Specific useEffect for night result sounds
+  useEffect(() => {
     const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
     if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
         const hasDeaths = nightEvent.message.toLowerCase().includes('perdió');
@@ -85,12 +92,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
         }
         nightSoundsPlayedForRound.current = game.currentRound; // Mark as played for this round
     }
-
-
-    prevPhaseRef.current = game.phase;
-    prevRoundRef.current = game.currentRound;
-
-  }, [game.phase, game.currentRound, events, currentPlayer.userId]);
+  }, [events, game.currentRound]);
 
 
   // Handle AI actions when phase changes
@@ -102,6 +104,17 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
       }
     }
   }, [game.phase, game.id, game.creator, currentPlayer.userId, game.currentRound, game.settings.fillWithAI, firestore]);
+  
+  // Effect for creator to automatically advance from role_reveal
+  useEffect(() => {
+    if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore) {
+      const timer = setTimeout(() => {
+        advanceToNightPhase(firestore, game.id);
+      }, 15000); // 15 seconds to view role
+
+      return () => clearTimeout(timer);
+    }
+  }, [game.phase, game.id, game.creator, currentPlayer.userId, firestore]);
   
    const handleTimerEnd = async () => {
     // Only creator processes the phase end to prevent multiple executions
@@ -135,46 +148,20 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
     );
   }
 
-  const handleAcknowledgeRole = async () => {
-    if (!firestore || !currentPlayer || game.phase !== 'role_reveal') return;
-
-    const gameRef = doc(firestore, 'games', game.id);
-    try {
-        await runTransaction(firestore, async (transaction) => {
-            const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found");
-            const currentGame = gameSnap.data() as Game;
-
-            const playerIndex = currentGame.players.findIndex(p => p.userId === currentPlayer.userId);
-            if (playerIndex > -1) {
-                const updatedPlayers = [...currentGame.players];
-                updatedPlayers[playerIndex].acknowledged = true;
-                transaction.update(gameRef, { players: updatedPlayers });
-            }
-        });
-
-        // After successfully acknowledging, check if the game can advance
-        await checkAndAdvanceFromRoleReveal(firestore, game.id);
-        
-    } catch (error) {
-        console.error("Error acknowledging role:", error);
-    }
-  };
-
-  if (currentPlayer && currentPlayer.role && game.phase === 'role_reveal' && !currentPlayer.acknowledged) {
-      return <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />;
+  if (currentPlayer && currentPlayer.role && game.phase === 'role_reveal' && showRole) {
+      return <RoleReveal player={currentPlayer} onAcknowledge={() => setShowRole(false)} />;
   }
 
   return (
     <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
-       <SpectatorGameBoard game={game} players={players} events={events} messages={messages} currentPlayer={currentPlayer} handleAcknowledgeRole={handleAcknowledgeRole} />
+       <SpectatorGameBoard game={game} players={players} events={events} messages={messages} currentPlayer={currentPlayer} />
     </div>
   );
 }
 
 
 // A simplified version of the board for spectating, without interactive elements.
-function SpectatorGameBoard({ game, players, events, messages, currentPlayer, handleAcknowledgeRole }: Omit<GameBoardProps, 'currentPlayer'> & { currentPlayer?: Player, handleAcknowledgeRole?: () => void }) {
+function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: Omit<GameBoardProps, 'currentPlayer' | 'messages'> & { currentPlayer?: Player, messages: ChatMessage[] }) {
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
   const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
@@ -256,8 +243,19 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer, ha
     }
   };
 
-  if (currentPlayer && currentPlayer.role && game.phase === 'role_reveal' && !currentPlayer.acknowledged && handleAcknowledgeRole) {
-      return <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />;
+  if (game.phase === 'role_reveal') {
+     return (
+       <Card className="text-center bg-card/80">
+          <CardHeader>
+            <CardTitle className="font-headline text-3xl">
+              Comenzando...
+            </CardTitle>
+          </CardHeader>
+           <CardContent>
+               <p className="text-lg text-muted-foreground">Se están repartiendo los roles. La primera noche caerá pronto.</p>
+           </CardContent>
+       </Card>
+     )
   }
 
   const isHunterWaitingToShoot = game.phase === 'hunter_shot' && game.pendingHunterShot === currentPlayer?.userId;

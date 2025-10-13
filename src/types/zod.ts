@@ -28,7 +28,6 @@ export const PlayerSchema = z.object({
   votedFor: z.string().nullable(),
   displayName: z.string(),
   joinedAt: TimestampSchema,
-  acknowledged: z.boolean(),
   lastHealedRound: z.number(),
   isAI: z.boolean(),
   potions: z.object({

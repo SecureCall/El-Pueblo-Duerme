@@ -40,7 +40,6 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     votedFor: null,
     joinedAt: Timestamp.now(),
     isAI,
-    acknowledged: isAI, // AI players acknowledge their role instantly
     lastHealedRound: 0,
     potions: {
         poison: null,
@@ -275,8 +274,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
             const newRoles = generateRoles(finalPlayers.length, game.settings);
             
             const assignedPlayers = finalPlayers.map((player, index) => {
-                const isAcknowledged = player.isAI || player.acknowledged;
-                return { ...player, role: newRoles[index], acknowledged: isAcknowledged };
+                return { ...player, role: newRoles[index] };
             });
 
             const twinUserIds = assignedPlayers.filter(p => p.role === 'twin').map(p => p.userId);
@@ -1164,7 +1162,6 @@ export async function resetGame(db: Firestore, gameId: string) {
                 role: null,
                 isAlive: true,
                 votedFor: null,
-                acknowledged: false,
                 lastHealedRound: 0,
                 potions: { poison: null, save: null },
                 priestSelfHealUsed: false,
@@ -1197,8 +1194,8 @@ export async function resetGame(db: Firestore, gameId: string) {
     }
 }
 
-export async function checkAndAdvanceFromRoleReveal(db: Firestore, gameId: string) {
-  const gameRef = doc(db, 'games', gameId);
+export async function advanceToNightPhase(db: Firestore, gameId: string) {
+  const gameRef = doc(db, "games", gameId);
   try {
     await runTransaction(db, async (transaction) => {
       const gameSnap = await transaction.get(gameRef);
@@ -1206,25 +1203,18 @@ export async function checkAndAdvanceFromRoleReveal(db: Firestore, gameId: strin
       const game = gameSnap.data() as Game;
 
       // Only advance if we are in the role reveal phase
-      if (game.phase !== 'role_reveal') {
-        return;
-      }
-
-      // Check if all players have acknowledged their role
-      const allAcknowledged = game.players.every(p => p.acknowledged);
-
-      if (allAcknowledged) {
-        // If all have acknowledged, move to the next phase
+      if (game.phase === 'role_reveal') {
         transaction.update(gameRef, { phase: 'night' });
       }
     });
     return { success: true };
   } catch (error) {
-    console.error("Error advancing from role reveal:", error);
+    console.error("Error advancing to night phase:", error);
     return { success: false, error: (error as Error).message };
   }
 }
     
 
     
+
 
