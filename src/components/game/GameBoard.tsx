@@ -86,13 +86,17 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
       if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
           const hasDeaths = nightEvent.data?.killedPlayerIds?.length > 0;
           if (hasDeaths) {
-              playNarration('descanse_en_paz.mp3');
+              playSoundEffect('descanse_en_paz.mp3');
           } else {
-              playNarration('milagro.mp3');
+              const wasSaved = nightEvent.data?.savedPlayerIds?.length > 0;
+              const wasAttack = game.nightActions?.some(a => a.round === game.currentRound && a.actionType === 'werewolf_kill');
+              if(wasSaved && wasAttack) {
+                playSoundEffect('milagro.mp3');
+              }
           }
           nightSoundsPlayedForRound.current = game.currentRound; // Mark as played for this round
       }
-  }, [events, game.currentRound]);
+  }, [events, game.currentRound, game.nightActions]);
 
 
   // Handle AI actions when phase changes
