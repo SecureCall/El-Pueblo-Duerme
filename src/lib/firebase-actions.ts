@@ -40,7 +40,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     votedFor: null,
     joinedAt: Timestamp.now(),
     isAI,
-    acknowledged: false, // Player has not seen their role yet
+    acknowledged: isAI, // AI players acknowledge their role instantly
     lastHealedRound: 0,
     potions: {
         poison: null,
@@ -305,7 +305,6 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
     }
 }
 
-
 export async function submitNightAction(db: Firestore, action: Omit<NightAction, 'createdAt' | 'round'> & { round: number }) {
   const { gameId } = action;
   const gameRef = doc(db, 'games', gameId);
@@ -481,9 +480,11 @@ function sanitizeGameForUpdate(gameData: Game): Partial<Game> {
     const sanitized: { [key: string]: any } = {};
 
     for (const key in gameData) {
-        const value = (gameData as any)[key];
-        if (value !== undefined) {
-            sanitized[key] = value;
+        if (Object.prototype.hasOwnProperty.call(gameData, key)) {
+            const value = (gameData as any)[key];
+            if (value !== undefined) {
+                sanitized[key] = value;
+            }
         }
     }
     return sanitized;
@@ -1247,4 +1248,3 @@ export async function checkAndAdvanceFromRoleReveal(db: Firestore, gameId: strin
   }
 }
     
-
