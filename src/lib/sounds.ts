@@ -1,114 +1,98 @@
-
 "use client";
 
 let narrationAudio: HTMLAudioElement | null = null;
 let soundEffectAudio: HTMLAudioElement | null = null;
 let isAudioInitialized = false;
-let narrationQueue: { src: string; resolve: () => void }[] = [];
-let isNarrationPlaying = false;
 
-const initializeAudio = () => {
+// Function to initialize and unlock audio context on user interaction.
+const initializeAndUnlockAudio = () => {
     if (typeof window === 'undefined' || isAudioInitialized) return;
 
-    const unlockAudio = () => {
-        if (isAudioInitialized) return;
-        
-        try {
-            if (!narrationAudio) {
-                narrationAudio = new Audio();
-                narrationAudio.volume = 1.0;
-                narrationAudio.addEventListener('ended', onNarrationEnd);
-                narrationAudio.addEventListener('error', (e) => {
-                    console.error("Narration audio error:", e);
-                    onNarrationEnd(); 
-                });
-            }
-             if (!soundEffectAudio) {
-                soundEffectAudio = new Audio();
-                soundEffectAudio.volume = 0.8;
-            }
-
-            // Play a tiny silent audio to unlock the context
-            const silentAudio = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
-            
-            if (narrationAudio.src !== silentAudio) narrationAudio.src = silentAudio;
-            if (soundEffectAudio.src !== silentAudio) soundEffectAudio.src = silentAudio;
-
-            narrationAudio.play().catch(() => {});
-            narrationAudio.pause();
-            soundEffectAudio.play().catch(() => {});
-            soundEffectAudio.pause();
-            
-            isAudioInitialized = true;
-            console.log("Audio context unlocked.");
-            
-            document.removeEventListener('click', unlockAudio, true);
-            document.removeEventListener('keydown', unlockAudio, true);
-            document.removeEventListener('touchstart', unlockAudio, true);
-
-            // Start playing any queued narration
-            playNextNarration();
-
-        } catch (error) {
-            console.error("Error initializing audio:", error);
+    try {
+        // Initialize narration audio element
+        if (!narrationAudio) {
+            narrationAudio = new Audio();
+            narrationAudio.volume = 1.0;
         }
-    };
-    
-    document.addEventListener('click', unlockAudio, true);
-    document.addEventListener('keydown', unlockAudio, true);
-    document.addEventListener('touchstart', unlockAudio, true);
-};
+        
+        // Initialize sound effect audio element
+        if (!soundEffectAudio) {
+            soundEffectAudio = new Audio();
+            soundEffectAudio.volume = 0.8;
+        }
 
-const onNarrationEnd = () => {
-    isNarrationPlaying = false;
-    const finishedNarration = narrationQueue.shift();
-    if (finishedNarration) {
-        finishedNarration.resolve();
+        // A tiny silent audio file to unlock the audio context.
+        const silentAudio = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+        narrationAudio.src = silentAudio;
+        soundEffectAudio.src = silentAudio;
+
+        // Attempt to play and immediately pause to unlock.
+        narrationAudio.play().then(() => narrationAudio?.pause()).catch(() => {});
+        soundEffectAudio.play().then(() => soundEffectAudio?.pause()).catch(() => {});
+        
+        isAudioInitialized = true;
+        console.log("Audio context unlocked.");
+
+        // Clean up the event listeners after successful initialization.
+        document.removeEventListener('click', initializeAndUnlockAudio, true);
+        document.removeEventListener('keydown', initializeAndUnlockAudio, true);
+        document.removeEventListener('touchstart', initializeAndUnlockAudio, true);
+
+    } catch (error) {
+        console.error("Error initializing audio:", error);
     }
-    playNextNarration();
 };
 
-initializeAudio();
+// Add event listeners to run the unlock function on the first user interaction.
+if (typeof window !== 'undefined') {
+    document.addEventListener('click', initializeAndUnlockAudio, { once: true, capture: true });
+    document.addEventListener('keydown', initializeAndUnlockAudio, { once: true, capture: true });
+    document.addEventListener('touchstart', initializeAndUnlockAudio, { once: true, capture: true });
+}
 
-const playNextNarration = () => {
-    if (isNarrationPlaying || narrationQueue.length === 0 || !narrationAudio) {
-        return;
-    }
-    isNarrationPlaying = true;
-    const { src } = narrationQueue[0];
-    
-    narrationAudio.src = src;
-    narrationAudio.play().catch(e => {
-        console.warn(`Narration autoplay was prevented for ${src}:`, e);
-        onNarrationEnd();
-    });
-};
 
 export const playNarration = (narrationFile: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
-        if (!isAudioInitialized) {
-            console.warn("Audio not initialized. Queuing narration.");
+    return new Promise((resolve) => {
+        if (!narrationAudio || !isAudioInitialized) {
+            // If audio isn't ready, resolve immediately to not block game logic.
+            // It will fail silently. The user needs to interact first.
+            resolve();
+            return;
         }
-        narrationQueue.push({ src: `/audio/voz/${narrationFile}`, resolve });
-        if (!isNarrationPlaying && isAudioInitialized) {
-            playNextNarration();
-        } else if (!isAudioInitialized) {
-             // Resolve immediately so game logic doesn't hang.
-             // Audio will attempt to play once user interacts.
-             resolve();
-        }
+
+        // To allow chaining, we create a new audio element for each narration.
+        const narrationPlayer = new Audio(`/audio/voz/${narrationFile}`);
+        narrationPlayer.volume = 1.0;
+
+        const onEnd = () => {
+            narrationPlayer.removeEventListener('ended', onEnd);
+            narrationPlayer.removeEventListener('error', onError);
+            resolve();
+        };
+
+        const onError = (e: Event) => {
+            console.error(`Narration audio error for ${narrationFile}:`, e);
+            onEnd(); // Resolve promise even on error
+        };
+        
+        narrationPlayer.addEventListener('ended', onEnd);
+        narrationPlayer.addEventListener('error', onError);
+
+        narrationPlayer.play().catch(e => {
+            // This might still happen if called before interaction, despite our best efforts.
+            console.warn(`Narration play was prevented for ${narrationFile}:`, e);
+            onError(e as Event);
+        });
     });
 };
 
 export const playSoundEffect = (soundFile: string): Promise<void> => {
     return new Promise((resolve) => {
         if (!soundEffectAudio || !isAudioInitialized) {
-            console.warn("Audio not initialized. Cannot play sound effect.");
             resolve();
             return;
         }
         
-        // Clone the main audio element to allow for overlapping sounds
         const audio = soundEffectAudio.cloneNode(true) as HTMLAudioElement;
         audio.src = `/audio/effects/${soundFile}`;
         
@@ -127,8 +111,7 @@ export const playSoundEffect = (soundFile: string): Promise<void> => {
         audio.addEventListener('error', onError);
 
         audio.play().catch(e => {
-            // This catch block will handle browser autoplay restrictions
-            console.error(`Error playing sound effect ${soundFile}:`, e);
+            console.warn(`Sound effect play was prevented for ${soundFile}:`, e);
             onError(e as Event);
         });
     });

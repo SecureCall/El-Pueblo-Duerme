@@ -19,22 +19,21 @@ export default function Home() {
     const playNarrationSequence = async () => {
         if (hasPlayedNarrationRef.current) return;
         hasPlayedNarrationRef.current = true;
+        
+        // Let the page load and give a moment for user interaction to unlock audio
+        await new Promise(resolve => setTimeout(resolve, 1500));
 
         // The playNarration function returns a promise, allowing us to chain audio clips.
         await playNarration('Que comience el juego..mp3');
         await playNarration('salas.mp3');
     };
 
-    // Delay the narration slightly to allow the page and music to settle.
-    const narrationTimeout = setTimeout(() => {
-        playNarrationSequence();
-    }, 1500);
+    playNarrationSequence();
 
     // This is an effect that runs once on mount. The sounds will play,
     // and the cleanup function for this effect will run when the component unmounts.
     return () => {
-      clearTimeout(narrationTimeout);
-      // No need to stop sounds here as GameMusic will handle transitions.
+      // No cleanup needed for audio as it's managed globally now.
     };
 
   }, []);
