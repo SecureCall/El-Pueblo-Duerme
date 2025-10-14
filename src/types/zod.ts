@@ -98,7 +98,7 @@ export const GameSettingsSchema = z.object({
     drunk_man: z.boolean(),
     cult_leader: z.boolean(),
     fisherman: z.boolean(),
-vampire: z.boolean(),
+    vampire: z.boolean(),
     witch: z.boolean(),
     banshee: z.boolean(),
 });
