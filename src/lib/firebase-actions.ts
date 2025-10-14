@@ -458,7 +458,7 @@ function killPlayer(
                     data: { killedPlayerId: otherLoverId, originalVictimId: playerId },
                     createdAt: Timestamp.now(),
                 };
-                 if (!gameData.events) gameData.events = [];
+                if (!gameData.events) gameData.events = [];
                 gameData.events.push(newEvent);
                 killQueue.push(otherLoverId);
             }
@@ -842,7 +842,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             const hunterPlayer = game.players.find(p => p.userId === hunterId)!;
             const targetPlayer = game.players.find(p => p.userId === targetId)!;
 
-            game.events.push({
+            const shotEvent: GameEvent = {
                 id: `evt_huntershot_${Date.now()}`,
                 gameId,
                 round: game.currentRound,
@@ -850,7 +850,9 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 message: `En su último aliento, ${hunterPlayer.displayName} dispara y se lleva consigo a ${targetPlayer.displayName}.`,
                 createdAt: Timestamp.now(),
                 data: {killedPlayerId: targetId},
-            });
+            };
+            if (!shotEvent.id) throw new Error("Generated hunter shot event is missing an ID");
+            game.events.push(shotEvent);
             
             const { updatedGame, triggeredHunterId } = killPlayer(game, [targetId]);
             game = updatedGame;
