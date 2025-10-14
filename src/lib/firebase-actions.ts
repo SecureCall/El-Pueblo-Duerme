@@ -478,15 +478,22 @@ async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: bool
     let newGameData = { ...gameData };
 
     const alivePlayers = newGameData.players.filter(p => p.isAlive);
-    const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub'];
+    const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
     const aliveWerewolves = alivePlayers.filter(p => wolfRoles.includes(p.role));
     const aliveVillagers = alivePlayers.filter(p => !wolfRoles.includes(p.role));
 
     let gameOver = false;
     let message = "";
     let winners: string[] = [];
-
-    if (newGameData.lovers) {
+    
+    // Villager win condition is highest priority after lovers
+    if (aliveWerewolves.length === 0 && aliveVillagers.length > 0) {
+        gameOver = true;
+        message = "¡El pueblo ha ganado! Todos los hombres lobo han sido eliminados.";
+        winners = aliveVillagers.map(p => p.userId);
+    } 
+    // Lovers win condition
+    else if (newGameData.lovers) {
         const aliveLovers = alivePlayers.filter(p => newGameData.lovers!.includes(p.userId));
         if (aliveLovers.length === alivePlayers.length && alivePlayers.length >= 2) {
             gameOver = true;
@@ -496,20 +503,16 @@ async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: bool
             winners = newGameData.lovers;
         }
     }
-    
-    if (!gameOver) {
-        if (aliveWerewolves.length === 0 && aliveVillagers.length > 0) {
-            gameOver = true;
-            message = "¡El pueblo ha ganado! Todos los hombres lobo han sido eliminados.";
-            winners = aliveVillagers.map(p => p.userId);
-        } else if (aliveWerewolves.length >= aliveVillagers.length) {
-            gameOver = true;
-            message = "¡Los hombres lobo han ganado! Han superado en número a los aldeanos.";
-            winners = aliveWerewolves.map(p => p.userId);
-        } else if (alivePlayers.length === 0) {
-            gameOver = true;
-            message = "¡Nadie ha sobrevivido a la masacre!";
-        }
+    // Werewolf win condition
+    else if (aliveWerewolves.length >= aliveVillagers.length) {
+        gameOver = true;
+        message = "¡Los hombres lobo han ganado! Han superado en número a los aldeanos.";
+        winners = aliveWerewolves.map(p => p.userId);
+    } 
+    // Draw condition
+    else if (alivePlayers.length === 0) {
+        gameOver = true;
+        message = "¡Nadie ha sobrevivido a la masacre!";
     }
 
     if (gameOver) {
@@ -1308,3 +1311,4 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
 
 
       
+

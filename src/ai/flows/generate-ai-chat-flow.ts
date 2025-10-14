@@ -116,7 +116,22 @@ const generateAiChatMessageFlow = ai.defineFlow(
 
 export async function generateAIChatMessage(input: AIPlayerPerspective): Promise<GenerateAIChatMessageOutput> {
     try {
-        const result = await generateAiChatMessageFlow(input);
+        // Create a fully sanitized game object for the prompt, ensuring no 'undefined' values.
+        const sanitizedGameForPrompt = {
+            ...input.game,
+            // Ensure optional fields that might be undefined are replaced with null or empty arrays.
+            nightActions: input.game.nightActions || [],
+            lovers: input.game.lovers || null,
+            twins: input.game.twins || null,
+            pendingHunterShot: input.game.pendingHunterShot || null,
+        };
+
+        const sanitizedInput = {
+            ...input,
+            game: sanitizedGameForPrompt,
+        };
+
+        const result = await generateAiChatMessageFlow(sanitizedInput);
         return result;
     } catch (error) {
         console.error("Error in generateAIChatMessage flow:", error);
