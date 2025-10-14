@@ -114,50 +114,37 @@ const generateAiChatMessageFlow = ai.defineFlow(
     }
 );
 
+// Helper function to sanitize any object and replace undefined with null recursively.
+const sanitizeObject = <T extends object>(obj: T): T => {
+    if (obj === null || obj === undefined) {
+        return obj;
+    }
+
+    const newObj = { ...obj } as T;
+    for (const key in newObj) {
+        if (Object.prototype.hasOwnProperty.call(newObj, key)) {
+            const value = newObj[key];
+            if (value === undefined) {
+                (newObj as any)[key] = null;
+            } else if (typeof value === 'object' && !Array.isArray(value) && value !== null) {
+                (newObj as any)[key] = sanitizeObject(value);
+            } else if (Array.isArray(value)) {
+                 (newObj as any)[key] = value.map(item => typeof item === 'object' ? sanitizeObject(item) : item);
+            }
+        }
+    }
+    return newObj;
+};
+
 export async function generateAIChatMessage(input: AIPlayerPerspective): Promise<GenerateAIChatMessageOutput> {
     try {
-        // Create a fully sanitized game object for the AI prompt, ensuring no 'undefined' values.
-        const sanitizedGameForPrompt = {
-            ...input.game,
-            nightActions: input.game.nightActions || [],
-            lovers: input.game.lovers || null,
-            twins: input.game.twins || null,
-            pendingHunterShot: input.game.pendingHunterShot || null,
-        };
-        
-        // Also sanitize players within the game object
-        sanitizedGameForPrompt.players = sanitizedGameForPrompt.players.map(p => ({
-            ...p,
-            potions: p.potions || { poison: null, save: null },
-            priestSelfHealUsed: p.priestSelfHealUsed || false,
-            princeRevealed: p.princeRevealed || false,
-            votedFor: p.votedFor || null,
-            role: p.role || null,
-        }));
-        
-        // Sanitize the top-level players array as well
-        const sanitizedPlayers = input.players.map(p => ({
-             ...p,
-            potions: p.potions || { poison: null, save: null },
-            priestSelfHealUsed: p.priestSelfHealUsed || false,
-            princeRevealed: p.princeRevealed || false,
-            votedFor: p.votedFor || null,
-            role: p.role || null,
-        }));
+        // Deep sanitize the entire input object to remove any 'undefined' values.
+        const sanitizedInput = sanitizeObject(input);
 
-        const sanitizedInput = {
-            ...input,
-            game: sanitizedGameForPrompt,
-            players: sanitizedPlayers,
-             aiPlayer: {
-                ...input.aiPlayer,
-                potions: input.aiPlayer.potions || { poison: null, save: null },
-                priestSelfHealUsed: input.aiPlayer.priestSelfHealUsed || false,
-                princeRevealed: input.aiPlayer.princeRevealed || false,
-                votedFor: input.aiPlayer.votedFor || null,
-                role: input.aiPlayer.role || null,
-            }
-        };
+        // Additionally, ensure top-level optional arrays are empty if null/undefined.
+        sanitizedInput.game.nightActions = sanitizedInput.game.nightActions || [];
+        sanitizedInput.game.chatMessages = sanitizedInput.game.chatMessages || [];
+        sanitizedInput.game.events = sanitizedInput.game.events || [];
 
         const result = await generateAiChatMessageFlow(sanitizedInput);
         return result;

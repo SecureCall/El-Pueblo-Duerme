@@ -449,6 +449,10 @@ function killPlayer(
             // Add the other lover to the queue to be processed
             if (!killedThisTurn.has(otherLoverId)) {
                 const otherLover = gameData.players.find(p => p.userId === otherLoverId);
+                
+                // *** FIX: Ensure events array exists before pushing to it ***
+                if (!gameData.events) gameData.events = [];
+
                 const newEvent: GameEvent = {
                     id: `evt_lover_${Date.now()}_${otherLoverId}`, // Ensure unique ID
                     gameId: gameData.id,
@@ -458,7 +462,6 @@ function killPlayer(
                     data: { killedPlayerId: otherLoverId, originalVictimId: playerId },
                     createdAt: Timestamp.now(),
                 };
-                if (!gameData.events) gameData.events = [];
                 gameData.events.push(newEvent);
                 killQueue.push(otherLoverId);
             }
@@ -493,7 +496,7 @@ async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: bool
         winners = aliveVillagers.map(p => p.userId);
     } 
     // Lovers win condition
-    else if (newGameData.lovers) {
+    else if (newGameData.lovers && alivePlayers.length > 0) {
         const aliveLovers = alivePlayers.filter(p => newGameData.lovers!.includes(p.userId));
         if (aliveLovers.length === alivePlayers.length && alivePlayers.length >= 2) {
             gameOver = true;
@@ -504,7 +507,7 @@ async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: bool
         }
     }
     // Werewolf win condition
-    else if (aliveWerewolves.length >= aliveVillagers.length) {
+    else if (aliveWerewolves.length >= aliveVillagers.length && aliveVillagers.length > 0) {
         gameOver = true;
         message = "¡Los hombres lobo han ganado! Han superado en número a los aldeanos.";
         winners = aliveWerewolves.map(p => p.userId);
@@ -1311,4 +1314,5 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
 
 
       
+
 
