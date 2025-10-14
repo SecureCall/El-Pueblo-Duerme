@@ -10,7 +10,6 @@ export default function CreateGamePage() {
     const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
 
     useEffect(() => {
-        playNarration('Que comience el juego..mp3');
         playNarration('salas.mp3');
     }, []);
 

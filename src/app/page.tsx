@@ -15,7 +15,6 @@ export default function Home() {
   
   useEffect(() => {
     playNarration('Que comience el juego..mp3');
-    playNarration('salas.mp3');
   }, []);
 
   return (

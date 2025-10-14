@@ -1,17 +1,16 @@
 
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
+import { unlockAudio as unlockNarration } from "@/lib/sounds";
 
 interface GameMusicProps {
   src: string;
 }
 
-// These variables are module-level and only accessed on the client.
 let audio: HTMLAudioElement | null = null;
 let currentSrc: string | null = null;
 
-// Initialize audio instance only on the client-side
 if (typeof window !== 'undefined') {
   audio = new Audio();
   audio.loop = true;
@@ -22,39 +21,36 @@ export function GameMusic({ src }: GameMusicProps) {
   useEffect(() => {
     if (!audio) return;
 
-    // Construct full URL to ensure proper comparison
     const newSrcUrl = new URL(src, window.location.origin).href;
 
     const tryPlay = async () => {
-      if (audio && audio.paused && newSrcUrl) {
-        // If the source is different, change it before playing
+      if (audio && audio.paused) {
         if (audio.src !== newSrcUrl) {
             audio.src = newSrcUrl;
         }
         try {
             await audio.play();
+            // If play is successful, we know the user has interacted. Unlock narration.
+            unlockNarration(); 
         } catch (error) {
             console.warn("Audio playback failed. Waiting for another interaction.", error);
         }
       }
     };
     
-    // Add a one-time event listener for the first user interaction
-    const unlockAudio = () => {
+    const handleInteraction = () => {
         tryPlay();
-        window.removeEventListener('click', unlockAudio);
-        window.removeEventListener('keydown', unlockAudio);
+        // Once interaction happens, also unlock the narration system globally.
+        unlockNarration();
+        window.removeEventListener('click', handleInteraction);
+        window.removeEventListener('keydown', handleInteraction);
+        window.removeEventListener('touchstart', handleInteraction);
     };
 
-    const handlePlay = async () => {
-      // If the source is different, fade out, change src, and then fade in
+    const handlePlay = () => {
       if (currentSrc && currentSrc !== newSrcUrl) {
-        // Fade out
         let fadeOut = setInterval(() => {
-          if (!audio) {
-              clearInterval(fadeOut);
-              return;
-          }
+          if (!audio) { clearInterval(fadeOut); return; }
           if (audio.volume > 0.05) {
               audio.volume = Math.max(0, audio.volume - 0.05);
           } else {
@@ -62,32 +58,28 @@ export function GameMusic({ src }: GameMusicProps) {
               audio.pause();
               audio.volume = 0.3; // Reset volume
               currentSrc = newSrcUrl;
-              audio.src = newSrcUrl;
               tryPlay();
           }
         }, 50);
       } else if (currentSrc !== newSrcUrl) {
-         // If it's the first track or the audio is just paused with the same src
         currentSrc = newSrcUrl;
-        audio.src = newSrcUrl;
         tryPlay();
       }
     };
 
     handlePlay();
     
-    // Set up listeners to handle autoplay restrictions
-    window.addEventListener('click', unlockAudio, { once: true });
-    window.addEventListener('keydown', unlockAudio, { once: true });
+    window.addEventListener('click', handleInteraction, { once: true });
+    window.addEventListener('keydown', handleInteraction, { once: true });
+    window.addEventListener('touchstart', handleInteraction, { once: true });
 
     return () => {
-      // Cleanup interaction listeners
-      window.removeEventListener('click', unlockAudio);
-      window.removeEventListener('keydown', unlockAudio);
+      window.removeEventListener('click', handleInteraction);
+      window.removeEventListener('keydown', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
     };
 
-  }, [src]); // Re-run effect if the src prop changes
+  }, [src]);
 
-  return null; // This component does not render anything to the DOM.
+  return null;
 }
-

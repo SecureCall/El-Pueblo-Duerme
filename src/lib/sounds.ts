@@ -7,6 +7,16 @@ let isPlayingNarration = false;
 let narrationQueue: string[] = [];
 let audioUnlocked = false;
 
+// Function to be called by an external component (like GameMusic) once interaction has happened.
+export const unlockAudio = () => {
+    if (audioUnlocked) return;
+    audioUnlocked = true;
+    // Try to play the first item in the queue now that we are unlocked
+    if (!isPlayingNarration && narrationQueue.length > 0) {
+        playNextInQueue();
+    }
+};
+
 // Initialize audio instances only on the client side
 if (typeof window !== 'undefined') {
     narrationAudio = new Audio();
@@ -23,13 +33,8 @@ if (typeof window !== 'undefined') {
                 narrationAudio.src = nextSrc;
                 narrationAudio.play().catch(e => {
                     console.warn(`Narration play was prevented for ${nextSrc}:`, e);
-                    // If it failed because it's not unlocked, put it back in the queue
-                    if (e.name === 'NotAllowedError') {
-                        narrationQueue.unshift(nextSrc);
-                    }
+                    // If it failed even after unlock attempt, stop trying for this chain
                     isPlayingNarration = false;
-                    // Don't automatically play next if this one failed due to interaction
-                    // It will be retried on the next interaction.
                 });
             } else {
                  isPlayingNarration = false;
@@ -51,48 +56,6 @@ if (typeof window !== 'undefined') {
             playNextInQueue(); // Skip to the next sound on error
         });
     }
-
-    // This function will be called on the first user interaction
-    const unlockAudio = () => {
-        if (audioUnlocked || typeof window === 'undefined') return;
-        audioUnlocked = true;
-        
-        // Mute and play a dummy sound on both audio contexts to unlock them.
-        // This is a common and reliable trick.
-        if (narrationAudio) {
-            narrationAudio.muted = true;
-            narrationAudio.play().then(() => {
-                narrationAudio!.pause();
-                narrationAudio!.currentTime = 0;
-                narrationAudio!.muted = false;
-                // Now that we're unlocked, try playing the queue
-                if (!isPlayingNarration && narrationQueue.length > 0) {
-                    playNextInQueue();
-                }
-            }).catch(() => {});
-        }
-
-        if (soundEffectAudio) {
-             soundEffectAudio.muted = true;
-             soundEffectAudio.play().then(() => {
-                soundEffectAudio!.pause();
-                soundEffectAudio!.currentTime = 0;
-                soundEffectAudio!.muted = false;
-             }).catch(() => {});
-        }
-        
-        // Remove the listeners after the first interaction
-        window.removeEventListener('click', unlockAudio);
-        window.removeEventListener('keydown', unlockAudio);
-        window.removeEventListener('touchstart', unlockAudio);
-    };
-
-     // Set up listeners for the first user interaction
-    if (typeof window !== 'undefined') {
-        window.addEventListener('click', unlockAudio, { once: true });
-        window.addEventListener('keydown', unlockAudio, { once: true });
-        window.addEventListener('touchstart', unlockAudio, { once: true });
-    }
 }
 
 export const playNarration = (narrationFile: string): void => {
@@ -103,28 +66,24 @@ export const playNarration = (narrationFile: string): void => {
     
     narrationQueue.push(`/audio/voz/${narrationFile}`);
     
-    if (!isPlayingNarration && audioUnlocked) {
+    // Only try to play immediately if audio is unlocked and nothing is currently playing.
+    if (audioUnlocked && !isPlayingNarration) {
         playNextInQueue();
     }
 };
-
 
 export const playSoundEffect = (soundFile: string): void => {
     if (!soundEffectAudio) {
         return;
     }
     if (!audioUnlocked) {
-        // We don't queue sound effects, they are time-sensitive.
-        // If audio is locked, we just skip it.
         return;
     }
     
-    // Use a separate audio object for effects to allow overlap with narration
     const effectAudio = new Audio(`/audio/effects/${soundFile}`);
     effectAudio.volume = 0.8;
     
     effectAudio.play().catch(e => {
-        // This can still fail in some edge cases, so we just log a warning.
         console.warn(`Sound effect play was prevented for ${soundFile}:`, e);
     });
 };
