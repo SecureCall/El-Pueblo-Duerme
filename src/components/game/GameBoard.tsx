@@ -44,24 +44,20 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
   useEffect(() => {
     const prevPhase = prevPhaseRef.current;
 
-    const playSequentially = async (sounds: string[]) => {
-      for (const sound of sounds) {
-        await playNarration(sound);
-      }
-    };
-
     // Phase change narrations
     if (prevPhase !== game.phase) {
       switch (game.phase) {
         case 'night':
           if (game.currentRound === 1 && prevPhase === 'role_reveal') {
-             playSequentially(['intro_epica.mp3', 'noche_pueblo_duerme.mp3']);
+             playNarration('intro_epica.mp3');
+             playNarration('noche_pueblo_duerme.mp3');
           } else {
             playNarration('noche_pueblo_duerme.mp3');
           }
           break;
         case 'day':
-          playSequentially(['dia_pueblo_despierta.mp3', 'inicio_debate.mp3']);
+          playNarration('dia_pueblo_despierta.mp3');
+          playNarration('inicio_debate.mp3');
           break;
         case 'voting':
            playNarration('inicio_votacion.mp3');

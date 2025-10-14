@@ -15,11 +15,8 @@ export default function Home() {
   const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
   
   useEffect(() => {
-    const playIntro = async () => {
-        await playNarration('Que comience el juego..mp3');
-        await playNarration('salas.mp3');
-    }
-    playIntro();
+    playNarration('Que comience el juego..mp3');
+    playNarration('salas.mp3');
   }, []);
 
   return (

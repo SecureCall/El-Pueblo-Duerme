@@ -62,49 +62,35 @@ if (typeof window !== 'undefined') {
     }
 }
 
-export const playNarration = (narrationFile: string): Promise<void> => {
-    return new Promise((resolve) => {
-        if (!narrationAudio) {
-            console.warn("Narration audio not initialized.");
-            resolve();
-            return;
-        }
-        
-        narrationQueue.push(`/audio/voz/${narrationFile}`);
-        
-        const checkQueue = () => {
-            if (!isPlayingNarration && narrationQueue.length > 0) {
-                const srcToPlay = narrationQueue.shift();
+export const playNarration = (narrationFile: string): void => {
+    if (!narrationAudio) {
+        console.warn("Narration audio not initialized.");
+        return;
+    }
+    
+    narrationQueue.push(`/audio/voz/${narrationFile}`);
+    
+    if (!isPlayingNarration) {
+        // Find the first item in the queue that is not a promise resolver and play it
+        const nextSoundIndex = narrationQueue.findIndex(item => typeof item === 'string');
+        if (nextSoundIndex !== -1) {
+            const nextSound = narrationQueue.splice(nextSoundIndex, 1)[0];
+            narrationQueue.unshift(nextSound); // Put it back at the front to be played
+            
+            const srcToPlay = narrationQueue.shift();
+            if (srcToPlay) {
                 isPlayingNarration = true;
-                narrationAudio.src = srcToPlay!;
+                narrationAudio.src = srcToPlay;
                 narrationAudio.play().catch(e => {
                     console.warn(`Narration play was prevented for ${srcToPlay}:`, e);
                     isPlayingNarration = false;
-                    resolve(); // Resolve promise even on error
+                    // Attempt to play the next sound if there is one
+                    const nextInLine = narrationQueue.shift();
+                    if(nextInLine) narrationQueue.unshift(nextInLine);
                 });
-                
-                const onEnded = () => {
-                    isPlayingNarration = false;
-                    narrationAudio!.removeEventListener('ended', onEnded);
-                    resolve();
-                };
-                narrationAudio!.addEventListener('ended', onEnded);
-
-            } else {
-                // If something is already playing, wait and check again.
-                setTimeout(checkQueue, 100);
             }
         }
-        
-        if (!isPlayingNarration) {
-            checkQueue();
-        } else {
-             // If already playing, the ended event of the current track will trigger the next one.
-             // We just need to add our resolver to the queue.
-             const originalResolve = resolve;
-             narrationQueue.push(new (Promise as any)(originalResolve));
-        }
-    });
+    }
 };
 
 
