@@ -6,6 +6,7 @@ import { FirebaseClientProvider } from '@/firebase/client-provider';
 export const metadata: Metadata = {
   title: 'El Pueblo Duerme',
   description: 'A game of mystery, deception, and survival.',
+  manifest: '/manifest.json',
   icons: {
     icon: '/logo.png',
   },

@@ -1,0 +1,24 @@
+{
+  "name": "El Pueblo Duerme",
+  "short_name": "Pueblo Duerme",
+  "description": "Un juego de misterio, engaño y supervivencia.",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "250x250",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#5b21b6",
+  "scope": "/"
+}
