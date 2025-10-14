@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -89,3 +90,4 @@ export function GameMusic({ src }: GameMusicProps) {
 
   return null; // This component does not render anything to the DOM.
 }
+

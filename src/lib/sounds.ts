@@ -103,3 +103,4 @@ export const playSoundEffect = (soundFile: string): void => {
         console.warn(`Sound effect play was prevented for ${soundFile}:`, e);
     });
 };
+

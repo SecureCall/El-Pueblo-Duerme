@@ -36,6 +36,7 @@ export const useGameState = (gameId: string) => {
 
   // Helper to safely get milliseconds from either a Timestamp object or a plain object
   const getMillis = (timestamp: Timestamp | { seconds: number, nanoseconds: number }): number => {
+    if (!timestamp) return 0;
     if (timestamp instanceof Timestamp) {
       return timestamp.toMillis();
     }
@@ -89,3 +90,4 @@ export const useGameState = (gameId: string) => {
 
   return { game, players, events, messages, loading, error };
 };
+
