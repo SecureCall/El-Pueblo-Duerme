@@ -257,33 +257,21 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     highlightedPlayers.push({ userId: otherTwin.userId, color: 'rgba(135, 206, 250, 0.7)' });
   }
 
-  const DeathOverlayIcon = ({cause}: {cause: 'werewolf_kill' | 'vote_result' | 'other'}) => {
-    const iconClasses = "h-16 w-16 opacity-80";
-    switch (cause) {
-      case 'werewolf_kill':
-        return <img src="/zarpazo.svg" alt="Muerte por lobo" className={`${iconClasses} filter-destructive`} />;
-      case 'vote_result':
-        return <Gavel className={`${iconClasses} text-amber-800`} />;
-      default:
-        return <Skull className={`${iconClasses} text-gray-400`} />;
-    }
-  };
-
   const getCauseOfDeath = (playerId: string): 'werewolf_kill' | 'vote_result' | 'other' => {
-      // Find the most recent event related to this player's death
-      const deathEvent = events
-          .filter(e =>
-              (e.type === 'night_result' && (e.data?.killedPlayerIds?.includes(playerId) || e.data?.killedByPoisonId === playerId)) ||
-              (e.type === 'vote_result' && e.data?.lynchedPlayerId === playerId) ||
-              ((e.type === 'lover_death' || e.type === 'hunter_shot') && e.data?.killedPlayerId === playerId)
-          )
-          .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())[0];
+    // Find the most recent event related to this player's death
+    const deathEvent = events
+        .filter(e =>
+            (e.type === 'night_result' && e.data?.killedPlayerIds?.includes(playerId)) ||
+            (e.type === 'vote_result' && e.data?.lynchedPlayerId === playerId) ||
+            ((e.type === 'lover_death' || e.type === 'hunter_shot') && e.data?.killedPlayerId === playerId)
+        )
+        .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())[0];
 
-      if (deathEvent) {
-          if (deathEvent.type === 'night_result') return 'werewolf_kill';
-          if (deathEvent.type === 'vote_result') return 'vote_result';
-      }
-      return 'other';
+    if (deathEvent) {
+        if (deathEvent.type === 'vote_result') return 'vote_result';
+        if (deathEvent.type === 'night_result') return 'werewolf_kill';
+    }
+    return 'other';
   };
   
   const playersWithDeathCause = players.map(p => ({
@@ -408,7 +396,3 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     </>
   );
 }
-
-
-    
-    
