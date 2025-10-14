@@ -458,6 +458,9 @@ function killPlayer(
                     data: { killedPlayerId: otherLoverId },
                     createdAt: Timestamp.now(),
                 };
+                if (!gameData.events) {
+                    gameData.events = [];
+                }
                 gameData.events.push(newEvent);
 
                 if (otherLover.role === 'hunter' && gameData.settings.hunter && !hunterTriggeredId) {
@@ -912,11 +915,12 @@ const getDeterministicAIAction = (
             const nonWolves = potentialTargets.filter(p => !wolfRoles.includes(p.role));
             return { actionType: 'werewolf_kill', targetId: randomTarget(nonWolves) };
         }
-        case 'seer':
+        case 'seer': {
             if (game.phase === 'day') {
                 return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
             }
             return { actionType: 'seer_check', targetId: randomTarget(potentialTargets) };
+        }
         case 'doctor': {
             if (game.phase === 'day') {
                 return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
