@@ -52,27 +52,46 @@ if (typeof window !== 'undefined') {
         });
     }
 
-    // Export a function to be called by the UI to kickstart the audio
+    // This function will be called on the first user interaction
     const unlockAudio = () => {
-        if (audioUnlocked) return;
+        if (audioUnlocked || typeof window === 'undefined') return;
         audioUnlocked = true;
+        
+        // Mute and play a dummy sound on both audio contexts to unlock them.
+        // This is a common and reliable trick.
+        if (narrationAudio) {
+            narrationAudio.muted = true;
+            narrationAudio.play().then(() => {
+                narrationAudio!.pause();
+                narrationAudio!.currentTime = 0;
+                narrationAudio!.muted = false;
+                // Now that we're unlocked, try playing the queue
+                if (!isPlayingNarration && narrationQueue.length > 0) {
+                    playNextInQueue();
+                }
+            }).catch(() => {});
+        }
 
-        if (narrationAudio && narrationAudio.paused) {
-           narrationAudio.play().catch(()=>{});
-           narrationAudio.pause();
+        if (soundEffectAudio) {
+             soundEffectAudio.muted = true;
+             soundEffectAudio.play().then(() => {
+                soundEffectAudio!.pause();
+                soundEffectAudio!.currentTime = 0;
+                soundEffectAudio!.muted = false;
+             }).catch(() => {});
         }
-        if (soundEffectAudio && soundEffectAudio.paused) {
-           soundEffectAudio.play().catch(()=>{});
-           soundEffectAudio.pause();
-        }
-        // After unlocking, if there's something in the queue and we're not playing, start it.
-        if (!isPlayingNarration && narrationQueue.length > 0) {
-            playNextInQueue();
-        }
+        
+        // Remove the listeners after the first interaction
+        window.removeEventListener('click', unlockAudio);
+        window.removeEventListener('keydown', unlockAudio);
+        window.removeEventListener('touchstart', unlockAudio);
     };
-     if (typeof document !== 'undefined') {
-        document.addEventListener('click', unlockAudio, { once: true });
-        document.addEventListener('keydown', unlockAudio, { once: true });
+
+     // Set up listeners for the first user interaction
+    if (typeof window !== 'undefined') {
+        window.addEventListener('click', unlockAudio, { once: true });
+        window.addEventListener('keydown', unlockAudio, { once: true });
+        window.addEventListener('touchstart', unlockAudio, { once: true });
     }
 }
 
@@ -91,7 +110,12 @@ export const playNarration = (narrationFile: string): void => {
 
 
 export const playSoundEffect = (soundFile: string): void => {
-    if (!soundEffectAudio || !audioUnlocked) {
+    if (!soundEffectAudio) {
+        return;
+    }
+    if (!audioUnlocked) {
+        // We don't queue sound effects, they are time-sensitive.
+        // If audio is locked, we just skip it.
         return;
     }
     
@@ -100,7 +124,7 @@ export const playSoundEffect = (soundFile: string): void => {
     effectAudio.volume = 0.8;
     
     effectAudio.play().catch(e => {
+        // This can still fail in some edge cases, so we just log a warning.
         console.warn(`Sound effect play was prevented for ${soundFile}:`, e);
     });
 };
-
