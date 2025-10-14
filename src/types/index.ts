@@ -117,6 +117,7 @@ export interface Player {
   }
   priestSelfHealUsed?: boolean;
   princeRevealed?: boolean;
+  guardianSelfProtects?: number;
 }
 
 export type NightActionType = "werewolf_kill" | "seer_check" | "doctor_heal" | "cupid_enchant" | "hechicera_poison" | "hechicera_save" | "guardian_protect" | "priest_bless";

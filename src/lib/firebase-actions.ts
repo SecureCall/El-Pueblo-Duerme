@@ -46,6 +46,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     },
     priestSelfHealUsed: false,
     princeRevealed: false,
+    guardianSelfProtects: 0,
 });
 
 
@@ -319,11 +320,9 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         const nightActions = game.nightActions ? [...game.nightActions] : [];
         const existingActionIndex = nightActions.findIndex(a => a.round === action.round && a.playerId === action.playerId);
 
-        // Client-side validation should prevent this, but double check on server
         if (action.actionType === 'doctor_heal') {
             const targetPlayer = game.players.find(p => p.userId === action.targetId);
             if (targetPlayer?.lastHealedRound === game.currentRound - 1) {
-                // We don't throw an error, we just ignore the action.
                 console.warn(`Doctor ${action.playerId} tried to heal ${action.targetId} two nights in a row. Action ignored.`);
                 return; 
             }
@@ -332,6 +331,9 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         if (action.actionType === 'hechicera_save' && player.potions?.save) throw new Error("Ya has usado tu poción de salvación.");
         if (action.actionType === 'priest_bless' && action.targetId === action.playerId && player.priestSelfHealUsed) {
             throw new Error("Ya te has bendecido a ti mismo una vez.");
+        }
+        if (action.actionType === 'guardian_protect' && action.targetId === action.playerId && player.guardianSelfProtects && player.guardianSelfProtects > 0) {
+            throw new Error("Solo puedes protegerte a ti mismo una vez por partida.");
         }
         
         // Remove previous actions for this player this round
@@ -355,6 +357,8 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
             players[playerIndex].potions!.save = action.round;
         } else if (action.actionType === 'priest_bless' && action.targetId === action.playerId) {
             players[playerIndex].priestSelfHealUsed = true;
+        } else if (action.actionType === 'guardian_protect' && action.targetId === action.playerId) {
+            players[playerIndex].guardianSelfProtects = (players[playerIndex].guardianSelfProtects || 0) + 1;
         }
 
         nightActions.push(newAction);
@@ -432,6 +436,10 @@ function killPlayer(
         if (playerIndex === -1 || !gameData.players[playerIndex].isAlive) continue;
         
         const playerToKill = gameData.players[playerIndex];
+        
+        // Prince cannot be killed by wolves, but can be by vote/hunter.
+        // This function is for night/hunter/vote kills, so we need context.
+        // Let's assume for now killPlayer() is only for lethal force. Prince is NOT immune to this.
         gameData.players[playerIndex].isAlive = false;
         killedThisTurn.add(playerId);
 
@@ -440,21 +448,19 @@ function killPlayer(
              hunterTriggeredId = playerToKill.userId;
         }
         if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) {
-            gameData.wolfCubRevengeRound = gameData.currentRound + 1;
+            gameData.wolfCubRevengeRound = gameData.currentRound; // Revenge on the same round's night phase
         }
 
         // Check for lover's death
         if (gameData.lovers?.includes(playerToKill.userId)) {
             const otherLoverId = gameData.lovers.find(id => id !== playerToKill.userId)!;
-            // Add the other lover to the queue to be processed
             if (!killedThisTurn.has(otherLoverId)) {
                 const otherLover = gameData.players.find(p => p.userId === otherLoverId);
                 
-                // *** FIX: Ensure events array exists before pushing to it ***
                 if (!gameData.events) gameData.events = [];
 
                 const newEvent: GameEvent = {
-                    id: `evt_lover_${Date.now()}_${otherLoverId}`, // Ensure unique ID
+                    id: `evt_lover_${Date.now()}_${otherLoverId}`,
                     gameId: gameData.id,
                     round: gameData.currentRound,
                     type: 'lover_death',
@@ -489,14 +495,8 @@ async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: bool
     let message = "";
     let winners: string[] = [];
     
-    // Villager win condition is highest priority after lovers
-    if (aliveWerewolves.length === 0 && aliveVillagers.length > 0) {
-        gameOver = true;
-        message = "¡El pueblo ha ganado! Todos los hombres lobo han sido eliminados.";
-        winners = aliveVillagers.map(p => p.userId);
-    } 
-    // Lovers win condition
-    else if (newGameData.lovers && alivePlayers.length > 0) {
+    // Lovers win condition is highest priority
+    if (newGameData.lovers && alivePlayers.length > 0) {
         const aliveLovers = alivePlayers.filter(p => newGameData.lovers!.includes(p.userId));
         if (aliveLovers.length === alivePlayers.length && alivePlayers.length >= 2) {
             gameOver = true;
@@ -506,16 +506,23 @@ async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: bool
             winners = newGameData.lovers;
         }
     }
-    // Werewolf win condition
-    else if (aliveWerewolves.length >= aliveVillagers.length && aliveVillagers.length > 0) {
-        gameOver = true;
-        message = "¡Los hombres lobo han ganado! Han superado en número a los aldeanos.";
-        winners = aliveWerewolves.map(p => p.userId);
-    } 
-    // Draw condition
-    else if (alivePlayers.length === 0) {
-        gameOver = true;
-        message = "¡Nadie ha sobrevivido a la masacre!";
+
+    // If lovers didn't win, check other conditions
+    if (!gameOver) {
+        if (aliveWerewolves.length === 0 && aliveVillagers.length > 0) {
+            gameOver = true;
+            message = "¡El pueblo ha ganado! Todos los hombres lobo han sido eliminados.";
+            winners = aliveVillagers.map(p => p.userId);
+        } 
+        else if (aliveWerewolves.length >= aliveVillagers.length && alivePlayers.length > 0) {
+            gameOver = true;
+            message = "¡Los hombres lobo han ganado! Han superado en número a los aldeanos.";
+            winners = aliveWerewolves.map(p => p.userId);
+        } 
+        else if (alivePlayers.length === 0) {
+            gameOver = true;
+            message = "¡Nadie ha sobrevivido a la masacre!";
+        }
     }
 
     if (gameOver) {
@@ -627,11 +634,13 @@ export async function processNight(db: Firestore, gameId: string) {
                 const actuallyKilledPlayers = game.players.filter(p => !p.isAlive && !finalKilledPlayerIds.includes(p.userId));
                 
                 const allKilledIds = [...new Set([...finalKilledPlayerIds, ...actuallyKilledPlayers.map(p=>p.userId)])];
-                 const killedPlayers = game.players.filter(p => allKilledIds.includes(p.userId));
+                 const killedPlayers = game.players.filter(p => allKilledIds.includes(p.userId) && p.isAlive === false);
 
 
                 killedPlayerNamesAndRoles = killedPlayers.map(p => `${p.displayName} (que era ${roleDetails[p.role!]?.name || 'un rol desconocido'})`);
-                messages.push(`Anoche, el pueblo perdió a ${killedPlayerNamesAndRoles.join(' y a ')}.`);
+                if (killedPlayerNamesAndRoles.length > 0) {
+                    messages.push(`Anoche, el pueblo perdió a ${killedPlayerNamesAndRoles.join(' y a ')}.`);
+                }
 
 
                 if (triggeredHunterId) {
@@ -952,6 +961,10 @@ const getDeterministicAIAction = (
              if (game.phase === 'day') {
                 return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
             }
+             const selfProtectCount = aiPlayer.guardianSelfProtects || 0;
+             if (selfProtectCount < 1 && Math.random() < 0.2) { // 20% chance to self-protect if available
+                return { actionType: 'guardian_protect', targetId: userId };
+             }
             return { actionType: 'guardian_protect', targetId: randomTarget(potentialTargets) };
         }
         case 'priest': {
@@ -959,11 +972,10 @@ const getDeterministicAIAction = (
                 return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
             }
             const priestCanSelfHeal = !aiPlayer.priestSelfHealUsed;
-            let blessableTargets = potentialTargets;
-            if (priestCanSelfHeal) {
-                blessableTargets = alivePlayers;
+            if (priestCanSelfHeal && Math.random() < 0.2) { // 20% chance to self-heal
+                return { actionType: 'priest_bless', targetId: userId };
             }
-            return { actionType: 'priest_bless', targetId: randomTarget(blessableTargets) };
+            return { actionType: 'priest_bless', targetId: randomTarget(potentialTargets) };
         }
         default:
             if (game.phase === 'day') {
@@ -1314,5 +1326,6 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
 
 
       
+
 
 

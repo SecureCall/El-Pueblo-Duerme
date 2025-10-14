@@ -37,6 +37,7 @@ export const PlayerSchema = z.object({
   }).optional(),
   priestSelfHealUsed: z.boolean().optional(),
   princeRevealed: z.boolean().optional(),
+  guardianSelfProtects: z.number().optional(),
 });
 
 export const NightActionSchema = z.object({

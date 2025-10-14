@@ -65,12 +65,11 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             return;
         }
         if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save' && player.userId === currentPlayer.userId) {
-            // Original game rule, witch cannot save herself.
-            // toast({ variant: 'destructive', title: 'Regla de la Hechicera', description: 'No puedes usar la poción de salvación en ti misma.' });
-            // return;
+             toast({ variant: 'destructive', title: 'Regla de la Hechicera', description: 'No puedes usar la poción de salvación en ti misma.' });
+             return;
         }
-        if (currentPlayer.role === 'guardian' && player.userId === currentPlayer.userId) {
-            toast({ variant: 'destructive', title: 'Regla del Guardián', description: 'No puedes protegerte a ti mismo.' });
+        if (currentPlayer.role === 'guardian' && player.userId === currentPlayer.userId && (currentPlayer.guardianSelfProtects || 0) >= 1) {
+            toast({ variant: 'destructive', title: 'Regla del Guardián', description: 'Solo puedes protegerte a ti mismo una vez por partida.' });
             return;
         }
         if (currentPlayer.role === 'priest' && player.userId === currentPlayer.userId && currentPlayer.priestSelfHealUsed) {
@@ -137,8 +136,8 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                 return;
             }
         }
-        if (actionType === 'guardian_protect' && selectedPlayerIds[0] === currentPlayer.userId) {
-             toast({ variant: 'destructive', title: 'Regla del Guardián', description: 'No puedes protegerte a ti mismo.' });
+        if (actionType === 'guardian_protect' && selectedPlayerIds[0] === currentPlayer.userId && (currentPlayer.guardianSelfProtects || 0) >= 1) {
+             toast({ variant: 'destructive', title: 'Regla del Guardián', description: 'Solo puedes protegerte a ti mismo una vez.' });
              return;
         }
         if (actionType === 'priest_bless' && selectedPlayerIds[0] === currentPlayer.userId && currentPlayer.priestSelfHealUsed) {
@@ -192,7 +191,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                 return wolfCubRevengeActive ? '¡Venganza! Elegid a dos aldeanos para eliminar.' : 'Elige a un aldeano para eliminar.';
             case 'seer': return 'Elige a un jugador para descubrir su identidad.';
             case 'doctor': return 'Elige a un jugador para proteger esta noche.';
-            case 'guardian': return 'Elige a un jugador para proteger esta noche.';
+            case 'guardian': return 'Elige a un jugador para proteger esta noche. Puedes protegerte a ti mismo una vez por partida.';
             case 'priest': return 'Elige a un jugador para otorgarle tu bendición y protegerlo de todo mal.';
             case 'cupid': return game.currentRound === 1 ? 'Elige a dos jugadores para que se enamoren.' : 'Tu flecha ya ha unido dos corazones.';
             case 'hechicera': return (hasPoison || hasSavePotion) ? 'Elige una poción y un objetivo.' : 'Has usado todas tus pociones.';
@@ -210,7 +209,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                         <AlertTriangle className="h-4 w-4" />
                         <AlertTitle>¡Venganza de la Cría de Lobo!</AlertTitle>
                         <AlertDescription>
-                            La cría de lobo ha muerto. Esta noche, podéis matar a dos jugadores.
+                            La cría de lobo ha muerto. Esta noche, podéis matar a un jugador.
                         </AlertDescription>
                     </Alert>
                 )}
@@ -292,10 +291,10 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                                 if (isCupidFirstNight) return true;
                                 if (isWerewolfTeam) return p.role !== 'werewolf' && p.role !== 'wolf_cub';
                                 if (p.userId === currentPlayer.userId) {
-                                    // Allow self-selection for Hechicera (save) and Priest (once)
-                                    if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save') return true;
+                                    // Allow self-selection for Priest (once) and Guardian (once)
                                     if (currentPlayer.role === 'priest' && !currentPlayer.priestSelfHealUsed) return true;
-                                    return false;
+                                    if (currentPlayer.role === 'guardian' && (currentPlayer.guardianSelfProtects || 0) < 1) return true;
+                                    return false; // Hechicera cannot self-save, Doctor cannot self-heal (usually)
                                 }
                                 return true;
                             })}
@@ -327,3 +326,4 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
 }
 
     
+
