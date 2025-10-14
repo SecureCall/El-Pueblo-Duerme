@@ -116,19 +116,47 @@ const generateAiChatMessageFlow = ai.defineFlow(
 
 export async function generateAIChatMessage(input: AIPlayerPerspective): Promise<GenerateAIChatMessageOutput> {
     try {
-        // Create a fully sanitized game object for the prompt, ensuring no 'undefined' values.
+        // Create a fully sanitized game object for the AI prompt, ensuring no 'undefined' values.
         const sanitizedGameForPrompt = {
             ...input.game,
-            // Ensure optional fields that might be undefined are replaced with null or empty arrays.
             nightActions: input.game.nightActions || [],
             lovers: input.game.lovers || null,
             twins: input.game.twins || null,
             pendingHunterShot: input.game.pendingHunterShot || null,
         };
+        
+        // Also sanitize players within the game object
+        sanitizedGameForPrompt.players = sanitizedGameForPrompt.players.map(p => ({
+            ...p,
+            potions: p.potions || { poison: null, save: null },
+            priestSelfHealUsed: p.priestSelfHealUsed || false,
+            princeRevealed: p.princeRevealed || false,
+            votedFor: p.votedFor || null,
+            role: p.role || null,
+        }));
+        
+        // Sanitize the top-level players array as well
+        const sanitizedPlayers = input.players.map(p => ({
+             ...p,
+            potions: p.potions || { poison: null, save: null },
+            priestSelfHealUsed: p.priestSelfHealUsed || false,
+            princeRevealed: p.princeRevealed || false,
+            votedFor: p.votedFor || null,
+            role: p.role || null,
+        }));
 
         const sanitizedInput = {
             ...input,
             game: sanitizedGameForPrompt,
+            players: sanitizedPlayers,
+             aiPlayer: {
+                ...input.aiPlayer,
+                potions: input.aiPlayer.potions || { poison: null, save: null },
+                priestSelfHealUsed: input.aiPlayer.priestSelfHealUsed || false,
+                princeRevealed: input.aiPlayer.princeRevealed || false,
+                votedFor: input.aiPlayer.votedFor || null,
+                role: input.aiPlayer.role || null,
+            }
         };
 
         const result = await generateAiChatMessageFlow(sanitizedInput);
