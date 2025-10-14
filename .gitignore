@@ -2,21 +2,13 @@
 
 # dependencies
 /node_modules
-/.pnp
-.pnp.js
 
-# testing
-/coverage
-
-# next.js
+# build cache
 /.next/
 /out/
 
-# production
-/build
-
 # misc
-.DS_Store
+/.DS_Store
 *.pem
 
 # debug
@@ -36,6 +28,3 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-# idx folder
-.idx/
