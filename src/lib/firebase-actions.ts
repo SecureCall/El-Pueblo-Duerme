@@ -145,7 +145,8 @@ export async function joinGame(
       const playerExists = game.players.some(p => p.userId === userId);
       
       if (!playerExists) {
-        const nameExists = game.players.some(p => p.displayName.toLowerCase() === displayName.trim().toLowerCase());
+        // Stricter name check
+        const nameExists = game.players.some(p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase());
         if (nameExists) {
           throw new Error("Ese nombre ya está en uso en esta partida.");
         }
@@ -523,13 +524,11 @@ async function checkGameOver(transaction: Transaction, gameRef: DocumentReferenc
     }
 
     if (!gameOver) {
-        // Villagers win if all wolves are gone.
         if (aliveWerewolves.length === 0 && alivePlayers.length > 0) {
             gameOver = true;
             message = "¡El pueblo ha ganado! Todos los hombres lobo han sido eliminados.";
             winners = aliveVillagers.map(p => p.userId);
         } 
-        // Werewolves win if they are equal to or outnumber villagers.
         else if (aliveWerewolves.length > 0 && aliveWerewolves.length >= aliveVillagers.length && alivePlayers.length > 0) {
             gameOver = true;
             message = "¡Los hombres lobo han ganado! Han superado en número a los aldeanos.";
@@ -685,7 +684,7 @@ export async function processNight(db: Firestore, gameId: string) {
             if (game.phase === 'hunter_shot') {
                 transaction.update(gameRef, { 
                     players: game.players,
-                    events: arrayUnion(nightEvent),
+                    events: game.events,
                     phase: 'hunter_shot',
                     pendingHunterShot: game.pendingHunterShot
                 });
@@ -736,7 +735,6 @@ export async function processVotes(db: Firestore, gameId: string) {
 
             if (game.phase !== 'day' || game.status !== 'in_progress') return;
 
-            // PREVENTIVE CLEANUP: Ensure arrays exist
             game.events = game.events || [];
             game.pendingHunterShot = game.pendingHunterShot || null;
             game.lovers = game.lovers || null;
@@ -930,8 +928,8 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             const { updatedGame } = killPlayer(game, [targetId]);
             game = updatedGame;
             
+            // This is a nested hunter shot, handle it and stop.
             if (game.phase === 'hunter_shot') {
-                // This means another hunter was shot, we need to handle this second shot
                 transaction.update(gameRef, { 
                     players: game.players,
                     events: game.events,
@@ -1395,6 +1393,7 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
 
 
       
+
 
 
 
