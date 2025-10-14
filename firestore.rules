@@ -1,65 +1,12 @@
-/**
- * @file Firestore Security Rules
- * @description This ruleset enforces a strict owner-only access model for user data and public read access with owner-controlled writes for game data.
- *
- * Data Structure:
- * - /games/{gameId}: Stores game instances. Game data is publicly readable, but only the game creator can modify it.
- *
- * Key Security Decisions:
- * - Users can only create games, the write rules ensure the user is the owner of the game.
- * - Game data is publicly readable to facilitate game discovery and participation.
- * - Listing of games is allowed for any user to discover games.
- * - No user listing is allowed, protecting user privacy.
- *
- * Denormalization for Authorization:
- * - The 'Game' entity requires a 'creator' field that matches the user's UID to enforce owner-only writes.
- */
+
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    /**
-     * @description Allows anyone to read game data, but only the game creator can modify it.
-     * @path /games/{gameId}
-     * @allow (get, list) - Any user can read the game data.
-     * @allow (create) - User with ID 'user_abc' can create a game where game.creator == 'user_abc'.
-     * @allow (update, delete) - User with ID 'user_abc' can update/delete a game where game.creator == 'user_abc'.
-     * @deny (create) - User with ID 'user_xyz' cannot create a game where game.creator != 'user_xyz'.
-     * @deny (update, delete) - User with ID 'user_xyz' cannot update/delete a game where game.creator != 'user_xyz'.
-     * @principle Allows public read access but restricts write access to the game creator.
-     */
+    // Allow public read/write access to the games collection
+    // This is for development purposes and should be secured for production
     match /games/{gameId} {
-      allow get, list: if true;
-      allow create: if isSignedIn() && request.resource.data.creator == request.auth.uid;
-      allow update, delete: if isSignedIn() && isExistingOwner(resource.data.creator);
-    }
-
-    // ===================== Helper Functions =====================
-
-    /**
-     * @description Checks if the user is signed in.
-     * @return {bool} True if the user is signed in, false otherwise.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the user is the owner of the resource.
-     * @param {string} userId - The user ID to compare against the request's auth UID.
-     * @return {bool} True if the user is the owner, false otherwise.
-     */
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the user is the owner of the resource and if the resource exists.
-     * @param {string} userId - The user ID to compare against the resource's owner ID.
-     * @return {bool} True if the user is the owner and the resource exists, false otherwise.
-     */
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
+      allow read, write: if true;
     }
   }
 }
