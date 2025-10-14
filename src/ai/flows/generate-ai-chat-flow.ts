@@ -98,12 +98,15 @@ const generateAiChatMessageFlow = ai.defineFlow(
             }
         }
         
-        // Create a safe copy of the game object for the prompt, excluding sensitive fields.
-        // This avoids introducing 'undefined' into any object that might be used in a transaction.
-        const { nightActions, lovers, twins, ...restOfGame } = input.game;
+        // Create a fully sanitized game object for the prompt, ensuring no 'undefined' values.
         const sanitizedGameForPrompt = {
-            ...restOfGame,
+            ...input.game,
             players: sanitizedPlayers,
+            // Ensure optional fields that might be undefined are replaced with null or empty arrays.
+            nightActions: input.game.nightActions || [],
+            lovers: input.game.lovers || null,
+            twins: input.game.twins || null,
+            pendingHunterShot: input.game.pendingHunterShot || null,
         };
 
         const { output } = await prompt({ ...input, game: sanitizedGameForPrompt, players: sanitizedPlayers });
