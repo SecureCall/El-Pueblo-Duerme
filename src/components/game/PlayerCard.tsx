@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Player } from "@/types";
@@ -5,7 +6,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { Bot, Crown, Gavel } from "lucide-react";
+import { Bot, Crown, Gavel, Skull } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { roleDetails, defaultRoleDetail } from "@/lib/roles";
@@ -61,7 +62,7 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
         default:
           return (
              <div className={cn(baseClasses)}>
-                <img src="/zarpazo.svg" alt="Muerto" className={cn(iconClasses, "opacity-50 filter-destructive")} />
+                <Skull className={cn(iconClasses, "text-gray-400")} />
             </div>
           );
       }

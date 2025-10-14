@@ -19,6 +19,7 @@ import { PhaseTimer } from "./PhaseTimer";
 import { CurrentPlayerRole } from "./CurrentPlayerRole";
 import { playNarration, playSoundEffect } from "@/lib/sounds";
 import { YouAreDeadOverlay } from "./YouAreDeadOverlay";
+import { BanishedOverlay } from "./BanishedOverlay";
 import Image from 'next/image';
 
 interface GameBoardProps {
@@ -34,7 +35,9 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
   const prevPhaseRef = useRef<Game['phase']>();
   const prevRoundRef = useRef<number>();
   const nightSoundsPlayedForRound = useRef<number>(0);
+  const voteSoundsPlayedForRound = useRef<number>(0);
   const [showRole, setShowRole] = useState(true);
+  const [deathCause, setDeathCause] = useState<'night' | 'vote' | null>(null);
 
   // Sound effect logic
   useEffect(() => {
@@ -96,6 +99,30 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
         }
     }, [events, game.currentRound]);
 
+     // Effect to check if the current player has died and by what cause
+    useEffect(() => {
+        const playerJustDied = prevPlayerStateRef.current?.isAlive && !currentPlayer.isAlive;
+
+        if (playerJustDied) {
+            const deathEvent = events.find(e =>
+                (e.type === 'night_result' && e.data?.killedPlayerIds?.includes(currentPlayer.userId)) ||
+                (e.type === 'vote_result' && e.data?.lynchedPlayerId === currentPlayer.userId) ||
+                ((e.type === 'lover_death' || e.type === 'hunter_shot') && e.data?.killedPlayerId === currentPlayer.userId)
+            );
+
+            if (deathEvent?.type === 'vote_result') {
+                setDeathCause('vote');
+            } else {
+                setDeathCause('night');
+            }
+        }
+    }, [currentPlayer.isAlive, events, currentPlayer.userId]);
+
+    const prevPlayerStateRef = useRef<Player>();
+    useEffect(() => {
+        prevPlayerStateRef.current = currentPlayer;
+    });
+
 
   // Handle AI actions when phase changes
   useEffect(() => {
@@ -147,9 +174,19 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
 
   // Show a non-blocking "You are dead" overlay if the current player is not alive
   if (!currentPlayer.isAlive && game.status === 'in_progress') {
+     const renderDeathOverlay = () => {
+      if (deathCause === 'vote') {
+        return <BanishedOverlay />;
+      }
+      if (deathCause === 'night') {
+        return <YouAreDeadOverlay />;
+      }
+      // Fallback for other death causes like hunter shot or lover's death
+      return <YouAreDeadOverlay />;
+    };
     return (
         <>
-            <YouAreDeadOverlay />
+            {renderDeathOverlay()}
             <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
                 <SpectatorGameBoard game={game} players={players} events={events} messages={messages} currentPlayer={currentPlayer} />
             </div>
