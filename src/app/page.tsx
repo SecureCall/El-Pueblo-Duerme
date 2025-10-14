@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -13,29 +12,10 @@ import { playNarration } from '@/lib/sounds';
 
 export default function Home() {
   const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
-  const hasPlayedNarrationRef = useRef(false);
 
   useEffect(() => {
-    const playNarrationSequence = async () => {
-        if (hasPlayedNarrationRef.current) return;
-        hasPlayedNarrationRef.current = true;
-        
-        // Let the page load and give a moment for user interaction to unlock audio
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        // The playNarration function returns a promise, allowing us to chain audio clips.
-        await playNarration('Que comience el juego..mp3');
-        await playNarration('salas.mp3');
-    };
-
-    playNarrationSequence();
-
-    // This is an effect that runs once on mount. The sounds will play,
-    // and the cleanup function for this effect will run when the component unmounts.
-    return () => {
-      // No cleanup needed for audio as it's managed globally now.
-    };
-
+    // This effect is now just for potential future client-side logic on load.
+    // The problematic audio logic has been removed.
   }, []);
 
 
