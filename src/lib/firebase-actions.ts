@@ -550,6 +550,7 @@ export async function processNight(db: Firestore, gameId: string) {
             let messages: string[] = [];
             let killedPlayerNamesAndRoles = [];
             let killedByPoisonId: string | null = null;
+            let savedPlayerIds: string[] = [];
 
             const savedByDoctorId = actions.find(a => a.actionType === 'doctor_heal')?.targetId || null;
             const savedByHechiceraId = actions.find(a => a.actionType === 'hechicera_save')?.targetId || null;
@@ -557,6 +558,7 @@ export async function processNight(db: Firestore, gameId: string) {
             const savedByPriestId = actions.find(a => a.actionType === 'priest_bless')?.targetId || null;
             
             const allProtectedIds = new Set([savedByDoctorId, savedByHechiceraId, savedByGuardianId, savedByPriestId].filter(Boolean) as string[]);
+            savedPlayerIds = Array.from(allProtectedIds);
 
             // 1. Process Werewolf Attack
             const werewolfVotes = actions.filter(a => a.actionType === 'werewolf_kill');
@@ -635,7 +637,7 @@ export async function processNight(db: Firestore, gameId: string) {
                 message: messages.join(' '),
                 data: { 
                     killedPlayerIds: finalKilledPlayerIds, 
-                    savedPlayerIds: Array.from(allProtectedIds),
+                    savedPlayerIds: savedPlayerIds,
                     killedByPoisonId: killedByPoisonId
                 },
                 createdAt: Timestamp.now(),
