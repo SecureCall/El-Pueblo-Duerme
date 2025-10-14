@@ -549,6 +549,7 @@ export async function processNight(db: Firestore, gameId: string) {
             let finalKilledPlayerIds: string[] = [];
             let messages: string[] = [];
             let killedPlayerNamesAndRoles = [];
+            let killedByPoisonId: string | null = null;
 
             const savedByDoctorId = actions.find(a => a.actionType === 'doctor_heal')?.targetId || null;
             const savedByHechiceraId = actions.find(a => a.actionType === 'hechicera_save')?.targetId || null;
@@ -559,7 +560,9 @@ export async function processNight(db: Firestore, gameId: string) {
 
             // 1. Process Werewolf Attack
             const werewolfVotes = actions.filter(a => a.actionType === 'werewolf_kill');
+            let wasSomeoneAttackedByWolves = false;
             if (werewolfVotes.length > 0) {
+                wasSomeoneAttackedByWolves = true;
                 const voteCounts = werewolfVotes.reduce((acc, vote) => {
                     const targets = vote.targetId.split('|');
                     targets.forEach(targetId => { if(targetId) acc[targetId] = (acc[targetId] || 0) + 1; });
@@ -586,7 +589,7 @@ export async function processNight(db: Firestore, gameId: string) {
                     if (!targetPlayer) continue;
 
                     if (allProtectedIds.has(targetId)) {
-                       // No message needed, will be covered by the generic save message
+                       // Saved, do nothing. Message will be handled later.
                     } else if (targetPlayer.role === 'cursed' && game.settings.cursed) {
                         const playerIndex = game.players.findIndex(p => p.userId === targetId);
                         if (playerIndex > -1) game.players[playerIndex].role = 'werewolf';
@@ -604,6 +607,7 @@ export async function processNight(db: Firestore, gameId: string) {
                     // Saved
                 } else {
                     finalKilledPlayerIds.push(poisonAction.targetId);
+                    killedByPoisonId = poisonAction.targetId;
                 }
             }
 
@@ -620,7 +624,7 @@ export async function processNight(db: Firestore, gameId: string) {
                     transaction.update(gameRef, game);
                     return; // Stop here, phase is now 'hunter_shot'
                 }
-            } else if(allProtectedIds.size > 0 && werewolfVotes.length > 0) {
+            } else if (wasSomeoneAttackedByWolves || poisonAction) {
                  messages.push("Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!");
             } else {
                  messages.push("La noche transcurre en un inquietante silencio. Nadie ha muerto.");
@@ -629,7 +633,11 @@ export async function processNight(db: Firestore, gameId: string) {
             game.events.push({
                 id: `evt_night_${game.currentRound}`, gameId, round: game.currentRound, type: 'night_result',
                 message: messages.join(' '),
-                data: { killedPlayerIds: finalKilledPlayerIds, savedPlayerIds: Array.from(allProtectedIds) },
+                data: { 
+                    killedPlayerIds: finalKilledPlayerIds, 
+                    savedPlayerIds: Array.from(allProtectedIds),
+                    killedByPoisonId: killedByPoisonId
+                },
                 createdAt: Timestamp.now(),
             });
             
@@ -1123,16 +1131,18 @@ export async function sendChatMessage(
 
     const gameRef = doc(db, 'games', gameId);
     let mentionedPlayerIds: string[] = [];
+    let latestGame: Game | null = null;
 
     try {
         await runTransaction(db, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error('Game not found');
             const game = gameDoc.data() as Game;
+            latestGame = game;
             
             const textLowerCase = text.toLowerCase();
             game.players.forEach(p => {
-                if (textLowerCase.includes(p.displayName.toLowerCase())) {
+                if (p.isAlive && textLowerCase.includes(p.displayName.toLowerCase())) {
                     mentionedPlayerIds.push(p.userId);
                 }
             });
@@ -1152,17 +1162,13 @@ export async function sendChatMessage(
             });
         });
 
-        // Only trigger AI responses if the message is from a human
-        if (!isFromAI) {
-            // Re-fetch game to get latest state
-            const latestGameDoc = await getDoc(gameRef);
-            if(latestGameDoc.exists()){
-                const latestGame = latestGameDoc.data() as Game;
-                const triggerMessage = `${senderName} dijo: "${text.trim()}"`;
-                for (const p of latestGame.players) {
-                    if (p.isAI && p.isAlive && p.userId !== senderId && mentionedPlayerIds.includes(p.userId)) {
-                        await triggerAIChat(db, gameId, triggerMessage, p.userId);
-                    }
+        // Only trigger AI responses if the message is from a human and there's a game state
+        if (!isFromAI && latestGame) {
+            const triggerMessage = `${senderName} dijo: "${text.trim()}"`;
+            for (const p of latestGame.players) {
+                if (p.isAI && p.isAlive && p.userId !== senderId && mentionedPlayerIds.includes(p.userId)) {
+                    // This function now just fires and forgets the AI trigger
+                    triggerAIChat(db, gameId, triggerMessage, p.userId);
                 }
             }
         }
@@ -1267,3 +1273,6 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
     
 
 
+
+
+      
