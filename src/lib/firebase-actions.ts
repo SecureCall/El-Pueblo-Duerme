@@ -450,7 +450,7 @@ function killPlayer(
             if (!killedThisTurn.has(otherLoverId)) {
                 const otherLover = gameData.players.find(p => p.userId === otherLoverId);
                 const newEvent: GameEvent = {
-                    id: `evt_lover_${Date.now()}_${otherLoverId}`,
+                    id: `evt_lover_${Date.now()}_${otherLoverId}`, // Ensure unique ID
                     gameId: gameData.id,
                     round: gameData.currentRound,
                     type: 'lover_death',
