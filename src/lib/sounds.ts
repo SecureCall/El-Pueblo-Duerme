@@ -7,9 +7,32 @@ let isPlayingNarration = false;
 let narrationQueue: string[] = [];
 let audioUnlocked = false;
 
+// This function needs to be accessible globally within the module.
+const playNextInQueue = () => {
+    if (narrationQueue.length > 0) {
+        const nextSrc = narrationQueue.shift();
+        if (nextSrc && narrationAudio) {
+            isPlayingNarration = true;
+            narrationAudio.src = nextSrc;
+            narrationAudio.play().catch(e => {
+                console.warn(`Narration play was prevented for ${nextSrc}:`, e);
+                // If it failed even after unlock attempt, stop trying for this chain
+                isPlayingNarration = false;
+                 // It's possible for an error to occur even after unlocking, try next.
+                playNextInQueue();
+            });
+        } else {
+             isPlayingNarration = false;
+        }
+    } else {
+        isPlayingNarration = false;
+    }
+};
+
 // Function to be called by an external component (like GameMusic) once interaction has happened.
 export const unlockAudio = () => {
     if (audioUnlocked) return;
+    console.log("Audio unlocked by user interaction.");
     audioUnlocked = true;
     // Try to play the first item in the queue now that we are unlocked
     if (!isPlayingNarration && narrationQueue.length > 0) {
@@ -24,38 +47,18 @@ if (typeof window !== 'undefined') {
 
     soundEffectAudio = new Audio();
     soundEffectAudio.volume = 0.8;
-
-    const playNextInQueue = () => {
-        if (narrationQueue.length > 0) {
-            const nextSrc = narrationQueue.shift();
-            if (nextSrc && narrationAudio) {
-                isPlayingNarration = true;
-                narrationAudio.src = nextSrc;
-                narrationAudio.play().catch(e => {
-                    console.warn(`Narration play was prevented for ${nextSrc}:`, e);
-                    // If it failed even after unlock attempt, stop trying for this chain
-                    isPlayingNarration = false;
-                });
-            } else {
-                 isPlayingNarration = false;
-            }
-        } else {
-            isPlayingNarration = false;
-        }
-    };
     
-    if(narrationAudio) {
-        narrationAudio.addEventListener('ended', () => {
-            isPlayingNarration = false;
-            playNextInQueue();
-        });
+    // Attach event listeners safely
+    narrationAudio.addEventListener('ended', () => {
+        isPlayingNarration = false;
+        playNextInQueue();
+    });
 
-        narrationAudio.addEventListener('error', (e) => {
-            console.error("Narration audio error:", narrationAudio?.error);
-            isPlayingNarration = false;
-            playNextInQueue(); // Skip to the next sound on error
-        });
-    }
+    narrationAudio.addEventListener('error', (e) => {
+        console.error("Narration audio error:", narrationAudio?.error);
+        isPlayingNarration = false;
+        playNextInQueue(); // Skip to the next sound on error
+    });
 }
 
 export const playNarration = (narrationFile: string): void => {
@@ -77,9 +80,12 @@ export const playSoundEffect = (soundFile: string): void => {
         return;
     }
     if (!audioUnlocked) {
+        // If audio is not unlocked, we simply ignore the sound effect.
+        // These are less critical than narration.
         return;
     }
     
+    // Use a separate audio object for effects to allow overlap
     const effectAudio = new Audio(`/audio/effects/${soundFile}`);
     effectAudio.volume = 0.8;
     
