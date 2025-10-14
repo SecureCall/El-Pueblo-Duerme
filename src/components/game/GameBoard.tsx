@@ -37,26 +37,30 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
   const nightSoundsPlayedForRound = useRef<number>(0);
   const voteSoundsPlayedForRound = useRef<number>(0);
   const [showRole, setShowRole] = useState(true);
-  const [deathCause, setDeathCause] = useState<'night' | 'vote' | null>(null);
+  const [deathCause, setDeathCause] = useState<'eliminated' | 'vote' | null>(null);
 
   // Sound effect logic
   useEffect(() => {
     const prevPhase = prevPhaseRef.current;
+
+    const playSequentially = async (sounds: string[]) => {
+      for (const sound of sounds) {
+        await playNarration(sound);
+      }
+    };
 
     // Phase change narrations
     if (prevPhase !== game.phase) {
       switch (game.phase) {
         case 'night':
           if (game.currentRound === 1 && prevPhase === 'role_reveal') {
-             playNarration('intro_epica.mp3');
-             setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 4000);
+             playSequentially(['intro_epica.mp3', 'noche_pueblo_duerme.mp3']);
           } else {
             playNarration('noche_pueblo_duerme.mp3');
           }
           break;
         case 'day':
-          playNarration('dia_pueblo_despierta.mp3');
-          setTimeout(() => playNarration('inicio_debate.mp3'), 2000);
+          playSequentially(['dia_pueblo_despierta.mp3', 'inicio_debate.mp3']);
           break;
         case 'voting':
            playNarration('inicio_votacion.mp3');
@@ -113,7 +117,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
             if (deathEvent?.type === 'vote_result') {
                 setDeathCause('vote');
             } else {
-                setDeathCause('night');
+                setDeathCause('eliminated');
             }
         }
     }, [currentPlayer.isAlive, events, currentPlayer.userId]);
@@ -178,11 +182,10 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
       if (deathCause === 'vote') {
         return <BanishedOverlay />;
       }
-      if (deathCause === 'night') {
+      if (deathCause === 'eliminated') {
         return <YouAreDeadOverlay />;
       }
-      // Fallback for other death causes like hunter shot or lover's death
-      return <YouAreDeadOverlay />;
+      return null;
     };
     return (
         <>
@@ -404,4 +407,5 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
 }
 
 
+    
     
