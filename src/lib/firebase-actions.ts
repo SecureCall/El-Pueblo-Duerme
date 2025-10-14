@@ -421,19 +421,23 @@ function killPlayer(
     let hunterTriggeredId: string | null = null;
     const killedThisTurn = new Set<string>();
 
-    for (const playerId of playerIdsToKill) {
-        if (killedThisTurn.has(playerId)) continue;
+    // Use a queue to handle chain reactions
+    const killQueue = [...playerIdsToKill];
+
+    while(killQueue.length > 0) {
+        const playerId = killQueue.shift();
+        if (!playerId || killedThisTurn.has(playerId)) continue;
 
         const playerIndex = gameData.players.findIndex(p => p.userId === playerId);
         if (playerIndex === -1 || !gameData.players[playerIndex].isAlive) continue;
-
+        
         const playerToKill = gameData.players[playerIndex];
         gameData.players[playerIndex].isAlive = false;
         killedThisTurn.add(playerId);
 
         // Check for special roles on death
-        if (playerToKill.role === 'hunter' && gameData.settings.hunter) {
-            hunterTriggeredId = playerToKill.userId;
+        if (playerToKill.role === 'hunter' && gameData.settings.hunter && !hunterTriggeredId) {
+             hunterTriggeredId = playerToKill.userId;
         }
         if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) {
             gameData.wolfCubRevengeRound = gameData.currentRound + 1;
@@ -442,30 +446,21 @@ function killPlayer(
         // Check for lover's death
         if (gameData.lovers?.includes(playerToKill.userId)) {
             const otherLoverId = gameData.lovers.find(id => id !== playerToKill.userId)!;
-            const otherLoverIndex = gameData.players.findIndex(p => p.userId === otherLoverId && p.isAlive);
-
-            if (otherLoverIndex !== -1) {
-                const otherLover = gameData.players[otherLoverIndex];
-                gameData.players[otherLoverIndex].isAlive = false;
-                killedThisTurn.add(otherLoverId);
-                
+            // Add the other lover to the queue to be processed
+            if (!killedThisTurn.has(otherLoverId)) {
+                const otherLover = gameData.players.find(p => p.userId === otherLoverId);
                 const newEvent: GameEvent = {
                     id: `evt_lover_${Date.now()}_${otherLoverId}`,
                     gameId: gameData.id,
                     round: gameData.currentRound,
                     type: 'lover_death',
-                    message: `${otherLover.displayName} no pudo soportar la pérdida de ${playerToKill.displayName} y ha muerto de desamor.`,
-                    data: { killedPlayerId: otherLoverId },
+                    message: `${otherLover?.displayName || 'Alguien'} no pudo soportar la pérdida de ${playerToKill.displayName} y ha muerto de desamor.`,
+                    data: { killedPlayerId: otherLoverId, originalVictimId: playerId },
                     createdAt: Timestamp.now(),
                 };
-                if (!gameData.events) {
-                    gameData.events = [];
-                }
+                 if (!gameData.events) gameData.events = [];
                 gameData.events.push(newEvent);
-
-                if (otherLover.role === 'hunter' && gameData.settings.hunter && !hunterTriggeredId) {
-                    hunterTriggeredId = otherLover.userId;
-                }
+                killQueue.push(otherLoverId);
             }
         }
     }
@@ -619,13 +614,20 @@ export async function processNight(db: Firestore, gameId: string) {
 
             // 3. Apply Kills and check consequences
             if (finalKilledPlayerIds.length > 0) {
-                const killedPlayers = game.players.filter(p => finalKilledPlayerIds.includes(p.userId));
-                killedPlayerNamesAndRoles = killedPlayers.map(p => `${p.displayName} (que era ${roleDetails[p.role!]?.name || 'un rol desconocido'})`);
-                messages.push(`Anoche, el pueblo perdió a ${killedPlayerNamesAndRoles.join(' y a ')}.`);
-
+                
                 const { updatedGame, triggeredHunterId } = killPlayer(game, finalKilledPlayerIds);
                 game = updatedGame;
                 
+                const actuallyKilledPlayers = game.players.filter(p => !p.isAlive && !finalKilledPlayerIds.includes(p.userId));
+                
+                const allKilledIds = [...new Set([...finalKilledPlayerIds, ...actuallyKilledPlayers.map(p=>p.userId)])];
+                 const killedPlayers = game.players.filter(p => allKilledIds.includes(p.userId));
+
+
+                killedPlayerNamesAndRoles = killedPlayers.map(p => `${p.displayName} (que era ${roleDetails[p.role!]?.name || 'un rol desconocido'})`);
+                messages.push(`Anoche, el pueblo perdió a ${killedPlayerNamesAndRoles.join(' y a ')}.`);
+
+
                 if (triggeredHunterId) {
                     transaction.update(gameRef, game);
                     return; // Stop here, phase is now 'hunter_shot'
