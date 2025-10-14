@@ -17,17 +17,22 @@ La solución es subir el código desde tu propio ordenador. Aquí tienes los pas
     *   `git remote add origin https://github.com/SecureCall/El-Pueblo-Duerme.git`
     *(Si te da un error diciendo que `origin already exists`, puedes saltarte este paso).*
 
-4.  **Añade todos los cambios:**
+4.  **Fuerza la URL a HTTPS (¡Paso Clave!):** Ejecuta este comando para asegurarte de que `git` use el método de autenticación correcto.
+    ```bash
+    git remote set-url origin https://github.com/SecureCall/El-Pueblo-Duerme.git
+    ```
+
+5.  **Añade todos los cambios:**
     ```bash
     git add .
     ```
 
-5.  **Crea un "commit" con un mensaje:**
+6.  **Crea un "commit" con un mensaje:**
     ```bash
     git commit -m "Versión final con correcciones de audio y errores del Cazador"
     ```
 
-6.  **Sube los cambios a la rama principal (`main`):**
+7.  **Sube los cambios a la rama principal (`main`):**
     ```bash
     git push -u origin main --force
     ```
