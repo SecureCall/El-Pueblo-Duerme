@@ -1,10 +1,19 @@
+
+'use client';
 import { CreateGameForm } from '@/components/game/CreateGameForm';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { GameMusic } from '@/components/game/GameMusic';
 import Image from 'next/image';
+import { useEffect } from 'react';
+import { playNarration } from '@/lib/sounds';
 
 export default function CreateGamePage() {
     const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
+
+    useEffect(() => {
+        playNarration('intro_epica.mp3');
+    }, []);
+
     return (
         <>
             <GameMusic src="/audio/menu-theme.mp3" />

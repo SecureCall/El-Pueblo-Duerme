@@ -7,9 +7,15 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
 import { BookOpen } from 'lucide-react';
 import { GameMusic } from '@/components/game/GameMusic';
+import { useEffect } from 'react';
+import { playNarration } from '@/lib/sounds';
 
 export default function Home() {
   const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
+  
+  useEffect(() => {
+    playNarration('intro_epica.mp3');
+  }, []);
 
   return (
     <>
