@@ -442,7 +442,7 @@ function killPlayer(
         killedThisTurn.add(playerId);
 
         // Check for special roles on death
-        if (playerToKill.role === 'hunter' && gameData.settings.hunter && !hunterTriggeredId) {
+        if (playerToKill.role === 'hunter' && gameData.settings.hunter && gameData.phase !== 'hunter_shot') {
              hunterTriggeredId = playerToKill.userId;
         }
         if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) {
@@ -519,7 +519,7 @@ async function checkGameOver(transaction: Transaction, gameRef: DocumentReferenc
             gameOver = true;
             message = "¡El pueblo ha ganado! Todos los hombres lobo han sido eliminados.";
             winners = aliveVillagers.map(p => p.userId);
-        } else if (aliveWerewolves.length > 0 && aliveWerewolves.length >= aliveVillagers.length) {
+        } else if (aliveWerewolves.length > 0 && aliveWerewolves.length >= aliveVillagers.length && alivePlayers.length > 0) {
             gameOver = true;
             message = "¡Los hombres lobo han ganado! Han superado en número a los aldeanos.";
             winners = aliveWerewolves.map(p => p.userId);
@@ -632,7 +632,7 @@ export async function processNight(db: Firestore, gameId: string) {
                     killedByPoisonId = poisonAction.targetId;
                 }
             }
-
+            
             // 3. Apply Kills and check consequences
             if (finalKilledPlayerIds.length > 0) {
                 const { updatedGame } = killPlayer(game, finalKilledPlayerIds);
@@ -661,9 +661,7 @@ export async function processNight(db: Firestore, gameId: string) {
                 createdAt: Timestamp.now(),
             };
             
-            // This is the critical fix: Ensure the night event is always added before other logic.
-            const events = game.events || [];
-            events.push(nightEvent);
+            game.events.push(nightEvent);
             
             // 4. Check for game over (after kills are applied)
             const isOver = await checkGameOver(transaction, gameRef, game);
@@ -675,7 +673,7 @@ export async function processNight(db: Firestore, gameId: string) {
             if (game.phase === 'hunter_shot') {
                 transaction.update(gameRef, { 
                     players: game.players,
-                    events: events, // Make sure events are saved
+                    events: game.events,
                     phase: 'hunter_shot',
                     pendingHunterShot: game.pendingHunterShot
                 });
@@ -687,7 +685,7 @@ export async function processNight(db: Firestore, gameId: string) {
             
             const updates = {
               players: game.players,
-              events: events, // Make sure events are saved
+              events: game.events,
               phase: 'day',
               chatMessages: [],
               wolfCubRevengeRound: game.wolfCubRevengeRound === game.currentRound ? 0 : game.wolfCubRevengeRound,
@@ -821,24 +819,21 @@ export async function processVotes(db: Firestore, gameId: string) {
                 game = updatedGame; // game is updated with death info
             }
             
-            // CRITICAL CHANGE: Check for game over *before* deciding the next phase.
             const isOver = await checkGameOver(transaction, gameRef, game);
             if (isOver) {
-                 return; // STOP EXECUTION, checkGameOver handles the final update.
+                 return;
             }
             
-            // If game is not over, check for hunter shot
-            if (game.phase === 'hunter_shot') { // killPlayer might change the phase
+            if (game.phase === 'hunter_shot') {
                transaction.update(gameRef, { 
                     players: game.players,
                     events: game.events,
                     phase: 'hunter_shot',
                     pendingHunterShot: game.pendingHunterShot
                 });
-               return; // STOP EXECUTION
+               return;
             }
 
-            // If we reach here, game continues. Go to next night.
             game.players.forEach(p => { p.votedFor = null; });
             
             transaction.update(gameRef, {
@@ -912,37 +907,32 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             game.events = game.events || [];
             game.events.push(shotEvent);
             
-            // The hunter is already dead, so we just kill the target
             const { updatedGame } = killPlayer(game, [targetId]);
-            game = updatedGame; // game now has the new dead player
+            game = updatedGame;
             
-            // Check if the shot caused another hunter to die (chain reaction)
             if (game.phase === 'hunter_shot') {
-                // Another hunter was shot, update and wait for their shot
                 transaction.update(gameRef, { 
                     players: game.players,
                     events: game.events,
                     phase: 'hunter_shot',
                     pendingHunterShot: game.pendingHunterShot
                 });
-                return; // Wait for the next hunter
+                return;
             }
 
             const isOver = await checkGameOver(transaction, gameRef, game);
             if (isOver) {
-                return; // Game over logic handles the update
+                return;
             }
             
-            // Determine where the hunter died from to decide the next phase
             const hunterDeathEvent = game.events
-                .slice() // Create a copy to avoid mutating the original array
+                .slice()
                 .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds)
                 .find(e => 
                     (e.type === 'vote_result' && e.data?.lynchedPlayerId === hunterId) ||
                     (e.type === 'night_result' && e.data?.killedPlayerIds?.includes(hunterId))
                 );
 
-            // If hunter died from a vote, next phase is night. Otherwise (night kill), next phase is day.
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
             const nextRound = nextPhase === 'night' ? game.currentRound + 1 : game.currentRound;
 
@@ -953,7 +943,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 events: game.events,
                 phase: nextPhase,
                 currentRound: nextRound,
-                pendingHunterShot: null, // Clear the pending shot
+                pendingHunterShot: null,
             });
         });
         return { success: true };
@@ -1384,6 +1374,7 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
 
 
       
+
 
 
 
