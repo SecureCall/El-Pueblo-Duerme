@@ -898,7 +898,7 @@ const getDeterministicAIAction = (
     game: Game,
     alivePlayers: Player[]
 ): { actionType: NightActionType | 'VOTE' | 'SHOOT' | 'NONE', targetId: string } => {
-    const { role, userId, lastHealedRound } = aiPlayer;
+    const { role, userId } = aiPlayer;
     const { currentRound } = game;
     const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed'];
 
