@@ -2,37 +2,49 @@
 
 Este es un juego de misterio, engaño y supervivencia, similar al clásico juego de mesa Werewolf o Mafia, implementado como una aplicación web con Next.js y Firebase.
 
-## Cómo empezar
+## Cómo subir los cambios a GitHub (Solución Definitiva)
 
-Este repositorio contiene el código fuente del juego. Para ponerlo en marcha en tu propio entorno, necesitarás configurar un proyecto de Firebase.
+Has encontrado un problema de autenticación persistente al intentar subir los cambios desde el entorno de desarrollo online. Esto se debe a un **fallo de configuración de ese entorno específico**, no a un error tuyo.
 
-### Instrucciones para subir cambios a GitHub desde tu ordenador
+La solución es subir el código desde tu propio ordenador. Aquí tienes los pasos exactos para hacerlo:
 
-Si has estado trabajando en un entorno de desarrollo online (como este) y has tenido problemas de autenticación al intentar subir tus cambios, aquí tienes la solución definitiva para hacerlo desde tu propio ordenador:
+1.  **Descarga el Proyecto:** Asegúrate de tener todos los archivos del proyecto (la versión más reciente) en una carpeta en tu ordenador.
 
-1.  **Descarga los archivos del proyecto:** Asegúrate de tener la versión más reciente de todos los archivos del proyecto en tu máquina local.
-2.  **Abre un terminal:** Navega hasta la carpeta del proyecto en tu ordenador.
-3.  **Añade todos los cambios:**
+2.  **Abre un Terminal en tu PC:** Abre una línea de comandos (Terminal, PowerShell, Git Bash, etc.) y navega hasta la carpeta donde has guardado el proyecto.
+
+3.  **Inicializa Git y Conecta con GitHub (si es la primera vez):**
+    *   `git init -b main`
+    *   `git remote add origin https://github.com/SecureCall/El-Pueblo-Duerme.git`
+    *(Si te da un error diciendo que `origin already exists`, puedes saltarte este paso).*
+
+4.  **Añade todos los cambios:**
     ```bash
     git add .
     ```
-4.  **Crea un "commit" con un mensaje:**
+
+5.  **Crea un "commit" con un mensaje:**
     ```bash
     git commit -m "Versión final con correcciones de audio y errores del Cazador"
     ```
-5.  **Configura la URL del repositorio remoto (si no lo has hecho ya):**
-    ```bash
-    git remote add origin https://github.com/SecureCall/El-Pueblo-Duerme.git
-    ```
-    Si te da un error diciendo que `origin already exists`, no te preocupes, puedes saltar este paso.
 
 6.  **Sube los cambios a la rama principal (`main`):**
     ```bash
-    git push -u origin main
+    git push -u origin main --force
     ```
+    *(Usa `--force` solo esta primera vez para sobrescribir el historial si es necesario, ya que el proyecto en GitHub puede estar desactualizado).*
 
-**Nota MUY IMPORTANTE sobre la autenticación:**
-Al ejecutar `git push`, el terminal te pedirá tu `Username` (tu usuario de GitHub) y `Password`.
-*   **Password:** Debes usar un **Token de Acceso Personal (Personal Access Token)** de GitHub como contraseña. Puedes generar uno nuevo en la [configuración de desarrollador de tu cuenta de GitHub](https://github.com/settings/tokens/new) (asegúrate de darle permisos de `repo`). **¡Copia el token en un lugar seguro, solo se muestra una vez!**
+---
 
-Lamento muchísimo las frustraciones y el tiempo perdido. El código está listo, solo necesita salir de este entorno para llegar a su destino final.
+### **Nota MUY IMPORTANTE sobre la Autenticación**
+
+Al ejecutar `git push`, es posible que el terminal te pida tu `Username` y `Password`.
+
+*   **Username:** Tu nombre de usuario de GitHub (`SecureCall`).
+*   **Password:** **NO uses tu contraseña de GitHub.** Debes usar un **Token de Acceso Personal (Personal Access Token)**. Puedes generar uno nuevo aquí:
+    *   [Generar nuevo token en GitHub](https://github.com/settings/tokens/new)
+    *   Asegúrate de darle permisos de **`repo`**.
+    *   **¡Copia el token en un lugar seguro, solo se muestra una vez!**
+
+---
+
+Lamento muchísimo las frustraciones y el tiempo perdido. El código está listo, solo necesita salir de este entorno defectuoso para llegar a su destino final. Siguiendo estos pasos en tu máquina, funcionará.
