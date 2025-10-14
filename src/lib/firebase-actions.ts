@@ -449,15 +449,16 @@ function killPlayer(
                 gameData.players[otherLoverIndex].isAlive = false;
                 killedThisTurn.add(otherLoverId);
                 
-                gameData.events.push({
-                    id: `evt_lover_${Date.now()}`,
+                const newEvent: GameEvent = {
+                    id: `evt_lover_${Date.now()}_${otherLoverId}`,
                     gameId: gameData.id,
                     round: gameData.currentRound,
                     type: 'lover_death',
                     message: `${otherLover.displayName} no pudo soportar la pérdida de ${playerToKill.displayName} y ha muerto de desamor.`,
                     data: { killedPlayerId: otherLoverId },
                     createdAt: Timestamp.now(),
-                });
+                };
+                gameData.events.push(newEvent);
 
                 if (otherLover.role === 'hunter' && gameData.settings.hunter && !hunterTriggeredId) {
                     hunterTriggeredId = otherLover.userId;
