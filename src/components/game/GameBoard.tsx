@@ -103,20 +103,29 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
      // Effect to check if the current player has died and by what cause
     useEffect(() => {
         const playerJustDied = prevPlayerStateRef.current?.isAlive && !currentPlayer.isAlive;
+        const playerIsDead = !currentPlayer.isAlive;
 
-        if (playerJustDied) {
-            const deathEvent = events.find(e =>
-                (e.type === 'night_result' && e.data?.killedPlayerIds?.includes(currentPlayer.userId)) ||
-                (e.type === 'vote_result' && e.data?.lynchedPlayerId === currentPlayer.userId) ||
-                (e.type === 'lover_death' && e.data?.killedPlayerId === currentPlayer.userId) ||
-                (e.type === 'hunter_shot' && e.data?.killedPlayerId === currentPlayer.userId)
+        // Run this logic if the player is dead, to catch late-arriving events like hunter_shot
+        if (playerIsDead) {
+            const deathEvent = [...events] // Create a copy to sort
+                .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
+                .find(e =>
+                    (e.type === 'night_result' && e.data?.killedPlayerIds?.includes(currentPlayer.userId)) ||
+                    (e.type === 'vote_result' && e.data?.lynchedPlayerId === currentPlayer.userId) ||
+                    (e.type === 'lover_death' && e.data?.killedPlayerId === currentPlayer.userId) ||
+                    (e.type === 'hunter_shot' && e.data?.killedPlayerId === currentPlayer.userId)
             );
 
-            if (deathEvent?.type === 'vote_result') {
-                setDeathCause('vote');
-            } else if (deathEvent?.type === 'hunter_shot') {
-                setDeathCause('hunter_shot');
-            } else {
+            if (deathEvent) {
+                if (deathEvent.type === 'hunter_shot') {
+                    setDeathCause('hunter_shot');
+                } else if (deathEvent.type === 'vote_result') {
+                    setDeathCause('vote');
+                } else {
+                    setDeathCause('eliminated'); // Default for night_kill, lover_death etc.
+                }
+            } else if (playerJustDied) {
+                // Fallback for cases where the event might not be in the array yet
                 setDeathCause('eliminated');
             }
         }
@@ -390,3 +399,4 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     </>
   );
 }
+
