@@ -7,26 +7,23 @@ import type { AIPlayerPerspective, GenerateAIChatMessageOutput, NightAction, Pla
 import { AIPlayerPerspectiveSchema, GenerateAIChatMessageOutputSchema } from '@/types/zod';
 
 // Helper function to sanitize any object and replace undefined with null recursively.
-const sanitizeObject = <T extends object>(obj: T): T => {
-    if (obj === null || obj === undefined) {
+const sanitizeObject = (obj: any): any => {
+    if (obj === undefined) {
+        return null;
+    }
+    if (obj === null || typeof obj !== 'object') {
         return obj;
     }
 
-    // Handle arrays
     if (Array.isArray(obj)) {
-        return obj.map(item => typeof item === 'object' ? sanitizeObject(item) : item) as any;
+        return obj.map(item => sanitizeObject(item));
     }
 
-    const newObj = { ...obj } as T;
-    for (const key in newObj) {
-        if (Object.prototype.hasOwnProperty.call(newObj, key)) {
-            const value = newObj[key];
-            if (value === undefined) {
-                (newObj as any)[key] = null;
-            } else if (value !== null && typeof value === 'object') {
-                // Recursively sanitize nested objects
-                (newObj as any)[key] = sanitizeObject(value);
-            }
+    const newObj: { [key: string]: any } = {};
+    for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            const value = obj[key];
+            newObj[key] = sanitizeObject(value);
         }
     }
     return newObj;
@@ -140,7 +137,7 @@ const generateAiChatMessageFlow = ai.defineFlow(
 export async function generateAIChatMessage(input: AIPlayerPerspective): Promise<GenerateAIChatMessageOutput> {
     try {
         // Deep sanitize the entire input object to remove any 'undefined' values recursively.
-        const sanitizedInput = sanitizeObject(JSON.parse(JSON.stringify(input)));
+        const sanitizedInput = sanitizeObject(input);
 
         const result = await generateAiChatMessageFlow(sanitizedInput);
         return result;
