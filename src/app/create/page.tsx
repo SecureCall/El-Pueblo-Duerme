@@ -11,7 +11,11 @@ export default function CreateGamePage() {
     const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
 
     useEffect(() => {
-        playNarration('intro_epica.mp3');
+        const playIntro = async () => {
+            await playNarration('Que comience el juego..mp3');
+            await playNarration('salas.mp3');
+        }
+        playIntro();
     }, []);
 
     return (
