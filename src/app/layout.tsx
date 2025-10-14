@@ -8,7 +8,8 @@ export const metadata: Metadata = {
   description: 'A game of mystery, deception, and survival.',
   manifest: '/manifest.json',
   icons: {
-    icon: '/icons/icon-192x192.png',
+    icon: '/logo.png',
+    apple: '/logo.png',
   },
 };
 
