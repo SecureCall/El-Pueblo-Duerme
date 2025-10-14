@@ -1,3 +1,4 @@
+
 'use client';
 import { 
   doc,
@@ -454,9 +455,7 @@ function killPlayer(
             if (!killedThisTurn.has(otherLoverId)) {
                 const otherLover = gameData.players.find(p => p.userId === otherLoverId);
                 
-                gameData.events = gameData.events || [];
-
-                const newEvent: GameEvent = {
+                gameData.events.push({
                     id: `evt_lover_${Date.now()}_${otherLoverId}`,
                     gameId: gameData.id,
                     round: gameData.currentRound,
@@ -464,8 +463,7 @@ function killPlayer(
                     message: `${otherLover?.displayName || 'Alguien'} no pudo soportar la pérdida de ${playerToKill.displayName} y ha muerto de desamor.`,
                     data: { killedPlayerId: otherLoverId, originalVictimId: playerId },
                     createdAt: Timestamp.now(),
-                };
-                gameData.events.push(newEvent);
+                });
                 killQueue.push(otherLoverId);
             }
         }
@@ -480,24 +478,24 @@ function killPlayer(
 }
 
 
-async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: boolean }> {
-    let newGameData = { ...gameData };
-
-    const alivePlayers = newGameData.players.filter(p => p.isAlive);
+async function checkGameOver(transaction: Transaction, gameRef: DocumentReference, gameData: Game): Promise<boolean> {
+    const alivePlayers = gameData.players.filter(p => p.isAlive);
     if (alivePlayers.length === 0) {
-        newGameData.status = 'finished';
-        newGameData.phase = 'finished';
-        newGameData.events = newGameData.events || [];
-        newGameData.events.push({
+        const gameOverEvent: GameEvent = {
             id: `evt_gameover_${Date.now()}`,
-            gameId: newGameData.id,
-            round: newGameData.currentRound,
+            gameId: gameData.id,
+            round: gameData.currentRound,
             type: 'game_over',
             message: "¡Nadie ha sobrevivido a la masacre!",
             data: { winners: [] },
             createdAt: Timestamp.now(),
+        };
+        transaction.update(gameRef, { 
+            status: 'finished',
+            phase: 'finished',
+            events: arrayUnion(gameOverEvent) 
         });
-        return { game: newGameData, isOver: true };
+        return true;
     }
 
     const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
@@ -508,22 +506,20 @@ async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: bool
     let message = "";
     let winners: string[] = [];
     
-    // Lovers win condition is highest priority
-    if (newGameData.lovers && alivePlayers.length >= 2 && alivePlayers.every(p => newGameData.lovers!.includes(p.userId))) {
+    if (gameData.lovers && alivePlayers.length >= 2 && alivePlayers.every(p => gameData.lovers!.includes(p.userId))) {
         gameOver = true;
-        const lover1 = newGameData.players.find(p => p.userId === newGameData.lovers![0]);
-        const lover2 = newGameData.players.find(p => p.userId === newGameData.lovers![1]);
+        const lover1 = gameData.players.find(p => p.userId === gameData.lovers![0]);
+        const lover2 = gameData.players.find(p => p.userId === gameData.lovers![1]);
         message = `¡Los enamorados han ganado! Desafiando a sus bandos, ${lover1?.displayName} y ${lover2?.displayName} han triunfado solos contra el mundo.`;
-        winners = newGameData.lovers;
+        winners = gameData.lovers;
     }
 
     if (!gameOver) {
-        if (aliveWerewolves.length === 0) {
+        if (aliveWerewolves.length === 0 && alivePlayers.length > 0) {
             gameOver = true;
             message = "¡El pueblo ha ganado! Todos los hombres lobo han sido eliminados.";
             winners = aliveVillagers.map(p => p.userId);
-        } 
-        else if (aliveWerewolves.length >= aliveVillagers.length) {
+        } else if (aliveWerewolves.length >= aliveVillagers.length && alivePlayers.length > 0) {
             gameOver = true;
             message = "¡Los hombres lobo han ganado! Han superado en número a los aldeanos.";
             winners = aliveWerewolves.map(p => p.userId);
@@ -531,22 +527,24 @@ async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: bool
     }
 
     if (gameOver) {
-        newGameData.status = 'finished';
-        newGameData.phase = 'finished';
-        newGameData.events = newGameData.events || [];
-        newGameData.events.push({
+        const gameOverEvent: GameEvent = {
             id: `evt_gameover_${Date.now()}`,
-            gameId: newGameData.id,
-            round: newGameData.currentRound,
+            gameId: gameData.id,
+            round: gameData.currentRound,
             type: 'game_over',
             message: message,
             data: { winners },
             createdAt: Timestamp.now(),
+        };
+        transaction.update(gameRef, { 
+            status: 'finished',
+            phase: 'finished',
+            events: arrayUnion(gameOverEvent) 
         });
-        return { game: newGameData, isOver: true };
+        return true;
     }
 
-    return { game: newGameData, isOver: false };
+    return false;
 }
 
 
@@ -559,12 +557,11 @@ export async function processNight(db: Firestore, gameId: string) {
             if (!gameSnap.exists()) throw new Error("Game not found!");
             
             let game = gameSnap.data() as Game;
-            if (game.phase !== 'night') return; // LOCK: Exit if phase has already changed
+            if (game.phase !== 'night') return; 
             
-            // --- PREVENT UNDEFINED ---
             game.nightActions = game.nightActions || [];
             game.events = game.events || [];
-            // -------------------------
+            game.chatMessages = game.chatMessages || [];
 
             const actions = game.nightActions.filter(a => a.round === game.currentRound);
             
@@ -620,7 +617,7 @@ export async function processNight(db: Firestore, gameId: string) {
                             game.players[playerIndex].role = 'werewolf';
                             game.events.push({ id: `evt_transform_${Date.now()}`, gameId, round: game.currentRound, type: 'player_transformed', message: `${targetPlayer.displayName} ha sido transformado en Hombre Lobo.`, data: { playerId: targetId }, createdAt: Timestamp.now() });
                         }
-                    } else if (targetPlayer.role !== 'prince') { // Prince is immune to night attacks
+                    } else if (targetPlayer.role !== 'prince') {
                         finalKilledPlayerIds.push(targetId);
                     }
                 }
@@ -641,7 +638,6 @@ export async function processNight(db: Firestore, gameId: string) {
                 const { updatedGame, triggeredHunterId } = killPlayer(game, finalKilledPlayerIds);
                 game = updatedGame;
                 
-                const allKilledIds = new Set(game.players.filter(p => !p.isAlive).map(p => p.userId));
                 const newlyKilledPlayers = game.players.filter(p => !p.isAlive && finalKilledPlayerIds.includes(p.userId));
 
                 killedPlayerNamesAndRoles = newlyKilledPlayers.map(p => `${p.displayName} (que era ${roleDetails[p.role!]?.name || 'un rol desconocido'})`);
@@ -650,8 +646,13 @@ export async function processNight(db: Firestore, gameId: string) {
                 }
 
                 if (triggeredHunterId) {
-                    transaction.update(gameRef, { ...game });
-                    return; // Stop here, phase is now 'hunter_shot'
+                    transaction.update(gameRef, { 
+                        players: game.players,
+                        events: game.events,
+                        phase: game.phase, // Should be 'hunter_shot'
+                        pendingHunterShot: game.pendingHunterShot
+                    });
+                    return; 
                 }
             } else if (wasSomeoneAttackedByWolves || poisonAction) {
                  messages.push("Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!");
@@ -672,11 +673,8 @@ export async function processNight(db: Firestore, gameId: string) {
             game.events.push(nightEvent);
             
             // 4. Check for game over
-            const { game: finalGame, isOver } = await checkGameOver(game);
-            game = finalGame;
-
+            const isOver = await checkGameOver(transaction, gameRef, game);
             if (isOver) {
-                transaction.update(gameRef, { ...game });
                 return;
             }
 
@@ -689,7 +687,7 @@ export async function processNight(db: Firestore, gameId: string) {
               phase: 'day',
               chatMessages: [],
               wolfCubRevengeRound: game.wolfCubRevengeRound === game.currentRound ? 0 : game.wolfCubRevengeRound,
-              pendingHunterShot: game.pendingHunterShot,
+              pendingHunterShot: null,
             };
 
             transaction.update(gameRef, updates);
@@ -716,11 +714,12 @@ export async function processVotes(db: Firestore, gameId: string) {
 
             if (game.phase !== 'day' || game.status !== 'in_progress') return;
 
-            // --- ROBUST INITIALIZATION ---
             game.events = game.events || [];
             game.pendingHunterShot = game.pendingHunterShot || null;
             game.lovers = game.lovers || null;
-            // -------------------------
+            game.players = game.players || [];
+            game.chatMessages = game.chatMessages || [];
+
 
             const alivePlayers = game.players.filter(p => p.isAlive);
             const voteCounts: Record<string, number> = {};
@@ -804,19 +803,16 @@ export async function processVotes(db: Firestore, gameId: string) {
                    transaction.update(gameRef, { 
                         players: game.players,
                         events: game.events,
-                        phase: 'hunter_shot',
+                        phase: game.phase, // hunter_shot
                         pendingHunterShot: game.pendingHunterShot
                     });
-                   return;
+                   return; // STOP EXECUTION
                 }
             }
             
-            const { game: finalGame, isOver } = await checkGameOver(game);
-            game = finalGame;
-
+            const isOver = await checkGameOver(transaction, gameRef, game);
             if (isOver) {
-                 transaction.update(gameRef, { ...game });
-                 return;
+                 return; // STOP EXECUTION
             }
 
             game.players.forEach(p => { p.votedFor = null; });
@@ -895,17 +891,14 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             const { updatedGame, triggeredHunterId } = killPlayer(game, [targetId]);
             game = updatedGame;
             
-            if (triggeredHunterId) { // Another hunter was killed by the shot
+            if (triggeredHunterId) {
                 game.pendingHunterShot = triggeredHunterId;
                 transaction.update(gameRef, { ...game });
                 return;
             }
 
-            const { game: finalGame, isOver } = await checkGameOver(game);
-            game = finalGame;
-
+            const isOver = await checkGameOver(transaction, gameRef, game);
             if (isOver) {
-                transaction.update(gameRef, { ...game });
                 return;
             }
             
@@ -1347,6 +1340,7 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
 
 
       
+
 
 
 
