@@ -1123,20 +1123,19 @@ export async function sendChatMessage(
 
     const gameRef = doc(db, 'games', gameId);
     let mentionedPlayerIds: string[] = [];
-    let game: Game;
 
     try {
         await runTransaction(db, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error('Game not found');
-            game = gameDoc.data() as Game;
+            const game = gameDoc.data() as Game;
             
             const textLowerCase = text.toLowerCase();
-            for (const p of game.players) {
+            game.players.forEach(p => {
                 if (textLowerCase.includes(p.displayName.toLowerCase())) {
                     mentionedPlayerIds.push(p.userId);
                 }
-            }
+            });
             
             const messageData: ChatMessage = {
                 id: `${Date.now()}_${senderId}`,
@@ -1159,9 +1158,10 @@ export async function sendChatMessage(
             const latestGameDoc = await getDoc(gameRef);
             if(latestGameDoc.exists()){
                 const latestGame = latestGameDoc.data() as Game;
+                const triggerMessage = `${senderName} dijo: "${text.trim()}"`;
                 for (const p of latestGame.players) {
                     if (p.isAI && p.isAlive && p.userId !== senderId && mentionedPlayerIds.includes(p.userId)) {
-                        await triggerAIChat(db, gameId, `${senderName} te ha mencionado: "${text.trim()}"`, p.userId);
+                        await triggerAIChat(db, gameId, triggerMessage, p.userId);
                     }
                 }
             }
@@ -1265,4 +1265,5 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
     
 
     
+
 
