@@ -976,7 +976,15 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
         if (!gameDoc.exists()) return;
         const game = gameDoc.data() as Game;
 
-        const aiPlayers = game.players.filter(p => p.isAI && p.isAlive);
+        const aiPlayers = game.players.filter(p => {
+            if (!p.isAI) return false;
+            if (phase === 'hunter_shot') {
+                // For hunter_shot phase, only the pending hunter can act, even if not 'alive'.
+                return p.userId === game.pendingHunterShot;
+            }
+            return p.isAlive;
+        });
+
         const alivePlayers = game.players.filter(p => p.isAlive);
         const nightActions = game.nightActions?.filter(a => a.round === game.currentRound) || [];
 
@@ -985,7 +993,7 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
                 ? nightActions.some(a => a.playerId === ai.userId)
                 : ai.votedFor;
             
-            if (hasActed) continue;
+            if (hasActed && phase !== 'hunter_shot') continue;
             
             if (phase === 'hunter_shot' && ai.userId !== game.pendingHunterShot) continue;
             
