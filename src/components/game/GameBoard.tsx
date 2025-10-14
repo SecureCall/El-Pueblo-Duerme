@@ -48,17 +48,15 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
       switch (game.phase) {
         case 'night':
           if (game.currentRound === 1 && prevPhase === 'role_reveal') {
-            playNarration('intro_epica.mp3').then(() => {
-              setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 1000);
-            });
+            playNarration('intro_epica.mp3');
+            setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 1000);
           } else {
             playNarration('noche_pueblo_duerme.mp3');
           }
           break;
         case 'day':
-          playNarration('dia_pueblo_despierta.mp3').then(() => {
-            playNarration('inicio_debate.mp3');
-          });
+          playNarration('dia_pueblo_despierta.mp3');
+          playNarration('inicio_debate.mp3');
           break;
         case 'voting':
            playNarration('inicio_votacion.mp3');
