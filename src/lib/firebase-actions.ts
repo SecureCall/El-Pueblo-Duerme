@@ -484,6 +484,22 @@ async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: bool
     let newGameData = { ...gameData };
 
     const alivePlayers = newGameData.players.filter(p => p.isAlive);
+    if (alivePlayers.length === 0) {
+        newGameData.status = 'finished';
+        newGameData.phase = 'finished';
+        newGameData.events = newGameData.events || [];
+        newGameData.events.push({
+            id: `evt_gameover_${Date.now()}`,
+            gameId: newGameData.id,
+            round: newGameData.currentRound,
+            type: 'game_over',
+            message: "¡Nadie ha sobrevivido a la masacre!",
+            data: { winners: [] },
+            createdAt: Timestamp.now(),
+        });
+        return { game: newGameData, isOver: true };
+    }
+
     const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
     const aliveWerewolves = alivePlayers.filter(p => wolfRoles.includes(p.role));
     const aliveVillagers = alivePlayers.filter(p => !wolfRoles.includes(p.role));
@@ -493,39 +509,32 @@ async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: bool
     let winners: string[] = [];
     
     // Lovers win condition is highest priority
-    if (newGameData.lovers && alivePlayers.length > 0) {
-        const aliveLovers = alivePlayers.filter(p => newGameData.lovers!.includes(p.userId));
-        if (aliveLovers.length === alivePlayers.length && alivePlayers.length >= 2) {
-            gameOver = true;
-            const lover1 = newGameData.players.find(p => p.userId === newGameData.lovers![0]);
-            const lover2 = newGameData.players.find(p => p.userId === newGameData.lovers![1]);
-            message = `¡Los enamorados han ganado! Desafiando a sus bandos, ${lover1?.displayName} y ${lover2?.displayName} han triunfado solos contra el mundo.`;
-            winners = newGameData.lovers;
-        }
+    if (newGameData.lovers && alivePlayers.length >= 2 && alivePlayers.every(p => newGameData.lovers!.includes(p.userId))) {
+        gameOver = true;
+        const lover1 = newGameData.players.find(p => p.userId === newGameData.lovers![0]);
+        const lover2 = newGameData.players.find(p => p.userId === newGameData.lovers![1]);
+        message = `¡Los enamorados han ganado! Desafiando a sus bandos, ${lover1?.displayName} y ${lover2?.displayName} han triunfado solos contra el mundo.`;
+        winners = newGameData.lovers;
     }
 
-    // If lovers didn't win, check other conditions
     if (!gameOver) {
-        if (aliveWerewolves.length === 0 && aliveVillagers.length > 0) {
+        if (aliveWerewolves.length === 0) {
             gameOver = true;
             message = "¡El pueblo ha ganado! Todos los hombres lobo han sido eliminados.";
             winners = aliveVillagers.map(p => p.userId);
         } 
-        else if (aliveWerewolves.length >= aliveVillagers.length && alivePlayers.length > 0) {
+        else if (aliveWerewolves.length >= aliveVillagers.length) {
             gameOver = true;
             message = "¡Los hombres lobo han ganado! Han superado en número a los aldeanos.";
             winners = aliveWerewolves.map(p => p.userId);
-        } 
-        else if (alivePlayers.length === 0) {
-            gameOver = true;
-            message = "¡Nadie ha sobrevivido a la masacre!";
         }
     }
 
     if (gameOver) {
         newGameData.status = 'finished';
         newGameData.phase = 'finished';
-        const newEvent: GameEvent = {
+        newGameData.events = newGameData.events || [];
+        newGameData.events.push({
             id: `evt_gameover_${Date.now()}`,
             gameId: newGameData.id,
             round: newGameData.currentRound,
@@ -533,8 +542,7 @@ async function checkGameOver(gameData: Game): Promise<{ game: Game, isOver: bool
             message: message,
             data: { winners },
             createdAt: Timestamp.now(),
-        };
-        newGameData.events = [...(newGameData.events || []), newEvent];
+        });
         return { game: newGameData, isOver: true };
     }
 
@@ -788,38 +796,38 @@ export async function processVotes(db: Firestore, gameId: string) {
                 game.events.push({ id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: eventMessage, data: { lynchedPlayerId: null }, createdAt: Timestamp.now() });
             }
             
-            // --- CENTRALIZED STATE MODIFICATION ---
-            // Sequentially modify the state of the 'game' object.
-            
             if (lynchedPlayerId) {
-                // killPlayer now directly modifies the 'game' object passed to it.
-                const { triggeredHunterId } = killPlayer(game, [lynchedPlayerId]);
+                const { updatedGame, triggeredHunterId } = killPlayer(game, [lynchedPlayerId]);
+                game = updatedGame;
                 
-                // If the hunter shot, the phase is already changed inside killPlayer.
-                // We just need to commit the state and stop.
                 if (triggeredHunterId) {
-                   transaction.update(gameRef, { ...game });
+                   transaction.update(gameRef, { 
+                        players: game.players,
+                        events: game.events,
+                        phase: 'hunter_shot',
+                        pendingHunterShot: game.pendingHunterShot
+                    });
                    return;
                 }
             }
             
-            // Now, check if the game is over AFTER any potential deaths.
-            const { game: gameOverCheckGame, isOver } = await checkGameOver(game);
-            game = gameOverCheckGame; // Update our game object with the result.
+            const { game: finalGame, isOver } = await checkGameOver(game);
+            game = finalGame;
 
-            // If the game is over, commit the final state and stop.
             if (isOver) {
                  transaction.update(gameRef, { ...game });
                  return;
             }
 
-            // If game is NOT over, transition to the next night.
             game.players.forEach(p => { p.votedFor = null; });
-            game.phase = 'night';
-            game.currentRound += 1;
             
-            // All modifications are done. Commit the final, clean 'game' object.
-            transaction.update(gameRef, { ...game });
+            transaction.update(gameRef, {
+                players: game.players,
+                events: game.events,
+                phase: 'night',
+                currentRound: game.currentRound + 1,
+                pendingHunterShot: null,
+            });
         });
 
         await runAIActions(db, gameId, 'night');
@@ -1339,6 +1347,7 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
 
 
       
+
 
 
 

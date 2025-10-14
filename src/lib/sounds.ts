@@ -16,10 +16,8 @@ const playNextInQueue = () => {
             narrationAudio.src = nextSrc;
             narrationAudio.play().catch(e => {
                 console.warn(`Narration play was prevented for ${nextSrc}:`, e);
-                // If it failed even after unlock attempt, stop trying for this chain
                 isPlayingNarration = false;
-                 // It's possible for an error to occur even after unlocking, try next.
-                playNextInQueue();
+                playNextInQueue(); // Try next sound
             });
         } else {
              isPlayingNarration = false;
@@ -48,7 +46,6 @@ if (typeof window !== 'undefined') {
     soundEffectAudio = new Audio();
     soundEffectAudio.volume = 0.8;
     
-    // Attach event listeners safely
     narrationAudio.addEventListener('ended', () => {
         isPlayingNarration = false;
         playNextInQueue();
@@ -67,7 +64,12 @@ export const playNarration = (narrationFile: string): void => {
         return;
     }
     
-    narrationQueue.push(`/audio/voz/${narrationFile}`);
+    const fullPath = `/audio/voz/${narrationFile}`;
+    
+    // Avoid adding duplicates to the queue if it's already there
+    if (!narrationQueue.includes(fullPath)) {
+        narrationQueue.push(fullPath);
+    }
     
     // Only try to play immediately if audio is unlocked and nothing is currently playing.
     if (audioUnlocked && !isPlayingNarration) {
@@ -76,20 +78,16 @@ export const playNarration = (narrationFile: string): void => {
 };
 
 export const playSoundEffect = (soundFile: string): void => {
-    if (!soundEffectAudio) {
-        return;
-    }
     if (!audioUnlocked) {
-        // If audio is not unlocked, we simply ignore the sound effect.
-        // These are less critical than narration.
         return;
     }
+    if (!soundEffectAudio) {
+        soundEffectAudio = new Audio();
+        soundEffectAudio.volume = 0.8;
+    }
     
-    // Use a separate audio object for effects to allow overlap
-    const effectAudio = new Audio(`/audio/effects/${soundFile}`);
-    effectAudio.volume = 0.8;
-    
-    effectAudio.play().catch(e => {
+    soundEffectAudio.src = `/audio/effects/${soundFile}`;
+    soundEffectAudio.play().catch(e => {
         console.warn(`Sound effect play was prevented for ${soundFile}:`, e);
     });
 };

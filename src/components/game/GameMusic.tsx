@@ -58,22 +58,29 @@ export function GameMusic({ src }: GameMusicProps) {
               audio.pause();
               audio.volume = 0.3; // Reset volume
               currentSrc = newSrcUrl;
+              audio.src = newSrcUrl; // Set new source before playing
               tryPlay();
           }
         }, 50);
       } else if (currentSrc !== newSrcUrl) {
         currentSrc = newSrcUrl;
+        audio.src = newSrcUrl;
+        tryPlay();
+      } else if (audio.paused) {
+        // If the source is the same but audio is paused (e.g. returning to tab)
         tryPlay();
       }
     };
 
     handlePlay();
     
+    // Always listen for the first interaction.
     window.addEventListener('click', handleInteraction, { once: true });
     window.addEventListener('keydown', handleInteraction, { once: true });
     window.addEventListener('touchstart', handleInteraction, { once: true });
 
     return () => {
+      // It's good practice to clean up, though `once: true` does it automatically.
       window.removeEventListener('click', handleInteraction);
       window.removeEventListener('keydown', handleInteraction);
       window.removeEventListener('touchstart', handleInteraction);
