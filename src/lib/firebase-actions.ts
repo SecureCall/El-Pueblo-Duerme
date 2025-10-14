@@ -144,9 +144,11 @@ export async function joinGame(
       
       const playerExists = game.players.some(p => p.userId === userId);
       
-      const nameExists = game.players.some(p => p.displayName.toLowerCase() === displayName.trim().toLowerCase());
-      if (nameExists && !playerExists) {
-        throw new Error("Ese nombre ya está en uso en esta partida.");
+      if (!playerExists) {
+        const nameExists = game.players.some(p => p.displayName.toLowerCase() === displayName.trim().toLowerCase());
+        if (nameExists) {
+          throw new Error("Ese nombre ya está en uso en esta partida.");
+        }
       }
 
       if (game.players.length >= game.maxPlayers && !playerExists) {
@@ -333,8 +335,8 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         if (action.actionType === 'priest_bless' && action.targetId === action.playerId && player.priestSelfHealUsed) {
             throw new Error("Ya te has bendecido a ti mismo una vez.");
         }
-        if (action.actionType === 'guardian_protect' && action.targetId === action.playerId && player.guardianSelfProtects && player.guardianSelfProtects > 0) {
-            throw new Error("Solo puedes protegerte a ti mismo una vez por partida.");
+        if (action.actionType === 'guardian_protect' && action.targetId === action.playerId && (player.guardianSelfProtects || 0) >= 1) {
+             throw new Error("Solo puedes protegerte a ti mismo una vez por partida.");
         }
         
         // Remove previous actions for this player this round
@@ -470,8 +472,14 @@ function killPlayer(
     }
     
     if (hunterTriggeredId) {
-        gameData.pendingHunterShot = hunterTriggeredId;
-        gameData.phase = 'hunter_shot';
+        // SAFETY CHECK: Ensure the hunter is a valid player before setting phase.
+        const isHunterValid = gameData.players.some(p => p.userId === hunterTriggeredId);
+        if (isHunterValid) {
+            gameData.pendingHunterShot = hunterTriggeredId;
+            gameData.phase = 'hunter_shot';
+        } else {
+             console.warn(`Hunter ability triggered for a non-existent player (${hunterTriggeredId}). Skipping hunter_shot phase.`);
+        }
     }
 
     return { updatedGame: gameData, triggeredHunterId: hunterTriggeredId };
@@ -515,11 +523,14 @@ async function checkGameOver(transaction: Transaction, gameRef: DocumentReferenc
     }
 
     if (!gameOver) {
+        // Villagers win if all wolves are gone.
         if (aliveWerewolves.length === 0 && alivePlayers.length > 0) {
             gameOver = true;
             message = "¡El pueblo ha ganado! Todos los hombres lobo han sido eliminados.";
             winners = aliveVillagers.map(p => p.userId);
-        } else if (aliveWerewolves.length > 0 && aliveWerewolves.length >= aliveVillagers.length && alivePlayers.length > 0) {
+        } 
+        // Werewolves win if they are equal to or outnumber villagers.
+        else if (aliveWerewolves.length > 0 && aliveWerewolves.length >= aliveVillagers.length && alivePlayers.length > 0) {
             gameOver = true;
             message = "¡Los hombres lobo han ganado! Han superado en número a los aldeanos.";
             winners = aliveWerewolves.map(p => p.userId);
@@ -632,6 +643,17 @@ export async function processNight(db: Firestore, gameId: string) {
                     killedByPoisonId = poisonAction.targetId;
                 }
             }
+
+            const nightEvent: GameEvent = {
+                id: `evt_night_${game.currentRound}`, gameId, round: game.currentRound, type: 'night_result',
+                message: "Placeholder", // Will be updated
+                data: { 
+                    killedPlayerIds: finalKilledPlayerIds, 
+                    savedPlayerIds: savedPlayerIds,
+                    killedByPoisonId: killedByPoisonId
+                },
+                createdAt: Timestamp.now(),
+            };
             
             // 3. Apply Kills and check consequences
             if (finalKilledPlayerIds.length > 0) {
@@ -650,30 +672,20 @@ export async function processNight(db: Firestore, gameId: string) {
                  messages.push("La noche transcurre en un inquietante silencio. Nadie ha muerto.");
             }
             
-            const nightEvent: GameEvent = {
-                id: `evt_night_${game.currentRound}`, gameId, round: game.currentRound, type: 'night_result',
-                message: messages.join(' ') || "La noche transcurre en un inquietante silencio.",
-                data: { 
-                    killedPlayerIds: finalKilledPlayerIds, 
-                    savedPlayerIds: savedPlayerIds,
-                    killedByPoisonId: killedByPoisonId
-                },
-                createdAt: Timestamp.now(),
-            };
-            
+            nightEvent.message = messages.join(' ') || "La noche transcurre en un inquietante silencio.";
             game.events.push(nightEvent);
             
             // 4. Check for game over (after kills are applied)
             const isOver = await checkGameOver(transaction, gameRef, game);
             if (isOver) {
-                return; // Game over logic has already updated transaction
+                return; // Game over logic has already updated transaction and will stop execution.
             }
 
             // 5. If hunter was triggered, stop and transition to hunter_shot phase
             if (game.phase === 'hunter_shot') {
                 transaction.update(gameRef, { 
                     players: game.players,
-                    events: game.events,
+                    events: arrayUnion(nightEvent),
                     phase: 'hunter_shot',
                     pendingHunterShot: game.pendingHunterShot
                 });
@@ -687,7 +699,7 @@ export async function processNight(db: Firestore, gameId: string) {
               players: game.players,
               events: game.events,
               phase: 'day',
-              chatMessages: [],
+              chatMessages: [], // Clear chat at the start of the day
               wolfCubRevengeRound: game.wolfCubRevengeRound === game.currentRound ? 0 : game.wolfCubRevengeRound,
               pendingHunterShot: null,
             };
@@ -821,7 +833,7 @@ export async function processVotes(db: Firestore, gameId: string) {
             
             const isOver = await checkGameOver(transaction, gameRef, game);
             if (isOver) {
-                 return;
+                 return; // Stop processing if game is over
             }
             
             if (game.phase === 'hunter_shot') {
@@ -831,7 +843,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                     phase: 'hunter_shot',
                     pendingHunterShot: game.pendingHunterShot
                 });
-               return;
+               return; // Stop processing for hunter's shot
             }
 
             game.players.forEach(p => { p.votedFor = null; });
@@ -840,7 +852,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                 players: game.players,
                 events: game.events,
                 phase: 'night',
-                currentRound: game.currentRound + 1,
+                currentRound: increment(1),
                 pendingHunterShot: null,
             });
         });
@@ -848,9 +860,17 @@ export async function processVotes(db: Firestore, gameId: string) {
         await runAIActions(db, gameId, 'night');
 
         return { success: true };
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error processing votes:", error);
-        return { error: "Hubo un problema al procesar la votación." };
+         if (error.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+                path: gameRef.path,
+                operation: 'update',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            return { error: "Permiso denegado al procesar la votación." };
+        }
+        return { error: `Hubo un problema al procesar la votación: ${error.message}` };
     }
 }
 
@@ -911,6 +931,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             game = updatedGame;
             
             if (game.phase === 'hunter_shot') {
+                // This means another hunter was shot, we need to handle this second shot
                 transaction.update(gameRef, { 
                     players: game.players,
                     events: game.events,
@@ -922,11 +943,10 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
 
             const isOver = await checkGameOver(transaction, gameRef, game);
             if (isOver) {
-                return;
+                return; // Stop if game ended
             }
             
-            const hunterDeathEvent = game.events
-                .slice()
+            const hunterDeathEvent = [...game.events]
                 .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds)
                 .find(e => 
                     (e.type === 'vote_result' && e.data?.lynchedPlayerId === hunterId) ||
@@ -1312,6 +1332,7 @@ export async function resetGame(db: Firestore, gameId: string) {
                 potions: { poison: null, save: null },
                 priestSelfHealUsed: false,
                 princeRevealed: false,
+                guardianSelfProtects: 0, // Reset guardian self protects
             }));
 
             transaction.update(gameRef, {
@@ -1374,6 +1395,7 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
 
 
       
+
 
 
 
