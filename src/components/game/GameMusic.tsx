@@ -6,7 +6,7 @@ interface GameMusicProps {
   src: string;
 }
 
-// These variables are now module-level and only accessed on the client.
+// These variables are module-level and only accessed on the client.
 let audio: HTMLAudioElement | null = null;
 let currentSrc: string | null = null;
 
@@ -18,72 +18,71 @@ if (typeof window !== 'undefined') {
 }
 
 export function GameMusic({ src }: GameMusicProps) {
-  const isPlayingRef = useRef(false);
-
   useEffect(() => {
     if (!audio) return;
 
     // Construct full URL to ensure proper comparison
     const newSrcUrl = new URL(src, window.location.origin).href;
 
-    // Function to attempt playing on first user interaction
-    const playOnInteraction = async () => {
-        // Ensure audio context is resumed
-        if (audio && audio.paused) {
-          try {
-            await audio.play();
-            isPlayingRef.current = true;
-          } catch (err) {
-             console.warn("Audio play on interaction failed.", err);
-          }
+    const tryPlay = async () => {
+      if (audio && audio.paused && newSrcUrl) {
+        // If the source is different, change it before playing
+        if (audio.src !== newSrcUrl) {
+            audio.src = newSrcUrl;
         }
-        // Cleanup listeners after first successful interaction
-        window.removeEventListener('click', playOnInteraction, true);
-        window.removeEventListener('keydown', playOnInteraction, true);
+        try {
+            await audio.play();
+        } catch (error) {
+            console.warn("Audio playback failed. Waiting for another interaction.", error);
+        }
+      }
+    };
+    
+    // Add a one-time event listener for the first user interaction
+    const unlockAudio = () => {
+        tryPlay();
+        window.removeEventListener('click', unlockAudio);
+        window.removeEventListener('keydown', unlockAudio);
     };
 
     const handlePlay = async () => {
       // If the source is different, fade out, change src, and then fade in
       if (currentSrc && currentSrc !== newSrcUrl) {
         // Fade out
-        await new Promise<void>(resolve => {
-            let fadeOut = setInterval(() => {
-                if (audio!.volume > 0.05) {
-                    audio!.volume = Math.max(0, audio!.volume - 0.05);
-                } else {
-                    clearInterval(fadeOut);
-                    audio!.pause();
-                    audio!.volume = 0.3; // Reset volume for the next track
-                    resolve();
-                }
-            }, 50);
-        });
-      }
-      
-      // If the source is new or the audio is currently paused, set src and attempt to play
-      if (currentSrc !== newSrcUrl || audio.paused) {
+        let fadeOut = setInterval(() => {
+          if (!audio) {
+              clearInterval(fadeOut);
+              return;
+          }
+          if (audio.volume > 0.05) {
+              audio.volume = Math.max(0, audio.volume - 0.05);
+          } else {
+              clearInterval(fadeOut);
+              audio.pause();
+              audio.volume = 0.3; // Reset volume
+              currentSrc = newSrcUrl;
+              audio.src = newSrcUrl;
+              tryPlay();
+          }
+        }, 50);
+      } else if (currentSrc !== newSrcUrl) {
+         // If it's the first track or the audio is just paused with the same src
         currentSrc = newSrcUrl;
         audio.src = newSrcUrl;
-        
-        try {
-          // Attempt to play. This might fail on first load.
-          await audio.play();
-          isPlayingRef.current = true;
-        } catch (error) {
-          console.warn("Audio play was prevented by the browser. Waiting for user interaction.", error);
-          // If autoplay fails, add listeners to try again on the next user interaction.
-          window.addEventListener('click', playOnInteraction, true);
-          window.addEventListener('keydown', playOnInteraction, true);
-        }
+        tryPlay();
       }
     };
-    
+
     handlePlay();
+    
+    // Set up listeners to handle autoplay restrictions
+    window.addEventListener('click', unlockAudio, { once: true });
+    window.addEventListener('keydown', unlockAudio, { once: true });
 
     return () => {
-      // Cleanup interaction listeners when the component unmounts or src changes
-      window.removeEventListener('click', playOnInteraction, true);
-      window.removeEventListener('keydown', playOnInteraction, true);
+      // Cleanup interaction listeners
+      window.removeEventListener('click', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
     };
 
   }, [src]); // Re-run effect if the src prop changes

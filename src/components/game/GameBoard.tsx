@@ -150,8 +150,8 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
   }, [game.phase, game.id, game.creator, currentPlayer.userId, firestore]);
   
    const handleTimerEnd = async () => {
-    // Only creator processes the phase end to prevent multiple executions
-    if (game.creator !== currentPlayer.userId || !firestore) return;
+    // This function will only be called by the creator due to the logic in PhaseTimer
+    if (!firestore) return;
 
     if (game.phase === 'night' && game.status === 'in_progress') {
       await processNight(firestore, game.id);
@@ -235,11 +235,16 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
       }
   }
   
-  const getTimerDuration = () => {
-      if (game.phase === 'day') return 90;
-      if (game.phase === 'night') return 60;
-      return 0;
-  }
+  const handleTimerEnd = async () => {
+    // Only creator processes the phase end to prevent multiple executions
+    if (!currentPlayer || game.creator !== currentPlayer.userId || !firestore) return;
+
+    if (game.phase === 'night' && game.status === 'in_progress') {
+      await processNight(firestore, game.id);
+    } else if (game.phase === 'day' && game.status === 'in_progress') {
+      await processVotes(firestore, game.id);
+    }
+  };
   
   const isLover = !!game.lovers?.includes(currentPlayer?.userId || '');
   const otherLoverId = isLover ? game.lovers!.find(id => id !== currentPlayer!.userId) : null;
@@ -280,17 +285,6 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
   }));
 
 
-  const handleTimerEnd = async () => {
-     // Only creator processes the phase end to prevent multiple executions
-    if (!currentPlayer || game.creator !== currentPlayer.userId || !firestore) return;
-
-    if (game.phase === 'night' && game.status === 'in_progress') {
-      await processNight(firestore, game.id);
-    } else if (game.phase === 'day' && game.status === 'in_progress') {
-      await processVotes(firestore, game.id);
-    }
-  };
-
   if (game.phase === 'role_reveal') {
      return (
        <Card className="text-center bg-card/80">
@@ -330,8 +324,8 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
           </div>
            { (game.phase === 'night' || game.phase === 'day') && game.status === 'in_progress' && (
             <PhaseTimer 
+                game={game}
                 timerKey={`${game.id}-${game.phase}-${game.currentRound}`}
-                duration={getTimerDuration()} 
                 onTimerEnd={handleTimerEnd}
             />
           )}

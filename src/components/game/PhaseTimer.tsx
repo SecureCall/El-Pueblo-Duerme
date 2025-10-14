@@ -2,15 +2,21 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Progress } from '../ui/progress';
+import { useGameSession } from '@/hooks/use-game-session';
+import type { Game } from '@/types';
 
 interface PhaseTimerProps {
-    duration: number; // in seconds
+    game: Game;
     onTimerEnd: () => void;
     // Add key to force re-mount
     timerKey: string;
 }
 
-export function PhaseTimer({ duration, onTimerEnd, timerKey }: PhaseTimerProps) {
+export function PhaseTimer({ game, onTimerEnd, timerKey }: PhaseTimerProps) {
+    const { userId } = useGameSession();
+    const isCreator = game.creator === userId;
+    const duration = (game.phase === 'day' ? 90 : (game.phase === 'night' ? 60 : 0));
+
     const [timeLeft, setTimeLeft] = useState(duration);
     const onTimerEndRef = useRef(onTimerEnd);
 
@@ -29,8 +35,10 @@ export function PhaseTimer({ duration, onTimerEnd, timerKey }: PhaseTimerProps) 
             setTimeLeft(prev => {
                 if (prev <= 1) {
                     clearInterval(interval);
-                    // Call the callback once when time is up.
-                    onTimerEndRef.current();
+                    // CRITICAL FIX: Only the creator should trigger the end of the phase.
+                    if (isCreator) {
+                        onTimerEndRef.current();
+                    }
                     return 0;
                 }
                 return prev - 1;
@@ -39,7 +47,7 @@ export function PhaseTimer({ duration, onTimerEnd, timerKey }: PhaseTimerProps) 
 
         // Cleanup function to clear the interval when the component unmounts or the key changes.
         return () => clearInterval(interval);
-    }, [timerKey, duration]); // Depend on the key to reset the timer
+    }, [timerKey, duration, isCreator]); // Depend on the key and isCreator status
 
     if (duration <= 0) return null;
 
