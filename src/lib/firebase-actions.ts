@@ -978,8 +978,8 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
 
         const aiPlayers = game.players.filter(p => {
             if (!p.isAI) return false;
+            // For hunter_shot phase, the pending hunter can act, even if not 'alive'.
             if (phase === 'hunter_shot') {
-                // For hunter_shot phase, only the pending hunter can act, even if not 'alive'.
                 return p.userId === game.pendingHunterShot;
             }
             return p.isAlive;
