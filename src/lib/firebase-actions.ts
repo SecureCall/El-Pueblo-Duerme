@@ -837,7 +837,10 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             const targetPlayer = game.players.find(p => p.userId === targetId)!;
 
             game.events.push({
-                id: `evt_huntershot_${game.currentRound}`, gameId, round: game.currentRound, type: 'hunter_shot',
+                id: `evt_huntershot_${Date.now()}`,
+                gameId,
+                round: game.currentRound,
+                type: 'hunter_shot',
                 message: `En su último aliento, ${hunterPlayer.displayName} dispara y se lleva consigo a ${targetPlayer.displayName}.`,
                 createdAt: Timestamp.now(),
                 data: {killedPlayerId: targetId},
