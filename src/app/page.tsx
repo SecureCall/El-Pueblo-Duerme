@@ -7,17 +7,9 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
 import { BookOpen } from 'lucide-react';
 import { GameMusic } from '@/components/game/GameMusic';
-import { useEffect, useRef } from 'react';
-import { playNarration } from '@/lib/sounds';
 
 export default function Home() {
   const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
-
-  useEffect(() => {
-    // This effect is now just for potential future client-side logic on load.
-    // The problematic audio logic has been removed.
-  }, []);
-
 
   return (
     <>

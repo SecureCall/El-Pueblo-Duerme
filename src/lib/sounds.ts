@@ -18,6 +18,7 @@ export const playNarration = (narrationFile: string): Promise<void> => {
             return;
         }
 
+        // Use a separate audio object for each narration to allow queuing.
         const narrationPlayer = new Audio(`/audio/voz/${narrationFile}`);
         narrationPlayer.volume = 1.0;
 
@@ -35,8 +36,10 @@ export const playNarration = (narrationFile: string): Promise<void> => {
         narrationPlayer.addEventListener('ended', onEnd);
         narrationPlayer.addEventListener('error', onError);
 
+        // Try to play. If it fails, it's likely because the user hasn't interacted yet.
         narrationPlayer.play().catch(e => {
             console.warn(`Narration play was prevented for ${narrationFile}:`, e);
+            // Even if it fails, we resolve the promise to not block the sound chain.
             onError(e as Event);
         });
     });
@@ -49,6 +52,7 @@ export const playSoundEffect = (soundFile: string): Promise<void> => {
             return;
         }
         
+        // Clone the node to play multiple effects simultaneously if needed.
         const audio = soundEffectAudio.cloneNode(true) as HTMLAudioElement;
         audio.src = `/audio/effects/${soundFile}`;
         
