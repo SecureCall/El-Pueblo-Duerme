@@ -1,3 +1,4 @@
+
 "use client";
 
 let narrationAudio: HTMLAudioElement | null = null;
@@ -84,26 +85,7 @@ export const playNarration = (narrationFile: string): void => {
     narrationQueue.push(`/audio/voz/${narrationFile}`);
     
     if (!isPlayingNarration && audioUnlocked) {
-        // Find the first item in the queue that is not a promise resolver and play it
-        const nextSoundIndex = narrationQueue.findIndex(item => typeof item === 'string');
-        if (nextSoundIndex !== -1) {
-            const nextSound = narrationQueue.splice(nextSoundIndex, 1)[0];
-            narrationQueue.unshift(nextSound); // Put it back at the front to be played
-            
-            const srcToPlay = narrationQueue.shift();
-            if (srcToPlay) {
-                isPlayingNarration = true;
-                narrationAudio.src = srcToPlay;
-                narrationAudio.play().catch(e => {
-                    console.warn(`Narration play was prevented for ${srcToPlay}:`, e);
-                    isPlayingNarration = false;
-                    // If it failed, put it back in the queue to be tried on next interaction
-                    if (e.name === 'NotAllowedError') {
-                        narrationQueue.unshift(srcToPlay);
-                    }
-                });
-            }
-        }
+        playNextInQueue();
     }
 };
 
