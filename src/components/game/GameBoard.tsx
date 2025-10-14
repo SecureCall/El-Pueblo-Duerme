@@ -48,15 +48,15 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
       switch (game.phase) {
         case 'night':
           if (game.currentRound === 1 && prevPhase === 'role_reveal') {
-            playNarration('intro_epica.mp3');
-            setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 1000);
+             playNarration('intro_epica.mp3');
+             setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 4000);
           } else {
             playNarration('noche_pueblo_duerme.mp3');
           }
           break;
         case 'day':
           playNarration('dia_pueblo_despierta.mp3');
-          playNarration('inicio_debate.mp3');
+          setTimeout(() => playNarration('inicio_debate.mp3'), 2000);
           break;
         case 'voting':
            playNarration('inicio_votacion.mp3');
@@ -88,11 +88,13 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
             const hasDeaths = nightEvent.data?.killedPlayerIds?.length > 0;
             const wasSaved = !hasDeaths && nightEvent.data?.savedPlayerIds?.length > 0;
             
-            if (hasDeaths) {
-                playNarration('Descanse en paz.mp3');
-            } else if (wasSaved) {
-                playNarration('¡Milagro!.mp3');
-            }
+            setTimeout(() => {
+                if (hasDeaths) {
+                    playNarration('Descanse en paz.mp3');
+                } else if (wasSaved) {
+                    playNarration('¡Milagro!.mp3');
+                }
+            }, 2500); // Delay to allow 'despierta' to finish
             nightSoundsPlayedForRound.current = game.currentRound; // Mark as played for this round
         }
     }, [events, game.currentRound]);
