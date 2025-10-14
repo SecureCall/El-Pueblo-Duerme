@@ -708,8 +708,10 @@ export async function processVotes(db: Firestore, gameId: string) {
 
             if (game.phase !== 'day' || game.status !== 'in_progress') return;
 
-            // --- PREVENT UNDEFINED ---
+            // --- ROBUST INITIALIZATION ---
             game.events = game.events || [];
+            game.pendingHunterShot = game.pendingHunterShot || null;
+            game.lovers = game.lovers || null;
             // -------------------------
 
             const alivePlayers = game.players.filter(p => p.isAlive);
@@ -786,34 +788,38 @@ export async function processVotes(db: Firestore, gameId: string) {
                 game.events.push({ id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: eventMessage, data: { lynchedPlayerId: null }, createdAt: Timestamp.now() });
             }
             
+            // --- CENTRALIZED STATE MODIFICATION ---
+            // Sequentially modify the state of the 'game' object.
+            
             if (lynchedPlayerId) {
-                const { updatedGame, triggeredHunterId } = killPlayer(game, [lynchedPlayerId]);
-                game = updatedGame;
+                // killPlayer now directly modifies the 'game' object passed to it.
+                const { triggeredHunterId } = killPlayer(game, [lynchedPlayerId]);
                 
+                // If the hunter shot, the phase is already changed inside killPlayer.
+                // We just need to commit the state and stop.
                 if (triggeredHunterId) {
                    transaction.update(gameRef, { ...game });
-                   return; // Stop execution here
-                } 
+                   return;
+                }
             }
             
+            // Now, check if the game is over AFTER any potential deaths.
             const { game: gameOverCheckGame, isOver } = await checkGameOver(game);
-            game = gameOverCheckGame;
+            game = gameOverCheckGame; // Update our game object with the result.
 
+            // If the game is over, commit the final state and stop.
             if (isOver) {
                  transaction.update(gameRef, { ...game });
                  return;
             }
 
-            // If game is not over, transition to night
+            // If game is NOT over, transition to the next night.
             game.players.forEach(p => { p.votedFor = null; });
+            game.phase = 'night';
+            game.currentRound += 1;
             
-            transaction.update(gameRef, {
-                players: game.players,
-                events: game.events,
-                phase: 'night',
-                currentRound: game.currentRound + 1,
-                pendingHunterShot: game.pendingHunterShot,
-            });
+            // All modifications are done. Commit the final, clean 'game' object.
+            transaction.update(gameRef, { ...game });
         });
 
         await runAIActions(db, gameId, 'night');
@@ -1333,6 +1339,7 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
 
 
       
+
 
 
 
