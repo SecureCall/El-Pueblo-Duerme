@@ -519,7 +519,7 @@ async function checkGameOver(transaction: Transaction, gameRef: DocumentReferenc
             gameOver = true;
             message = "¡El pueblo ha ganado! Todos los hombres lobo han sido eliminados.";
             winners = aliveVillagers.map(p => p.userId);
-        } else if (aliveWerewolves.length >= aliveVillagers.length && alivePlayers.length > 0) {
+        } else if (aliveWerewolves.length > 0 && aliveWerewolves.length >= aliveVillagers.length) {
             gameOver = true;
             message = "¡Los hombres lobo han ganado! Han superado en número a los aldeanos.";
             winners = aliveWerewolves.map(p => p.userId);
@@ -635,24 +635,14 @@ export async function processNight(db: Firestore, gameId: string) {
 
             // 3. Apply Kills and check consequences
             if (finalKilledPlayerIds.length > 0) {
-                const { updatedGame, triggeredHunterId } = killPlayer(game, finalKilledPlayerIds);
-                game = updatedGame;
+                const { updatedGame } = killPlayer(game, finalKilledPlayerIds);
+                game = updatedGame; // game is now updated with deaths and potential hunter
                 
                 const newlyKilledPlayers = game.players.filter(p => !p.isAlive && finalKilledPlayerIds.includes(p.userId));
 
                 killedPlayerNamesAndRoles = newlyKilledPlayers.map(p => `${p.displayName} (que era ${roleDetails[p.role!]?.name || 'un rol desconocido'})`);
                 if (killedPlayerNamesAndRoles.length > 0) {
                     messages.push(`Anoche, el pueblo perdió a ${killedPlayerNamesAndRoles.join(' y a ')}.`);
-                }
-
-                if (triggeredHunterId) {
-                    transaction.update(gameRef, { 
-                        players: game.players,
-                        events: game.events,
-                        phase: game.phase, // Should be 'hunter_shot'
-                        pendingHunterShot: game.pendingHunterShot
-                    });
-                    return; 
                 }
             } else if (wasSomeoneAttackedByWolves || poisonAction) {
                  messages.push("Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!");
@@ -672,13 +662,24 @@ export async function processNight(db: Firestore, gameId: string) {
             };
             game.events.push(nightEvent);
             
-            // 4. Check for game over
+            // 4. Check for game over (after kills are applied)
             const isOver = await checkGameOver(transaction, gameRef, game);
             if (isOver) {
+                return; // Game over logic has already updated transaction
+            }
+
+            // 5. If hunter was triggered, stop and transition to hunter_shot phase
+            if (game.phase === 'hunter_shot') {
+                transaction.update(gameRef, { 
+                    players: game.players,
+                    events: game.events,
+                    phase: 'hunter_shot',
+                    pendingHunterShot: game.pendingHunterShot
+                });
                 return;
             }
 
-            // 5. Transition to next phase
+            // 6. Transition to next phase (day)
             game.players.forEach(p => p.votedFor = null);
             
             const updates = {
@@ -731,6 +732,25 @@ export async function processVotes(db: Firestore, gameId: string) {
                 }
             });
 
+            if (totalVotes > 2) {
+                const sortedVotes = Object.values(voteCounts).sort((a,b) => b - a);
+                if (sortedVotes.length > 1 && sortedVotes[0] - sortedVotes[1] <= 1) {
+                     const clueEvent: GameEvent = {
+                        id: `evt_clue_${Date.now()}`,
+                        gameId,
+                        round: game.currentRound,
+                        type: 'behavior_clue',
+                        message: "La votación de ayer estuvo muy reñida, dividiendo al pueblo casi por la mitad. ¿Alianza o confusión?",
+                        data: { voteCounts },
+                        createdAt: Timestamp.now(),
+                    };
+                    game.events.push(clueEvent);
+                }
+            }
+            
+            let lynchedPlayerId: string | null = null;
+            let voteResultEvent: GameEvent | null = null;
+            
             let maxVotes = 0;
             let mostVotedPlayerIds: string[] = [];
             for (const playerId in voteCounts) {
@@ -742,22 +762,6 @@ export async function processVotes(db: Firestore, gameId: string) {
                 }
             }
             
-            if (totalVotes > 2) {
-                const sortedVotes = Object.values(voteCounts).sort((a,b) => b - a);
-                if (sortedVotes.length > 1 && sortedVotes[0] - sortedVotes[1] <= 1) {
-                     game.events.push({
-                        id: `evt_clue_${Date.now()}`,
-                        gameId,
-                        round: game.currentRound,
-                        type: 'behavior_clue',
-                        message: "La votación de ayer estuvo muy reñida, dividiendo al pueblo casi por la mitad. ¿Alianza o confusión?",
-                        data: { voteCounts },
-                        createdAt: Timestamp.now(),
-                    });
-                }
-            }
-            
-            let lynchedPlayerId: string | null = null;
             if (mostVotedPlayerIds.length === 1 && maxVotes > 0) {
                 const potentialLynchedId = mostVotedPlayerIds[0];
                 const lynchedPlayer = game.players.find(p => p.userId === potentialLynchedId);
@@ -767,43 +771,48 @@ export async function processVotes(db: Firestore, gameId: string) {
                         const playerIndex = game.players.findIndex(p => p.userId === potentialLynchedId);
                         game.players[playerIndex].princeRevealed = true;
                         
-                        game.events.push({
+                        voteResultEvent = {
                             id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result',
                             message: `${lynchedPlayer.displayName} ha sido sentenciado, pero revela su identidad como ¡el Príncipe! y sobrevive a la votación.`,
                             createdAt: Timestamp.now(),
                             data: { lynchedPlayerId: null },
-                        });
+                        };
                     } else {
                         lynchedPlayerId = potentialLynchedId;
                         const lynchedPlayerRole = roleDetails[lynchedPlayer.role!]?.name || 'un rol desconocido';
-                        game.events.push({
+                        voteResultEvent = {
                             id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result',
                             message: `${lynchedPlayer.displayName} fue linchado por el pueblo. Su rol era: ${lynchedPlayerRole}.`,
                             data: { lynchedPlayerId }, createdAt: Timestamp.now(),
-                        });
+                        };
                     }
                 }
             } else {
                  if (mostVotedPlayerIds.length > 1) {
-                    game.events.push({
+                    const clueEvent: GameEvent = {
                         id: `evt_clue_${Date.now()}`, gameId, round: game.currentRound, type: 'behavior_clue',
                         message: "Hubo un empate en la votación. ¿Estrategia coordinada o indecisión general?",
                         data: { voteCounts }, createdAt: Timestamp.now(),
-                    });
+                    };
+                    game.events.push(clueEvent);
                 }
                 const eventMessage = mostVotedPlayerIds.length > 1 ? "La votación resultó en un empate. Nadie fue linchado hoy." : "El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.";
-                game.events.push({ id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: eventMessage, data: { lynchedPlayerId: null }, createdAt: Timestamp.now() });
+                voteResultEvent = { id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: eventMessage, data: { lynchedPlayerId: null }, createdAt: Timestamp.now() };
+            }
+
+            if (voteResultEvent) {
+                game.events.push(voteResultEvent);
             }
             
             if (lynchedPlayerId) {
-                const { updatedGame, triggeredHunterId } = killPlayer(game, [lynchedPlayerId]);
+                const { updatedGame } = killPlayer(game, [lynchedPlayerId]);
                 game = updatedGame;
                 
-                if (triggeredHunterId) {
+                if (game.phase === 'hunter_shot') { // killPlayer might change the phase
                    transaction.update(gameRef, { 
                         players: game.players,
                         events: game.events,
-                        phase: game.phase, // hunter_shot
+                        phase: 'hunter_shot',
                         pendingHunterShot: game.pendingHunterShot
                     });
                    return; // STOP EXECUTION
@@ -888,11 +897,11 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             game.events = game.events || [];
             game.events.push(shotEvent);
             
-            const { updatedGame, triggeredHunterId } = killPlayer(game, [targetId]);
+            const { updatedGame } = killPlayer(game, [targetId]);
             game = updatedGame;
             
-            if (triggeredHunterId) {
-                game.pendingHunterShot = triggeredHunterId;
+            if (game.phase === 'hunter_shot') { // Another hunter died in a chain reaction
+                game.pendingHunterShot = game.pendingHunterShot;
                 transaction.update(gameRef, { ...game });
                 return;
             }
@@ -1340,6 +1349,7 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
 
 
       
+
 
 
 
