@@ -889,7 +889,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             return { error: "Permiso denegado al disparar." };
         }
         console.error("Error submitting hunter shot: ", error);
-        return { error: error.message || "No se pudo registrar el disparo." };
+        return { success: false, error: error.message || "No se pudo registrar el disparo." };
     }
 }
 
