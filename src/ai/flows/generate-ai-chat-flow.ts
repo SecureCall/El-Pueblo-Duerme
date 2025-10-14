@@ -6,6 +6,33 @@ import { z } from 'genkit';
 import type { AIPlayerPerspective, GenerateAIChatMessageOutput, NightAction, PlayerRole } from '@/types';
 import { AIPlayerPerspectiveSchema, GenerateAIChatMessageOutputSchema } from '@/types/zod';
 
+// Helper function to sanitize any object and replace undefined with null recursively.
+const sanitizeObject = <T extends object>(obj: T): T => {
+    if (obj === null || obj === undefined) {
+        return obj;
+    }
+
+    // Handle arrays
+    if (Array.isArray(obj)) {
+        return obj.map(item => typeof item === 'object' ? sanitizeObject(item) : item) as any;
+    }
+
+    const newObj = { ...obj } as T;
+    for (const key in newObj) {
+        if (Object.prototype.hasOwnProperty.call(newObj, key)) {
+            const value = newObj[key];
+            if (value === undefined) {
+                (newObj as any)[key] = null;
+            } else if (value !== null && typeof value === 'object') {
+                // Recursively sanitize nested objects
+                (newObj as any)[key] = sanitizeObject(value);
+            }
+        }
+    }
+    return newObj;
+};
+
+
 const prompt = ai.definePrompt({
     name: 'generateAIChatMessagePrompt',
     input: { schema: AIPlayerPerspectiveSchema },
@@ -52,15 +79,10 @@ const generateAiChatMessageFlow = ai.defineFlow(
         outputSchema: GenerateAIChatMessageOutputSchema,
     },
     async (input) => {
-        // Sanitize player objects for the prompt.
-        const sanitizedPlayers = input.players.map(p => ({
-            ...p,
-            role: p.userId === input.aiPlayer.userId ? p.role : 'unknown', // Hide roles of others
-        }));
-
-        const isSeer = input.aiPlayer.role === 'seer';
-
-        if (isSeer && input.game.phase === 'day' && input.trigger.toLowerCase().includes('voted')) {
+        // The input is now expected to be fully sanitized by the wrapper function.
+        
+        // Special logic for the Seer to be more proactive
+        if (input.aiPlayer.role === 'seer' && input.game.phase === 'day' && input.trigger.toLowerCase().includes('voted')) {
             const seerActions = input.game.nightActions?.filter(
                 (a: NightAction) => a.playerId === input.aiPlayer.userId && a.actionType === 'seer_check'
             ) || [];
@@ -98,58 +120,35 @@ const generateAiChatMessageFlow = ai.defineFlow(
             }
         }
         
-        // Create a fully sanitized game object for the prompt, ensuring no 'undefined' values.
-        const sanitizedGameForPrompt = {
-            ...input.game,
-            players: sanitizedPlayers,
-            // Ensure optional fields that might be undefined are replaced with null or empty arrays.
-            nightActions: input.game.nightActions || [],
-            lovers: input.game.lovers || null,
-            twins: input.game.twins || null,
-            pendingHunterShot: input.game.pendingHunterShot || null,
+        // Hide roles of other players before sending to the prompt
+        const sanitizedPlayersForPrompt = input.players.map(p => ({
+            ...p,
+            role: p.userId === input.aiPlayer.userId ? p.role : 'unknown',
+        }));
+
+        const promptInput = {
+            ...input,
+            players: sanitizedPlayersForPrompt,
         };
 
-        const { output } = await prompt({ ...input, game: sanitizedGameForPrompt, players: sanitizedPlayers });
+        const { output } = await prompt(promptInput);
         return output || { message: '', shouldSend: false };
     }
 );
 
-// Helper function to sanitize any object and replace undefined with null recursively.
-const sanitizeObject = <T extends object>(obj: T): T => {
-    if (obj === null || obj === undefined) {
-        return obj;
-    }
-
-    const newObj = { ...obj } as T;
-    for (const key in newObj) {
-        if (Object.prototype.hasOwnProperty.call(newObj, key)) {
-            const value = newObj[key];
-            if (value === undefined) {
-                (newObj as any)[key] = null;
-            } else if (typeof value === 'object' && !Array.isArray(value) && value !== null) {
-                (newObj as any)[key] = sanitizeObject(value);
-            } else if (Array.isArray(value)) {
-                 (newObj as any)[key] = value.map(item => typeof item === 'object' ? sanitizeObject(item) : item);
-            }
-        }
-    }
-    return newObj;
-};
 
 export async function generateAIChatMessage(input: AIPlayerPerspective): Promise<GenerateAIChatMessageOutput> {
     try {
-        // Deep sanitize the entire input object to remove any 'undefined' values.
-        const sanitizedInput = sanitizeObject(input);
-
-        // Additionally, ensure top-level optional arrays are empty if null/undefined.
-        sanitizedInput.game.nightActions = sanitizedInput.game.nightActions || [];
-        sanitizedInput.game.chatMessages = sanitizedInput.game.chatMessages || [];
-        sanitizedInput.game.events = sanitizedInput.game.events || [];
+        // Deep sanitize the entire input object to remove any 'undefined' values recursively.
+        const sanitizedInput = sanitizeObject(JSON.parse(JSON.stringify(input)));
 
         const result = await generateAiChatMessageFlow(sanitizedInput);
         return result;
     } catch (error) {
-        console.error("Error in generateAIChatMessage flow:", error);
+        console.error("Critical Error in generateAIChatMessage flow:", error);
+        // Log the input that caused the error for debugging
+        console.error("Problematic input:", JSON.stringify(input, null, 2));
+        // Return a safe, non-blocking response
         return { message: '', shouldSend: false };
     }
 }
