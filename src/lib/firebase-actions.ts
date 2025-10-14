@@ -851,7 +851,8 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 createdAt: Timestamp.now(),
                 data: {killedPlayerId: targetId},
             };
-            if (!shotEvent.id) throw new Error("Generated hunter shot event is missing an ID");
+            
+            if (!game.events) game.events = [];
             game.events.push(shotEvent);
             
             const { updatedGame, triggeredHunterId } = killPlayer(game, [targetId]);
