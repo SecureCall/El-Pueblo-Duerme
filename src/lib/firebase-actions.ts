@@ -933,6 +933,15 @@ const getDeterministicAIAction = (
             const healableTargets = potentialTargets.filter(p => p.lastHealedRound !== currentRound - 1);
             return { actionType: 'doctor_heal', targetId: randomTarget(healableTargets.length > 0 ? healableTargets : potentialTargets) };
         }
+        case 'hunter': {
+            if (game.phase === 'hunter_shot' && game.pendingHunterShot === userId) {
+                return { actionType: 'SHOOT', targetId: randomTarget(potentialTargets) };
+            }
+            if (game.phase === 'day') {
+                return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
+            }
+            return { actionType: 'NONE', targetId: '' };
+        }
         case 'guardian': {
              if (game.phase === 'day') {
                 return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
