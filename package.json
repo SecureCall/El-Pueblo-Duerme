@@ -2,6 +2,7 @@
   "name": "nextn",
   "version": "0.1.0",
   "private": true,
+  "description": "El Pueblo Duerme - A game of mystery and deception.",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
