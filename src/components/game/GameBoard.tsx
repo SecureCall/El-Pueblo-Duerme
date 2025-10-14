@@ -21,6 +21,7 @@ import { playNarration, playSoundEffect } from "@/lib/sounds";
 import { YouAreDeadOverlay } from "./YouAreDeadOverlay";
 import { BanishedOverlay } from "./BanishedOverlay";
 import Image from 'next/image';
+import { HunterKillOverlay } from "./HunterKillOverlay";
 
 interface GameBoardProps {
   game: Game;
@@ -37,7 +38,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
   const nightSoundsPlayedForRound = useRef<number>(0);
   const voteSoundsPlayedForRound = useRef<number>(0);
   const [showRole, setShowRole] = useState(true);
-  const [deathCause, setDeathCause] = useState<'eliminated' | 'vote' | null>(null);
+  const [deathCause, setDeathCause] = useState<'eliminated' | 'vote' | 'hunter_shot' | null>(null);
 
   // Sound effect logic
   useEffect(() => {
@@ -111,11 +112,14 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
             const deathEvent = events.find(e =>
                 (e.type === 'night_result' && e.data?.killedPlayerIds?.includes(currentPlayer.userId)) ||
                 (e.type === 'vote_result' && e.data?.lynchedPlayerId === currentPlayer.userId) ||
-                ((e.type === 'lover_death' || e.type === 'hunter_shot') && e.data?.killedPlayerId === currentPlayer.userId)
+                (e.type === 'lover_death' && e.data?.killedPlayerId === currentPlayer.userId) ||
+                (e.type === 'hunter_shot' && e.data?.killedPlayerId === currentPlayer.userId)
             );
 
             if (deathEvent?.type === 'vote_result') {
                 setDeathCause('vote');
+            } else if (deathEvent?.type === 'hunter_shot') {
+                setDeathCause('hunter_shot');
             } else {
                 setDeathCause('eliminated');
             }
@@ -181,6 +185,9 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
      const renderDeathOverlay = () => {
       if (deathCause === 'vote') {
         return <BanishedOverlay />;
+      }
+      if (deathCause === 'hunter_shot') {
+        return <HunterKillOverlay />;
       }
       if (deathCause === 'eliminated') {
         return <YouAreDeadOverlay />;
