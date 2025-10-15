@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -149,11 +150,9 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
    const handleTimerEnd = async () => {
     if (!firestore) return;
     
-    // Only the creator should process phase ends to prevent race conditions.
-    if (game.creator !== currentPlayer.userId) return;
-
+    // Any player can now trigger the end of a phase.
+    // The backend functions (processVotes, processNight) have locks to prevent race conditions.
     if (game.phase === 'day' && game.status === 'in_progress') {
-        // The game now advances via votes, so this is a fallback.
         await processVotes(firestore, game.id);
     } else if (game.phase === 'night' && game.status === 'in_progress') {
         await processNight(firestore, game.id);
@@ -238,8 +237,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
   const handleTimerEnd = async () => {
     if (!firestore) return;
 
-    if (game.creator !== currentPlayer?.userId) return;
-
+    // Any player can trigger phase end. Backend functions prevent race conditions.
     if (game.phase === 'day' && game.status === 'in_progress') {
         console.log("Fallback timer ended for day, processing votes.");
         await processVotes(firestore, game.id);
@@ -330,7 +328,6 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
                 game={game}
                 timerKey={`${game.id}-${game.phase}-${game.currentRound}`}
                 onTimerEnd={handleTimerEnd}
-                isCreator={game.creator === currentPlayer?.userId}
             />
           )}
         </CardHeader>
