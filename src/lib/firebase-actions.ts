@@ -460,7 +460,7 @@ function killPlayer(
                 
                 gameData.events.push({
                     id: `evt_lover_${Date.now()}_${otherLoverId}`,
-                    gameId: gameData.id,
+                    gameId: gameData.id!,
                     round: gameData.currentRound,
                     type: 'lover_death',
                     message: `${otherLover?.displayName || 'Alguien'} no pudo soportar la pérdida de ${playerToKill.displayName} y ha muerto de desamor.`,
@@ -492,7 +492,7 @@ async function checkGameOver(transaction: Transaction, gameRef: DocumentReferenc
     if (alivePlayers.length === 0) {
         const gameOverEvent: GameEvent = {
             id: `evt_gameover_${Date.now()}`,
-            gameId: gameData.id,
+            gameId: gameData.id!,
             round: gameData.currentRound,
             type: 'game_over',
             message: "¡Nadie ha sobrevivido a la masacre!",
@@ -539,7 +539,7 @@ async function checkGameOver(transaction: Transaction, gameRef: DocumentReferenc
     if (gameOver) {
         const gameOverEvent: GameEvent = {
             id: `evt_gameover_${Date.now()}`,
-            gameId: gameData.id,
+            gameId: gameData.id!,
             round: gameData.currentRound,
             type: 'game_over',
             message: message,
@@ -642,10 +642,11 @@ export async function processNight(db: Firestore, gameId: string) {
                     killedByPoisonId = poisonAction.targetId;
                 }
             }
-
+            
+            // This event is created here but might not be the final state if hunter is triggered
             const nightEvent: GameEvent = {
                 id: `evt_night_${game.currentRound}`, gameId, round: game.currentRound, type: 'night_result',
-                message: "Placeholder", // Will be updated
+                message: "Placeholder",
                 data: { 
                     killedPlayerIds: finalKilledPlayerIds, 
                     savedPlayerIds: savedPlayerIds,
@@ -675,8 +676,7 @@ export async function processNight(db: Firestore, gameId: string) {
             game.events.push(nightEvent);
             
             // 4. Check for game over (after kills are applied)
-            const isOver = await checkGameOver(transaction, gameRef, game);
-            if (isOver) {
+            if (await checkGameOver(transaction, gameRef, game)) {
                 return; // Game over logic has already updated transaction and will stop execution.
             }
 
@@ -735,41 +735,21 @@ export async function processVotes(db: Firestore, gameId: string) {
 
             if (game.phase !== 'day' || game.status !== 'in_progress') return;
 
+            // Ensure arrays exist
             game.events = game.events || [];
-            game.pendingHunterShot = game.pendingHunterShot || null;
-            game.lovers = game.lovers || null;
             game.players = game.players || [];
-            game.chatMessages = game.chatMessages || [];
-
-
+            
             const alivePlayers = game.players.filter(p => p.isAlive);
             const voteCounts: Record<string, number> = {};
-            let totalVotes = 0;
+            
             alivePlayers.forEach(player => {
                 if (player.votedFor) {
                     voteCounts[player.votedFor] = (voteCounts[player.votedFor] || 0) + 1;
-                    totalVotes++;
                 }
             });
-
-            if (totalVotes > 2) {
-                const sortedVotes = Object.values(voteCounts).sort((a,b) => b - a);
-                if (sortedVotes.length > 1 && sortedVotes[0] - sortedVotes[1] <= 1) {
-                     const clueEvent: GameEvent = {
-                        id: `evt_clue_${Date.now()}`,
-                        gameId,
-                        round: game.currentRound,
-                        type: 'behavior_clue',
-                        message: "La votación de ayer estuvo muy reñida, dividiendo al pueblo casi por la mitad. ¿Alianza o confusión?",
-                        data: { voteCounts },
-                        createdAt: Timestamp.now(),
-                    };
-                    game.events.push(clueEvent);
-                }
-            }
             
             let lynchedPlayerId: string | null = null;
-            let voteResultEvent: GameEvent | null = null;
+            let voteResultEvent: GameEvent;
             
             let maxVotes = 0;
             let mostVotedPlayerIds: string[] = [];
@@ -789,7 +769,9 @@ export async function processVotes(db: Firestore, gameId: string) {
                 if (lynchedPlayer) {
                     if (lynchedPlayer.role === 'prince' && game.settings.prince && !lynchedPlayer.princeRevealed) {
                         const playerIndex = game.players.findIndex(p => p.userId === potentialLynchedId);
-                        game.players[playerIndex].princeRevealed = true;
+                        if (playerIndex > -1) {
+                           game.players[playerIndex].princeRevealed = true;
+                        }
                         
                         voteResultEvent = {
                             id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result',
@@ -806,44 +788,39 @@ export async function processVotes(db: Firestore, gameId: string) {
                             data: { lynchedPlayerId }, createdAt: Timestamp.now(),
                         };
                     }
+                } else {
+                    // This case should ideally not happen if votes are cast correctly
+                    voteResultEvent = { id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: "La votación fue inconclusa.", data: { lynchedPlayerId: null }, createdAt: Timestamp.now() };
                 }
             } else {
-                 if (mostVotedPlayerIds.length > 1) {
-                    const clueEvent: GameEvent = {
-                        id: `evt_clue_${Date.now()}`, gameId, round: game.currentRound, type: 'behavior_clue',
-                        message: "Hubo un empate en la votación. ¿Estrategia coordinada o indecisión general?",
-                        data: { voteCounts }, createdAt: Timestamp.now(),
-                    };
-                    game.events.push(clueEvent);
-                }
                 const eventMessage = mostVotedPlayerIds.length > 1 ? "La votación resultó en un empate. Nadie fue linchado hoy." : "El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.";
                 voteResultEvent = { id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: eventMessage, data: { lynchedPlayerId: null }, createdAt: Timestamp.now() };
             }
 
-            if (voteResultEvent) {
-                game.events.push(voteResultEvent);
-            }
+            game.events.push(voteResultEvent);
             
             if (lynchedPlayerId) {
                 const { updatedGame } = killPlayer(game, [lynchedPlayerId]);
                 game = updatedGame; // game is updated with death info
             }
             
-            const isOver = await checkGameOver(transaction, gameRef, game);
-            if (isOver) {
-                 return; // Stop processing if game is over
+            // **CRITICAL CHANGE**: Check for game over *after* all consequences of the vote.
+            if (await checkGameOver(transaction, gameRef, game)) {
+                 return; // Cortocircuito: La partida ha terminado, no continuar.
             }
             
+            // If the game is not over, proceed to the next phase.
             if (game.phase === 'hunter_shot') {
                transaction.update(gameRef, { 
                     players: game.players,
                     events: game.events,
                     phase: 'hunter_shot',
-                    pendingHunterShot: game.pendingHunterShot
+                    pendingHunterShot: game.pendingHunterShot,
                 });
-               return; // Stop processing for hunter's shot
+               return; // Cortocircuito: Esperar al disparo del cazador.
             }
 
+            // Prepare for next night
             game.players.forEach(p => { p.votedFor = null; });
             
             transaction.update(gameRef, {
@@ -851,7 +828,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                 events: game.events,
                 phase: 'night',
                 currentRound: increment(1),
-                pendingHunterShot: null,
+                pendingHunterShot: null, // Clear any pending shot from previous rounds
             });
         });
 
@@ -939,11 +916,11 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 return;
             }
 
-            const isOver = await checkGameOver(transaction, gameRef, game);
-            if (isOver) {
+            if (await checkGameOver(transaction, gameRef, game)) {
                 return; // Stop if game ended
             }
             
+            // Determine next phase based on how the original hunter died.
             const hunterDeathEvent = [...game.events]
                 .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds)
                 .find(e => 
@@ -1406,3 +1383,6 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
 
 
 
+
+
+    
