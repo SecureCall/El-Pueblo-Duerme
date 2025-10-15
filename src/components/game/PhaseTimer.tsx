@@ -5,6 +5,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Progress } from '../ui/progress';
 import type { Game } from '@/types';
 import { Timestamp } from 'firebase/firestore';
+import { useFirebase } from '@/firebase';
+import { processNight, processVotes } from '@/lib/firebase-actions';
 
 interface PhaseTimerProps {
     game: Game;
@@ -12,9 +14,9 @@ interface PhaseTimerProps {
 }
 
 export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
+    const { firestore } = useFirebase();
     const getDuration = () => {
         if (!game.phaseEndsAt) return 0;
-        // The timestamp can be a Firebase Timestamp or a plain object after serialization
         const phaseEndMillis = game.phaseEndsAt instanceof Timestamp 
             ? game.phaseEndsAt.toMillis()
             : (game.phaseEndsAt.seconds * 1000 + game.phaseEndsAt.nanoseconds / 1000000);
@@ -27,20 +29,51 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
 
     const [duration, setDuration] = useState(getDuration);
     const [timeLeft, setTimeLeft] = useState(duration);
+    const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+    const onTimerEnd = async () => {
+        if (!isCreator || !firestore || !game) return;
+
+        if (game.phase === 'night') {
+            await processNight(firestore, game.id);
+        } else if (game.phase === 'day') {
+            await processVotes(firestore, game.id);
+        }
+    };
 
     useEffect(() => {
         const initialDuration = getDuration();
         setDuration(initialDuration);
         setTimeLeft(initialDuration);
         
-        if (initialDuration <= 0) return;
+        if (timerRef.current) {
+            clearInterval(timerRef.current);
+        }
+        
+        if (initialDuration <= 0) {
+            if (isCreator) {
+                // If time is already up on mount, creator should process it.
+                onTimerEnd();
+            }
+            return;
+        }
 
-        const interval = setInterval(() => {
-            setTimeLeft(prev => Math.max(0, prev - 1));
+        timerRef.current = setInterval(() => {
+            setTimeLeft(prev => {
+                const newTimeLeft = prev - 1;
+                if (newTimeLeft <= 0) {
+                    clearInterval(timerRef.current!);
+                    onTimerEnd();
+                    return 0;
+                }
+                return newTimeLeft;
+            });
         }, 1000);
 
-        return () => clearInterval(interval);
-    }, [game.phase, game.currentRound, game.phaseEndsAt]); // Depend on phaseEndsAt
+        return () => {
+            if(timerRef.current) clearInterval(timerRef.current)
+        };
+    }, [game.phase, game.currentRound, game.phaseEndsAt, isCreator, firestore]);
 
     if (duration <= 0) return null;
 

@@ -1,5 +1,4 @@
 
-
 'use client';
 import { 
   doc,
@@ -396,17 +395,6 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
             if (action.actionType === 'guardian_protect' && action.targetId === action.playerId) players[playerIndex].guardianSelfProtects = (players[playerIndex].guardianSelfProtects || 0) + 1;
 
             transaction.update(gameRef, { nightActions, players });
-
-            // After committing the action, check if it's the last one needed
-            const alivePlayersWithNightActions = new Set(game.players.filter(p => p.isAlive && p.role && ['werewolf', 'wolf_cub', 'seer', 'doctor', 'guardian', 'priest', 'hechicera', 'vampire', 'cult_leader', 'fisherman', 'silencer', 'elder_leader', 'witch', 'banshee'].includes(p.role)).map(p => p.userId));
-            const submittedActionsForRound = new Set(nightActions.map(a => a.playerId));
-            
-            const allActionsIn = [...alivePlayersWithNightActions].every(pId => submittedActionsForRound.has(pId));
-            const timeIsUp = game.phaseEndsAt ? game.phaseEndsAt.toMillis() < Date.now() : false;
-
-            if (allActionsIn || timeIsUp) {
-                // Defer processing to a separate call to avoid nested transactions
-            }
         });
 
         // The logic to check if phase should end and trigger processing is now separate.
@@ -415,9 +403,8 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         const alivePlayersWithNightActions = new Set(updatedGame.players.filter(p => p.isAlive && p.role && ['werewolf', 'wolf_cub', 'seer', 'doctor', 'guardian', 'priest', 'hechicera', 'vampire', 'cult_leader', 'fisherman', 'silencer', 'elder_leader', 'witch', 'banshee'].includes(p.role)).map(p => p.userId));
         const submittedActionsForRound = new Set((updatedGame.nightActions || []).filter(a => a.round === updatedGame.currentRound).map(a => a.playerId));
         const allActionsIn = [...alivePlayersWithNightActions].every(pId => submittedActionsForRound.has(pId));
-        const timeIsUp = updatedGame.phaseEndsAt ? updatedGame.phaseEndsAt.toMillis() < Date.now() : false;
 
-        if (allActionsIn || timeIsUp) {
+        if (allActionsIn) {
             await processNight(db, gameId);
         }
 
@@ -875,8 +862,9 @@ export async function processNight(db: Firestore, gameId: string) {
 
             // 3. APPLY KILLS AND CHECK FOR GAME OVER
             if (finalKilledPlayerIds.length > 0) {
-                const { gameOver } = killPlayer(game, finalKilledPlayerIds);
-                if (gameOver) {
+                const killResult = killPlayer(game, finalKilledPlayerIds);
+                game = killResult.updatedGame;
+                if (killResult.gameOver) {
                     const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
                     if (drunkPlayer) {
                          handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
@@ -1039,8 +1027,9 @@ export async function processVotes(db: Firestore, gameId: string) {
       game.events.push(voteResultEvent);
 
       if (lynchedPlayerId) {
-          const { gameOver } = killPlayer(game, [lynchedPlayerId]);
-          if (gameOver) {
+          const killResult = killPlayer(game, [lynchedPlayerId]);
+          game = killResult.updatedGame;
+          if (killResult.gameOver) {
             const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
             if (drunkPlayer) {
                 handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
@@ -1144,8 +1133,9 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             game.events = game.events || [];
             game.events.push(shotEvent);
             
-            const { gameOver } = killPlayer(game, [targetId]);
-            if (gameOver) {
+            const killResult = killPlayer(game, [targetId]);
+            game = killResult.updatedGame;
+            if (killResult.gameOver) {
                  const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
                  if (drunkPlayer) {
                     handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
@@ -1486,9 +1476,8 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             const game = finalGameSnap.data() as Game;
             const alivePlayers = game.players.filter(p => p.isAlive);
             const allVotesIn = alivePlayers.every(p => p.votedFor);
-            const timeIsUp = game.phaseEndsAt ? game.phaseEndsAt.toMillis() < Date.now() : false;
 
-            if (allVotesIn || timeIsUp) {
+            if (allVotesIn) {
                 await processVotes(db, gameId);
             }
         }
@@ -1729,4 +1718,3 @@ export async function sendGhostMessage(
         return { success: false, error: error.message || "No se pudo enviar el mensaje." };
     }
 }
-
