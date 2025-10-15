@@ -691,6 +691,7 @@ export async function processNight(db: Firestore, gameId: string) {
             game.nightActions = game.nightActions || [];
             game.events = game.events || [];
             game.chatMessages = game.chatMessages || [];
+            game.vampireKills = game.vampireKills || 0;
             game.boat = game.boat || [];
 
             const actions = game.nightActions.filter(a => a.round === game.currentRound);
