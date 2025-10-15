@@ -100,6 +100,7 @@ export interface Game {
   wolfCubRevengeRound: number; // The round where werewolves get an extra kill
   nightActions?: NightAction[];
   vampireKills: number;
+  boat: string[];
 }
 
 export interface Player {
@@ -123,7 +124,7 @@ export interface Player {
   isCultMember: boolean;
 }
 
-export type NightActionType = "werewolf_kill" | "seer_check" | "doctor_heal" | "cupid_enchant" | "hechicera_poison" | "hechicera_save" | "guardian_protect" | "priest_bless" | "vampire_bite" | "cult_recruit";
+export type NightActionType = "werewolf_kill" | "seer_check" | "doctor_heal" | "cupid_enchant" | "hechicera_poison" | "hechicera_save" | "guardian_protect" | "priest_bless" | "vampire_bite" | "cult_recruit" | "fisherman_catch";
 
 export interface NightAction {
     gameId: string;

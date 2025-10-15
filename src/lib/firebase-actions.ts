@@ -94,6 +94,7 @@ export async function createGame(
       wolfCubRevengeRound: 0,
       nightActions: [],
       vampireKills: 0,
+      boat: [],
   };
   
   try {
@@ -498,8 +499,10 @@ function killPlayer(
 function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; winners: string[] } {
     const alivePlayers = gameData.players.filter(p => p.isAlive);
     const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
+    const villagerRoles: Player['role'][] = ['villager', 'seer', 'doctor', 'hunter', 'guardian', 'priest', 'prince', 'lycanthrope', 'twin', 'hechicera', 'ghost', 'virginia_woolf', 'leprosa', 'river_siren', 'lookout', 'troublemaker', 'silencer', 'seer_apprentice', 'elder_leader', 'sleeping_fairy'];
+    
     const aliveWerewolves = alivePlayers.filter(p => wolfRoles.includes(p.role));
-    const aliveVillagers = alivePlayers.filter(p => !wolfRoles.includes(p.role) && !p.isCultMember);
+    const aliveVillagers = alivePlayers.filter(p => villagerRoles.includes(p.role));
     const aliveCultMembers = alivePlayers.filter(p => p.isCultMember);
 
     // Condition 1: Lovers Win (only 2 players left and they are the lovers)
@@ -532,7 +535,20 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
         };
     }
 
-    // Condition 4: Werewolves Win (number of werewolves is equal or greater than non-wolves)
+    // Condition 4: Fisherman wins
+    const fisherman = gameData.players.find(p => p.role === 'fisherman');
+    if (fisherman && fisherman.isAlive) {
+        const aliveVillagersOnBoat = aliveVillagers.every(v => gameData.boat?.includes(v.userId));
+        if (aliveVillagers.length > 0 && aliveVillagersOnBoat) {
+            return {
+                isGameOver: true,
+                message: `¡El Pescador ha ganado! Ha conseguido salvar a todos los aldeanos en su barco.`,
+                winners: [fisherman.userId],
+            };
+        }
+    }
+
+    // Condition 5: Werewolves Win (number of werewolves is equal or greater than non-wolves)
     const nonWolves = alivePlayers.filter(p => !wolfRoles.includes(p.role));
     if (aliveWerewolves.length > 0 && aliveWerewolves.length >= nonWolves.length) {
         return {
@@ -542,7 +558,7 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
         };
     }
     
-    // Condition 5: Villagers Win (no threats left)
+    // Condition 6: Villagers Win (no threats left)
     const threats = alivePlayers.filter(p => wolfRoles.includes(p.role) || p.role === 'vampire');
     if (threats.length === 0 && alivePlayers.length > 0) {
         // Cult members don't win with villagers unless they are the only ones left (handled above)
@@ -553,7 +569,7 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
         };
     }
     
-    // Condition 6: Draw (no one left alive)
+    // Condition 7: Draw (no one left alive)
     if (alivePlayers.length === 0) {
         return {
             isGameOver: true,
@@ -583,6 +599,7 @@ export async function processNight(db: Firestore, gameId: string) {
             game.nightActions = game.nightActions || [];
             game.events = game.events || [];
             game.chatMessages = game.chatMessages || [];
+            game.boat = game.boat || [];
 
             const actions = game.nightActions.filter(a => a.round === game.currentRound);
             
@@ -590,6 +607,7 @@ export async function processNight(db: Firestore, gameId: string) {
             let killedPlayerNamesAndRoles = [];
             let killedByPoisonId: string | null = null;
             let savedPlayerIds: string[] = [];
+            let fishermanDied = false;
 
             const savedByDoctorId = actions.find(a => a.actionType === 'doctor_heal')?.targetId || null;
             const savedByHechiceraId = actions.find(a => a.actionType === 'hechicera_save')?.targetId || null;
@@ -620,6 +638,21 @@ export async function processNight(db: Firestore, gameId: string) {
                              finalKilledPlayerIds.push(vampireAction.targetId);
                              game.vampireKills = (game.vampireKills || 0) + 1;
                         }
+                    }
+                }
+            }
+
+            // Process Fisherman Catch
+            const fishermanAction = actions.find(a => a.actionType === 'fisherman_catch');
+            if (fishermanAction?.targetId) {
+                const targetPlayer = game.players.find(p => p.userId === fishermanAction.targetId);
+                const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed'];
+                if (targetPlayer && wolfRoles.includes(targetPlayer.role)) {
+                    finalKilledPlayerIds.push(fishermanAction.playerId);
+                    fishermanDied = true;
+                } else if (targetPlayer) {
+                    if (!game.boat.includes(targetPlayer.userId)) {
+                         game.boat.push(targetPlayer.userId);
                     }
                 }
             }
@@ -725,6 +758,9 @@ export async function processNight(db: Firestore, gameId: string) {
 
             if (killedPlayerNamesAndRoles.length > 0) {
                 nightEvent.message = `Anoche, el pueblo perdió a ${killedPlayerNamesAndRoles.join(' y a ')}.`;
+                 if (fishermanDied) {
+                    nightEvent.message += ` El Pescador eligió a un lobo y murió.`;
+                }
             } else if (wasSomeoneAttackedByWolves || poisonAction || vampireAction) {
                  nightEvent.message = "Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!";
             } else {
@@ -751,6 +787,7 @@ export async function processNight(db: Firestore, gameId: string) {
                     events: arrayUnion(gameOverEvent, ...game.events.filter(e => e.id.startsWith('evt_lover_death'))),
                     pendingHunterShot: null,
                     vampireKills: game.vampireKills,
+                    boat: game.boat,
                 });
                 return; // Stop execution
             }
@@ -763,6 +800,7 @@ export async function processNight(db: Firestore, gameId: string) {
                     phase: 'hunter_shot',
                     pendingHunterShot: game.pendingHunterShot,
                     vampireKills: game.vampireKills,
+                    boat: game.boat,
                 });
                 return;
             }
@@ -778,6 +816,7 @@ export async function processNight(db: Firestore, gameId: string) {
               wolfCubRevengeRound: game.wolfCubRevengeRound === game.currentRound ? 0 : game.wolfCubRevengeRound,
               pendingHunterShot: null,
               vampireKills: game.vampireKills,
+              boat: game.boat,
             };
 
             transaction.update(gameRef, updates);
@@ -1167,6 +1206,13 @@ const getDeterministicAIAction = (
             const nonCultMembers = potentialTargets.filter(p => !p.isCultMember);
             return { actionType: 'cult_recruit', targetId: randomTarget(nonCultMembers) };
         }
+        case 'fisherman': {
+            if (game.phase === 'day') {
+                return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
+            }
+            const nonBoatTargets = potentialTargets.filter(p => !game.boat?.includes(p.userId));
+            return { actionType: 'fisherman_catch', targetId: randomTarget(nonBoatTargets) };
+        }
         default:
             if (game.phase === 'day') {
                 return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
@@ -1220,6 +1266,7 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
                 case 'priest_bless':
                 case 'vampire_bite':
                 case 'cult_recruit':
+                case 'fisherman_catch':
                     await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
                     break;
                 case 'VOTE':
@@ -1502,6 +1549,7 @@ export async function resetGame(db: Firestore, gameId: string) {
                 wolfCubRevengeRound: 0,
                 players: resetHumanPlayers, 
                 vampireKills: 0,
+                boat: [],
             });
         });
         return { success: true };

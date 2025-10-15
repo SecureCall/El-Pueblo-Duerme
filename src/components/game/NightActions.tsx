@@ -38,6 +38,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
     const isWerewolfTeam = currentPlayer.role === 'werewolf' || currentPlayer.role === 'wolf_cub';
     const isVampire = currentPlayer.role === 'vampire';
     const isCultLeader = currentPlayer.role === 'cult_leader';
+    const isFisherman = currentPlayer.role === 'fisherman';
     
     // Check if potions have been used in any previous round or this round
     const hasUsedPoison = !!currentPlayer.potions?.poison;
@@ -86,6 +87,10 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             toast({ description: `${player.displayName} ya es parte de tu culto.` });
             return;
         }
+        if (isFisherman && game.boat?.includes(player.userId)) {
+            toast({ description: `${player.displayName} ya está en tu barco.` });
+            return;
+        }
 
 
         setSelectedPlayerIds(prev => {
@@ -115,6 +120,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             case 'cupid': return 'cupid_enchant';
             case 'vampire': return 'vampire_bite';
             case 'cult_leader': return 'cult_recruit';
+            case 'fisherman': return 'fisherman_catch';
             case 'hechicera':
                 if (hechiceraAction === 'poison') return 'hechicera_poison';
                 if (hechiceraAction === 'save') return 'hechicera_save';
@@ -216,6 +222,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             case 'hechicera': return (hasPoison || hasSavePotion) ? 'Elige una poción y un objetivo.' : 'Has usado todas tus pociones.';
             case 'vampire': return 'Elige un jugador para morder y acercarte a tu victoria.';
             case 'cult_leader': return 'Elige un nuevo miembro para unir a tu culto.';
+            case 'fisherman': return 'Elige a un jugador para subir a tu barco. ¡Cuidado con los lobos!';
             default: return 'No tienes acciones esta noche. Espera al amanecer.';
         }
     }
@@ -287,6 +294,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         isCupidFirstNight ||
         isVampire ||
         isCultLeader ||
+        isFisherman ||
         (isHechicera && (hasPoison || hasSavePotion))
     );
 
@@ -315,6 +323,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                                 if (isWerewolfTeam) return p.role !== 'werewolf' && p.role !== 'wolf_cub';
                                 if (isVampire) return p.role !== 'vampire';
                                 if (isCultLeader) return p.userId !== currentPlayer.userId && !p.isCultMember;
+                                if (isFisherman) return p.userId !== currentPlayer.userId && !game.boat?.includes(p.userId);
                                 if (p.userId === currentPlayer.userId) {
                                     // Allow self-selection for Priest (once) and Guardian (once)
                                     if (currentPlayer.role === 'priest' && !currentPlayer.priestSelfHealUsed) return true;

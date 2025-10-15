@@ -46,7 +46,7 @@ export const NightActionSchema = z.object({
   gameId: z.string(),
   round: z.number(),
   playerId: z.string(),
-  actionType: z.enum(["werewolf_kill", "seer_check", "doctor_heal", "cupid_enchant", "hechicera_poison", "hechicera_save", "guardian_protect", "priest_bless", "vampire_bite", "cult_recruit"]),
+  actionType: z.enum(["werewolf_kill", "seer_check", "doctor_heal", "cupid_enchant", "hechicera_poison", "hechicera_save", "guardian_protect", "priest_bless", "vampire_bite", "cult_recruit", "fisherman_catch"]),
   targetId: z.string(),
   createdAt: TimestampSchema,
 });
@@ -126,6 +126,7 @@ export const GameSchema = z.object({
   wolfCubRevengeRound: z.number(),
   nightActions: z.array(NightActionSchema).optional(),
   vampireKills: z.number().optional(),
+  boat: z.array(z.string()).optional(),
 });
 
 export const AIPlayerPerspectiveSchema = z.object({

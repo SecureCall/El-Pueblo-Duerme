@@ -36,6 +36,7 @@ export function GameOver({ game, event, players }: GameOverProps) {
             const vampireWon = event.message.includes('Vampiro ha ganado');
             const drunkWon = event.message.includes('Hombre Ebrio ha ganado');
             const cultWon = event.message.includes('Culto ha ganado');
+            const fishermanWon = event.message.includes('Pescador ha ganado');
 
 
             if (villagersWon) {
@@ -48,6 +49,8 @@ export function GameOver({ game, event, players }: GameOverProps) {
                 playNarration('ganador el ebrio.mp3');
             } else if (cultWon) {
                 playNarration('victoria culto.mp3');
+            } else if (fishermanWon) {
+                playNarration('pescador ganador.mp3');
             }
         }
     }, [event]);
