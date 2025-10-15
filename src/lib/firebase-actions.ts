@@ -647,6 +647,17 @@ export async function processNight(db: Firestore, gameId: string) {
                     killedByPoisonId = poisonAction.targetId;
                 }
             }
+
+            const nightEvent: GameEvent = {
+                id: `evt_night_${game.currentRound}`, gameId, round: game.currentRound, type: 'night_result',
+                message: '', // Will be filled in after kills
+                data: { 
+                    killedPlayerIds: finalKilledPlayerIds, 
+                    savedPlayerIds: savedPlayerIds,
+                    killedByPoisonId: killedByPoisonId
+                },
+                createdAt: Timestamp.now(),
+            };
             
             // 3. Apply Kills and check consequences
             if (finalKilledPlayerIds.length > 0) {
@@ -657,24 +668,16 @@ export async function processNight(db: Firestore, gameId: string) {
 
                 killedPlayerNamesAndRoles = newlyKilledPlayers.map(p => `${p.displayName} (que era ${roleDetails[p.role!]?.name || 'un rol desconocido'})`);
                 if (killedPlayerNamesAndRoles.length > 0) {
-                    messages.push(`Anoche, el pueblo perdió a ${killedPlayerNamesAndRoles.join(' y a ')}.`);
+                    nightEvent.message = `Anoche, el pueblo perdió a ${killedPlayerNamesAndRoles.join(' y a ')}.`;
                 }
             } else if (wasSomeoneAttackedByWolves || poisonAction) {
-                 messages.push("Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!");
+                 nightEvent.message = "Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!";
             } else {
-                 messages.push("La noche transcurre en un inquietante silencio. Nadie ha muerto.");
+                 nightEvent.message = "La noche transcurre en un inquietante silencio. Nadie ha muerto.";
             }
-            
-            const nightEvent: GameEvent = {
-                id: `evt_night_${game.currentRound}`, gameId, round: game.currentRound, type: 'night_result',
-                message: messages.join(' ') || "La noche transcurre en un inquietante silencio.",
-                data: { 
-                    killedPlayerIds: finalKilledPlayerIds, 
-                    savedPlayerIds: savedPlayerIds,
-                    killedByPoisonId: killedByPoisonId
-                },
-                createdAt: Timestamp.now(),
-            };
+
+            // Ensure events array exists and push the night event
+            game.events = game.events || [];
             game.events.push(nightEvent);
             
             // 4. Check for game over (after kills are applied)
@@ -727,126 +730,126 @@ export async function processNight(db: Firestore, gameId: string) {
 
 
 export async function processVotes(db: Firestore, gameId: string) {
-    const gameRef = doc(db, 'games', gameId);
+  const gameRef = doc(db, 'games', gameId);
 
-    try {
-        await runTransaction(db, async (transaction) => {
-            const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found");
-            
-            let game = gameSnap.data() as Game;
+  try {
+    await runTransaction(db, async (transaction) => {
+      const gameSnap = await transaction.get(gameRef);
+      if (!gameSnap.exists()) throw new Error("Partida no encontrada");
 
-            // LOCK: Check if the phase is still 'day'. If not, another process has already run.
-            if (game.phase !== 'day' || game.status !== 'in_progress') {
-                console.log("Skipping vote processing, phase is no longer 'day' or game is not in progress.");
-                return;
-            }
-            
-            game.events = game.events || [];
-            game.players = game.players || [];
-            
-            const alivePlayers = game.players.filter(p => p.isAlive);
-            const voteCounts: Record<string, number> = {};
-            
-            alivePlayers.forEach(player => {
-                if (player.votedFor) {
-                    voteCounts[player.votedFor] = (voteCounts[player.votedFor] || 0) + 1;
-                }
-            });
-            
-            let lynchedPlayerId: string | null = null;
-            let voteResultEvent: GameEvent;
-            
-            let maxVotes = 0;
-            let mostVotedPlayerIds: string[] = [];
-            for (const playerId in voteCounts) {
-                if (voteCounts[playerId] > maxVotes) {
-                    maxVotes = voteCounts[playerId];
-                    mostVotedPlayerIds = [playerId];
-                } else if (voteCounts[playerId] === maxVotes) {
-                    mostVotedPlayerIds.push(playerId);
-                }
-            }
-            
-            if (mostVotedPlayerIds.length === 1 && maxVotes > 0) {
-                const potentialLynchedId = mostVotedPlayerIds[0];
-                const lynchedPlayer = game.players.find(p => p.userId === potentialLynchedId);
-                
-                if (lynchedPlayer) {
-                    if (lynchedPlayer.role === 'prince' && game.settings.prince && !lynchedPlayer.princeRevealed) {
-                        const playerIndex = game.players.findIndex(p => p.userId === potentialLynchedId);
-                        if (playerIndex > -1) {
-                           game.players[playerIndex].princeRevealed = true;
-                        }
-                        
-                        voteResultEvent = {
-                            id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result',
-                            message: `${lynchedPlayer.displayName} ha sido sentenciado, pero revela su identidad como ¡el Príncipe! y sobrevive a la votación.`,
-                            createdAt: Timestamp.now(),
-                            data: { lynchedPlayerId: null },
-                        };
-                    } else {
-                        lynchedPlayerId = potentialLynchedId;
-                        const lynchedPlayerRole = roleDetails[lynchedPlayer.role!]?.name || 'un rol desconocido';
-                        voteResultEvent = {
-                            id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result',
-                            message: `${lynchedPlayer.displayName} fue linchado por el pueblo. Su rol era: ${lynchedPlayerRole}.`,
-                            data: { lynchedPlayerId }, createdAt: Timestamp.now(),
-                        };
-                    }
-                } else {
-                    voteResultEvent = { id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: "La votación fue inconclusa.", data: { lynchedPlayerId: null }, createdAt: Timestamp.now() };
-                }
-            } else {
-                const eventMessage = mostVotedPlayerIds.length > 1 ? "La votación resultó en un empate. Nadie fue linchado hoy." : "El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.";
-                voteResultEvent = { id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: eventMessage, data: { lynchedPlayerId: null }, createdAt: Timestamp.now() };
-            }
+      let game = gameSnap.data() as Game;
 
-            game.events.push(voteResultEvent);
-            
-            if (lynchedPlayerId) {
-                const { updatedGame } = killPlayer(game, [lynchedPlayerId]);
-                game = updatedGame; 
-            }
-            
-            if (await checkGameOver(transaction, gameRef, game)) {
-                 return;
-            }
-            
-            if (game.phase === 'hunter_shot') {
-               transaction.update(gameRef, { 
-                    players: game.players,
-                    events: game.events,
-                    phase: 'hunter_shot',
-                    pendingHunterShot: game.pendingHunterShot,
-                });
-               return; 
-            }
+      // LOCK: Check if the phase is still 'day' or 'voting'. If not, another process has already run.
+      if (!['day', 'voting'].includes(game.phase) || game.status !== 'in_progress') {
+        console.log("Omitiendo procesamiento de votos, la fase ya no es 'día' o la partida no está en curso.");
+        return;
+      }
 
-            game.players.forEach(p => { p.votedFor = null; });
-            
-            transaction.update(gameRef, {
-                players: game.players,
-                events: game.events,
-                phase: 'night',
-                currentRound: increment(1),
-                pendingHunterShot: null,
-            });
-        });
+      game.events = game.events || [];
+      game.players = game.players || [];
 
-        return { success: true };
-    } catch (error: any) {
-        console.error("Error processing votes:", error);
-         if (error.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({
-                path: gameRef.path,
-                operation: 'update',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            return { error: "Permiso denegado al procesar la votación." };
+      const alivePlayers = game.players.filter(p => p.isAlive);
+      const voteCounts: Record<string, number> = {};
+
+      alivePlayers.forEach(player => {
+        if (player.votedFor) {
+          voteCounts[player.votedFor] = (voteCounts[player.votedFor] || 0) + 1;
         }
-        return { error: `Hubo un problema al procesar la votación: ${error.message}` };
+      });
+
+      let lynchedPlayerId: string | null = null;
+      let voteResultEvent: GameEvent;
+
+      let maxVotes = 0;
+      let mostVotedPlayerIds: string[] = [];
+      for (const playerId in voteCounts) {
+        if (voteCounts[playerId] > maxVotes) {
+          maxVotes = voteCounts[playerId];
+          mostVotedPlayerIds = [playerId];
+        } else if (voteCounts[playerId] === maxVotes) {
+          mostVotedPlayerIds.push(playerId);
+        }
+      }
+
+      if (mostVotedPlayerIds.length === 1 && maxVotes > 0) {
+        const potentialLynchedId = mostVotedPlayerIds[0];
+        const lynchedPlayer = game.players.find(p => p.userId === potentialLynchedId);
+
+        if (lynchedPlayer) {
+          if (lynchedPlayer.role === 'prince' && game.settings.prince && !lynchedPlayer.princeRevealed) {
+            const playerIndex = game.players.findIndex(p => p.userId === potentialLynchedId);
+            if (playerIndex > -1) {
+              game.players[playerIndex].princeRevealed = true;
+            }
+
+            voteResultEvent = {
+              id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result',
+              message: `${lynchedPlayer.displayName} ha sido sentenciado, pero revela su identidad como ¡el Príncipe! y sobrevive a la votación.`,
+              createdAt: Timestamp.now(),
+              data: { lynchedPlayerId: null },
+            };
+          } else {
+            lynchedPlayerId = potentialLynchedId;
+            const lynchedPlayerRole = roleDetails[lynchedPlayer.role!]?.name || 'un rol desconocido';
+            voteResultEvent = {
+              id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result',
+              message: `${lynchedPlayer.displayName} fue linchado por el pueblo. Su rol era: ${lynchedPlayerRole}.`,
+              data: { lynchedPlayerId }, createdAt: Timestamp.now(),
+            };
+          }
+        } else {
+          voteResultEvent = { id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: "La votación fue inconclusa.", data: { lynchedPlayerId: null }, createdAt: Timestamp.now() };
+        }
+      } else {
+        const eventMessage = mostVotedPlayerIds.length > 1 ? "La votación resultó en un empate. Nadie fue linchado hoy." : "El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.";
+        voteResultEvent = { id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: eventMessage, data: { lynchedPlayerId: null }, createdAt: Timestamp.now() };
+      }
+
+      game.events.push(voteResultEvent);
+
+      if (lynchedPlayerId) {
+        const { updatedGame } = killPlayer(game, [lynchedPlayerId]);
+        game = updatedGame;
+      }
+
+      if (await checkGameOver(transaction, gameRef, game)) {
+        return; // Stop if game ended
+      }
+
+      if (game.phase === 'hunter_shot') {
+        transaction.update(gameRef, {
+          players: game.players,
+          events: game.events,
+          phase: 'hunter_shot',
+          pendingHunterShot: game.pendingHunterShot,
+        });
+        return;
+      }
+
+      game.players.forEach(p => { p.votedFor = null; });
+
+      transaction.update(gameRef, {
+        players: game.players,
+        events: game.events,
+        phase: 'night',
+        currentRound: increment(1),
+        pendingHunterShot: null,
+      });
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error processing votes:", error);
+    if (error.code === 'permission-denied') {
+      const permissionError = new FirestorePermissionError({
+        path: gameRef.path,
+        operation: 'update',
+      });
+      errorEmitter.emit('permission-error', permissionError);
+      return { error: "Permiso denegado al procesar la votación." };
     }
+    return { error: `Hubo un problema al procesar la votación: ${error.message}` };
+  }
 }
 
 
@@ -1169,24 +1172,39 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
             
-            const currentGame = gameSnap.data() as Game;
-            if (currentGame.phase !== 'day') return;
+            let game = gameSnap.data() as Game;
+            if (game.phase !== 'day') return;
             
-            const playerIndex = currentGame.players.findIndex(p => p.userId === voterId && p.isAlive);
+            const playerIndex = game.players.findIndex(p => p.userId === voterId && p.isAlive);
             if (playerIndex === -1) throw new Error("Player not found or is not alive");
             
-            voterName = currentGame.players[playerIndex].displayName;
-            const targetPlayer = currentGame.players.find(p => p.userId === targetId);
+            // Prevent re-voting
+            if (game.players[playerIndex].votedFor) return;
+
+            voterName = game.players[playerIndex].displayName;
+            const targetPlayer = game.players.find(p => p.userId === targetId);
             if (!targetPlayer) throw new Error("Target player not found");
             targetName = targetPlayer.displayName;
 
-            currentGame.players[playerIndex].votedFor = targetId;
-            transaction.update(gameRef, { players: currentGame.players });
+            game.players[playerIndex].votedFor = targetId;
+            
+            // Check if all alive players have voted
+            const alivePlayers = game.players.filter(p => p.isAlive);
+            const allVotesIn = alivePlayers.every(p => p.votedFor);
+
+            transaction.update(gameRef, { players: game.players });
+
+            // If all votes are in, immediately process the votes within the same transaction
+            if (allVotesIn) {
+                // Since we can't call processVotes directly (which starts a new transaction),
+                // we move its logic here.
+                processVotesLogic(transaction, gameRef, game);
+            }
         });
 
-        // Trigger AI chat after vote is committed
+        // Trigger AI chat after vote is committed, but outside the transaction
         if (voterName && targetName) {
-             const allPlayers = (await getDoc(gameRef)).data()?.players || [];
+             const allPlayers = ((await getDoc(gameRef)).data() as Game).players || [];
              for (const p of allPlayers) {
                 if (p.isAI && p.isAlive) {
                      await triggerAIChat(db, gameId, `${voterName} ha votado por ${targetName}.`, p.userId);
@@ -1209,6 +1227,97 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
         return { error: "No se pudo registrar tu voto." };
     }
 }
+
+// This function contains the logic from processVotes, but is designed
+// to be called from within an existing transaction.
+async function processVotesLogic(transaction: Transaction, gameRef: DocumentReference, game: Game) {
+    if (!['day', 'voting'].includes(game.phase) || game.status !== 'in_progress') {
+        console.log("processVotesLogic: Skipping vote processing, phase is no longer 'day' or game is not in progress.");
+        return;
+    }
+
+    const alivePlayers = game.players.filter(p => p.isAlive);
+    const voteCounts: Record<string, number> = {};
+    alivePlayers.forEach(player => {
+        if (player.votedFor) {
+            voteCounts[player.votedFor] = (voteCounts[player.votedFor] || 0) + 1;
+        }
+    });
+
+    let lynchedPlayerId: string | null = null;
+    let voteResultEvent: GameEvent;
+
+    let maxVotes = 0;
+    let mostVotedPlayerIds: string[] = [];
+    for (const playerId in voteCounts) {
+        if (voteCounts[playerId] > maxVotes) {
+            maxVotes = voteCounts[playerId];
+            mostVotedPlayerIds = [playerId];
+        } else if (voteCounts[playerId] === maxVotes) {
+            mostVotedPlayerIds.push(playerId);
+        }
+    }
+
+    if (mostVotedPlayerIds.length === 1 && maxVotes > 0) {
+        const potentialLynchedId = mostVotedPlayerIds[0];
+        const lynchedPlayer = game.players.find(p => p.userId === potentialLynchedId);
+        if (lynchedPlayer) {
+            if (lynchedPlayer.role === 'prince' && game.settings.prince && !lynchedPlayer.princeRevealed) {
+                 const playerIndex = game.players.findIndex(p => p.userId === potentialLynchedId);
+                 if (playerIndex > -1) game.players[playerIndex].princeRevealed = true;
+                 voteResultEvent = {
+                    id: `evt_vote_${game.currentRound}`, gameId: game.id!, round: game.currentRound, type: 'vote_result',
+                    message: `${lynchedPlayer.displayName} ha sido sentenciado, pero revela su identidad como ¡el Príncipe! y sobrevive a la votación.`,
+                    createdAt: Timestamp.now(), data: { lynchedPlayerId: null },
+                };
+            } else {
+                lynchedPlayerId = potentialLynchedId;
+                const lynchedPlayerRole = roleDetails[lynchedPlayer.role!]?.name || 'un rol desconocido';
+                voteResultEvent = {
+                    id: `evt_vote_${game.currentRound}`, gameId: game.id!, round: game.currentRound, type: 'vote_result',
+                    message: `${lynchedPlayer.displayName} fue linchado por el pueblo. Su rol era: ${lynchedPlayerRole}.`,
+                    data: { lynchedPlayerId }, createdAt: Timestamp.now(),
+                };
+            }
+        } else {
+             voteResultEvent = { id: `evt_vote_${game.currentRound}`, gameId: game.id!, round: game.currentRound, type: 'vote_result', message: "La votación fue inconclusa.", data: { lynchedPlayerId: null }, createdAt: Timestamp.now() };
+        }
+    } else {
+        const eventMessage = mostVotedPlayerIds.length > 1 ? "La votación resultó en un empate. Nadie fue linchado hoy." : "El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.";
+        voteResultEvent = { id: `evt_vote_${game.currentRound}`, gameId: game.id!, round: game.currentRound, type: 'vote_result', message: eventMessage, data: { lynchedPlayerId: null }, createdAt: Timestamp.now() };
+    }
+    
+    game.events.push(voteResultEvent);
+
+    if (lynchedPlayerId) {
+        const { updatedGame } = killPlayer(game, [lynchedPlayerId]);
+        game = updatedGame;
+    }
+
+    if (await checkGameOver(transaction, gameRef, game)) {
+        return;
+    }
+
+    if (game.phase === 'hunter_shot') {
+        transaction.update(gameRef, {
+            players: game.players,
+            events: game.events,
+            phase: 'hunter_shot',
+            pendingHunterShot: game.pendingHunterShot,
+        });
+        return;
+    }
+
+    game.players.forEach(p => { p.votedFor = null; });
+    transaction.update(gameRef, {
+        players: game.players,
+        events: game.events,
+        phase: 'night',
+        currentRound: increment(1),
+        pendingHunterShot: null,
+    });
+}
+
 
 export async function sendChatMessage(
     db: Firestore,

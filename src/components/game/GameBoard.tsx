@@ -1,5 +1,4 @@
-
-"use client";
+'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
 import { RoleReveal } from "./RoleReveal";
@@ -164,6 +163,8 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
     if (game.phase === 'night' && game.status === 'in_progress') {
       await processNight(firestore, game.id);
     } else if (game.phase === 'day' && game.status === 'in_progress') {
+      // The day phase now auto-advances when all votes are in.
+      // This is a fallback in case someone doesn't vote.
       await processVotes(firestore, game.id);
     }
   };
@@ -250,6 +251,8 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     if (game.phase === 'night' && game.status === 'in_progress') {
       await processNight(firestore, game.id);
     } else if (game.phase === 'day' && game.status === 'in_progress') {
+       // Day phase now auto-advances when all votes are in.
+       // This timer is a fallback for AFK players.
       await processVotes(firestore, game.id);
     }
   };

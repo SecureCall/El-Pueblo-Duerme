@@ -16,7 +16,9 @@ interface PhaseTimerProps {
 
 export function PhaseTimer({ game, onTimerEnd, timerKey, isCreator }: PhaseTimerProps) {
     const { userId } = useGameSession();
-    const duration = (game.phase === 'day' ? 90 : (game.phase === 'night' ? 60 : 0));
+    // The night timer is now much shorter, acting as a fallback for AFK players.
+    // The day timer is longer, but the phase will advance as soon as everyone votes.
+    const duration = (game.phase === 'day' ? 120 : (game.phase === 'night' ? 30 : 0));
 
     const [timeLeft, setTimeLeft] = useState(duration);
     const onTimerEndRef = useRef(onTimerEnd);
@@ -36,8 +38,7 @@ export function PhaseTimer({ game, onTimerEnd, timerKey, isCreator }: PhaseTimer
             setTimeLeft(prev => {
                 if (prev <= 1) {
                     clearInterval(interval);
-                    // ANY player can now trigger this. The backend (e.g., processVotes)
-                    // will handle making sure the action only runs once.
+                    // Only the creator's timer acts as the final authority to prevent multiple triggers.
                     if (isCreator) {
                         onTimerEndRef.current();
                     }
