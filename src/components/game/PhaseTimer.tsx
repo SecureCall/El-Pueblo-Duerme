@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -10,12 +11,11 @@ interface PhaseTimerProps {
     onTimerEnd: () => void;
     // Add key to force re-mount
     timerKey: string;
+    isCreator: boolean;
 }
 
-export function PhaseTimer({ game, onTimerEnd, timerKey }: PhaseTimerProps) {
+export function PhaseTimer({ game, onTimerEnd, timerKey, isCreator }: PhaseTimerProps) {
     const { userId } = useGameSession();
-    // The creator is no longer solely responsible. Any player can trigger the timer end.
-    // const isCreator = game.creator === userId; 
     const duration = (game.phase === 'day' ? 90 : (game.phase === 'night' ? 60 : 0));
 
     const [timeLeft, setTimeLeft] = useState(duration);
@@ -38,7 +38,9 @@ export function PhaseTimer({ game, onTimerEnd, timerKey }: PhaseTimerProps) {
                     clearInterval(interval);
                     // ANY player can now trigger this. The backend (e.g., processVotes)
                     // will handle making sure the action only runs once.
-                    onTimerEndRef.current();
+                    if (isCreator) {
+                        onTimerEndRef.current();
+                    }
                     return 0;
                 }
                 return prev - 1;
@@ -47,7 +49,7 @@ export function PhaseTimer({ game, onTimerEnd, timerKey }: PhaseTimerProps) {
 
         // Cleanup function to clear the interval when the component unmounts or the key changes.
         return () => clearInterval(interval);
-    }, [timerKey, duration]); // Dependency array no longer needs isCreator
+    }, [timerKey, duration, isCreator]); 
 
     if (duration <= 0) return null;
 

@@ -102,7 +102,6 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
 
      // Effect to check if the current player has died and by what cause
     useEffect(() => {
-        const playerJustDied = prevPlayerStateRef.current?.isAlive && !currentPlayer.isAlive;
         const playerIsDead = !currentPlayer.isAlive;
 
         // Run this logic if the player is dead, to catch late-arriving events like hunter_shot
@@ -124,7 +123,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
                 } else {
                     setDeathCause('eliminated'); // Default for night_kill, lover_death etc.
                 }
-            } else if (playerJustDied) {
+            } else if (prevPlayerStateRef.current?.isAlive && !currentPlayer.isAlive) {
                 // Fallback for cases where the event might not be in the array yet
                 setDeathCause('eliminated');
             }
@@ -336,6 +335,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
                 game={game}
                 timerKey={`${game.id}-${game.phase}-${game.currentRound}`}
                 onTimerEnd={handleTimerEnd}
+                isCreator={game.creator === currentPlayer?.userId}
             />
           )}
         </CardHeader>
@@ -399,4 +399,3 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     </>
   );
 }
-
