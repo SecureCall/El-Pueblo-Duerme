@@ -14,7 +14,7 @@ interface PhaseTimerProps {
 }
 
 export function PhaseTimer({ game, onTimerEnd, timerKey, isCreator }: PhaseTimerProps) {
-    const duration = (game.phase === 'day' ? 120 : 45); // Night timer is 45s
+    const duration = (game.phase === 'day' ? 60 : 45); // Day is 60s, Night is 45s
 
     const [timeLeft, setTimeLeft] = useState(duration);
     const onTimerEndRef = useRef(onTimerEnd);
