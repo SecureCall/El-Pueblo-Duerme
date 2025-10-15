@@ -10,6 +10,7 @@ import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { playNarration } from "@/lib/sounds";
 import { useEffect, useState } from "react";
+import { WhatsappIcon } from "../icons";
 
 interface GameLobbyProps {
   game: Game;
@@ -35,11 +36,13 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
     });
   };
 
+  const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/game/${game.id}` : '';
+  const shareText = `¡Únete a mi partida de El Pueblo Duerme! Entra a la sala "${game.name}" con el ID: ${game.id}\nO usa este enlace: ${shareUrl}`;
+
   const handleShare = async () => {
-    const shareUrl = `${window.location.origin}/game/${game.id}`;
     const shareData = {
       title: `¡Únete a mi partida de El Pueblo Duerme!`,
-      text: `Entra a la sala "${game.name}" con el ID: ${game.id}\nO usa este enlace:`,
+      text: shareText,
       url: shareUrl,
     };
 
@@ -81,6 +84,17 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
                 <Button variant="ghost" size="icon" onClick={copyGameId}>
                     <Copy className="h-5 w-5" />
                     <span className="sr-only">Copiar ID</span>
+                </Button>
+                 <Button variant="ghost" size="icon" asChild>
+                   <a 
+                      href={`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`}
+                      data-action="share/whatsapp/share"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <WhatsappIcon className="h-6 w-6" />
+                      <span className="sr-only">Compartir por WhatsApp</span>
+                   </a>
                 </Button>
                  {canShare && (
                   <Button variant="ghost" size="icon" onClick={handleShare}>
