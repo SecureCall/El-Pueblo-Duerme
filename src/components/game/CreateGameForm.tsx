@@ -53,26 +53,28 @@ interface CreateGameFormValues {
   cult_leader: boolean;
   fisherman: boolean;
   vampire: boolean;
-  // Temporarily disabled roles
-  ghost?: boolean;
-  virginia_woolf?: boolean;
-  leprosa?: boolean;
-  river_siren?: boolean;
-  lookout?: boolean;
-  troublemaker?: boolean;
-  silencer?: boolean;
-  seer_apprentice?: boolean;
-  elder_leader?: boolean;
-  seeker_fairy?: boolean;
-  sleeping_fairy?: boolean;
-  shapeshifter?: boolean;
-  witch?: boolean;
-  banshee?: boolean;
+  // Roles a implementar
+  ghost: boolean;
+  virginia_woolf: boolean;
+  leprosa: boolean;
+  river_siren: boolean;
+  lookout: boolean;
+  troublemaker: boolean;
+  silencer: boolean;
+  seer_apprentice: boolean;
+  elder_leader: boolean;
+  seeker_fairy: boolean;
+  sleeping_fairy: boolean;
+  shapeshifter: boolean;
+  witch: boolean;
+  banshee: boolean;
 }
 
 const implementedRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[] = [
     'seer', 'doctor', 'hunter', 'cupid', 'guardian', 'priest', 'prince', 'lycanthrope', 'twin', 
-    'hechicera', 'wolf_cub', 'cursed', 'cult_leader', 'fisherman', 'vampire'
+    'hechicera', 'wolf_cub', 'cursed', 'cult_leader', 'fisherman', 'vampire', 'ghost', 'virginia_woolf',
+    'leprosa', 'river_siren', 'lookout', 'troublemaker', 'silencer', 'seer_apprentice',
+    'elder_leader', 'seeker_fairy', 'sleeping_fairy', 'shapeshifter', 'witch', 'banshee', 'drunk_man'
 ];
 
 export function CreateGameForm() {
@@ -102,6 +104,21 @@ export function CreateGameForm() {
       cult_leader: false,
       fisherman: false,
       vampire: false,
+      ghost: false,
+      virginia_woolf: false,
+      leprosa: false,
+      river_siren: false,
+      lookout: false,
+      troublemaker: false,
+      silencer: false,
+      seer_apprentice: false,
+      elder_leader: false,
+      seeker_fairy: false,
+      sleeping_fairy: false,
+      shapeshifter: false,
+      witch: false,
+      banshee: false,
+      drunk_man: false,
     },
   });
   
@@ -139,7 +156,7 @@ export function CreateGameForm() {
 
     // Ensure all role settings are booleans (not undefined)
     const sanitizedRoles = implementedRoles.reduce((acc, roleId) => {
-        acc[roleId] = !!roles[roleId as keyof typeof roles];
+        acc[roleId as keyof typeof roles] = !!roles[roleId as keyof typeof roles];
         return acc;
     }, {} as Record<Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>, boolean>);
 

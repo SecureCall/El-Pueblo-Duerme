@@ -76,22 +76,21 @@ export interface Game {
     cult_leader: boolean;
     fisherman: boolean;
     vampire: boolean;
-
-    // Roles no implementados (pueden estar presentes en la configuración pero no se usan)
-    ghost?: boolean;
-    virginia_woolf?: boolean;
-    leprosa?: boolean;
-    river_siren?: boolean;
-    lookout?: boolean;
-    troublemaker?: boolean;
-    silencer?: boolean;
-    seer_apprentice?: boolean;
-    elder_leader?: boolean;
-    seeker_fairy?: boolean;
-    sleeping_fairy?: boolean;
-    shapeshifter?: boolean;
-    witch?: boolean;
-    banshee?: boolean;
+    ghost: boolean;
+    virginia_woolf: boolean;
+    leprosa: boolean;
+    river_siren: boolean;
+    lookout: boolean;
+    troublemaker: boolean;
+    silencer: boolean;
+    seer_apprentice: boolean;
+    elder_leader: boolean;
+    seeker_fairy: boolean;
+    sleeping_fairy: boolean;
+    shapeshifter: boolean;
+    witch: boolean;
+    banshee: boolean;
+    drunk_man: boolean;
   };
   phaseEndsAt?: Timestamp;
   lovers: [string, string] | null;
@@ -101,6 +100,12 @@ export interface Game {
   nightActions?: NightAction[];
   vampireKills: number;
   boat: string[];
+  leprosaBlockedRound: number; // Round where wolves are blocked by leper
+  witchFoundSeer: boolean;
+  seerDied: boolean;
+  silencedPlayerId: string | null; // Player silenced for the day
+  exiledPlayerId: string | null; // Player exiled for the night
+  troublemakerUsed: boolean;
 }
 
 export interface Player {
@@ -122,9 +127,34 @@ export interface Player {
   guardianSelfProtects?: number;
   biteCount: number;
   isCultMember: boolean;
+  // New role-specific fields
+  shapeshifterTargetId?: string | null;
+  virginiaWoolfTargetId?: string | null;
+  riverSirenTargetId?: string | null;
+  ghostMessageSent?: boolean;
+  bansheeScreams?: Record<number, string>; // round: targetId
 }
 
-export type NightActionType = "werewolf_kill" | "seer_check" | "doctor_heal" | "cupid_enchant" | "hechicera_poison" | "hechicera_save" | "guardian_protect" | "priest_bless" | "vampire_bite" | "cult_recruit" | "fisherman_catch";
+export type NightActionType = 
+  "werewolf_kill" | 
+  "seer_check" | 
+  "doctor_heal" | 
+  "cupid_enchant" | 
+  "hechicera_poison" | 
+  "hechicera_save" | 
+  "guardian_protect" | 
+  "priest_bless" | 
+  "vampire_bite" | 
+  "cult_recruit" | 
+  "fisherman_catch" |
+  "shapeshifter_select" |
+  "virginia_woolf_link" |
+  "river_siren_charm" |
+  "silencer_silence" |
+  "elder_leader_exile" |
+  "witch_hunt" |
+  "banshee_scream";
+
 
 export interface NightAction {
     gameId: string;
@@ -139,7 +169,7 @@ export interface GameEvent {
     id: string; // unique id for the event, can be generated on client
     gameId: string;
     round: number;
-    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot' | 'player_transformed' | 'behavior_clue';
+    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot' | 'player_transformed' | 'behavior_clue' | 'special';
     message: string;
     data?: any;
     createdAt: Timestamp;

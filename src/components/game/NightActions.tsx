@@ -34,12 +34,20 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
     const { hasSubmitted } = useNightActions(game.id, game.currentRound, currentPlayer.userId);
 
     const isCupidFirstNight = currentPlayer.role === 'cupid' && game.currentRound === 1;
+    const isShapeshifterFirstNight = currentPlayer.role === 'shapeshifter' && game.currentRound === 1;
+    const isVirginiaWoolfFirstNight = currentPlayer.role === 'virginia_woolf' && game.currentRound === 1;
+    const isRiverSirenFirstNight = currentPlayer.role === 'river_siren' && game.currentRound === 1;
+    const isWitch = currentPlayer.role === 'witch';
+
     const isHechicera = currentPlayer.role === 'hechicera';
     const isWerewolfTeam = currentPlayer.role === 'werewolf' || currentPlayer.role === 'wolf_cub';
     const isVampire = currentPlayer.role === 'vampire';
     const isCultLeader = currentPlayer.role === 'cult_leader';
     const isFisherman = currentPlayer.role === 'fisherman';
-    
+    const isSilencer = currentPlayer.role === 'silencer';
+    const isElderLeader = currentPlayer.role === 'elder_leader';
+    const isBanshee = currentPlayer.role === 'banshee' && !currentPlayer.bansheeScreams?.[game.currentRound];
+
     // Check if potions have been used in any previous round or this round
     const hasUsedPoison = !!currentPlayer.potions?.poison;
     const hasUsedSave = !!currentPlayer.potions?.save;
@@ -121,6 +129,13 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             case 'vampire': return 'vampire_bite';
             case 'cult_leader': return 'cult_recruit';
             case 'fisherman': return 'fisherman_catch';
+            case 'shapeshifter': return 'shapeshifter_select';
+            case 'virginia_woolf': return 'virginia_woolf_link';
+            case 'river_siren': return 'river_siren_charm';
+            case 'silencer': return 'silencer_silence';
+            case 'elder_leader': return 'elder_leader_exile';
+            case 'witch': return 'witch_hunt';
+            case 'banshee': return 'banshee_scream';
             case 'hechicera':
                 if (hechiceraAction === 'poison') return 'hechicera_poison';
                 if (hechiceraAction === 'save') return 'hechicera_save';
@@ -188,7 +203,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         if (result.success) {
             toast({ title: 'Acción registrada.', description: 'Tu decisión ha sido guardada.' });
 
-            if (currentPlayer.role === 'seer') {
+            if (currentPlayer.role === 'seer' || (currentPlayer.role === 'seer_apprentice' && game.seerDied)) {
                 const seerResultData = await getSeerResult(firestore, game.id, currentPlayer.userId, selectedPlayerIds[0]);
                 if (seerResultData.success) {
                     setSeerResult({
@@ -210,6 +225,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         : [];
     
     const getActionPrompt = () => {
+        const apprenticeIsActive = currentPlayer.role === 'seer_apprentice' && game.seerDied;
         switch (currentPlayer.role) {
             case 'werewolf':
             case 'wolf_cub':
@@ -223,6 +239,14 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             case 'vampire': return 'Elige un jugador para morder y acercarte a tu victoria.';
             case 'cult_leader': return 'Elige un nuevo miembro para unir a tu culto.';
             case 'fisherman': return 'Elige a un jugador para subir a tu barco. ¡Cuidado con los lobos!';
+            case 'shapeshifter': return game.currentRound === 1 ? 'Elige un jugador. Si muere, te convertirás en él.' : 'Tu destino está ligado al de otra persona.';
+            case 'virginia_woolf': return game.currentRound === 1 ? 'Elige un jugador. Si tú mueres, él morirá contigo.' : 'Tu destino está ligado al de otra persona.';
+            case 'river_siren': return game.currentRound === 1 ? 'Elige un jugador para hechizarlo con tu canto.' : 'Tu canto ya ha embrujado a alguien.';
+            case 'silencer': return 'Elige a un jugador para que no pueda hablar mañana.';
+            case 'elder_leader': return 'Elige a un jugador para exiliarlo la próxima noche (no podrá usar habilidades).';
+            case 'seer_apprentice': return apprenticeIsActive ? 'La vidente ha muerto. Has heredado su don. Elige a quién investigar.' : 'Aún eres un aprendiz. Espera tu momento.';
+            case 'witch': return game.witchFoundSeer ? 'Has encontrado a la vidente. Los lobos te protegerán.' : 'Busca a la vidente entre los jugadores.';
+            case 'banshee': return isBanshee ? 'Lanza tu grito y sentencia a un jugador.' : 'Ya has usado tu grito esta noche o en esta partida.';
             default: return 'No tienes acciones esta noche. Espera al amanecer.';
         }
     }
@@ -285,6 +309,8 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         )
     }
 
+    const apprenticeIsActive = currentPlayer.role === 'seer_apprentice' && !!game.seerDied;
+
     const canPerformAction = (
         isWerewolfTeam || 
         currentPlayer.role === 'seer' || 
@@ -295,7 +321,15 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         isVampire ||
         isCultLeader ||
         isFisherman ||
-        (isHechicera && (hasPoison || hasSavePotion))
+        (isHechicera && (hasPoison || hasSavePotion)) ||
+        isShapeshifterFirstNight ||
+        isVirginiaWoolfFirstNight ||
+        isRiverSirenFirstNight ||
+        isSilencer ||
+        isElderLeader ||
+        isWitch ||
+        isBanshee ||
+        apprenticeIsActive
     );
 
     if (seerResult) {

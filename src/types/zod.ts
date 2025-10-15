@@ -40,13 +40,23 @@ export const PlayerSchema = z.object({
   guardianSelfProtects: z.number().optional(),
   biteCount: z.number(),
   isCultMember: z.boolean(),
+  shapeshifterTargetId: z.string().nullable().optional(),
+  virginiaWoolfTargetId: z.string().nullable().optional(),
+  riverSirenTargetId: z.string().nullable().optional(),
+  ghostMessageSent: z.boolean().optional(),
+  bansheeScreams: z.record(z.string()).optional(),
 });
 
 export const NightActionSchema = z.object({
   gameId: z.string(),
   round: z.number(),
   playerId: z.string(),
-  actionType: z.enum(["werewolf_kill", "seer_check", "doctor_heal", "cupid_enchant", "hechicera_poison", "hechicera_save", "guardian_protect", "priest_bless", "vampire_bite", "cult_recruit", "fisherman_catch"]),
+  actionType: z.enum([
+    "werewolf_kill", "seer_check", "doctor_heal", "cupid_enchant", "hechicera_poison", 
+    "hechicera_save", "guardian_protect", "priest_bless", "vampire_bite", "cult_recruit", 
+    "fisherman_catch", "shapeshifter_select", "virginia_woolf_link", "river_siren_charm",
+    "silencer_silence", "elder_leader_exile", "witch_hunt", "banshee_scream"
+  ]),
   targetId: z.string(),
   createdAt: TimestampSchema,
 });
@@ -55,7 +65,7 @@ export const GameEventSchema = z.object({
     id: z.string(),
     gameId: z.string(),
     round: z.number(),
-    type: z.enum(['night_result', 'vote_result', 'game_start', 'role_reveal', 'game_over', 'lover_death', 'hunter_shot', 'player_transformed', 'behavior_clue']),
+    type: z.enum(['night_result', 'vote_result', 'game_start', 'role_reveal', 'game_over', 'lover_death', 'hunter_shot', 'player_transformed', 'behavior_clue', 'special']),
     message: z.string(),
     data: z.any().optional(),
     createdAt: TimestampSchema,
@@ -89,21 +99,21 @@ export const GameSettingsSchema = z.object({
     cult_leader: z.boolean(),
     fisherman: z.boolean(),
     vampire: z.boolean(),
-    // Roles no implementados se marcan como opcionales
-    ghost: z.boolean().optional(),
-    virginia_woolf: z.boolean().optional(),
-    leprosa: z.boolean().optional(),
-    river_siren: z.boolean().optional(),
-    lookout: z.boolean().optional(),
-    troublemaker: z.boolean().optional(),
-    silencer: z.boolean().optional(),
-    seer_apprentice: z.boolean().optional(),
-    elder_leader: z.boolean().optional(),
-    seeker_fairy: z.boolean().optional(),
-    sleeping_fairy: z.boolean().optional(),
-    shapeshifter: z.boolean().optional(),
-    witch: z.boolean().optional(),
-    banshee: z.boolean().optional(),
+    ghost: z.boolean(),
+    virginia_woolf: z.boolean(),
+    leprosa: z.boolean(),
+    river_siren: z.boolean(),
+    lookout: z.boolean(),
+    troublemaker: z.boolean(),
+    silencer: z.boolean(),
+    seer_apprentice: z.boolean(),
+    elder_leader: z.boolean(),
+    seeker_fairy: z.boolean(),
+    sleeping_fairy: z.boolean(),
+    shapeshifter: z.boolean(),
+    witch: z.boolean(),
+    banshee: z.boolean(),
+    drunk_man: z.boolean(),
 });
 
 export const GameSchema = z.object({
@@ -127,6 +137,12 @@ export const GameSchema = z.object({
   nightActions: z.array(NightActionSchema).optional(),
   vampireKills: z.number(),
   boat: z.array(z.string()),
+  leprosaBlockedRound: z.number(),
+  witchFoundSeer: z.boolean(),
+  seerDied: z.boolean(),
+  silencedPlayerId: z.string().nullable(),
+  exiledPlayerId: z.string().nullable(),
+  troublemakerUsed: z.boolean(),
 });
 
 export const AIPlayerPerspectiveSchema = z.object({
