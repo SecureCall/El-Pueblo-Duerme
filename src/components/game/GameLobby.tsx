@@ -73,10 +73,6 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
     }
   };
 
-  const handleStartGame = () => {
-    playNarration('noche_pueblo_duerme.mp3');
-  };
-
   return (
     <div className="w-full max-w-4xl mx-auto p-4 space-y-8">
       <Card className="text-center bg-card/80">
@@ -122,7 +118,7 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
       </div>
 
       {isCreator && (
-        <div className="text-center pt-4" onClick={handleStartGame}>
+        <div className="text-center pt-4">
           <StartGameButton game={game} playerCount={players.length} />
         </div>
       )}
