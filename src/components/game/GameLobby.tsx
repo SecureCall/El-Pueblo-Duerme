@@ -23,6 +23,7 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
   const [canShare, setCanShare] = useState(false);
 
   useEffect(() => {
+    // navigator.share is only available in secure contexts (HTTPS)
     if (navigator.share) {
       setCanShare(true);
     }
@@ -37,7 +38,9 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
   };
 
   const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/game/${game.id}` : '';
-  const shareText = `¡Únete a mi partida de El Pueblo Duerme! Entra a la sala "${game.name}" con el ID: ${game.id}\nO usa este enlace: ${shareUrl}`;
+  const shareText = `¡Únete a mi partida de El Pueblo Duerme! Entra a la sala "${game.name}" con el ID: ${game.id}`;
+  const fullShareText = `${shareText}\nO usa este enlace: ${shareUrl}`;
+
 
   const handleShare = async () => {
     const shareData = {
@@ -52,8 +55,11 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
         title: "¡Enlace compartido!",
       });
     } catch (err) {
-      // This can happen if the user cancels the share dialog
-      if ((err as Error).name !== 'AbortError') {
+      // The AbortError is thrown when the user cancels the share dialog.
+      // We should not show an error message in that case.
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.log('Share action was cancelled by the user.');
+      } else {
         console.error("Share failed:", err);
         toast({
           variant: "destructive",
@@ -87,7 +93,7 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
                 </Button>
                  <Button variant="ghost" size="icon" asChild>
                    <a 
-                      href={`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`}
+                      href={`https://api.whatsapp.com/send?text=${encodeURIComponent(fullShareText)}`}
                       data-action="share/whatsapp/share"
                       target="_blank"
                       rel="noopener noreferrer"
