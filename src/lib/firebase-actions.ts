@@ -629,10 +629,11 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
     
     // Condition 3: Vampire wins
     if (gameData.settings.vampire && gameData.players.some(p => p.role === 'vampire' && p.isAlive) && (gameData.vampireKills || 0) >= 3) {
+        const vampire = gameData.players.find(p => p.role === 'vampire');
         return {
             isGameOver: true,
             message: '¡El Vampiro ha ganado! Ha reclamado sus tres víctimas y ahora reina en la oscuridad.',
-            winners: gameData.players.filter(p => p.role === 'vampire').map(p => p.userId),
+            winners: vampire ? [vampire.userId] : [],
             winnerCode: 'vampire',
         };
     }
@@ -1720,8 +1721,3 @@ export async function sendGhostMessage(
         return { success: false, error: error.message || "No se pudo enviar el mensaje." };
     }
 }
-
-
-
-
-
