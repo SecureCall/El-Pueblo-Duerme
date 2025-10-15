@@ -281,7 +281,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     <>
        <Card className="text-center bg-card/80">
         <CardHeader className="flex flex-row items-center justify-between p-4 pb-8 relative">
-          <div className="absolute left-4 top-1/2 -translate-y-1/2">
+          <div className="flex-shrink-0">
              <GameChronicle events={events} currentPlayerId={currentPlayer.userId} />
           </div>
           <div className="flex-1 flex justify-center items-center gap-4">
@@ -290,6 +290,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
               {getPhaseTitle()}
             </CardTitle>
           </div>
+           <div className="w-10 flex-shrink-0"></div> {/* Spacer */}
           { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && game.phaseEndsAt && (
             <PhaseTimer 
                 game={game}
