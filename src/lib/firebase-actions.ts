@@ -461,7 +461,7 @@ function handleDrunkManWin(transaction: Transaction, gameRef: DocumentReference,
         round: gameData.currentRound,
         type: 'game_over',
         message: `¡El Hombre Ebrio ha ganado! Su único objetivo era ser eliminado y lo ha conseguido.`,
-        data: { winners: [drunkPlayer.userId] },
+        data: { winners: [drunkPlayer.userId], winnerCode: 'drunk' },
         createdAt: Timestamp.now(),
     };
     const playerIndex = gameData.players.findIndex(p => p.userId === drunkPlayer.userId);
@@ -592,7 +592,7 @@ function killPlayer(
 }
 
 
-function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; winners: string[] } {
+function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; winners: string[]; winnerCode: string | null } {
     const alivePlayers = gameData.players.filter(p => p.isAlive);
     const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
     const villagerRoles: Player['role'][] = ['villager', 'seer', 'doctor', 'hunter', 'guardian', 'priest', 'prince', 'lycanthrope', 'twin', 'hechicera', 'ghost', 'virginia_woolf', 'leprosa', 'river_siren', 'lookout', 'troublemaker', 'silencer', 'seer_apprentice', 'elder_leader', 'sleeping_fairy'];
@@ -608,7 +608,8 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
         return {
             isGameOver: true,
             message: `¡Los enamorados han ganado! Desafiando a sus bandos, ${lover1?.displayName} y ${lover2?.displayName} han triunfado solos contra el mundo.`,
-            winners: gameData.lovers
+            winners: gameData.lovers,
+            winnerCode: 'lovers',
         };
     }
 
@@ -618,7 +619,8 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
          return {
             isGameOver: true,
             message: '¡El Culto ha ganado! Todos los supervivientes se han unido a la sombra del Líder.',
-            winners: cultLeader ? [cultLeader.userId] : aliveCultMembers.map(p => p.userId)
+            winners: cultLeader ? [cultLeader.userId] : aliveCultMembers.map(p => p.userId),
+            winnerCode: 'cult',
         };
     }
     
@@ -627,7 +629,8 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
         return {
             isGameOver: true,
             message: '¡El Vampiro ha ganado! Ha reclamado sus tres víctimas y ahora reina en la oscuridad.',
-            winners: gameData.players.filter(p => p.role === 'vampire').map(p => p.userId)
+            winners: gameData.players.filter(p => p.role === 'vampire').map(p => p.userId),
+            winnerCode: 'vampire',
         };
     }
 
@@ -640,6 +643,7 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
                 isGameOver: true,
                 message: `¡El Pescador ha ganado! Ha conseguido salvar a todos los aldeanos en su barco.`,
                 winners: [fisherman.userId],
+                winnerCode: 'fisherman',
             };
         }
     }
@@ -653,6 +657,7 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
                 isGameOver: true,
                 message: `¡La Banshee ha ganado! Sus dos gritos han sentenciado a muerte y ha cumplido su objetivo.`,
                 winners: [banshee.userId],
+                winnerCode: 'banshee',
             };
         }
     }
@@ -664,7 +669,8 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
         return {
             isGameOver: true,
             message: "¡Los hombres lobo han ganado! Superan en número a los aldeanos y la oscuridad consume el pueblo.",
-            winners: aliveWerewolves.map(p => p.userId)
+            winners: aliveWerewolves.map(p => p.userId),
+            winnerCode: 'wolves',
         };
     }
     
@@ -675,7 +681,8 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
         return {
             isGameOver: true,
             message: "¡El pueblo ha ganado! Todas las amenazas han sido eliminadas.",
-            winners: aliveVillagers.map(p => p.userId)
+            winners: aliveVillagers.map(p => p.userId),
+            winnerCode: 'villagers',
         };
     }
     
@@ -684,11 +691,12 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
         return {
             isGameOver: true,
             message: "¡Nadie ha sobrevivido a la masacre!",
-            winners: []
+            winners: [],
+            winnerCode: 'draw',
         };
     }
 
-    return { isGameOver: false, message: "", winners: [] };
+    return { isGameOver: false, message: "", winners: [], winnerCode: null };
 }
 
 
@@ -886,10 +894,10 @@ export async function processNight(db: Firestore, gameId: string) {
             game.events.push(nightEvent);
             
             // 5. Check for game over state again after all deaths are resolved
-            const { isGameOver, message, winners } = checkGameOver(game);
+            const { isGameOver, message, winners, winnerCode } = checkGameOver(game);
             if (isGameOver) {
                 const gameOverEvent: GameEvent = {
-                    id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message, data: { winners }, createdAt: Timestamp.now(),
+                    id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message, data: { winners, winnerCode }, createdAt: Timestamp.now(),
                 };
                 transaction.update(gameRef, {
                     status: 'finished', phase: 'finished', players: game.players,
@@ -1024,10 +1032,10 @@ export async function processVotes(db: Firestore, gameId: string) {
           }
       }
       
-      const { isGameOver, message, winners } = checkGameOver(game);
+      const { isGameOver, message, winners, winnerCode } = checkGameOver(game);
       if (isGameOver) {
           const gameOverEvent: GameEvent = {
-              id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message, data: { winners }, createdAt: Timestamp.now(),
+              id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message, data: { winners, winnerCode }, createdAt: Timestamp.now(),
           };
           transaction.update(gameRef, {
               status: 'finished', phase: 'finished', players: game.players, events: arrayUnion(gameOverEvent, ...game.events.filter(e => e.id.startsWith('evt_lover_death') || e.id.startsWith('evt_twin_'))), pendingHunterShot: null,
@@ -1139,7 +1147,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 return;
             }
 
-            const { isGameOver, message, winners } = checkGameOver(game);
+            const { isGameOver, message, winners, winnerCode } = checkGameOver(game);
             if (isGameOver) {
                 const gameOverEvent: GameEvent = {
                     id: `evt_gameover_${Date.now()}`,
@@ -1147,7 +1155,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                     round: game.currentRound,
                     type: 'game_over',
                     message,
-                    data: { winners },
+                    data: { winners, winnerCode },
                     createdAt: Timestamp.now(),
                 };
                 transaction.update(gameRef, {
@@ -1709,6 +1717,7 @@ export async function sendGhostMessage(
         return { success: false, error: error.message || "No se pudo enviar el mensaje." };
     }
 }
+
 
 
 

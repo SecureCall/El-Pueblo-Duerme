@@ -30,27 +30,36 @@ export function GameOver({ game, event, players }: GameOverProps) {
     const isCreator = game.creator === userId;
 
     useEffect(() => {
-        if (event) {
-            const villagersWon = event.message.includes('pueblo ha ganado');
-            const wolvesWon = event.message.includes('lobos han ganado');
-            const vampireWon = event.message.includes('Vampiro ha ganado');
-            const drunkWon = event.message.includes('Hombre Ebrio ha ganado');
-            const cultWon = event.message.includes('Culto ha ganado');
-            const fishermanWon = event.message.includes('Pescador ha ganado');
-
-
-            if (villagersWon) {
-                playNarration('victoria_aldeanos.mp3');
-            } else if (wolvesWon) {
-                playNarration('victoria_lobos.mp3');
-            } else if (vampireWon) {
-                 playNarration('el vampiro ha ganado .mp3');
-            } else if (drunkWon) {
-                playNarration('ganador el ebrio.mp3');
-            } else if (cultWon) {
-                playNarration('victoria culto.mp3');
-            } else if (fishermanWon) {
-                playNarration('pescador ganador.mp3');
+        if (event?.data?.winnerCode) {
+            const winnerCode = event.data.winnerCode;
+            switch(winnerCode) {
+                case 'villagers':
+                    playNarration('victoria_aldeanos.mp3');
+                    break;
+                case 'wolves':
+                    playNarration('victoria_lobos.mp3');
+                    break;
+                case 'lovers':
+                    // Assuming no specific sound for lovers, or add one here
+                    break;
+                case 'cult':
+                    playNarration('victoria culto.mp3');
+                    break;
+                case 'vampire':
+                    playNarration('el vampiro ha ganado .mp3');
+                    break;
+                case 'drunk':
+                    playNarration('ganador el ebrio.mp3');
+                    break;
+                case 'fisherman':
+                    playNarration('pescador ganador.mp3');
+                    break;
+                case 'banshee':
+                    // Assuming no specific sound, or add one here
+                    break;
+                case 'draw':
+                    // Assuming no specific sound, or add one here
+                    break;
             }
         }
     }, [event]);
