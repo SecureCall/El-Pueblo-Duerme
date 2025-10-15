@@ -11,7 +11,7 @@ export function BanishedOverlay() {
 
     useEffect(() => {
         if (isVisible && !hasPlayedSound.current) {
-            playNarration('anuncio_exilio.mp3');
+            playNarration('destarrado por el pueblo.mp3');
             hasPlayedSound.current = true;
         }
     }, [isVisible]);

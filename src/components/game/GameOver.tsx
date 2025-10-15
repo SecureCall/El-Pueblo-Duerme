@@ -40,7 +40,7 @@ export function GameOver({ game, event, players }: GameOverProps) {
                     playNarration('victoria_lobos.mp3');
                     break;
                 case 'lovers':
-                    // Assuming no specific sound for lovers, or add one here
+                    // No specific sound provided for lovers, can be added here
                     break;
                 case 'cult':
                     playNarration('victoria culto.mp3');
@@ -55,10 +55,10 @@ export function GameOver({ game, event, players }: GameOverProps) {
                     playNarration('pescador ganador.mp3');
                     break;
                 case 'banshee':
-                    // Assuming no specific sound, or add one here
+                    // No specific sound provided for banshee, can be added here
                     break;
                 case 'draw':
-                    // Assuming no specific sound, or add one here
+                    // No specific sound provided for a draw, can be added here
                     break;
             }
         }
