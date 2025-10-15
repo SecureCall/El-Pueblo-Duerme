@@ -1,3 +1,4 @@
+
 'use client';
 import { 
   doc,
@@ -48,6 +49,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     princeRevealed: false,
     guardianSelfProtects: 0,
     biteCount: 0,
+    isCultMember: false,
 });
 
 
@@ -279,7 +281,12 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
             const newRoles = generateRoles(finalPlayers.length, game.settings);
             
             const assignedPlayers = finalPlayers.map((player, index) => {
-                return { ...player, role: newRoles[index] };
+                const p = { ...player, role: newRoles[index] };
+                // The cult leader starts as a cult member.
+                if (p.role === 'cult_leader') {
+                    p.isCultMember = true;
+                }
+                return p;
             });
 
             const twinUserIds = assignedPlayers.filter(p => p.role === 'twin').map(p => p.userId);
@@ -492,8 +499,8 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
     const alivePlayers = gameData.players.filter(p => p.isAlive);
     const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
     const aliveWerewolves = alivePlayers.filter(p => wolfRoles.includes(p.role));
-    const aliveVillagers = alivePlayers.filter(p => !wolfRoles.includes(p.role) && p.role !== 'vampire' && p.role !== 'drunk_man');
-    const aliveVampire = alivePlayers.find(p => p.role === 'vampire');
+    const aliveVillagers = alivePlayers.filter(p => !wolfRoles.includes(p.role) && !p.isCultMember);
+    const aliveCultMembers = alivePlayers.filter(p => p.isCultMember);
 
     // Condition 1: Lovers Win (only 2 players left and they are the lovers)
     if (gameData.lovers && alivePlayers.length === 2 && alivePlayers.every(p => gameData.lovers!.includes(p.userId))) {
@@ -505,18 +512,29 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
             winners: gameData.lovers
         };
     }
+
+    // Condition 2: Cult Leader wins (all alive players are cult members)
+    if (aliveCultMembers.length > 0 && aliveCultMembers.length === alivePlayers.length) {
+         const cultLeader = gameData.players.find(p => p.role === 'cult_leader');
+         return {
+            isGameOver: true,
+            message: '¡El Culto ha ganado! Todos los supervivientes se han unido a la sombra del Líder.',
+            winners: cultLeader ? [cultLeader.userId] : aliveCultMembers.map(p => p.userId)
+        };
+    }
     
-    // Condition 2: Vampire wins
-    if (aliveVampire && (gameData.vampireKills || 0) >= 3) {
+    // Condition 3: Vampire wins
+    if (gameData.players.some(p => p.role === 'vampire' && p.isAlive) && (gameData.vampireKills || 0) >= 3) {
         return {
             isGameOver: true,
             message: '¡El Vampiro ha ganado! Ha reclamado sus tres víctimas y ahora reina en la oscuridad.',
-            winners: [aliveVampire.userId]
+            winners: gameData.players.filter(p => p.role === 'vampire').map(p => p.userId)
         };
     }
 
-    // Condition 3: Werewolves Win (number of werewolves is equal or greater than villagers)
-    if (aliveWerewolves.length > 0 && aliveWerewolves.length >= aliveVillagers.length) {
+    // Condition 4: Werewolves Win (number of werewolves is equal or greater than non-wolves)
+    const nonWolves = alivePlayers.filter(p => !wolfRoles.includes(p.role));
+    if (aliveWerewolves.length > 0 && aliveWerewolves.length >= nonWolves.length) {
         return {
             isGameOver: true,
             message: "¡Los hombres lobo han ganado! Superan en número a los aldeanos y la oscuridad consume el pueblo.",
@@ -524,9 +542,10 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
         };
     }
     
-    // Condition 4: Villagers Win (no threats left)
-    const threats = aliveWerewolves.length + (aliveVampire ? 1 : 0);
-    if (threats === 0 && alivePlayers.length > 0) {
+    // Condition 5: Villagers Win (no threats left)
+    const threats = alivePlayers.filter(p => wolfRoles.includes(p.role) || p.role === 'vampire');
+    if (threats.length === 0 && alivePlayers.length > 0) {
+        // Cult members don't win with villagers unless they are the only ones left (handled above)
         return {
             isGameOver: true,
             message: "¡El pueblo ha ganado! Todas las amenazas han sido eliminadas.",
@@ -534,7 +553,7 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
         };
     }
     
-    // Condition 5: Draw (no one left alive)
+    // Condition 6: Draw (no one left alive)
     if (alivePlayers.length === 0) {
         return {
             isGameOver: true,
@@ -579,6 +598,16 @@ export async function processNight(db: Firestore, gameId: string) {
             
             const allProtectedIds = new Set([savedByDoctorId, savedByHechiceraId, savedByGuardianId, savedByPriestId].filter(Boolean) as string[]);
             savedPlayerIds = Array.from(allProtectedIds);
+
+            // 0. Process Cult Recruitment
+            const cultRecruitAction = actions.find(a => a.actionType === 'cult_recruit');
+            if (cultRecruitAction?.targetId) {
+                const targetIndex = game.players.findIndex(p => p.userId === cultRecruitAction.targetId);
+                if (targetIndex > -1) {
+                    game.players[targetIndex].isCultMember = true;
+                }
+            }
+
 
             // 1. Process Vampire Bites
             const vampireAction = actions.find(a => a.actionType === 'vampire_bite');
@@ -1131,6 +1160,13 @@ const getDeterministicAIAction = (
             const biteableTargets = potentialTargets.filter(p => (p.biteCount || 0) < 3);
             return { actionType: 'vampire_bite', targetId: randomTarget(biteableTargets.length > 0 ? biteableTargets : potentialTargets) };
         }
+        case 'cult_leader': {
+            if (game.phase === 'day') {
+                return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
+            }
+            const nonCultMembers = potentialTargets.filter(p => !p.isCultMember);
+            return { actionType: 'cult_recruit', targetId: randomTarget(nonCultMembers) };
+        }
         default:
             if (game.phase === 'day') {
                 return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
@@ -1183,6 +1219,7 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
                 case 'guardian_protect':
                 case 'priest_bless':
                 case 'vampire_bite':
+                case 'cult_recruit':
                     await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
                     break;
                 case 'VOTE':
@@ -1449,6 +1486,7 @@ export async function resetGame(db: Firestore, gameId: string) {
                 princeRevealed: false,
                 guardianSelfProtects: 0,
                 biteCount: 0,
+                isCultMember: false,
             }));
 
             transaction.update(gameRef, {
@@ -1497,38 +1535,3 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
     return { success: false, error: (error as Error).message };
   }
 }
-    
-
-    
-
-
-
-
-    
-
-    
-
-
-
-
-      
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-
-
-
-    

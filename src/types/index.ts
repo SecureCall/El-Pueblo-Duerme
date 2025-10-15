@@ -120,9 +120,10 @@ export interface Player {
   princeRevealed?: boolean;
   guardianSelfProtects?: number;
   biteCount: number;
+  isCultMember: boolean;
 }
 
-export type NightActionType = "werewolf_kill" | "seer_check" | "doctor_heal" | "cupid_enchant" | "hechicera_poison" | "hechicera_save" | "guardian_protect" | "priest_bless" | "vampire_bite";
+export type NightActionType = "werewolf_kill" | "seer_check" | "doctor_heal" | "cupid_enchant" | "hechicera_poison" | "hechicera_save" | "guardian_protect" | "priest_bless" | "vampire_bite" | "cult_recruit";
 
 export interface NightAction {
     gameId: string;

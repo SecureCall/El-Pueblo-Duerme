@@ -39,13 +39,14 @@ export const PlayerSchema = z.object({
   princeRevealed: z.boolean().optional(),
   guardianSelfProtects: z.number().optional(),
   biteCount: z.number().optional(),
+  isCultMember: z.boolean().optional(),
 });
 
 export const NightActionSchema = z.object({
   gameId: z.string(),
   round: z.number(),
   playerId: z.string(),
-  actionType: z.enum(["werewolf_kill", "seer_check", "doctor_heal", "cupid_enchant", "hechicera_poison", "hechicera_save", "guardian_protect", "priest_bless", "vampire_bite"]),
+  actionType: z.enum(["werewolf_kill", "seer_check", "doctor_heal", "cupid_enchant", "hechicera_poison", "hechicera_save", "guardian_protect", "priest_bless", "vampire_bite", "cult_recruit"]),
   targetId: z.string(),
   createdAt: TimestampSchema,
 });

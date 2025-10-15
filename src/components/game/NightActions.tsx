@@ -37,6 +37,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
     const isHechicera = currentPlayer.role === 'hechicera';
     const isWerewolfTeam = currentPlayer.role === 'werewolf' || currentPlayer.role === 'wolf_cub';
     const isVampire = currentPlayer.role === 'vampire';
+    const isCultLeader = currentPlayer.role === 'cult_leader';
     
     // Check if potions have been used in any previous round or this round
     const hasUsedPoison = !!currentPlayer.potions?.poison;
@@ -81,6 +82,10 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             toast({ variant: 'destructive', title: 'Regla del Sacerdote', description: 'Ya te has bendecido a ti mismo una vez.' });
             return;
         }
+         if (isCultLeader && player.isCultMember) {
+            toast({ description: `${player.displayName} ya es parte de tu culto.` });
+            return;
+        }
 
 
         setSelectedPlayerIds(prev => {
@@ -109,6 +114,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             case 'priest': return 'priest_bless';
             case 'cupid': return 'cupid_enchant';
             case 'vampire': return 'vampire_bite';
+            case 'cult_leader': return 'cult_recruit';
             case 'hechicera':
                 if (hechiceraAction === 'poison') return 'hechicera_poison';
                 if (hechiceraAction === 'save') return 'hechicera_save';
@@ -149,6 +155,13 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         if (actionType === 'priest_bless' && selectedPlayerIds[0] === currentPlayer.userId && currentPlayer.priestSelfHealUsed) {
             toast({ variant: 'destructive', title: 'Regla del Sacerdote', description: 'Ya te has bendecido a ti mismo una vez.' });
             return;
+        }
+        if (actionType === 'cult_recruit') {
+            const targetPlayer = players.find(p => p.userId === selectedPlayerIds[0]);
+            if (targetPlayer?.isCultMember) {
+                toast({ description: `${targetPlayer.displayName} ya es parte de tu culto.` });
+                return;
+            }
         }
 
         setIsSubmitting(true);
@@ -202,6 +215,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             case 'cupid': return game.currentRound === 1 ? 'Elige a dos jugadores para que se enamoren.' : 'Tu flecha ya ha unido dos corazones.';
             case 'hechicera': return (hasPoison || hasSavePotion) ? 'Elige una poción y un objetivo.' : 'Has usado todas tus pociones.';
             case 'vampire': return 'Elige un jugador para morder y acercarte a tu victoria.';
+            case 'cult_leader': return 'Elige un nuevo miembro para unir a tu culto.';
             default: return 'No tienes acciones esta noche. Espera al amanecer.';
         }
     }
@@ -272,6 +286,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         currentPlayer.role === 'priest' ||
         isCupidFirstNight ||
         isVampire ||
+        isCultLeader ||
         (isHechicera && (hasPoison || hasSavePotion))
     );
 
@@ -299,6 +314,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                                 if (isCupidFirstNight) return true;
                                 if (isWerewolfTeam) return p.role !== 'werewolf' && p.role !== 'wolf_cub';
                                 if (isVampire) return p.role !== 'vampire';
+                                if (isCultLeader) return p.userId !== currentPlayer.userId && !p.isCultMember;
                                 if (p.userId === currentPlayer.userId) {
                                     // Allow self-selection for Priest (once) and Guardian (once)
                                     if (currentPlayer.role === 'priest' && !currentPlayer.priestSelfHealUsed) return true;
@@ -333,7 +349,3 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         </Card>
     );
 }
-
-    
-
-
