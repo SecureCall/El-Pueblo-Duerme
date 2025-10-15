@@ -274,24 +274,27 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
             }
             
             let finalPlayers = [...game.players];
+            // Create a set of existing names for quick, case-insensitive lookups.
             const usedNames = new Set(finalPlayers.map(p => p.displayName.toLowerCase()));
 
             if (game.settings.fillWithAI && finalPlayers.length < game.maxPlayers) {
                 const aiPlayerCount = game.maxPlayers - finalPlayers.length;
-                const availableAINames = AI_NAMES.filter(name => !usedNames.has(name.toLowerCase()));
 
                 for (let i = 0; i < aiPlayerCount; i++) {
                     const aiUserId = `ai_${Date.now()}_${i}`;
                     
-                    let aiName = availableAINames.shift() || AI_NAMES[i % AI_NAMES.length];
+                    // Choose a base name from the AI_NAMES list.
+                    const baseAiName = AI_NAMES[i % AI_NAMES.length];
+                    let finalAiName = baseAiName;
                     let nameSuffix = 2;
-                    let finalAiName = aiName;
 
+                    // Ensure the generated name is unique.
                     while (usedNames.has(finalAiName.toLowerCase())) {
-                        finalAiName = `${aiName} ${nameSuffix}`;
+                        finalAiName = `${baseAiName} ${nameSuffix}`;
                         nameSuffix++;
                     }
 
+                    // Add the unique name to the set and the player list.
                     usedNames.add(finalAiName.toLowerCase());
                     const aiPlayerData = createPlayerObject(aiUserId, gameId, finalAiName, true);
                     finalPlayers.push(aiPlayerData);
@@ -1717,6 +1720,7 @@ export async function sendGhostMessage(
         return { success: false, error: error.message || "No se pudo enviar el mensaje." };
     }
 }
+
 
 
 
