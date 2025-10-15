@@ -10,9 +10,10 @@ interface PhaseTimerProps {
     onTimerEnd: () => void;
     // Add key to force re-mount
     timerKey: string;
+    isCreator: boolean;
 }
 
-export function PhaseTimer({ game, onTimerEnd, timerKey }: PhaseTimerProps) {
+export function PhaseTimer({ game, onTimerEnd, timerKey, isCreator }: PhaseTimerProps) {
     const duration = (game.phase === 'day' ? 45 : 45); // Day and Night are both 45s
 
     const [timeLeft, setTimeLeft] = useState(duration);
@@ -33,7 +34,10 @@ export function PhaseTimer({ game, onTimerEnd, timerKey }: PhaseTimerProps) {
             setTimeLeft(prev => {
                 if (prev <= 1) {
                     clearInterval(interval);
-                    onTimerEndRef.current();
+                    // Only the creator should trigger the phase end action
+                    if (isCreator) {
+                        onTimerEndRef.current();
+                    }
                     return 0;
                 }
                 return prev - 1;
@@ -42,7 +46,7 @@ export function PhaseTimer({ game, onTimerEnd, timerKey }: PhaseTimerProps) {
 
         // Cleanup function to clear the interval when the component unmounts or the key changes.
         return () => clearInterval(interval);
-    }, [timerKey, duration]); 
+    }, [timerKey, duration, isCreator]); 
 
     if (duration <= 0) return null;
 
