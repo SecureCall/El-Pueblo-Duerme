@@ -463,11 +463,8 @@ function handleDrunkManWin(transaction: Transaction, gameRef: DocumentReference,
 
 // This function modifies the game state directly (pass by reference)
 function killPlayer(
-    transaction: Transaction,
-    gameRef: DocumentReference,
     gameData: Game,
-    playerIdsToKill: string[],
-    isVoteKill: boolean = false
+    playerIdsToKill: string[]
 ): { updatedGame: Game; triggeredHunterId: string | null; gameOver: boolean; } {
     let hunterTriggeredId: string | null = null;
     const killedThisTurn = new Set<string>();
@@ -487,14 +484,20 @@ function killPlayer(
 
         // **CRITICAL CHECK FOR DRUNK MAN**
         if (playerToKill.role === 'drunk_man' && gameData.settings.drunk_man) {
-            gameOver = handleDrunkManWin(transaction, gameRef, gameData, playerToKill);
-            if(gameOver) return { updatedGame: gameData, triggeredHunterId: null, gameOver: true };
+            // We can't call a transaction-based function here.
+            // We'll signal that the game is over and let the caller handle the transaction.
+            gameData.players[playerIndex].isAlive = false; // Mark as dead
+            gameOver = true; // Signal game over
+            return { updatedGame: gameData, triggeredHunterId: null, gameOver: true };
         }
         
         gameData.players[playerIndex].isAlive = false;
         killedThisTurn.add(playerId);
 
         // Check for special roles on death
+        if (playerToKill.role === 'seer') {
+            gameData.seerDied = true;
+        }
         if (playerToKill.role === 'hunter' && gameData.settings.hunter && gameData.phase !== 'hunter_shot') {
              hunterTriggeredId = playerToKill.userId;
         }
@@ -832,8 +835,14 @@ export async function processNight(db: Firestore, gameId: string) {
 
             // 3. APPLY KILLS AND CHECK FOR GAME OVER
             if (finalKilledPlayerIds.length > 0) {
-                const { gameOver } = killPlayer(transaction, gameRef, game, finalKilledPlayerIds, false);
-                if (gameOver) return; // killPlayer handled the game over state
+                const { gameOver } = killPlayer(game, finalKilledPlayerIds);
+                if (gameOver) {
+                    const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
+                    if (drunkPlayer) {
+                         handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
+                    }
+                    return; // Drunk man win handled, exit transaction.
+                }
             }
             
             // 4. Create Night Event
@@ -989,8 +998,14 @@ export async function processVotes(db: Firestore, gameId: string) {
       game.events.push(voteResultEvent);
 
       if (lynchedPlayerId) {
-          const { gameOver } = killPlayer(transaction, gameRef, game, [lynchedPlayerId], true);
-          if (gameOver) return; // Game over was handled
+          const { gameOver } = killPlayer(game, [lynchedPlayerId]);
+          if (gameOver) {
+            const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
+            if (drunkPlayer) {
+                handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
+            }
+            return;
+          }
       }
       
       const { isGameOver, message, winners } = checkGameOver(game);
@@ -1088,8 +1103,14 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             game.events = game.events || [];
             game.events.push(shotEvent);
             
-            const { gameOver } = killPlayer(transaction, gameRef, game, [targetId], true);
-            if (gameOver) return;
+            const { gameOver } = killPlayer(game, [targetId]);
+            if (gameOver) {
+                 const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
+                 if (drunkPlayer) {
+                    handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
+                 }
+                return;
+            }
             
             // This is a nested hunter shot, handle it and stop.
             if (game.phase === 'hunter_shot' && game.pendingHunterShot !== hunterId) {
@@ -1671,3 +1692,4 @@ export async function sendGhostMessage(
         return { success: false, error: error.message || "No se pudo enviar el mensaje." };
     }
 }
+
