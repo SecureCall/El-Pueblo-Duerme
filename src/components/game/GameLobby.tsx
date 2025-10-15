@@ -5,10 +5,11 @@ import type { Game, Player } from "@/types";
 import { PlayerCard } from "./PlayerCard";
 import { StartGameButton } from "./StartGameButton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
-import { Copy } from "lucide-react";
+import { Copy, Share2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { playNarration } from "@/lib/sounds";
+import { useEffect, useState } from "react";
 
 interface GameLobbyProps {
   game: Game;
@@ -18,6 +19,13 @@ interface GameLobbyProps {
 
 export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
   const { toast } = useToast();
+  const [canShare, setCanShare] = useState(false);
+
+  useEffect(() => {
+    if (navigator.share) {
+      setCanShare(true);
+    }
+  }, []);
 
   const copyGameId = () => {
     navigator.clipboard.writeText(game.id);
@@ -25,6 +33,32 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
       title: "ID de Partida Copiado",
       description: "¡Comparte el ID con tus amigos para que se unan!",
     });
+  };
+
+  const handleShare = async () => {
+    const shareUrl = `${window.location.origin}/game/${game.id}`;
+    const shareData = {
+      title: `¡Únete a mi partida de El Pueblo Duerme!`,
+      text: `Entra a la sala "${game.name}" con el ID: ${game.id}\nO usa este enlace:`,
+      url: shareUrl,
+    };
+
+    try {
+      await navigator.share(shareData);
+      toast({
+        title: "¡Enlace compartido!",
+      });
+    } catch (err) {
+      // This can happen if the user cancels the share dialog
+      if ((err as Error).name !== 'AbortError') {
+        console.error("Share failed:", err);
+        toast({
+          variant: "destructive",
+          title: "Error al compartir",
+          description: "No se pudo compartir el enlace. Puedes copiar el ID manualmente.",
+        });
+      }
+    }
   };
 
   const handleStartGame = () => {
@@ -46,7 +80,14 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
                 <p className="text-2xl font-bold tracking-widest bg-muted px-4 py-2 rounded-md font-mono">{game.id}</p>
                 <Button variant="ghost" size="icon" onClick={copyGameId}>
                     <Copy className="h-5 w-5" />
+                    <span className="sr-only">Copiar ID</span>
                 </Button>
+                 {canShare && (
+                  <Button variant="ghost" size="icon" onClick={handleShare}>
+                    <Share2 className="h-5 w-5" />
+                    <span className="sr-only">Compartir enlace</span>
+                  </Button>
+                )}
             </div>
         </CardContent>
       </Card>
