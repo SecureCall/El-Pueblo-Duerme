@@ -290,7 +290,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
               {getPhaseTitle()}
             </CardTitle>
           </div>
-           { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && game.phaseEndsAt && (
+          { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && game.phaseEndsAt && (
             <PhaseTimer 
                 game={game}
                 isCreator={game.creator === currentPlayer.userId}
