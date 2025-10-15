@@ -567,7 +567,11 @@ export async function processNight(db: Firestore, gameId: string) {
             if (!gameSnap.exists()) throw new Error("Game not found!");
             
             let game = gameSnap.data() as Game;
-            if (game.phase !== 'night') return; 
+            if (game.phase !== 'night') {
+                // Another process might have already handled this.
+                console.log("Skipping night process, phase is no longer 'night'.");
+                return;
+            }
             
             game.nightActions = game.nightActions || [];
             game.events = game.events || [];
@@ -643,7 +647,6 @@ export async function processNight(db: Firestore, gameId: string) {
                 }
             }
             
-            // This event is created here but might not be the final state if hunter is triggered
             const nightEvent: GameEvent = {
                 id: `evt_night_${game.currentRound}`, gameId, round: game.currentRound, type: 'night_result',
                 message: "Placeholder",
@@ -654,6 +657,7 @@ export async function processNight(db: Firestore, gameId: string) {
                 },
                 createdAt: Timestamp.now(),
             };
+            game.events.push(nightEvent); // Add event right away
             
             // 3. Apply Kills and check consequences
             if (finalKilledPlayerIds.length > 0) {
@@ -673,7 +677,6 @@ export async function processNight(db: Firestore, gameId: string) {
             }
             
             nightEvent.message = messages.join(' ') || "La noche transcurre en un inquietante silencio.";
-            game.events.push(nightEvent);
             
             // 4. Check for game over (after kills are applied)
             if (await checkGameOver(transaction, gameRef, game)) {
@@ -733,7 +736,11 @@ export async function processVotes(db: Firestore, gameId: string) {
             if (!gameSnap.exists()) throw new Error("Game not found");
             let game = gameSnap.data() as Game;
 
-            if (game.phase !== 'day' || game.status !== 'in_progress') return;
+            // LOCK: Check if the phase is still 'day'. If not, another process has already run.
+            if (game.phase !== 'day' || game.status !== 'in_progress') {
+                console.log("Skipping vote processing, phase is no longer 'day' or game is not in progress.");
+                return;
+            }
 
             // Ensure arrays exist
             game.events = game.events || [];
@@ -789,7 +796,6 @@ export async function processVotes(db: Firestore, gameId: string) {
                         };
                     }
                 } else {
-                    // This case should ideally not happen if votes are cast correctly
                     voteResultEvent = { id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: "La votación fue inconclusa.", data: { lynchedPlayerId: null }, createdAt: Timestamp.now() };
                 }
             } else {
@@ -804,12 +810,10 @@ export async function processVotes(db: Firestore, gameId: string) {
                 game = updatedGame; // game is updated with death info
             }
             
-            // **CRITICAL CHANGE**: Check for game over *after* all consequences of the vote.
             if (await checkGameOver(transaction, gameRef, game)) {
-                 return; // Cortocircuito: La partida ha terminado, no continuar.
+                 return; // SHORT-CIRCUIT: Game is over, transaction is committed by checkGameOver. Do not continue.
             }
             
-            // If the game is not over, proceed to the next phase.
             if (game.phase === 'hunter_shot') {
                transaction.update(gameRef, { 
                     players: game.players,
@@ -817,7 +821,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                     phase: 'hunter_shot',
                     pendingHunterShot: game.pendingHunterShot,
                 });
-               return; // Cortocircuito: Esperar al disparo del cazador.
+               return; // SHORT-CIRCUIT: Wait for hunter to shoot.
             }
 
             // Prepare for next night
@@ -906,7 +910,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             game = updatedGame;
             
             // This is a nested hunter shot, handle it and stop.
-            if (game.phase === 'hunter_shot') {
+            if (game.phase === 'hunter_shot' && game.pendingHunterShot !== hunterId) {
                 transaction.update(gameRef, { 
                     players: game.players,
                     events: game.events,

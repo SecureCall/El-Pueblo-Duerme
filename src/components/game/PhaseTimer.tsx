@@ -13,8 +13,8 @@ interface PhaseTimerProps {
 }
 
 export function PhaseTimer({ game, onTimerEnd, timerKey }: PhaseTimerProps) {
-    const { userId } = useGameSession();
-    const isCreator = game.creator === userId;
+    // Note: The isCreator check is now removed from here and handled robustly in the backend functions.
+    // Any player can now trigger the onTimerEnd function.
     const duration = (game.phase === 'day' ? 90 : (game.phase === 'night' ? 60 : 0));
 
     const [timeLeft, setTimeLeft] = useState(duration);
@@ -35,10 +35,9 @@ export function PhaseTimer({ game, onTimerEnd, timerKey }: PhaseTimerProps) {
             setTimeLeft(prev => {
                 if (prev <= 1) {
                     clearInterval(interval);
-                    // CRITICAL FIX: Only the creator should trigger the end of the phase.
-                    if (isCreator) {
-                        onTimerEndRef.current();
-                    }
+                    // ANY player can now trigger this. The backend (e.g., processVotes)
+                    // will handle making sure the action only runs once.
+                    onTimerEndRef.current();
                     return 0;
                 }
                 return prev - 1;
@@ -47,7 +46,7 @@ export function PhaseTimer({ game, onTimerEnd, timerKey }: PhaseTimerProps) {
 
         // Cleanup function to clear the interval when the component unmounts or the key changes.
         return () => clearInterval(interval);
-    }, [timerKey, duration, isCreator]); // Depend on the key and isCreator status
+    }, [timerKey, duration]); // Dependency array no longer needs isCreator
 
     if (duration <= 0) return null;
 
