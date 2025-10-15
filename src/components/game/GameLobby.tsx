@@ -24,7 +24,7 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
 
   useEffect(() => {
     // navigator.share is only available in secure contexts (HTTPS)
-    if (navigator.share) {
+    if (typeof navigator !== 'undefined' && navigator.share) {
       setCanShare(true);
     }
   }, []);
@@ -43,6 +43,8 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
 
 
   const handleShare = async () => {
+    if (!canShare) return;
+
     const shareData = {
       title: `¡Únete a mi partida de El Pueblo Duerme!`,
       text: shareText,
@@ -56,9 +58,10 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
       });
     } catch (err) {
       // The AbortError is thrown when the user cancels the share dialog.
-      // We should not show an error message in that case.
-      if (err instanceof Error && err.name === 'AbortError') {
-        console.log('Share action was cancelled by the user.');
+      // The NotAllowedError is thrown if the browser denies the request for other reasons.
+      // In both cases, we should not show an error message to the user.
+      if (err instanceof Error && (err.name === 'AbortError' || err.name === 'NotAllowedError')) {
+        console.log(`Share action was not completed: ${err.name}`);
       } else {
         console.error("Share failed:", err);
         toast({
