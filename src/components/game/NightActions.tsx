@@ -46,7 +46,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
     const isFisherman = currentPlayer.role === 'fisherman';
     const isSilencer = currentPlayer.role === 'silencer';
     const isElderLeader = currentPlayer.role === 'elder_leader';
-    const isBanshee = currentPlayer.role === 'banshee' && !currentPlayer.bansheeScreams?.[game.currentRound];
+    const isBanshee = currentPlayer.role === 'banshee' && Object.keys(currentPlayer.bansheeScreams || {}).length < 2;
 
     // Check if potions have been used in any previous round or this round
     const hasUsedPoison = !!currentPlayer.potions?.poison;
@@ -246,7 +246,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             case 'elder_leader': return 'Elige a un jugador para exiliarlo la próxima noche (no podrá usar habilidades).';
             case 'seer_apprentice': return apprenticeIsActive ? 'La vidente ha muerto. Has heredado su don. Elige a quién investigar.' : 'Aún eres un aprendiz. Espera tu momento.';
             case 'witch': return game.witchFoundSeer ? 'Has encontrado a la vidente. Los lobos te protegerán.' : 'Busca a la vidente entre los jugadores.';
-            case 'banshee': return isBanshee ? 'Lanza tu grito y sentencia a un jugador.' : 'Ya has usado tu grito esta noche o en esta partida.';
+            case 'banshee': return isBanshee ? 'Lanza tu grito y sentencia a un jugador.' : 'Ya has usado tus dos gritos en esta partida.';
             default: return 'No tienes acciones esta noche. Espera al amanecer.';
         }
     }

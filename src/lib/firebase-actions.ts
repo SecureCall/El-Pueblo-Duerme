@@ -464,7 +464,8 @@ function killPlayer(
     transaction: Transaction,
     gameRef: DocumentReference,
     gameData: Game,
-    playerIdsToKill: string[]
+    playerIdsToKill: string[],
+    isVoteKill: boolean = false
 ): { updatedGame: Game; triggeredHunterId: string | null; gameOver: boolean; } {
     let hunterTriggeredId: string | null = null;
     const killedThisTurn = new Set<string>();
@@ -483,7 +484,7 @@ function killPlayer(
         const playerToKill = { ...gameData.players[playerIndex] };
 
         // **CRITICAL CHECK FOR DRUNK MAN**
-        if (playerToKill.role === 'drunk_man' && gameData.settings.drunk_man) {
+        if (isVoteKill && playerToKill.role === 'drunk_man' && gameData.settings.drunk_man) {
             gameOver = handleDrunkManWin(transaction, gameRef, gameData, playerToKill);
             if(gameOver) return { updatedGame: gameData, triggeredHunterId: null, gameOver: true };
         }
@@ -810,7 +811,7 @@ export async function processNight(db: Firestore, gameId: string) {
 
             // 3. APPLY KILLS AND CHECK FOR GAME OVER
             if (finalKilledPlayerIds.length > 0) {
-                const { gameOver } = killPlayer(transaction, gameRef, game, finalKilledPlayerIds);
+                const { gameOver } = killPlayer(transaction, gameRef, game, finalKilledPlayerIds, false);
                 if (gameOver) return; // killPlayer handled the game over state
             }
             
@@ -967,7 +968,7 @@ export async function processVotes(db: Firestore, gameId: string) {
       game.events.push(voteResultEvent);
 
       if (lynchedPlayerId) {
-          const { gameOver } = killPlayer(transaction, gameRef, game, [lynchedPlayerId]);
+          const { gameOver } = killPlayer(transaction, gameRef, game, [lynchedPlayerId], true);
           if (gameOver) return; // Game over was handled
       }
       
@@ -1066,7 +1067,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             game.events = game.events || [];
             game.events.push(shotEvent);
             
-            const { gameOver } = killPlayer(transaction, gameRef, game, [targetId]);
+            const { gameOver } = killPlayer(transaction, gameRef, game, [targetId], true);
             if (gameOver) return;
             
             // This is a nested hunter shot, handle it and stop.
