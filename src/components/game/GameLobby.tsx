@@ -10,7 +10,7 @@ import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { playNarration } from "@/lib/sounds";
 import { useEffect, useState } from "react";
-import { WhatsappIcon } from "../icons";
+import Image from "next/image";
 
 interface GameLobbyProps {
   game: Game;
@@ -92,7 +92,7 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      <WhatsappIcon className="h-6 w-6" />
+                      <Image src="/whatsapp.png" alt="Compartir por WhatsApp" width={24} height={24} />
                       <span className="sr-only">Compartir por WhatsApp</span>
                    </a>
                 </Button>
