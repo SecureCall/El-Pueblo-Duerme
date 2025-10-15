@@ -47,6 +47,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     priestSelfHealUsed: false,
     princeRevealed: false,
     guardianSelfProtects: 0,
+    biteCount: 0,
 });
 
 
@@ -90,6 +91,7 @@ export async function createGame(
       twins: null,
       wolfCubRevengeRound: 0,
       nightActions: [],
+      vampireKills: 0,
   };
   
   try {
@@ -490,7 +492,8 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
     const alivePlayers = gameData.players.filter(p => p.isAlive);
     const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
     const aliveWerewolves = alivePlayers.filter(p => wolfRoles.includes(p.role));
-    const aliveVillagers = alivePlayers.filter(p => !wolfRoles.includes(p.role));
+    const aliveVillagers = alivePlayers.filter(p => !wolfRoles.includes(p.role) && p.role !== 'vampire');
+    const aliveVampire = alivePlayers.find(p => p.role === 'vampire');
 
     // Condition 1: Lovers Win (only 2 players left and they are the lovers)
     if (gameData.lovers && alivePlayers.length === 2 && alivePlayers.every(p => gameData.lovers!.includes(p.userId))) {
@@ -503,7 +506,16 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
         };
     }
     
-    // Condition 2: Werewolves Win (number of werewolves is equal or greater than villagers)
+    // Condition 2: Vampire wins
+    if (aliveVampire && gameData.vampireKills >= 3) {
+        return {
+            isGameOver: true,
+            message: '¡El Vampiro ha ganado! Ha reclamado sus tres víctimas y ahora reina en la oscuridad.',
+            winners: [aliveVampire.userId]
+        };
+    }
+
+    // Condition 3: Werewolves Win (number of werewolves is equal or greater than villagers)
     if (aliveWerewolves.length > 0 && aliveWerewolves.length >= aliveVillagers.length) {
         return {
             isGameOver: true,
@@ -512,16 +524,16 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
         };
     }
     
-    // Condition 3: Villagers Win (no werewolves left)
-    if (aliveWerewolves.length === 0 && alivePlayers.length > 0) {
+    // Condition 4: Villagers Win (no threats left)
+    if (aliveWerewolves.length === 0 && !aliveVampire && alivePlayers.length > 0) {
         return {
             isGameOver: true,
-            message: "¡El pueblo ha ganado! Todos los hombres lobo han sido eliminados.",
+            message: "¡El pueblo ha ganado! Todas las amenazas han sido eliminadas.",
             winners: aliveVillagers.map(p => p.userId)
         };
     }
     
-    // Condition 4: Draw (no one left alive)
+    // Condition 5: Draw (no one left alive)
     if (alivePlayers.length === 0) {
         return {
             isGameOver: true,
@@ -567,7 +579,23 @@ export async function processNight(db: Firestore, gameId: string) {
             const allProtectedIds = new Set([savedByDoctorId, savedByHechiceraId, savedByGuardianId, savedByPriestId].filter(Boolean) as string[]);
             savedPlayerIds = Array.from(allProtectedIds);
 
-            // 1. Process Werewolf Attack
+            // 1. Process Vampire Bites
+            const vampireAction = actions.find(a => a.actionType === 'vampire_bite');
+            if (vampireAction?.targetId) {
+                const targetIndex = game.players.findIndex(p => p.userId === vampireAction.targetId);
+                if (targetIndex > -1) {
+                    game.players[targetIndex].biteCount = (game.players[targetIndex].biteCount || 0) + 1;
+                    if (game.players[targetIndex].biteCount >= 3) {
+                        if (!allProtectedIds.has(vampireAction.targetId)) {
+                             finalKilledPlayerIds.push(vampireAction.targetId);
+                             game.vampireKills = (game.vampireKills || 0) + 1;
+                        }
+                    }
+                }
+            }
+
+
+            // 2. Process Werewolf Attack
             const werewolfVotes = actions.filter(a => a.actionType === 'werewolf_kill');
             let wasSomeoneAttackedByWolves = werewolfVotes.length > 0;
             if (wasSomeoneAttackedByWolves) {
@@ -610,7 +638,7 @@ export async function processNight(db: Firestore, gameId: string) {
                 }
             }
             
-            // 2. Process Hechicera Poison
+            // 3. Process Hechicera Poison
             const poisonAction = actions.find(a => a.actionType === 'hechicera_poison');
             if (poisonAction?.targetId && !finalKilledPlayerIds.includes(poisonAction.targetId)) {
                 const targetPlayer = game.players.find(p => p.userId === poisonAction.targetId);
@@ -620,13 +648,13 @@ export async function processNight(db: Firestore, gameId: string) {
                 }
             }
 
-            // 3. Apply Kills
+            // 4. Apply Kills
             if (finalKilledPlayerIds.length > 0) {
                 const { updatedGame } = killPlayer(game, finalKilledPlayerIds);
                 game = updatedGame; // game is now updated with deaths
             }
             
-            // 4. Create Night Event
+            // 5. Create Night Event
             const nightEvent: GameEvent = {
                 id: `evt_night_${game.currentRound}`, gameId, round: game.currentRound, type: 'night_result',
                 message: '', // Will be filled in next
@@ -642,14 +670,14 @@ export async function processNight(db: Firestore, gameId: string) {
 
             if (killedPlayerNamesAndRoles.length > 0) {
                 nightEvent.message = `Anoche, el pueblo perdió a ${killedPlayerNamesAndRoles.join(' y a ')}.`;
-            } else if (wasSomeoneAttackedByWolves || poisonAction) {
+            } else if (wasSomeoneAttackedByWolves || poisonAction || vampireAction) {
                  nightEvent.message = "Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!";
             } else {
                  nightEvent.message = "La noche transcurre en un inquietante silencio. Nadie ha muerto.";
             }
             game.events.push(nightEvent);
             
-            // 5. Check for game over state
+            // 6. Check for game over state
             const { isGameOver, message, winners } = checkGameOver(game);
             if (isGameOver) {
                 const gameOverEvent: GameEvent = {
@@ -667,22 +695,24 @@ export async function processNight(db: Firestore, gameId: string) {
                     players: game.players,
                     events: arrayUnion(gameOverEvent, ...game.events.filter(e => e.id.startsWith('evt_lover_death'))),
                     pendingHunterShot: null,
+                    vampireKills: game.vampireKills,
                 });
                 return; // Stop execution
             }
 
-            // 6. If hunter was triggered, stop and transition to hunter_shot phase
+            // 7. If hunter was triggered, stop and transition to hunter_shot phase
             if (game.phase === 'hunter_shot') {
                 transaction.update(gameRef, { 
                     players: game.players,
                     events: game.events,
                     phase: 'hunter_shot',
-                    pendingHunterShot: game.pendingHunterShot
+                    pendingHunterShot: game.pendingHunterShot,
+                    vampireKills: game.vampireKills,
                 });
                 return;
             }
 
-            // 7. Transition to next phase (day)
+            // 8. Transition to next phase (day)
             game.players.forEach(p => p.votedFor = null);
             
             const updates = {
@@ -692,6 +722,7 @@ export async function processNight(db: Firestore, gameId: string) {
               chatMessages: [], 
               wolfCubRevengeRound: game.wolfCubRevengeRound === game.currentRound ? 0 : game.wolfCubRevengeRound,
               pendingHunterShot: null,
+              vampireKills: game.vampireKills,
             };
 
             transaction.update(gameRef, updates);
@@ -1042,6 +1073,14 @@ const getDeterministicAIAction = (
             }
             return { actionType: 'priest_bless', targetId: randomTarget(potentialTargets) };
         }
+         case 'vampire': {
+            if (game.phase === 'day') {
+                return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
+            }
+            // Vampire bites someone they haven't bitten 3 times yet
+            const biteableTargets = potentialTargets.filter(p => (p.biteCount || 0) < 3);
+            return { actionType: 'vampire_bite', targetId: randomTarget(biteableTargets.length > 0 ? biteableTargets : potentialTargets) };
+        }
         default:
             if (game.phase === 'day') {
                 return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
@@ -1093,6 +1132,7 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
                 case 'doctor_heal':
                 case 'guardian_protect':
                 case 'priest_bless':
+                case 'vampire_bite':
                     await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
                     break;
                 case 'VOTE':
@@ -1357,7 +1397,8 @@ export async function resetGame(db: Firestore, gameId: string) {
                 potions: { poison: null, save: null },
                 priestSelfHealUsed: false,
                 princeRevealed: false,
-                guardianSelfProtects: 0, // Reset guardian self protects
+                guardianSelfProtects: 0,
+                biteCount: 0,
             }));
 
             transaction.update(gameRef, {
@@ -1372,6 +1413,7 @@ export async function resetGame(db: Firestore, gameId: string) {
                 pendingHunterShot: null,
                 wolfCubRevengeRound: 0,
                 players: resetHumanPlayers, 
+                vampireKills: 0,
             });
         });
         return { success: true };

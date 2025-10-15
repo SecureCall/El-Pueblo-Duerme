@@ -32,10 +32,15 @@ export function GameOver({ game, event, players }: GameOverProps) {
     useEffect(() => {
         if (event) {
             const villagersWon = event.message.includes('pueblo ha ganado');
+            const wolvesWon = event.message.includes('lobos han ganado');
+            const vampireWon = event.message.includes('Vampiro ha ganado');
+
             if (villagersWon) {
                 playNarration('victoria_aldeanos.mp3');
-            } else {
+            } else if (wolvesWon) {
                 playNarration('victoria_lobos.mp3');
+            } else if (vampireWon) {
+                 playNarration('el vampiro ha ganado .mp3');
             }
         }
     }, [event]);

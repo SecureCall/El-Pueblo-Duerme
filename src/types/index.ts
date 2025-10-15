@@ -99,6 +99,7 @@ export interface Game {
   pendingHunterShot: string | null; // userId of the hunter who needs to shoot
   wolfCubRevengeRound: number; // The round where werewolves get an extra kill
   nightActions?: NightAction[];
+  vampireKills: number;
 }
 
 export interface Player {
@@ -118,9 +119,10 @@ export interface Player {
   priestSelfHealUsed?: boolean;
   princeRevealed?: boolean;
   guardianSelfProtects?: number;
+  biteCount: number;
 }
 
-export type NightActionType = "werewolf_kill" | "seer_check" | "doctor_heal" | "cupid_enchant" | "hechicera_poison" | "hechicera_save" | "guardian_protect" | "priest_bless";
+export type NightActionType = "werewolf_kill" | "seer_check" | "doctor_heal" | "cupid_enchant" | "hechicera_poison" | "hechicera_save" | "guardian_protect" | "priest_bless" | "vampire_bite";
 
 export interface NightAction {
     gameId: string;

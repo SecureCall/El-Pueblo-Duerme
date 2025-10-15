@@ -38,13 +38,14 @@ export const PlayerSchema = z.object({
   priestSelfHealUsed: z.boolean().optional(),
   princeRevealed: z.boolean().optional(),
   guardianSelfProtects: z.number().optional(),
+  biteCount: z.number().optional(),
 });
 
 export const NightActionSchema = z.object({
   gameId: z.string(),
   round: z.number(),
   playerId: z.string(),
-  actionType: z.enum(["werewolf_kill", "seer_check", "doctor_heal", "cupid_enchant", "hechicera_poison", "hechicera_save", "guardian_protect", "priest_bless"]),
+  actionType: z.enum(["werewolf_kill", "seer_check", "doctor_heal", "cupid_enchant", "hechicera_poison", "hechicera_save", "guardian_protect", "priest_bless", "vampire_bite"]),
   targetId: z.string(),
   createdAt: TimestampSchema,
 });
@@ -123,6 +124,7 @@ export const GameSchema = z.object({
   pendingHunterShot: z.string().nullable(),
   wolfCubRevengeRound: z.number(),
   nightActions: z.array(NightActionSchema).optional(),
+  vampireKills: z.number().optional(),
 });
 
 export const AIPlayerPerspectiveSchema = z.object({

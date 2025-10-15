@@ -36,6 +36,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
     const isCupidFirstNight = currentPlayer.role === 'cupid' && game.currentRound === 1;
     const isHechicera = currentPlayer.role === 'hechicera';
     const isWerewolfTeam = currentPlayer.role === 'werewolf' || currentPlayer.role === 'wolf_cub';
+    const isVampire = currentPlayer.role === 'vampire';
     
     // Check if potions have been used in any previous round or this round
     const hasUsedPoison = !!currentPlayer.potions?.poison;
@@ -60,6 +61,10 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
 
         // Role-specific selection logic
         if (isWerewolfTeam && (player.role === 'werewolf' || player.role === 'wolf_cub')) return;
+        if (isVampire && (player.biteCount || 0) >= 3) {
+            toast({ variant: 'destructive', title: 'Regla del Vampiro', description: 'Esta persona ya no tiene más sangre que dar.' });
+            return;
+        }
         if (currentPlayer.role === 'doctor' && player.lastHealedRound === game.currentRound - 1) {
             toast({ variant: 'destructive', title: 'Regla del Doctor', description: 'No puedes proteger a la misma persona dos noches seguidas.' });
             return;
@@ -103,6 +108,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             case 'guardian': return 'guardian_protect';
             case 'priest': return 'priest_bless';
             case 'cupid': return 'cupid_enchant';
+            case 'vampire': return 'vampire_bite';
             case 'hechicera':
                 if (hechiceraAction === 'poison') return 'hechicera_poison';
                 if (hechiceraAction === 'save') return 'hechicera_save';
@@ -195,6 +201,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             case 'priest': return 'Elige a un jugador para otorgarle tu bendición y protegerlo de todo mal.';
             case 'cupid': return game.currentRound === 1 ? 'Elige a dos jugadores para que se enamoren.' : 'Tu flecha ya ha unido dos corazones.';
             case 'hechicera': return (hasPoison || hasSavePotion) ? 'Elige una poción y un objetivo.' : 'Has usado todas tus pociones.';
+            case 'vampire': return 'Elige un jugador para morder y acercarte a tu victoria.';
             default: return 'No tienes acciones esta noche. Espera al amanecer.';
         }
     }
@@ -264,6 +271,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         currentPlayer.role === 'guardian' ||
         currentPlayer.role === 'priest' ||
         isCupidFirstNight ||
+        isVampire ||
         (isHechicera && (hasPoison || hasSavePotion))
     );
 
@@ -290,11 +298,12 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                             players={players.filter(p => {
                                 if (isCupidFirstNight) return true;
                                 if (isWerewolfTeam) return p.role !== 'werewolf' && p.role !== 'wolf_cub';
+                                if (isVampire) return p.role !== 'vampire';
                                 if (p.userId === currentPlayer.userId) {
                                     // Allow self-selection for Priest (once) and Guardian (once)
                                     if (currentPlayer.role === 'priest' && !currentPlayer.priestSelfHealUsed) return true;
                                     if (currentPlayer.role === 'guardian' && (currentPlayer.guardianSelfProtects || 0) < 1) return true;
-                                    return false; // Hechicera cannot self-save, Doctor cannot self-heal (usually)
+                                    return false; // Hechicera cannot self-save, Doctor cannot self-heal (usually), Vampire cannot self-bite
                                 }
                                 return true;
                             })}
@@ -326,4 +335,5 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
 }
 
     
+
 
