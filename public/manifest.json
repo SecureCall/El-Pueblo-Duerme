@@ -1,58 +1,74 @@
 {
   "name": "El Pueblo Duerme",
-  "short_name": "PuebloDuerme",
+  "short_name": "Pueblo Duerme",
   "description": "Un juego de misterio, engaño y supervivencia. Descubre a los lobos antes de que sea tarde.",
   "start_url": "/",
   "display": "standalone",
-  "orientation": "portrait",
   "background_color": "#1c1917",
   "theme_color": "#1c1917",
+  "orientation": "portrait-primary",
   "id": "/?source=pwa",
-  "categories": ["games", "entertainment", "strategy"],
   "icons": [
     {
-      "src": "logo.png",
+      "src": "/logo.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "logo_512.png",
+      "src": "/logo.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }
   ],
-  "screenshots": [
-    {
-      "src": "/screenshot1.png",
-      "type": "image/png",
-      "sizes": "1080x1920",
-      "form_factor": "narrow"
-    },
-    {
-      "src": "/screenshot2.png",
-      "type": "image/png",
-      "sizes": "1080x1920",
-      "form_factor": "narrow"
-    },
-    {
-      "src": "/screenshot3.png",
-      "type": "image/png",
-      "sizes": "1080x1920",
-      "form_factor": "narrow"
-    }
+  "categories": [
+    "games"
   ],
   "shortcuts": [
     {
-      "name": "Crear Partida",
+      "name": "Crear Nueva Partida",
+      "short_name": "Crear",
+      "description": "Inicia una nueva partida y configura las reglas.",
       "url": "/create",
-      "description": "Inicia una nueva partida y configura las reglas."
+      "icons": [
+        {
+          "src": "/logo.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "Cómo Jugar",
+      "short_name": "Reglas",
+      "description": "Aprende las reglas y los roles de El Pueblo Duerme.",
       "url": "/how-to-play",
-      "description": "Aprende las reglas y los roles de El Pueblo Duerme."
+      "icons": [
+        {
+          "src": "/logo.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshot1.png",
+      "type": "image/png",
+      "sizes": "1080x1920",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "screenshot2.png",
+      "type": "image/png",
+      "sizes": "1080x1920",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "screenshot3.png",
+      "type": "image/png",
+      "sizes": "1080x1920",
+      "form_factor": "narrow"
     }
   ]
 }
