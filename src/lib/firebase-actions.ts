@@ -505,8 +505,8 @@ function killPlayer(
 
         // Check for lover's death
         if (gameData.lovers?.includes(playerToKill.userId)) {
-            const otherLoverId = gameData.lovers.find(id => id !== playerToKill.userId)!;
-            if (!killedThisTurn.has(otherLoverId)) {
+            const otherLoverId = gameData.lovers.find(id => id !== playerToKill.userId);
+            if (otherLoverId && !killedThisTurn.has(otherLoverId)) {
                 const otherLover = gameData.players.find(p => p.userId === otherLoverId);
                 
                 gameData.events.push({
@@ -524,7 +524,7 @@ function killPlayer(
 
         // Check for Virginia Woolf's linked player
         const virginiaLink = gameData.players.find(p => p.role === 'virginia_woolf' && p.virginiaWoolfTargetId && p.userId === playerToKill.userId);
-        if (virginiaLink && !killedThisTurn.has(virginiaLink.virginiaWoolfTargetId!)) {
+        if (virginiaLink && virginiaLink.virginiaWoolfTargetId && !killedThisTurn.has(virginiaLink.virginiaWoolfTargetId)) {
             const linkedPlayer = gameData.players.find(p => p.userId === virginiaLink.virginiaWoolfTargetId);
             gameData.events.push({
                 id: `evt_virginia_${Date.now()}_${linkedPlayer?.userId}`,
