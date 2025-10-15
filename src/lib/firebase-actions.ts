@@ -155,13 +155,10 @@ export async function joinGame(
       }
       
       const playerExists = game.players.some(p => p.userId === userId);
-      
-      if (!playerExists) {
-        // Stricter name check
-        const nameExists = game.players.some(p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase());
-        if (nameExists) {
-          throw new Error("Ese nombre ya está en uso en esta partida.");
-        }
+      const nameExists = game.players.some(p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase() && p.userId !== userId);
+
+      if (nameExists) {
+        throw new Error("Ese nombre ya está en uso en esta partida.");
       }
 
       if (game.players.length >= game.maxPlayers && !playerExists) {
@@ -173,6 +170,14 @@ export async function joinGame(
         transaction.update(gameRef, {
           players: arrayUnion(newPlayer),
         });
+      } else {
+        // Player exists, check if they are changing their name to a valid one
+        const currentPlayers = game.players;
+        const playerIndex = currentPlayers.findIndex(p => p.userId === userId);
+        if (playerIndex !== -1 && currentPlayers[playerIndex].displayName !== displayName) {
+          currentPlayers[playerIndex].displayName = displayName.trim();
+          transaction.update(gameRef, { players: currentPlayers });
+        }
       }
     });
 
@@ -354,7 +359,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
             throw new Error("Ya te has bendecido a ti mismo una vez.");
         }
         if (action.actionType === 'guardian_protect' && action.targetId === action.playerId && (player.guardianSelfProtects || 0) >= 1) {
-             throw new Error("Solo puedes protegerte a ti mismo una vez por partida.");
+             throw new Error("Solo puedes protegerte a ti mismo una vez.");
         }
         
         // Remove previous actions for this player this round
@@ -860,7 +865,7 @@ export async function processNight(db: Firestore, gameId: string) {
                  if (fishermanDied) {
                     nightEvent.message += ` El Pescador eligió a un lobo y murió.`;
                 }
-            } else if (game.leprosaBlockedRound === game.currentRound + 1) {
+            } else if (game.leprosaBlockedRound === game.currentRound) {
                 nightEvent.message = "Gracias a la Leprosa, los lobos no pudieron atacar esta noche. Nadie murió.";
             } else if (actions.some(a => a.actionType === 'werewolf_kill' || a.actionType === 'hechicera_poison' || a.actionType === 'vampire_bite')) {
                  nightEvent.message = "Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!";
@@ -1149,7 +1154,8 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds)
                 .find(e => 
                     (e.type === 'vote_result' && e.data?.lynchedPlayerId === hunterId) ||
-                    (e.type === 'night_result' && e.data?.killedPlayerIds?.includes(hunterId))
+                    (e.type === 'night_result' && e.data?.killedPlayerIds?.includes(hunterId)) ||
+                    (e.type === 'lover_death' && e.data?.killedPlayerId === hunterId)
                 );
 
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
@@ -1692,4 +1698,5 @@ export async function sendGhostMessage(
         return { success: false, error: error.message || "No se pudo enviar el mensaje." };
     }
 }
+
 
