@@ -1,73 +1,58 @@
 {
   "name": "El Pueblo Duerme",
-  "short_name": "Pueblo Duerme",
-  "description": "Un juego de misterio, engaño y supervivencia.",
+  "short_name": "PuebloDuerme",
+  "description": "Un juego de misterio, engaño y supervivencia. Descubre a los lobos antes de que sea tarde.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#121212",
+  "orientation": "portrait",
+  "background_color": "#1c1917",
   "theme_color": "#1c1917",
-  "orientation": "portrait-primary",
   "id": "/?source=pwa",
-  "scope": "/",
-  "categories": [
-    "games"
-  ],
-  "shortcuts": [
-    {
-      "name": "Crear Partida",
-      "short_name": "Crear",
-      "description": "Iniciar una nueva sala de juego",
-      "url": "/create",
-      "icons": [
-        {
-          "src": "/logo_192.png",
-          "sizes": "192x192"
-        }
-      ]
-    },
-    {
-      "name": "Cómo Jugar",
-      "short_name": "Reglas",
-      "description": "Leer las reglas del juego",
-      "url": "/how-to-play",
-      "icons": [
-        {
-          "src": "/logo_192.png",
-          "sizes": "192x192"
-        }
-      ]
-    }
-  ],
+  "categories": ["games", "entertainment", "strategy"],
   "icons": [
     {
-      "src": "logo_192.png",
+      "src": "logo.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "logo_512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
   "screenshots": [
     {
-      "src": "/screenshots/screenshot1.png",
+      "src": "/screenshot1.png",
       "type": "image/png",
       "sizes": "1080x1920",
       "form_factor": "narrow"
     },
     {
-      "src": "/screenshots/screenshot2.png",
+      "src": "/screenshot2.png",
       "type": "image/png",
       "sizes": "1080x1920",
       "form_factor": "narrow"
     },
     {
-      "src": "/screenshots/screenshot3.png",
+      "src": "/screenshot3.png",
       "type": "image/png",
       "sizes": "1080x1920",
       "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Crear Partida",
+      "url": "/create",
+      "description": "Inicia una nueva partida y configura las reglas."
+    },
+    {
+      "name": "Cómo Jugar",
+      "url": "/how-to-play",
+      "description": "Aprende las reglas y los roles de El Pueblo Duerme."
     }
   ]
 }
