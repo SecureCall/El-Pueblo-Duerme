@@ -34,6 +34,7 @@ export function GameOver({ game, event, players }: GameOverProps) {
             const villagersWon = event.message.includes('pueblo ha ganado');
             const wolvesWon = event.message.includes('lobos han ganado');
             const vampireWon = event.message.includes('Vampiro ha ganado');
+            const drunkWon = event.message.includes('Hombre Ebrio ha ganado');
 
             if (villagersWon) {
                 playNarration('victoria_aldeanos.mp3');
@@ -41,6 +42,8 @@ export function GameOver({ game, event, players }: GameOverProps) {
                 playNarration('victoria_lobos.mp3');
             } else if (vampireWon) {
                  playNarration('el vampiro ha ganado .mp3');
+            } else if (drunkWon) {
+                playNarration('ganador el ebrio.mp3');
             }
         }
     }, [event]);

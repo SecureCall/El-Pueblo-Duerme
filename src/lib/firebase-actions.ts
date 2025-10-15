@@ -492,7 +492,7 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
     const alivePlayers = gameData.players.filter(p => p.isAlive);
     const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
     const aliveWerewolves = alivePlayers.filter(p => wolfRoles.includes(p.role));
-    const aliveVillagers = alivePlayers.filter(p => !wolfRoles.includes(p.role) && p.role !== 'vampire');
+    const aliveVillagers = alivePlayers.filter(p => !wolfRoles.includes(p.role) && p.role !== 'vampire' && p.role !== 'drunk_man');
     const aliveVampire = alivePlayers.find(p => p.role === 'vampire');
 
     // Condition 1: Lovers Win (only 2 players left and they are the lovers)
@@ -507,7 +507,7 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
     }
     
     // Condition 2: Vampire wins
-    if (aliveVampire && gameData.vampireKills >= 3) {
+    if (aliveVampire && (gameData.vampireKills || 0) >= 3) {
         return {
             isGameOver: true,
             message: '¡El Vampiro ha ganado! Ha reclamado sus tres víctimas y ahora reina en la oscuridad.',
@@ -525,7 +525,8 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
     }
     
     // Condition 4: Villagers Win (no threats left)
-    if (aliveWerewolves.length === 0 && !aliveVampire && alivePlayers.length > 0) {
+    const threats = aliveWerewolves.length + (aliveVampire ? 1 : 0);
+    if (threats === 0 && alivePlayers.length > 0) {
         return {
             isGameOver: true,
             message: "¡El pueblo ha ganado! Todas las amenazas han sido eliminadas.",
@@ -624,6 +625,18 @@ export async function processNight(db: Firestore, gameId: string) {
 
                     if (!targetPlayer) continue;
 
+                    // Drunk Man Win Condition
+                    if (targetPlayer.role === 'drunk_man' && game.settings.drunk_man) {
+                        const gameOverEvent: GameEvent = {
+                            id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over',
+                            message: `¡El Hombre Ebrio ha ganado! Su único objetivo era ser eliminado y lo ha conseguido.`,
+                            data: { winners: [targetPlayer.userId] }, createdAt: Timestamp.now(),
+                        };
+                        game.players.find(p => p.userId === targetPlayer.userId)!.isAlive = false;
+                        transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: arrayUnion(gameOverEvent) });
+                        return;
+                    }
+
                     if (allProtectedIds.has(targetId)) {
                        // Saved
                     } else if (targetPlayer.role === 'cursed' && game.settings.cursed) {
@@ -642,9 +655,22 @@ export async function processNight(db: Firestore, gameId: string) {
             const poisonAction = actions.find(a => a.actionType === 'hechicera_poison');
             if (poisonAction?.targetId && !finalKilledPlayerIds.includes(poisonAction.targetId)) {
                 const targetPlayer = game.players.find(p => p.userId === poisonAction.targetId);
-                if (targetPlayer && !allProtectedIds.has(poisonAction.targetId)) {
-                    finalKilledPlayerIds.push(poisonAction.targetId);
-                    killedByPoisonId = poisonAction.targetId;
+                if (targetPlayer) {
+                    // Drunk Man Win Condition
+                    if (targetPlayer.role === 'drunk_man' && game.settings.drunk_man) {
+                         const gameOverEvent: GameEvent = {
+                            id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over',
+                            message: `¡El Hombre Ebrio ha ganado! Su único objetivo era ser eliminado y lo ha conseguido.`,
+                            data: { winners: [targetPlayer.userId] }, createdAt: Timestamp.now(),
+                        };
+                        game.players.find(p => p.userId === targetPlayer.userId)!.isAlive = false;
+                        transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: arrayUnion(gameOverEvent) });
+                        return;
+                    }
+                    if (!allProtectedIds.has(poisonAction.targetId)) {
+                        finalKilledPlayerIds.push(poisonAction.targetId);
+                        killedByPoisonId = poisonAction.targetId;
+                    }
                 }
             }
 
@@ -792,6 +818,18 @@ export async function processVotes(db: Firestore, gameId: string) {
         const lynchedPlayer = game.players.find(p => p.userId === potentialLynchedId);
 
         if (lynchedPlayer) {
+          // Drunk Man Win Condition
+          if (lynchedPlayer.role === 'drunk_man' && game.settings.drunk_man) {
+            const gameOverEvent: GameEvent = {
+                id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over',
+                message: `¡El Hombre Ebrio ha ganado! Su único objetivo era ser eliminado y lo ha conseguido.`,
+                data: { winners: [lynchedPlayer.userId] }, createdAt: Timestamp.now(),
+            };
+            game.players.find(p => p.userId === lynchedPlayer.userId)!.isAlive = false;
+            transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: arrayUnion(gameOverEvent) });
+            return;
+          }
+
           if (lynchedPlayer.role === 'prince' && game.settings.prince && !lynchedPlayer.princeRevealed) {
             const playerIndex = game.players.findIndex(p => p.userId === potentialLynchedId);
             if (playerIndex > -1) {
@@ -924,6 +962,18 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             
             const hunterPlayer = game.players.find(p => p.userId === hunterId)!;
             const targetPlayer = game.players.find(p => p.userId === targetId)!;
+
+            // Drunk Man Win Condition
+             if (targetPlayer.role === 'drunk_man' && game.settings.drunk_man) {
+                const gameOverEvent: GameEvent = {
+                    id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over',
+                    message: `¡El Hombre Ebrio ha ganado! Su único objetivo era ser eliminado y lo ha conseguido.`,
+                    data: { winners: [targetPlayer.userId] }, createdAt: Timestamp.now(),
+                };
+                game.players.find(p => p.userId === targetPlayer.userId)!.isAlive = false;
+                transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: arrayUnion(gameOverEvent) });
+                return;
+            }
 
             const shotEvent: GameEvent = {
                 id: `evt_huntershot_${Date.now()}`,
