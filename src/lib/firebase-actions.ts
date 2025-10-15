@@ -274,15 +274,26 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
             }
             
             let finalPlayers = [...game.players];
+            const usedNames = new Set(finalPlayers.map(p => p.displayName.toLowerCase()));
 
             if (game.settings.fillWithAI && finalPlayers.length < game.maxPlayers) {
                 const aiPlayerCount = game.maxPlayers - finalPlayers.length;
-                const availableAINames = AI_NAMES.filter(name => !finalPlayers.some(p => p.displayName === name));
+                const availableAINames = AI_NAMES.filter(name => !usedNames.has(name.toLowerCase()));
 
                 for (let i = 0; i < aiPlayerCount; i++) {
                     const aiUserId = `ai_${Date.now()}_${i}`;
-                    const aiName = availableAINames[i % availableAINames.length] || `Bot ${i + 1}`;
-                    const aiPlayerData = createPlayerObject(aiUserId, gameId, aiName, true);
+                    
+                    let aiName = availableAINames.shift() || AI_NAMES[i % AI_NAMES.length];
+                    let nameSuffix = 2;
+                    let finalAiName = aiName;
+
+                    while (usedNames.has(finalAiName.toLowerCase())) {
+                        finalAiName = `${aiName} ${nameSuffix}`;
+                        nameSuffix++;
+                    }
+
+                    usedNames.add(finalAiName.toLowerCase());
+                    const aiPlayerData = createPlayerObject(aiUserId, gameId, finalAiName, true);
                     finalPlayers.push(aiPlayerData);
                 }
             }
@@ -1698,5 +1709,6 @@ export async function sendGhostMessage(
         return { success: false, error: error.message || "No se pudo enviar el mensaje." };
     }
 }
+
 
 
