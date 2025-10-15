@@ -66,18 +66,6 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
            break;
       }
     }
-
-    // Lynch result announcement
-    if (game.phase === 'day' && game.currentRound !== prevRoundRef.current && game.currentRound > 1) {
-        const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
-        if (voteEvent) {
-             setTimeout(() => {
-                if (voteEvent.data?.lynchedPlayerId) {
-                     playSoundEffect('anuncio_exilio.mp3');
-                }
-            }, 3000); // Delay to not overlap with other sounds
-        }
-    }
     
     prevPhaseRef.current = game.phase;
     prevRoundRef.current = game.currentRound;
