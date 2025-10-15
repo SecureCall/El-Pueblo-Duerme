@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -22,6 +23,7 @@ import { YouAreDeadOverlay } from "./YouAreDeadOverlay";
 import { BanishedOverlay } from "./BanishedOverlay";
 import Image from 'next/image';
 import { HunterKillOverlay } from "./HunterKillOverlay";
+import { GhostAction } from "./GhostAction";
 
 interface GameBoardProps {
   game: Game;
@@ -310,13 +312,15 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
       );
   }
 
+  const showGhostAction = currentPlayer.role === 'ghost' && !currentPlayer.isAlive && !currentPlayer.ghostMessageSent;
+
 
    return (
     <>
        <Card className="text-center bg-card/80">
         <CardHeader className="flex flex-row items-center justify-between p-4 pb-8 relative">
           <div className="absolute left-4 top-1/2 -translate-y-1/2">
-             <GameChronicle events={events} />
+             <GameChronicle events={events} currentPlayerId={currentPlayer.userId} />
           </div>
           <div className="flex-1 flex justify-center items-center gap-4">
              {getPhaseIcon()}
@@ -360,6 +364,10 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
 
       {currentPlayer && game.phase === 'night' && currentPlayer.isAlive && (
         <NightActions game={game} players={players.filter(p=>p.isAlive)} currentPlayer={currentPlayer} />
+      )}
+
+      {showGhostAction && (
+        <GhostAction game={game} currentPlayer={currentPlayer} players={players.filter(p => p.isAlive)} />
       )}
       
       {game.phase === 'day' && (

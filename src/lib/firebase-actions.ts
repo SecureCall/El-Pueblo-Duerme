@@ -1,4 +1,5 @@
 
+
 'use client';
 import { 
   doc,
@@ -50,6 +51,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     guardianSelfProtects: 0,
     biteCount: 0,
     isCultMember: false,
+    ghostMessageSent: false,
 });
 
 
@@ -484,7 +486,7 @@ function killPlayer(
         const playerToKill = { ...gameData.players[playerIndex] };
 
         // **CRITICAL CHECK FOR DRUNK MAN**
-        if (isVoteKill && playerToKill.role === 'drunk_man' && gameData.settings.drunk_man) {
+        if (playerToKill.role === 'drunk_man' && gameData.settings.drunk_man) {
             gameOver = handleDrunkManWin(transaction, gameRef, gameData, playerToKill);
             if(gameOver) return { updatedGame: gameData, triggeredHunterId: null, gameOver: true };
         }
@@ -848,7 +850,7 @@ export async function processNight(db: Firestore, gameId: string) {
                  if (fishermanDied) {
                     nightEvent.message += ` El Pescador eligió a un lobo y murió.`;
                 }
-            } else if (game.leprosaBlockedRound === game.currentRound) {
+            } else if (game.leprosaBlockedRound === game.currentRound + 1) {
                 nightEvent.message = "Gracias a la Leprosa, los lobos no pudieron atacar esta noche. Nadie murió.";
             } else if (actions.some(a => a.actionType === 'werewolf_kill' || a.actionType === 'hechicera_poison' || a.actionType === 'vampire_bite')) {
                  nightEvent.message = "Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!";
@@ -1613,3 +1615,58 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
   }
 }
 
+export async function sendGhostMessage(
+    db: Firestore,
+    gameId: string,
+    ghostId: string,
+    targetId: string,
+    message: string
+) {
+    const gameRef = doc(db, 'games', gameId);
+    try {
+        await runTransaction(db, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error("Game not found");
+            const game = gameDoc.data() as Game;
+            const playerIndex = game.players.findIndex(p => p.userId === ghostId);
+
+            if (playerIndex === -1) throw new Error("Player not found.");
+            const player = game.players[playerIndex];
+
+            if (player.role !== 'ghost' || player.isAlive || player.ghostMessageSent) {
+                throw new Error("No tienes permiso para realizar esta acción.");
+            }
+
+            // Create a special event only visible to the target
+            const ghostEvent: GameEvent = {
+                id: `evt_ghost_${Date.now()}`,
+                gameId,
+                round: game.currentRound,
+                type: 'special',
+                // This message is only truly seen by the target.
+                message: `Has recibido un misterioso mensaje desde el más allá: "${message}"`,
+                createdAt: Timestamp.now(),
+                data: {
+                    targetId: targetId, // This is key for filtering on the client
+                    originalMessage: message,
+                },
+            };
+
+            game.players[playerIndex].ghostMessageSent = true;
+
+            transaction.update(gameRef, {
+                players: game.players,
+                events: arrayUnion(ghostEvent),
+            });
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error sending ghost message:", error);
+         if (error.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
+            errorEmitter.emit('permission-error', permissionError);
+            return { error: "Permiso denegado para enviar el mensaje." };
+        }
+        return { success: false, error: error.message || "No se pudo enviar el mensaje." };
+    }
+}

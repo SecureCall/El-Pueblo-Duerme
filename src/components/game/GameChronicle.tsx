@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import type { GameEvent } from '@/types';
@@ -12,13 +13,14 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ScrollText, SunIcon, MoonIcon, Swords, Milestone, Repeat, BrainCircuit } from 'lucide-react';
+import { ScrollText, SunIcon, MoonIcon, Swords, Milestone, Repeat, BrainCircuit, Ghost } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Timestamp } from 'firebase/firestore';
 
 interface GameChronicleProps {
   events: GameEvent[];
+  currentPlayerId: string;
 }
 
 function getEventIcon(type: GameEvent['type']) {
@@ -36,14 +38,21 @@ function getEventIcon(type: GameEvent['type']) {
              return <Milestone className="h-4 w-4 text-yellow-500" />;
         case 'behavior_clue':
             return <BrainCircuit className="h-4 w-4 text-yellow-300" />;
+        case 'special':
+            return <Ghost className="h-4 w-4 text-purple-400" />;
         default:
             return <ScrollText className="h-4 w-4" />;
     }
 }
 
-export function GameChronicle({ events }: GameChronicleProps) {
-  // The events are already sorted by the useGameState hook.
-  const sortedEvents = events; 
+export function GameChronicle({ events, currentPlayerId }: GameChronicleProps) {
+  // Filter events: show all public events, and special events only if the current player is the target.
+  const sortedEvents = events.filter(event => {
+      if (event.type === 'special' && event.data?.targetId) {
+          return event.data.targetId === currentPlayerId;
+      }
+      return true; // Show all other event types
+  }); 
 
   const getDateFromTimestamp = (timestamp: Timestamp | { seconds: number; nanoseconds: number; } | string) => {
     if (!timestamp) return new Date();
