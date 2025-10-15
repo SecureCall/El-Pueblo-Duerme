@@ -1,54 +1,73 @@
 {
-  "theme_color": "#121212",
-  "background_color": "#121212",
-  "display": "standalone",
-  "scope": "/",
-  "start_url": "/",
   "name": "El Pueblo Duerme",
   "short_name": "Pueblo Duerme",
-  "description": "Un juego de misterio, engaño y supervivencia. ¿Podrás descubrir a los lobos antes de que sea tarde?",
-  "orientation": "portrait",
-  "id": "/",
+  "description": "Un juego de misterio, engaño y supervivencia.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#1c1917",
+  "orientation": "portrait-primary",
+  "id": "/?source=pwa",
+  "scope": "/",
+  "categories": [
+    "games"
+  ],
+  "shortcuts": [
+    {
+      "name": "Crear Partida",
+      "short_name": "Crear",
+      "description": "Iniciar una nueva sala de juego",
+      "url": "/create",
+      "icons": [
+        {
+          "src": "/logo_192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Cómo Jugar",
+      "short_name": "Reglas",
+      "description": "Leer las reglas del juego",
+      "url": "/how-to-play",
+      "icons": [
+        {
+          "src": "/logo_192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
   "icons": [
     {
-      "src": "/icon-192x192.png",
+      "src": "logo_192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/icon-256x256.png",
-      "sizes": "256x256",
-      "type": "image/png"
-    },
-    {
-      "src": "/icon-384x384.png",
-      "sizes": "384x384",
-      "type": "image/png"
-    },
-    {
-      "src": "/icon-512x512.png",
+      "src": "logo_512.png",
       "sizes": "512x512",
       "type": "image/png"
     }
   ],
   "screenshots": [
     {
-      "src": "/screenshots/screenshot-1.png",
-      "sizes": "1080x1920",
+      "src": "/screenshots/screenshot1.png",
       "type": "image/png",
-      "label": "Pantalla de Inicio"
+      "sizes": "1080x1920",
+      "form_factor": "narrow"
     },
     {
-      "src": "/screenshots/screenshot-2.png",
-      "sizes": "1080x1920",
+      "src": "/screenshots/screenshot2.png",
       "type": "image/png",
-      "label": "Sala de espera de la partida"
+      "sizes": "1080x1920",
+      "form_factor": "narrow"
     },
     {
-      "src": "/screenshots/screenshot-3.png",
-      "sizes": "1080x1920",
+      "src": "/screenshots/screenshot3.png",
       "type": "image/png",
-      "label": "Fase de Votación durante el día"
+      "sizes": "1080x1920",
+      "form_factor": "narrow"
     }
   ]
 }
