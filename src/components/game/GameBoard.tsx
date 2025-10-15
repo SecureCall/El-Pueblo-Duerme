@@ -148,11 +148,9 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
   
    const handleTimerEnd = async () => {
     if (!firestore) return;
-
-    if (game.phase === 'night' && game.status === 'in_progress') {
-      await processNight(firestore, game.id);
-    } else if (game.phase === 'day' && game.status === 'in_progress') {
-      await processVotes(firestore, game.id);
+    // This logic is now a fallback. The game should advance when the last vote is cast.
+    if (game.phase === 'day' && game.status === 'in_progress') {
+        await processVotes(firestore, game.id);
     }
   };
 
@@ -232,13 +230,10 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
   }
   
   const handleTimerEnd = async () => {
-    // Any player can now trigger the end-of-phase logic.
     if (!firestore) return;
-
-    if (game.phase === 'night' && game.status === 'in_progress') {
-      await processNight(firestore, game.id);
-    } else if (game.phase === 'day' && game.status === 'in_progress') {
-      await processVotes(firestore, game.id);
+    if (game.phase === 'day' && game.status === 'in_progress') {
+        console.log("Fallback timer ended, processing votes.");
+        await processVotes(firestore, game.id);
     }
   };
   
@@ -318,7 +313,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
               {getPhaseTitle()}
             </CardTitle>
           </div>
-           { (game.phase === 'night' || game.phase === 'day') && game.status === 'in_progress' && (
+           { game.phase === 'day' && game.status === 'in_progress' && (
             <PhaseTimer 
                 game={game}
                 timerKey={`${game.id}-${game.phase}-${game.currentRound}`}
@@ -386,3 +381,5 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     </>
   );
 }
+
+    

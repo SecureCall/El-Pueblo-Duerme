@@ -15,7 +15,7 @@ import {
   addDoc,
   writeBatch,
 } from "firebase/firestore";
-import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage, AIPlayerPerspective } from "@/types";
+import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage, AIPlayerPerspective, GameStatus, GamePhase } from "@/types";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
@@ -486,67 +486,51 @@ function killPlayer(
 }
 
 
-async function checkGameOver(transaction: Transaction, gameRef: DocumentReference, gameData: Game): Promise<boolean> {
+function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; winners: string[] } {
     const alivePlayers = gameData.players.filter(p => p.isAlive);
     const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
     const aliveWerewolves = alivePlayers.filter(p => wolfRoles.includes(p.role));
     const aliveVillagers = alivePlayers.filter(p => !wolfRoles.includes(p.role));
 
-    let isGameOver = false;
-    let message = "";
-    let winners: string[] = [];
-
     // Condition 1: Lovers Win (only 2 players left and they are the lovers)
     if (gameData.lovers && alivePlayers.length === 2 && alivePlayers.every(p => gameData.lovers!.includes(p.userId))) {
-        isGameOver = true;
         const lover1 = gameData.players.find(p => p.userId === gameData.lovers![0]);
         const lover2 = gameData.players.find(p => p.userId === gameData.lovers![1]);
-        message = `¡Los enamorados han ganado! Desafiando a sus bandos, ${lover1?.displayName} y ${lover2?.displayName} han triunfado solos contra el mundo.`;
-        winners = gameData.lovers;
+        return {
+            isGameOver: true,
+            message: `¡Los enamorados han ganado! Desafiando a sus bandos, ${lover1?.displayName} y ${lover2?.displayName} han triunfado solos contra el mundo.`,
+            winners: gameData.lovers
+        };
     }
-    // Condition 2: Villagers Win (no werewolves left)
-    else if (aliveWerewolves.length === 0 && alivePlayers.length > 0) {
-        isGameOver = true;
-        message = "¡El pueblo ha ganado! Todos los hombres lobo han sido eliminados.";
-        winners = aliveVillagers.map(p => p.userId);
+    
+    // Condition 2: Werewolves Win (number of werewolves is equal or greater than villagers)
+    if (aliveWerewolves.length > 0 && aliveWerewolves.length >= aliveVillagers.length) {
+        return {
+            isGameOver: true,
+            message: "¡Los hombres lobo han ganado! Superan en número a los aldeanos y la oscuridad consume el pueblo.",
+            winners: aliveWerewolves.map(p => p.userId)
+        };
     }
-    // Condition 3: Werewolves Win (number of werewolves is equal to villagers)
-    else if (aliveWerewolves.length > 0 && aliveWerewolves.length === aliveVillagers.length) {
-        isGameOver = true;
-        message = "¡Los hombres lobo han ganado! Han igualado en número a los aldeanos y la oscuridad consume el pueblo.";
-        winners = aliveWerewolves.map(p => p.userId);
+    
+    // Condition 3: Villagers Win (no werewolves left)
+    if (aliveWerewolves.length === 0 && alivePlayers.length > 0) {
+        return {
+            isGameOver: true,
+            message: "¡El pueblo ha ganado! Todos los hombres lobo han sido eliminados.",
+            winners: aliveVillagers.map(p => p.userId)
+        };
     }
+    
     // Condition 4: Draw (no one left alive)
-    else if (alivePlayers.length === 0) {
-        isGameOver = true;
-        message = "¡Nadie ha sobrevivido a la masacre!";
-        winners = [];
+    if (alivePlayers.length === 0) {
+        return {
+            isGameOver: true,
+            message: "¡Nadie ha sobrevivido a la masacre!",
+            winners: []
+        };
     }
 
-    if (isGameOver) {
-        const gameOverEvent: GameEvent = {
-            id: `evt_gameover_${Date.now()}`,
-            gameId: gameData.id!,
-            round: gameData.currentRound,
-            type: 'game_over',
-            message: message,
-            data: { winners },
-            createdAt: Timestamp.now(),
-        };
-        
-        const finalUpdates = {
-            status: 'finished' as GameStatus,
-            phase: 'finished' as GamePhase,
-            events: arrayUnion(gameOverEvent),
-            // Ensure other fields that might be undefined are explicitly set to null or a safe value
-            pendingHunterShot: null,
-        };
-
-        transaction.update(gameRef, finalUpdates);
-        return true; // Game is over
-    }
-
-    return false; // Game is not over
+    return { isGameOver: false, message: "", winners: [] };
 }
 
 
@@ -562,11 +546,6 @@ export async function processNight(db: Firestore, gameId: string) {
             if (game.phase !== 'night' || game.status !== 'in_progress') {
                 console.log("Skipping night process, phase is no longer 'night'.");
                 return;
-            }
-            
-            // Immediately check for game over at the start of processing.
-            if (await checkGameOver(transaction, gameRef, game)) {
-                return; 
             }
             
             game.nightActions = game.nightActions || [];
@@ -641,9 +620,16 @@ export async function processNight(db: Firestore, gameId: string) {
                 }
             }
 
+            // 3. Apply Kills
+            if (finalKilledPlayerIds.length > 0) {
+                const { updatedGame } = killPlayer(game, finalKilledPlayerIds);
+                game = updatedGame; // game is now updated with deaths
+            }
+            
+            // 4. Create Night Event
             const nightEvent: GameEvent = {
                 id: `evt_night_${game.currentRound}`, gameId, round: game.currentRound, type: 'night_result',
-                message: '', // Will be filled in after kills
+                message: '', // Will be filled in next
                 data: { 
                     killedPlayerIds: finalKilledPlayerIds, 
                     savedPlayerIds: savedPlayerIds,
@@ -651,32 +637,41 @@ export async function processNight(db: Firestore, gameId: string) {
                 },
                 createdAt: Timestamp.now(),
             };
-            
-            // 3. Apply Kills and check consequences
-            if (finalKilledPlayerIds.length > 0) {
-                const { updatedGame } = killPlayer(game, finalKilledPlayerIds);
-                game = updatedGame; // game is now updated with deaths and potential hunter
-                
-                const newlyKilledPlayers = game.players.filter(p => !p.isAlive && finalKilledPlayerIds.includes(p.userId));
+            const newlyKilledPlayers = game.players.filter(p => !p.isAlive && finalKilledPlayerIds.includes(p.userId));
+            killedPlayerNamesAndRoles = newlyKilledPlayers.map(p => `${p.displayName} (que era ${roleDetails[p.role!]?.name || 'un rol desconocido'})`);
 
-                killedPlayerNamesAndRoles = newlyKilledPlayers.map(p => `${p.displayName} (que era ${roleDetails[p.role!]?.name || 'un rol desconocido'})`);
-                if (killedPlayerNamesAndRoles.length > 0) {
-                    nightEvent.message = `Anoche, el pueblo perdió a ${killedPlayerNamesAndRoles.join(' y a ')}.`;
-                }
+            if (killedPlayerNamesAndRoles.length > 0) {
+                nightEvent.message = `Anoche, el pueblo perdió a ${killedPlayerNamesAndRoles.join(' y a ')}.`;
             } else if (wasSomeoneAttackedByWolves || poisonAction) {
                  nightEvent.message = "Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!";
             } else {
                  nightEvent.message = "La noche transcurre en un inquietante silencio. Nadie ha muerto.";
             }
-
             game.events.push(nightEvent);
             
-            // 4. Check for game over (after kills are applied)
-            if (await checkGameOver(transaction, gameRef, game)) {
-                return; 
+            // 5. Check for game over state
+            const { isGameOver, message, winners } = checkGameOver(game);
+            if (isGameOver) {
+                const gameOverEvent: GameEvent = {
+                    id: `evt_gameover_${Date.now()}`,
+                    gameId,
+                    round: game.currentRound,
+                    type: 'game_over',
+                    message,
+                    data: { winners },
+                    createdAt: Timestamp.now(),
+                };
+                transaction.update(gameRef, {
+                    status: 'finished',
+                    phase: 'finished',
+                    players: game.players,
+                    events: arrayUnion(gameOverEvent, ...game.events.filter(e => e.id.startsWith('evt_lover_death'))),
+                    pendingHunterShot: null,
+                });
+                return; // Stop execution
             }
 
-            // 5. If hunter was triggered, stop and transition to hunter_shot phase
+            // 6. If hunter was triggered, stop and transition to hunter_shot phase
             if (game.phase === 'hunter_shot') {
                 transaction.update(gameRef, { 
                     players: game.players,
@@ -687,7 +682,7 @@ export async function processNight(db: Firestore, gameId: string) {
                 return;
             }
 
-            // 6. Transition to next phase (day)
+            // 7. Transition to next phase (day)
             game.players.forEach(p => p.votedFor = null);
             
             const updates = {
@@ -732,10 +727,6 @@ export async function processVotes(db: Firestore, gameId: string) {
 
       if (game.phase !== 'day' || game.status !== 'in_progress') {
         console.log("Omitiendo procesamiento de votos, la fase ya no es 'día' o la partida no está en curso.");
-        return;
-      }
-      
-      if (await checkGameOver(transaction, gameRef, game)) {
         return;
       }
 
@@ -806,8 +797,25 @@ export async function processVotes(db: Firestore, gameId: string) {
         game = updatedGame;
       }
       
-      if (await checkGameOver(transaction, gameRef, game)) {
-        return; 
+      const { isGameOver, message, winners } = checkGameOver(game);
+      if (isGameOver) {
+          const gameOverEvent: GameEvent = {
+              id: `evt_gameover_${Date.now()}`,
+              gameId,
+              round: game.currentRound,
+              type: 'game_over',
+              message,
+              data: { winners },
+              createdAt: Timestamp.now(),
+          };
+          transaction.update(gameRef, {
+              status: 'finished',
+              phase: 'finished',
+              players: game.players,
+              events: arrayUnion(gameOverEvent, ...game.events.filter(e => e.id.startsWith('evt_lover_death'))),
+              pendingHunterShot: null,
+          });
+          return;
       }
 
       if (game.phase === 'hunter_shot') {
@@ -913,8 +921,25 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 return;
             }
 
-            if (await checkGameOver(transaction, gameRef, game)) {
-                return; // Stop if game ended
+            const { isGameOver, message, winners } = checkGameOver(game);
+            if (isGameOver) {
+                const gameOverEvent: GameEvent = {
+                    id: `evt_gameover_${Date.now()}`,
+                    gameId,
+                    round: game.currentRound,
+                    type: 'game_over',
+                    message,
+                    data: { winners },
+                    createdAt: Timestamp.now(),
+                };
+                transaction.update(gameRef, {
+                    status: 'finished',
+                    phase: 'finished',
+                    players: game.players,
+                    events: arrayUnion(gameOverEvent, ...game.events.filter(e => e.id.startsWith('evt_lover_death'))),
+                    pendingHunterShot: null,
+                });
+                return;
             }
             
             // Determine next phase based on how the original hunter died.
@@ -1192,11 +1217,24 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             });
 
             if (allVotesIn) {
-                 await processVotes(db, gameId);
+                // This is now safe because it's the final action of this transaction and will trigger the next one.
+                // We call this OUTSIDE and AFTER the transaction completes.
             }
         });
+        
+        // NOW check if we should process votes, outside the transaction.
+        const finalGameSnap = await getDoc(gameRef);
+        if (finalGameSnap.exists()) {
+            const game = finalGameSnap.data() as Game;
+            const alivePlayers = game.players.filter(p => p.isAlive);
+            const allVotesIn = alivePlayers.every(p => p.votedFor);
+            if (allVotesIn) {
+                await processVotes(db, gameId);
+            }
+        }
 
-        // Trigger AI chat after vote is committed, but outside the transaction
+
+        // Trigger AI chat after vote is committed
         if (voterName && targetName) {
              const allPlayers = ((await getDoc(gameRef)).data() as Game).players || [];
              for (const p of allPlayers) {
@@ -1399,3 +1437,6 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
 
     
 
+
+
+    

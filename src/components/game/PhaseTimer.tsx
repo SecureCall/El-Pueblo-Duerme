@@ -13,9 +13,9 @@ interface PhaseTimerProps {
 }
 
 export function PhaseTimer({ game, onTimerEnd, timerKey }: PhaseTimerProps) {
-    // The day timer is now longer, but the phase will advance as soon as everyone votes.
-    // The night timer is a fallback for AFK players.
-    const duration = (game.phase === 'day' ? 120 : (game.phase === 'night' ? 45 : 0));
+    // The day timer is now a visual fallback. 
+    // The phase will advance as soon as everyone votes.
+    const duration = (game.phase === 'day' ? 120 : 45); // Night timer is still a fallback for AFK players.
 
     const [timeLeft, setTimeLeft] = useState(duration);
     const onTimerEndRef = useRef(onTimerEnd);
@@ -35,9 +35,7 @@ export function PhaseTimer({ game, onTimerEnd, timerKey }: PhaseTimerProps) {
             setTimeLeft(prev => {
                 if (prev <= 1) {
                     clearInterval(interval);
-                    // Any player can now trigger the end-of-phase logic.
-                    // The backend function will have a lock to prevent race conditions.
-                    onTimerEndRef.current();
+                    onTimerEndRef.current(); // The timer now acts as a fallback
                     return 0;
                 }
                 return prev - 1;
@@ -48,7 +46,7 @@ export function PhaseTimer({ game, onTimerEnd, timerKey }: PhaseTimerProps) {
         return () => clearInterval(interval);
     }, [timerKey, duration]); 
 
-    if (duration <= 0) return null;
+    if (duration <= 0 || game.phase !== 'day') return null;
 
     const progress = (timeLeft / duration) * 100;
 
@@ -59,3 +57,5 @@ export function PhaseTimer({ game, onTimerEnd, timerKey }: PhaseTimerProps) {
         </div>
     );
 }
+
+    
