@@ -3,7 +3,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Progress } from '../ui/progress';
-import { useGameSession } from '@/hooks/use-game-session';
 import type { Game } from '@/types';
 
 interface PhaseTimerProps {
@@ -11,10 +10,9 @@ interface PhaseTimerProps {
     onTimerEnd: () => void;
     // Add key to force re-mount
     timerKey: string;
-    isCreator: boolean;
 }
 
-export function PhaseTimer({ game, onTimerEnd, timerKey, isCreator }: PhaseTimerProps) {
+export function PhaseTimer({ game, onTimerEnd, timerKey }: PhaseTimerProps) {
     // The day timer is now longer, but the phase will advance as soon as everyone votes.
     // The night timer is a fallback for AFK players.
     const duration = (game.phase === 'day' ? 120 : (game.phase === 'night' ? 45 : 0));

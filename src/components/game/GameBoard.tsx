@@ -102,11 +102,9 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
      // Effect to check if the current player has died and by what cause
     useEffect(() => {
         const playerIsDead = !currentPlayer.isAlive;
-        const prevPlayerIsAlive = prevPlayerStateRef.current?.isAlive;
 
-        // Run this logic if the player is now dead, or if the player is dead and new events arrive.
         if (playerIsDead) {
-            const deathEvent = [...events] // Create a copy to sort
+            const deathEvent = [...events] 
                 .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
                 .find(e =>
                     (e.type === 'night_result' && e.data?.killedPlayerIds?.includes(currentPlayer.userId)) ||
@@ -121,20 +119,11 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
                 } else if (deathEvent.type === 'vote_result') {
                     setDeathCause('vote');
                 } else {
-                    setDeathCause('eliminated'); // Default for night_kill, lover_death etc.
+                    setDeathCause('eliminated'); 
                 }
-            } else if (prevPlayerIsAlive && playerIsDead) {
-                 // Fallback for cases where the event might not be in the array yet, but we know the player just died.
-                setDeathCause('eliminated');
             }
         }
     }, [currentPlayer.isAlive, events, currentPlayer.userId]);
-
-    const prevPlayerStateRef = useRef<Player>();
-    useEffect(() => {
-        prevPlayerStateRef.current = currentPlayer;
-    });
-
 
   // Handle AI actions when phase changes
   useEffect(() => {
@@ -158,8 +147,6 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
   }, [game.phase, game.id, game.creator, currentPlayer.userId, firestore]);
   
    const handleTimerEnd = async () => {
-    // This function will be called by ANY player whose timer runs out.
-    // The backend functions (processNight, processVotes) have locks to prevent race conditions.
     if (!firestore) return;
 
     if (game.phase === 'night' && game.status === 'in_progress') {
@@ -245,7 +232,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
   }
   
   const handleTimerEnd = async () => {
-    // The backend functions now have locks, so any player can call this.
+    // Any player can now trigger the end-of-phase logic.
     if (!firestore) return;
 
     if (game.phase === 'night' && game.status === 'in_progress') {
@@ -336,7 +323,6 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
                 game={game}
                 timerKey={`${game.id}-${game.phase}-${game.currentRound}`}
                 onTimerEnd={handleTimerEnd}
-                isCreator={game.creator === currentPlayer?.userId}
             />
           )}
         </CardHeader>
