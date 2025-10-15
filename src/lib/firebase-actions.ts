@@ -397,17 +397,6 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
             transaction.update(gameRef, { nightActions, players });
         });
 
-        // The logic to check if phase should end and trigger processing is now separate.
-        const updatedGameDoc = await getDoc(gameRef);
-        const updatedGame = updatedGameDoc.data() as Game;
-        const alivePlayersWithNightActions = new Set(updatedGame.players.filter(p => p.isAlive && p.role && ['werewolf', 'wolf_cub', 'seer', 'doctor', 'guardian', 'priest', 'hechicera', 'vampire', 'cult_leader', 'fisherman', 'silencer', 'elder_leader', 'witch', 'banshee'].includes(p.role)).map(p => p.userId));
-        const submittedActionsForRound = new Set((updatedGame.nightActions || []).filter(a => a.round === updatedGame.currentRound).map(a => a.playerId));
-        const allActionsIn = [...alivePlayersWithNightActions].every(pId => submittedActionsForRound.has(pId));
-
-        if (allActionsIn) {
-            await processNight(db, gameId);
-        }
-
         return { success: true };
 
     } catch (error: any) {

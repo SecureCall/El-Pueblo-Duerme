@@ -73,6 +73,7 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
         return () => {
             if(timerRef.current) clearInterval(timerRef.current)
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [game.phase, game.currentRound, game.phaseEndsAt, isCreator, firestore]);
 
     if (duration <= 0) return null;
@@ -80,7 +81,7 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
     const progress = (timeLeft / duration) * 100;
 
     return (
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-3/4 max-w-sm">
+        <div className="w-3/4 max-w-sm mt-4">
             <Progress value={progress} className="h-2" />
             <p className="text-xs text-center text-muted-foreground mt-1">{timeLeft}s</p>
         </div>
