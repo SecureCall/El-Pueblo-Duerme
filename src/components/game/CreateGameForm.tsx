@@ -48,29 +48,32 @@ interface CreateGameFormValues {
   lycanthrope: boolean;
   twin: boolean;
   hechicera: boolean;
-  ghost: boolean;
-  virginia_woolf: boolean;
-  leprosa: boolean;
-  river_siren: boolean;
-  lookout: boolean;
-  troublemaker: boolean;
-  silencer: boolean;
-  seer_apprentice: boolean;
-  elder_leader: boolean;
   wolf_cub: boolean;
   cursed: boolean;
-  seeker_fairy: boolean;
-  sleeping_fairy: boolean;
-  shapeshifter: boolean;
-  drunk_man: boolean;
   cult_leader: boolean;
   fisherman: boolean;
   vampire: boolean;
-  witch: boolean;
-  banshee: boolean;
+  // Temporarily disabled roles
+  ghost?: boolean;
+  virginia_woolf?: boolean;
+  leprosa?: boolean;
+  river_siren?: boolean;
+  lookout?: boolean;
+  troublemaker?: boolean;
+  silencer?: boolean;
+  seer_apprentice?: boolean;
+  elder_leader?: boolean;
+  seeker_fairy?: boolean;
+  sleeping_fairy?: boolean;
+  shapeshifter?: boolean;
+  witch?: boolean;
+  banshee?: boolean;
 }
 
-const specialRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[] = Object.keys(roleDetails).filter(role => role !== 'villager' && role !== 'werewolf') as Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[];
+const implementedRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[] = [
+    'seer', 'doctor', 'hunter', 'cupid', 'guardian', 'priest', 'prince', 'lycanthrope', 'twin', 
+    'hechicera', 'wolf_cub', 'cursed', 'cult_leader', 'fisherman', 'vampire'
+];
 
 export function CreateGameForm() {
   const router = useRouter();
@@ -94,26 +97,11 @@ export function CreateGameForm() {
       prince: false,
       lycanthrope: false,
       twin: false,
-      ghost: false,
-      virginia_woolf: false,
-      leprosa: false,
-      river_siren: false,
-      lookout: false,
-      troublemaker: false,
-      silencer: false,
-      seer_apprentice: false,
-      elder_leader: false,
       wolf_cub: false,
       cursed: false,
-      seeker_fairy: false,
-      sleeping_fairy: false,
-      shapeshifter: false,
-      drunk_man: false,
       cult_leader: false,
       fisherman: false,
       vampire: false,
-      witch: false,
-      banshee: false,
     },
   });
   
@@ -124,7 +112,7 @@ export function CreateGameForm() {
   }, [displayName, form]);
 
   const selectAllRoles = (select: boolean) => {
-    specialRoles.forEach(roleId => {
+    implementedRoles.forEach(roleId => {
       form.setValue(roleId, select);
     });
   };
@@ -150,7 +138,7 @@ export function CreateGameForm() {
     const { gameName, displayName: pName, maxPlayers, fillWithAI, ...roles } = data;
 
     // Ensure all role settings are booleans (not undefined)
-    const sanitizedRoles = specialRoles.reduce((acc, roleId) => {
+    const sanitizedRoles = implementedRoles.reduce((acc, roleId) => {
         acc[roleId] = !!roles[roleId as keyof typeof roles];
         return acc;
     }, {} as Record<Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>, boolean>);
@@ -246,7 +234,7 @@ export function CreateGameForm() {
                   </Button>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {specialRoles.map(roleId => {
+                  {implementedRoles.map(roleId => {
                     const details = roleDetails[roleId];
                     if (!details) return null;
                     return (

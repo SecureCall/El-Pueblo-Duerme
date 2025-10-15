@@ -63,7 +63,6 @@ export interface Game {
     // Roles from user
     seer: boolean;
     doctor: boolean;
-
     hunter: boolean;
     cupid: boolean;
     guardian: boolean;
@@ -72,26 +71,27 @@ export interface Game {
     lycanthrope: boolean;
     twin: boolean;
     hechicera: boolean;
-    ghost: boolean;
-    virginia_woolf: boolean;
-    leprosa: boolean;
-    river_siren: boolean;
-    lookout: boolean;
-    troublemaker: boolean;
-    silencer: boolean;
-    seer_apprentice: boolean;
-    elder_leader: boolean;
     wolf_cub: boolean;
     cursed: boolean;
-    seeker_fairy: boolean;
-    sleeping_fairy: boolean;
-    shapeshifter: boolean;
-    drunk_man: boolean;
     cult_leader: boolean;
     fisherman: boolean;
     vampire: boolean;
-    witch: boolean;
-    banshee: boolean;
+
+    // Roles no implementados (pueden estar presentes en la configuración pero no se usan)
+    ghost?: boolean;
+    virginia_woolf?: boolean;
+    leprosa?: boolean;
+    river_siren?: boolean;
+    lookout?: boolean;
+    troublemaker?: boolean;
+    silencer?: boolean;
+    seer_apprentice?: boolean;
+    elder_leader?: boolean;
+    seeker_fairy?: boolean;
+    sleeping_fairy?: boolean;
+    shapeshifter?: boolean;
+    witch?: boolean;
+    banshee?: boolean;
   };
   phaseEndsAt?: Timestamp;
   lovers: [string, string] | null;

@@ -38,8 +38,8 @@ export const PlayerSchema = z.object({
   priestSelfHealUsed: z.boolean().optional(),
   princeRevealed: z.boolean().optional(),
   guardianSelfProtects: z.number().optional(),
-  biteCount: z.number().optional(),
-  isCultMember: z.boolean().optional(),
+  biteCount: z.number(),
+  isCultMember: z.boolean(),
 });
 
 export const NightActionSchema = z.object({
@@ -84,26 +84,26 @@ export const GameSettingsSchema = z.object({
     lycanthrope: z.boolean(),
     twin: z.boolean(),
     hechicera: z.boolean(),
-    ghost: z.boolean(),
-    virginia_woolf: z.boolean(),
-    leprosa: z.boolean(),
-    river_siren: z.boolean(),
-    lookout: z.boolean(),
-    troublemaker: z.boolean(),
-    silencer: z.boolean(),
-    seer_apprentice: z.boolean(),
-    elder_leader: z.boolean(),
     wolf_cub: z.boolean(),
     cursed: z.boolean(),
-    seeker_fairy: z.boolean(),
-    sleeping_fairy: z.boolean(),
-    shapeshifter: z.boolean(),
-    drunk_man: z.boolean(),
     cult_leader: z.boolean(),
     fisherman: z.boolean(),
     vampire: z.boolean(),
-    witch: z.boolean(),
-    banshee: z.boolean(),
+    // Roles no implementados se marcan como opcionales
+    ghost: z.boolean().optional(),
+    virginia_woolf: z.boolean().optional(),
+    leprosa: z.boolean().optional(),
+    river_siren: z.boolean().optional(),
+    lookout: z.boolean().optional(),
+    troublemaker: z.boolean().optional(),
+    silencer: z.boolean().optional(),
+    seer_apprentice: z.boolean().optional(),
+    elder_leader: z.boolean().optional(),
+    seeker_fairy: z.boolean().optional(),
+    sleeping_fairy: z.boolean().optional(),
+    shapeshifter: z.boolean().optional(),
+    witch: z.boolean().optional(),
+    banshee: z.boolean().optional(),
 });
 
 export const GameSchema = z.object({
@@ -125,8 +125,8 @@ export const GameSchema = z.object({
   pendingHunterShot: z.string().nullable(),
   wolfCubRevengeRound: z.number(),
   nightActions: z.array(NightActionSchema).optional(),
-  vampireKills: z.number().optional(),
-  boat: z.array(z.string()).optional(),
+  vampireKills: z.number(),
+  boat: z.array(z.string()),
 });
 
 export const AIPlayerPerspectiveSchema = z.object({
