@@ -148,9 +148,15 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
   
    const handleTimerEnd = async () => {
     if (!firestore) return;
-    // This logic is now a fallback. The game should advance when the last vote is cast.
+    
+    // Only the creator should process phase ends to prevent race conditions.
+    if (game.creator !== currentPlayer.userId) return;
+
     if (game.phase === 'day' && game.status === 'in_progress') {
+        // The game now advances via votes, so this is a fallback.
         await processVotes(firestore, game.id);
+    } else if (game.phase === 'night' && game.status === 'in_progress') {
+        await processNight(firestore, game.id);
     }
   };
 
@@ -231,9 +237,15 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
   
   const handleTimerEnd = async () => {
     if (!firestore) return;
+
+    if (game.creator !== currentPlayer?.userId) return;
+
     if (game.phase === 'day' && game.status === 'in_progress') {
-        console.log("Fallback timer ended, processing votes.");
+        console.log("Fallback timer ended for day, processing votes.");
         await processVotes(firestore, game.id);
+    } else if (game.phase === 'night' && game.status === 'in_progress') {
+        console.log("Fallback timer ended for night, processing night.");
+        await processNight(firestore, game.id);
     }
   };
   
@@ -313,11 +325,12 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
               {getPhaseTitle()}
             </CardTitle>
           </div>
-           { game.phase === 'day' && game.status === 'in_progress' && (
+           { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && (
             <PhaseTimer 
                 game={game}
                 timerKey={`${game.id}-${game.phase}-${game.currentRound}`}
                 onTimerEnd={handleTimerEnd}
+                isCreator={game.creator === currentPlayer?.userId}
             />
           )}
         </CardHeader>

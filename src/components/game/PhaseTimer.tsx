@@ -10,12 +10,11 @@ interface PhaseTimerProps {
     onTimerEnd: () => void;
     // Add key to force re-mount
     timerKey: string;
+    isCreator: boolean;
 }
 
-export function PhaseTimer({ game, onTimerEnd, timerKey }: PhaseTimerProps) {
-    // The day timer is now a visual fallback. 
-    // The phase will advance as soon as everyone votes.
-    const duration = (game.phase === 'day' ? 120 : 45); // Night timer is still a fallback for AFK players.
+export function PhaseTimer({ game, onTimerEnd, timerKey, isCreator }: PhaseTimerProps) {
+    const duration = (game.phase === 'day' ? 120 : 45); // Night timer is 45s
 
     const [timeLeft, setTimeLeft] = useState(duration);
     const onTimerEndRef = useRef(onTimerEnd);
@@ -29,13 +28,14 @@ export function PhaseTimer({ game, onTimerEnd, timerKey }: PhaseTimerProps) {
         // Reset timeLeft when the key changes (new phase/round starts)
         setTimeLeft(duration);
         
-        if (duration <= 0) return;
+        // Only run the timer logic for the creator
+        if (!isCreator || duration <= 0) return;
 
         const interval = setInterval(() => {
             setTimeLeft(prev => {
                 if (prev <= 1) {
                     clearInterval(interval);
-                    onTimerEndRef.current(); // The timer now acts as a fallback
+                    onTimerEndRef.current();
                     return 0;
                 }
                 return prev - 1;
@@ -44,9 +44,9 @@ export function PhaseTimer({ game, onTimerEnd, timerKey }: PhaseTimerProps) {
 
         // Cleanup function to clear the interval when the component unmounts or the key changes.
         return () => clearInterval(interval);
-    }, [timerKey, duration]); 
+    }, [timerKey, duration, isCreator]); 
 
-    if (duration <= 0 || game.phase !== 'day') return null;
+    if (duration <= 0) return null;
 
     const progress = (timeLeft / duration) * 100;
 
