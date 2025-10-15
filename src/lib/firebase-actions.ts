@@ -279,22 +279,20 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
 
             if (game.settings.fillWithAI && finalPlayers.length < game.maxPlayers) {
                 const aiPlayerCount = game.maxPlayers - finalPlayers.length;
+                const availableAINames = [...AI_NAMES];
 
                 for (let i = 0; i < aiPlayerCount; i++) {
                     const aiUserId = `ai_${Date.now()}_${i}`;
                     
-                    // Choose a base name from the AI_NAMES list.
-                    const baseAiName = AI_NAMES[i % AI_NAMES.length];
+                    let baseAiName = availableAINames[i % availableAINames.length];
                     let finalAiName = baseAiName;
                     let nameSuffix = 2;
 
-                    // Ensure the generated name is unique.
                     while (usedNames.has(finalAiName.toLowerCase())) {
                         finalAiName = `${baseAiName} ${nameSuffix}`;
                         nameSuffix++;
                     }
 
-                    // Add the unique name to the set and the player list.
                     usedNames.add(finalAiName.toLowerCase());
                     const aiPlayerData = createPlayerObject(aiUserId, gameId, finalAiName, true);
                     finalPlayers.push(aiPlayerData);
@@ -310,7 +308,6 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
             
             const assignedPlayers = finalPlayers.map((player, index) => {
                 const p = { ...player, role: newRoles[index] };
-                // The cult leader starts as a cult member.
                 if (p.role === 'cult_leader') {
                     p.isCultMember = true;
                 }
@@ -325,6 +322,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
                 status: 'in_progress',
                 phase: 'role_reveal',
                 currentRound: 1,
+                phaseEndsAt: Timestamp.fromMillis(Date.now() + 15 * 1000)
             });
         });
         
@@ -396,6 +394,31 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
 
             transaction.update(gameRef, { nightActions, players });
         });
+
+        // After action is committed, check if the phase should end.
+        const finalGameSnap = await getDoc(gameRef);
+        if (finalGameSnap.exists()) {
+            const game = finalGameSnap.data() as Game;
+            const playersWithNightActions = game.players.filter(p => {
+                const role = p.role;
+                if (!p.isAlive || !role) return false;
+                const rolesWithActions = [
+                    'werewolf', 'wolf_cub', 'seer', 'doctor', 'guardian', 'priest', 'vampire', 
+                    'cult_leader', 'fisherman', 'silencer', 'elder_leader', 'witch', 'banshee'
+                ];
+                if (rolesWithActions.includes(role)) return true;
+                if ((role === 'hechicera') && (!p.potions?.poison || !p.potions?.save)) return true;
+                if ((role === 'cupid' || role === 'shapeshifter' || role === 'virginia_woolf' || role === 'river_siren') && game.currentRound === 1) return true;
+                if (role === 'seer_apprentice' && game.seerDied) return true;
+                return false;
+            });
+            const allActionsIn = playersWithNightActions.every(p => 
+                game.nightActions?.some(na => na.playerId === p.userId && na.round === game.currentRound)
+            );
+            if (allActionsIn) {
+                await processNight(db, gameId);
+            }
+        }
 
         return { success: true };
 
@@ -491,8 +514,6 @@ function killPlayer(
 
         // **CRITICAL CHECK FOR DRUNK MAN**
         if (playerToKill.role === 'drunk_man' && gameData.settings.drunk_man) {
-            // We can't call a transaction-based function here.
-            // We'll signal that the game is over and let the caller handle the transaction.
             gameData.players[playerIndex].isAlive = false; // Mark as dead
             gameOver = true; // Signal game over
             return { updatedGame: gameData, triggeredHunterId: null, gameOver: true };

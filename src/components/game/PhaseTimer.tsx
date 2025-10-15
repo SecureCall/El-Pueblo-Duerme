@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -15,6 +14,8 @@ interface PhaseTimerProps {
 
 export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
     const { firestore } = useFirebase();
+    const timerProcessedRef = useRef(false);
+
     const getDuration = () => {
         if (!game.phaseEndsAt) return 0;
         const phaseEndMillis = game.phaseEndsAt instanceof Timestamp 
@@ -26,14 +27,24 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
         
         return durationSeconds;
     };
+    
+    const getTotalDuration = () => {
+         switch (game.phase) {
+            case 'day': return 45;
+            case 'night': return 45;
+            case 'role_reveal': return 15;
+            default: return 0;
+        }
+    }
 
-    const [duration, setDuration] = useState(getDuration);
-    const [timeLeft, setTimeLeft] = useState(duration);
+    const [timeLeft, setTimeLeft] = useState(getDuration);
+    const totalDuration = getTotalDuration();
     const timerRef = useRef<NodeJS.Timeout | null>(null);
 
     const onTimerEnd = async () => {
-        if (!isCreator || !firestore || !game) return;
-
+        if (!isCreator || !firestore || !game || timerProcessedRef.current) return;
+        timerProcessedRef.current = true;
+        
         if (game.phase === 'night') {
             await processNight(firestore, game.id);
         } else if (game.phase === 'day') {
@@ -42,19 +53,16 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
     };
 
     useEffect(() => {
-        const initialDuration = getDuration();
-        setDuration(initialDuration);
-        setTimeLeft(initialDuration);
+        timerProcessedRef.current = false;
+        const initialTimeLeft = getDuration();
+        setTimeLeft(initialTimeLeft);
         
         if (timerRef.current) {
             clearInterval(timerRef.current);
         }
         
-        if (initialDuration <= 0) {
-            if (isCreator) {
-                // If time is already up on mount, creator should process it.
-                onTimerEnd();
-            }
+        if (initialTimeLeft <= 0) {
+            if (isCreator) onTimerEnd();
             return;
         }
 
@@ -76,12 +84,12 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [game.phase, game.currentRound, game.phaseEndsAt, isCreator, firestore]);
 
-    if (duration <= 0) return null;
+    if (totalDuration <= 0) return null;
 
-    const progress = (timeLeft / duration) * 100;
+    const progress = (timeLeft / totalDuration) * 100;
 
     return (
-        <div className="w-3/4 max-w-sm mt-4">
+        <div className="w-3/4 max-w-sm mt-2">
             <Progress value={progress} className="h-2" />
             <p className="text-xs text-center text-muted-foreground mt-1">{timeLeft}s</p>
         </div>
