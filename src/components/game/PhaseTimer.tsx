@@ -15,10 +15,9 @@ interface PhaseTimerProps {
 }
 
 export function PhaseTimer({ game, onTimerEnd, timerKey, isCreator }: PhaseTimerProps) {
-    const { userId } = useGameSession();
-    // The night timer is now much shorter, acting as a fallback for AFK players.
-    // The day timer is longer, but the phase will advance as soon as everyone votes.
-    const duration = (game.phase === 'day' ? 120 : (game.phase === 'night' ? 30 : 0));
+    // The day timer is now longer, but the phase will advance as soon as everyone votes.
+    // The night timer is a fallback for AFK players.
+    const duration = (game.phase === 'day' ? 120 : (game.phase === 'night' ? 45 : 0));
 
     const [timeLeft, setTimeLeft] = useState(duration);
     const onTimerEndRef = useRef(onTimerEnd);
@@ -38,10 +37,9 @@ export function PhaseTimer({ game, onTimerEnd, timerKey, isCreator }: PhaseTimer
             setTimeLeft(prev => {
                 if (prev <= 1) {
                     clearInterval(interval);
-                    // Only the creator's timer acts as the final authority to prevent multiple triggers.
-                    if (isCreator) {
-                        onTimerEndRef.current();
-                    }
+                    // Any player can now trigger the end-of-phase logic.
+                    // The backend function will have a lock to prevent race conditions.
+                    onTimerEndRef.current();
                     return 0;
                 }
                 return prev - 1;
@@ -50,7 +48,7 @@ export function PhaseTimer({ game, onTimerEnd, timerKey, isCreator }: PhaseTimer
 
         // Cleanup function to clear the interval when the component unmounts or the key changes.
         return () => clearInterval(interval);
-    }, [timerKey, duration, isCreator]); 
+    }, [timerKey, duration]); 
 
     if (duration <= 0) return null;
 

@@ -8,7 +8,7 @@ import { useEffect, useState, useRef } from "react";
 import { doc, runTransaction } from "firebase/firestore";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
-import { processNight, processVotes, runAIActions, advanceToNightPhase, acknowledgeRole } from "@/lib/firebase-actions";
+import { processNight, processVotes, runAIActions, advanceToNightPhase } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { HeartIcon, Moon, Sun, Users2, Gavel, Skull, Milestone, Swords, Repeat, BrainCircuit } from "lucide-react";
@@ -102,8 +102,9 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
      // Effect to check if the current player has died and by what cause
     useEffect(() => {
         const playerIsDead = !currentPlayer.isAlive;
+        const prevPlayerIsAlive = prevPlayerStateRef.current?.isAlive;
 
-        // Run this logic if the player is dead, to catch late-arriving events like hunter_shot
+        // Run this logic if the player is now dead, or if the player is dead and new events arrive.
         if (playerIsDead) {
             const deathEvent = [...events] // Create a copy to sort
                 .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
@@ -122,8 +123,8 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
                 } else {
                     setDeathCause('eliminated'); // Default for night_kill, lover_death etc.
                 }
-            } else if (prevPlayerStateRef.current?.isAlive && !currentPlayer.isAlive) {
-                // Fallback for cases where the event might not be in the array yet
+            } else if (prevPlayerIsAlive && playerIsDead) {
+                 // Fallback for cases where the event might not be in the array yet, but we know the player just died.
                 setDeathCause('eliminated');
             }
         }
@@ -157,14 +158,13 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
   }, [game.phase, game.id, game.creator, currentPlayer.userId, firestore]);
   
    const handleTimerEnd = async () => {
-    // This function will only be called by the creator due to the logic in PhaseTimer
+    // This function will be called by ANY player whose timer runs out.
+    // The backend functions (processNight, processVotes) have locks to prevent race conditions.
     if (!firestore) return;
 
     if (game.phase === 'night' && game.status === 'in_progress') {
       await processNight(firestore, game.id);
     } else if (game.phase === 'day' && game.status === 'in_progress') {
-      // The day phase now auto-advances when all votes are in.
-      // This is a fallback in case someone doesn't vote.
       await processVotes(firestore, game.id);
     }
   };
@@ -245,14 +245,12 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
   }
   
   const handleTimerEnd = async () => {
-    // Only creator processes the phase end to prevent multiple executions
-    if (!currentPlayer || game.creator !== currentPlayer.userId || !firestore) return;
+    // The backend functions now have locks, so any player can call this.
+    if (!firestore) return;
 
     if (game.phase === 'night' && game.status === 'in_progress') {
       await processNight(firestore, game.id);
     } else if (game.phase === 'day' && game.status === 'in_progress') {
-       // Day phase now auto-advances when all votes are in.
-       // This timer is a fallback for AFK players.
       await processVotes(firestore, game.id);
     }
   };
