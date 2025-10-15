@@ -471,8 +471,8 @@ function killPlayer(
     const killedThisTurn = new Set<string>();
     let gameOver = false;
 
-    // Use a queue to handle chain reactions (like lover's death)
-    const killQueue = [...playerIdsToKill];
+    // Use a queue to handle chain reactions (like lover's/twin's death)
+    const killQueue = [...new Set(playerIdsToKill)]; // Use Set to avoid duplicates
 
     while(killQueue.length > 0) {
         const playerId = killQueue.shift();
@@ -519,6 +519,24 @@ function killPlayer(
                     createdAt: Timestamp.now(),
                 });
                 killQueue.push(otherLoverId); // Add to queue for processing
+            }
+        }
+        
+        // Check for twin's death
+        if (gameData.twins?.includes(playerToKill.userId)) {
+            const otherTwinId = gameData.twins.find(id => id !== playerToKill.userId);
+            if (otherTwinId && !killedThisTurn.has(otherTwinId)) {
+                const otherTwin = gameData.players.find(p => p.userId === otherTwinId);
+                gameData.events.push({
+                    id: `evt_twin_${Date.now()}_${otherTwinId}`,
+                    gameId: gameData.id!,
+                    round: gameData.currentRound,
+                    type: 'special',
+                    message: `Tras la muerte de ${playerToKill.displayName}, su gemelo/a ${otherTwin?.displayName || 'desconocido'} muere de pena.`,
+                    data: { killedPlayerId: otherTwinId, originalVictimId: playerId },
+                    createdAt: Timestamp.now(),
+                });
+                killQueue.push(otherTwinId);
             }
         }
 
@@ -847,7 +865,7 @@ export async function processNight(db: Firestore, gameId: string) {
                 };
                 transaction.update(gameRef, {
                     status: 'finished', phase: 'finished', players: game.players,
-                    events: arrayUnion(gameOverEvent, ...game.events.filter(e => e.id.startsWith('evt_lover_death'))),
+                    events: arrayUnion(gameOverEvent, ...game.events.filter(e => e.id.startsWith('evt_lover_death') || e.id.startsWith('evt_twin_'))),
                     pendingHunterShot: null
                 });
                 return;
@@ -978,7 +996,7 @@ export async function processVotes(db: Firestore, gameId: string) {
               id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message, data: { winners }, createdAt: Timestamp.now(),
           };
           transaction.update(gameRef, {
-              status: 'finished', phase: 'finished', players: game.players, events: arrayUnion(gameOverEvent, ...game.events.filter(e => e.id.startsWith('evt_lover_death'))), pendingHunterShot: null,
+              status: 'finished', phase: 'finished', players: game.players, events: arrayUnion(gameOverEvent, ...game.events.filter(e => e.id.startsWith('evt_lover_death') || e.id.startsWith('evt_twin_'))), pendingHunterShot: null,
           });
           return;
       }
@@ -1096,7 +1114,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                     status: 'finished',
                     phase: 'finished',
                     players: game.players,
-                    events: arrayUnion(gameOverEvent, ...game.events.filter(e => e.id.startsWith('evt_lover_death'))),
+                    events: arrayUnion(gameOverEvent, ...game.events.filter(e => e.id.startsWith('evt_lover_death') || e.id.startsWith('evt_twin_'))),
                     pendingHunterShot: null,
                 });
                 return;
@@ -1594,3 +1612,4 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
     return { success: false, error: (error as Error).message };
   }
 }
+

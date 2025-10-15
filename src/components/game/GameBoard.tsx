@@ -111,7 +111,8 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
                     (e.type === 'night_result' && e.data?.killedPlayerIds?.includes(currentPlayer.userId)) ||
                     (e.type === 'vote_result' && e.data?.lynchedPlayerId === currentPlayer.userId) ||
                     (e.type === 'lover_death' && e.data?.killedPlayerId === currentPlayer.userId) ||
-                    (e.type === 'hunter_shot' && e.data?.killedPlayerId === currentPlayer.userId)
+                    (e.type === 'hunter_shot' && e.data?.killedPlayerId === currentPlayer.userId) ||
+                    (e.type === 'special' && e.data?.killedPlayerId === currentPlayer.userId) // For Twin/Virginia deaths
             );
 
             if (deathEvent) {
@@ -269,7 +270,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
         .filter(e =>
             (e.type === 'night_result' && e.data?.killedPlayerIds?.includes(playerId)) ||
             (e.type === 'vote_result' && e.data?.lynchedPlayerId === playerId) ||
-            ((e.type === 'lover_death' || e.type === 'hunter_shot') && e.data?.killedPlayerId === playerId)
+            ((e.type === 'lover_death' || e.type === 'hunter_shot' || e.type === 'special') && e.data?.killedPlayerId === playerId)
         )
         .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())[0];
 
