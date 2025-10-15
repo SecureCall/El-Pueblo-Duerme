@@ -1,4 +1,3 @@
-
 'use client';
 import { 
   doc,
@@ -515,7 +514,8 @@ async function checkGameOver(transaction: Transaction, gameRef: DocumentReferenc
     let message = "";
     let winners: string[] = [];
     
-    if (gameData.lovers && alivePlayers.length >= 2 && alivePlayers.every(p => gameData.lovers!.includes(p.userId))) {
+    // Lovers win condition
+    if (gameData.lovers && alivePlayers.length === 2 && alivePlayers.every(p => gameData.lovers!.includes(p.userId))) {
         gameOver = true;
         const lover1 = gameData.players.find(p => p.userId === gameData.lovers![0]);
         const lover2 = gameData.players.find(p => p.userId === gameData.lovers![1]);
@@ -524,12 +524,14 @@ async function checkGameOver(transaction: Transaction, gameRef: DocumentReferenc
     }
 
     if (!gameOver) {
-        if (aliveWerewolves.length === 0 && alivePlayers.length > 0) {
+        // Villagers win condition
+        if (alivePlayers.length > 0 && aliveWerewolves.length === 0) {
             gameOver = true;
             message = "¡El pueblo ha ganado! Todos los hombres lobo han sido eliminados.";
             winners = aliveVillagers.map(p => p.userId);
         } 
-        else if (aliveWerewolves.length > 0 && aliveWerewolves.length >= aliveVillagers.length && alivePlayers.length > 0) {
+        // Werewolves win condition
+        else if (alivePlayers.length > 0 && aliveWerewolves.length >= aliveVillagers.length) {
             gameOver = true;
             message = "¡Los hombres lobo han ganado! Han superado en número a los aldeanos.";
             winners = aliveWerewolves.map(p => p.userId);
@@ -567,8 +569,7 @@ export async function processNight(db: Firestore, gameId: string) {
             if (!gameSnap.exists()) throw new Error("Game not found!");
             
             let game = gameSnap.data() as Game;
-            if (game.phase !== 'night') {
-                // Another process might have already handled this.
+            if (game.phase !== 'night' || game.status !== 'in_progress') {
                 console.log("Skipping night process, phase is no longer 'night'.");
                 return;
             }
@@ -647,18 +648,6 @@ export async function processNight(db: Firestore, gameId: string) {
                 }
             }
             
-            const nightEvent: GameEvent = {
-                id: `evt_night_${game.currentRound}`, gameId, round: game.currentRound, type: 'night_result',
-                message: "Placeholder",
-                data: { 
-                    killedPlayerIds: finalKilledPlayerIds, 
-                    savedPlayerIds: savedPlayerIds,
-                    killedByPoisonId: killedByPoisonId
-                },
-                createdAt: Timestamp.now(),
-            };
-            game.events.push(nightEvent); // Add event right away
-            
             // 3. Apply Kills and check consequences
             if (finalKilledPlayerIds.length > 0) {
                 const { updatedGame } = killPlayer(game, finalKilledPlayerIds);
@@ -676,7 +665,17 @@ export async function processNight(db: Firestore, gameId: string) {
                  messages.push("La noche transcurre en un inquietante silencio. Nadie ha muerto.");
             }
             
-            nightEvent.message = messages.join(' ') || "La noche transcurre en un inquietante silencio.";
+            const nightEvent: GameEvent = {
+                id: `evt_night_${game.currentRound}`, gameId, round: game.currentRound, type: 'night_result',
+                message: messages.join(' ') || "La noche transcurre en un inquietante silencio.",
+                data: { 
+                    killedPlayerIds: finalKilledPlayerIds, 
+                    savedPlayerIds: savedPlayerIds,
+                    killedByPoisonId: killedByPoisonId
+                },
+                createdAt: Timestamp.now(),
+            };
+            game.events.push(nightEvent);
             
             // 4. Check for game over (after kills are applied)
             if (await checkGameOver(transaction, gameRef, game)) {
@@ -734,6 +733,7 @@ export async function processVotes(db: Firestore, gameId: string) {
         await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
+            
             let game = gameSnap.data() as Game;
 
             // LOCK: Check if the phase is still 'day'. If not, another process has already run.
@@ -741,8 +741,7 @@ export async function processVotes(db: Firestore, gameId: string) {
                 console.log("Skipping vote processing, phase is no longer 'day' or game is not in progress.");
                 return;
             }
-
-            // Ensure arrays exist
+            
             game.events = game.events || [];
             game.players = game.players || [];
             
@@ -807,11 +806,11 @@ export async function processVotes(db: Firestore, gameId: string) {
             
             if (lynchedPlayerId) {
                 const { updatedGame } = killPlayer(game, [lynchedPlayerId]);
-                game = updatedGame; // game is updated with death info
+                game = updatedGame; 
             }
             
             if (await checkGameOver(transaction, gameRef, game)) {
-                 return; // SHORT-CIRCUIT: Game is over, transaction is committed by checkGameOver. Do not continue.
+                 return;
             }
             
             if (game.phase === 'hunter_shot') {
@@ -821,10 +820,9 @@ export async function processVotes(db: Firestore, gameId: string) {
                     phase: 'hunter_shot',
                     pendingHunterShot: game.pendingHunterShot,
                 });
-               return; // SHORT-CIRCUIT: Wait for hunter to shoot.
+               return; 
             }
 
-            // Prepare for next night
             game.players.forEach(p => { p.votedFor = null; });
             
             transaction.update(gameRef, {
@@ -832,11 +830,9 @@ export async function processVotes(db: Firestore, gameId: string) {
                 events: game.events,
                 phase: 'night',
                 currentRound: increment(1),
-                pendingHunterShot: null, // Clear any pending shot from previous rounds
+                pendingHunterShot: null,
             });
         });
-
-        await runAIActions(db, gameId, 'night');
 
         return { success: true };
     } catch (error: any) {

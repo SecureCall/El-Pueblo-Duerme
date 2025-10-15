@@ -13,8 +13,9 @@ interface PhaseTimerProps {
 }
 
 export function PhaseTimer({ game, onTimerEnd, timerKey }: PhaseTimerProps) {
-    // Note: The isCreator check is now removed from here and handled robustly in the backend functions.
-    // Any player can now trigger the onTimerEnd function.
+    const { userId } = useGameSession();
+    // The creator is no longer solely responsible. Any player can trigger the timer end.
+    // const isCreator = game.creator === userId; 
     const duration = (game.phase === 'day' ? 90 : (game.phase === 'night' ? 60 : 0));
 
     const [timeLeft, setTimeLeft] = useState(duration);
