@@ -68,6 +68,7 @@ interface CreateGameFormValues {
   shapeshifter: boolean;
   witch: boolean;
   banshee: boolean;
+  drunk_man: boolean;
 }
 
 const implementedRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[] = [
