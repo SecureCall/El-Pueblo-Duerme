@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -135,17 +136,6 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
       return () => clearTimeout(timer);
     }
   }, [game.phase, game.id, game.creator, currentPlayer.userId, firestore]);
-  
-   const handleTimerEnd = async () => {
-    if (!firestore || game.creator !== currentPlayer.userId) return;
-    
-    // Only the creator triggers the end of a phase.
-    if (game.phase === 'day' && game.status === 'in_progress') {
-        await processVotes(firestore, game.id);
-    } else if (game.phase === 'night' && game.status === 'in_progress') {
-        await processNight(firestore, game.id);
-    }
-  };
 
   const handleAcknowledgeRole = async () => {
       if (!firestore) return;
@@ -221,17 +211,6 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
           default: return null;
       }
   }
-  
-  const handleTimerEnd = async () => {
-    if (!firestore || game.creator !== currentPlayer.userId) return;
-
-    // Only the creator triggers phase end.
-    if (game.phase === 'day' && game.status === 'in_progress') {
-        await processVotes(firestore, game.id);
-    } else if (game.phase === 'night' && game.status === 'in_progress') {
-        await processNight(firestore, game.id);
-    }
-  };
   
   const isLover = !!game.lovers?.includes(currentPlayer?.userId || '');
   const otherLoverId = isLover ? game.lovers!.find(id => id !== currentPlayer!.userId) : null;
@@ -311,11 +290,9 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
               {getPhaseTitle()}
             </CardTitle>
           </div>
-           { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && (
+           { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && game.phaseEndsAt && (
             <PhaseTimer 
                 game={game}
-                timerKey={`${game.id}-${game.phase}-${game.currentRound}`}
-                onTimerEnd={handleTimerEnd}
                 isCreator={game.creator === currentPlayer.userId}
             />
           )}

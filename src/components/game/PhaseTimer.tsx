@@ -4,49 +4,43 @@
 import { useState, useEffect, useRef } from 'react';
 import { Progress } from '../ui/progress';
 import type { Game } from '@/types';
+import { Timestamp } from 'firebase/firestore';
 
 interface PhaseTimerProps {
     game: Game;
-    onTimerEnd: () => void;
-    // Add key to force re-mount
-    timerKey: string;
     isCreator: boolean;
 }
 
-export function PhaseTimer({ game, onTimerEnd, timerKey, isCreator }: PhaseTimerProps) {
-    const duration = (game.phase === 'day' ? 45 : 45); // Day and Night are both 45s
-
-    const [timeLeft, setTimeLeft] = useState(duration);
-    const onTimerEndRef = useRef(onTimerEnd);
-
-    // Keep the onTimerEnd callback fresh without causing re-renders.
-    useEffect(() => {
-        onTimerEndRef.current = onTimerEnd;
-    }, [onTimerEnd]);
-
-    useEffect(() => {
-        // Reset timeLeft when the key changes (new phase/round starts)
-        setTimeLeft(duration);
+export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
+    const getDuration = () => {
+        if (!game.phaseEndsAt) return 0;
+        // The timestamp can be a Firebase Timestamp or a plain object after serialization
+        const phaseEndMillis = game.phaseEndsAt instanceof Timestamp 
+            ? game.phaseEndsAt.toMillis()
+            : (game.phaseEndsAt.seconds * 1000 + game.phaseEndsAt.nanoseconds / 1000000);
+            
+        const now = Date.now();
+        const durationSeconds = Math.max(0, Math.ceil((phaseEndMillis - now) / 1000));
         
-        if (duration <= 0) return;
+        return durationSeconds;
+    };
+
+    const [duration, setDuration] = useState(getDuration);
+    const [timeLeft, setTimeLeft] = useState(duration);
+
+    useEffect(() => {
+        const initialDuration = getDuration();
+        setDuration(initialDuration);
+        setTimeLeft(initialDuration);
+        
+        if (initialDuration <= 0) return;
 
         const interval = setInterval(() => {
-            setTimeLeft(prev => {
-                if (prev <= 1) {
-                    clearInterval(interval);
-                    // Only the creator should trigger the phase end action
-                    if (isCreator) {
-                        onTimerEndRef.current();
-                    }
-                    return 0;
-                }
-                return prev - 1;
-            });
+            setTimeLeft(prev => Math.max(0, prev - 1));
         }, 1000);
 
-        // Cleanup function to clear the interval when the component unmounts or the key changes.
         return () => clearInterval(interval);
-    }, [timerKey, duration, isCreator]); 
+    }, [game.phase, game.currentRound, game.phaseEndsAt]); // Depend on phaseEndsAt
 
     if (duration <= 0) return null;
 
@@ -59,5 +53,3 @@ export function PhaseTimer({ game, onTimerEnd, timerKey, isCreator }: PhaseTimer
         </div>
     );
 }
-
-    

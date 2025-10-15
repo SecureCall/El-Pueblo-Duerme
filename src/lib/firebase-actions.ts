@@ -90,6 +90,7 @@ export async function createGame(
           ...settings,
           werewolves: werewolfCount,
       },
+      phaseEndsAt: undefined,
       pendingHunterShot: null,
       lovers: null,
       twins: null,
@@ -345,85 +346,96 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
 }
 
 export async function submitNightAction(db: Firestore, action: Omit<NightAction, 'createdAt' | 'round'> & { round: number }) {
-  const { gameId } = action;
-  const gameRef = doc(db, 'games', gameId);
-  try {
-    await runTransaction(db, async (transaction) => {
-        const gameSnap = await transaction.get(gameRef);
-        if (!gameSnap.exists()) throw new Error("Game not found");
-        
-        let game = gameSnap.data() as Game;
-        if (game.phase !== 'night') return;
-        const player = game.players.find(p => p.userId === action.playerId);
-        if (!player) throw new Error("Player not found");
-        
-        const nightActions = game.nightActions ? [...game.nightActions] : [];
-        const existingActionIndex = nightActions.findIndex(a => a.round === action.round && a.playerId === action.playerId);
+    const { gameId } = action;
+    const gameRef = doc(db, 'games', gameId);
+    try {
+        await runTransaction(db, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found");
+            
+            let game = gameSnap.data() as Game;
+            if (game.phase !== 'night') return;
+            const player = game.players.find(p => p.userId === action.playerId);
+            if (!player) throw new Error("Player not found");
+            
+            const nightActions = game.nightActions ? [...game.nightActions] : [];
+            const existingActionIndex = nightActions.findIndex(a => a.round === action.round && a.playerId === action.playerId);
 
-        if (action.actionType === 'doctor_heal') {
-            const targetPlayer = game.players.find(p => p.userId === action.targetId);
-            if (targetPlayer?.lastHealedRound === game.currentRound - 1) {
-                console.warn(`Doctor ${action.playerId} tried to heal ${action.targetId} two nights in a row. Action ignored.`);
-                return; 
+            // Action-specific validations
+            if (action.actionType === 'doctor_heal') {
+                const targetPlayer = game.players.find(p => p.userId === action.targetId);
+                if (targetPlayer?.lastHealedRound === game.currentRound - 1) {
+                    throw new Error('No puedes proteger a la misma persona dos noches seguidas.');
+                }
             }
-        }
-        if (action.actionType === 'hechicera_poison' && player.potions?.poison) throw new Error("Ya has usado tu poción de veneno.");
-        if (action.actionType === 'hechicera_save' && player.potions?.save) throw new Error("Ya has usado tu poción de salvación.");
-        if (action.actionType === 'priest_bless' && action.targetId === action.playerId && player.priestSelfHealUsed) {
-            throw new Error("Ya te has bendecido a ti mismo una vez.");
-        }
-        if (action.actionType === 'guardian_protect' && action.targetId === action.playerId && (player.guardianSelfProtects || 0) >= 1) {
-             throw new Error("Solo puedes protegerte a ti mismo una vez.");
-        }
-        
-        // Remove previous actions for this player this round
-        if (existingActionIndex > -1) {
-            nightActions.splice(existingActionIndex, 1);
-        }
-
-        const newAction: NightAction = { ...action, createdAt: Timestamp.now() };
-        
-        let players = [...game.players];
-        const playerIndex = players.findIndex(p => p.userId === action.playerId);
-        
-        if (action.actionType === 'doctor_heal') {
-            const targetIndex = players.findIndex(p => p.userId === action.targetId);
-            if (targetIndex > -1) {
-                players[targetIndex].lastHealedRound = action.round;
+            if (action.actionType === 'hechicera_poison' && player.potions?.poison) throw new Error("Ya has usado tu poción de veneno.");
+            if (action.actionType === 'hechicera_save' && player.potions?.save) throw new Error("Ya has usado tu poción de salvación.");
+            if (action.actionType === 'priest_bless' && action.targetId === action.playerId && player.priestSelfHealUsed) {
+                throw new Error("Ya te has bendecido a ti mismo una vez.");
             }
-        } else if (action.actionType === 'hechicera_poison') {
-            players[playerIndex].potions!.poison = action.round;
-        } else if (action.actionType === 'hechicera_save') {
-            players[playerIndex].potions!.save = action.round;
-        } else if (action.actionType === 'priest_bless' && action.targetId === action.playerId) {
-            players[playerIndex].priestSelfHealUsed = true;
-        } else if (action.actionType === 'guardian_protect' && action.targetId === action.playerId) {
-            players[playerIndex].guardianSelfProtects = (players[playerIndex].guardianSelfProtects || 0) + 1;
+            if (action.actionType === 'guardian_protect' && action.targetId === action.playerId && (player.guardianSelfProtects || 0) >= 1) {
+                throw new Error("Solo puedes protegerte a ti mismo una vez.");
+            }
+            
+            // Remove previous actions for this player this round
+            if (existingActionIndex > -1) {
+                nightActions.splice(existingActionIndex, 1);
+            }
+
+            const newAction: NightAction = { ...action, createdAt: Timestamp.now() };
+            nightActions.push(newAction);
+
+            // Update player state for certain actions immediately
+            let players = [...game.players];
+            const playerIndex = players.findIndex(p => p.userId === action.playerId);
+            if (playerIndex === -1) return;
+            
+            if (action.actionType === 'hechicera_poison') players[playerIndex].potions!.poison = action.round;
+            if (action.actionType === 'hechicera_save') players[playerIndex].potions!.save = action.round;
+            if (action.actionType === 'priest_bless' && action.targetId === action.playerId) players[playerIndex].priestSelfHealUsed = true;
+            if (action.actionType === 'guardian_protect' && action.targetId === action.playerId) players[playerIndex].guardianSelfProtects = (players[playerIndex].guardianSelfProtects || 0) + 1;
+
+            transaction.update(gameRef, { nightActions, players });
+
+            // After committing the action, check if it's the last one needed
+            const alivePlayersWithNightActions = new Set(game.players.filter(p => p.isAlive && p.role && ['werewolf', 'wolf_cub', 'seer', 'doctor', 'guardian', 'priest', 'hechicera', 'vampire', 'cult_leader', 'fisherman', 'silencer', 'elder_leader', 'witch', 'banshee'].includes(p.role)).map(p => p.userId));
+            const submittedActionsForRound = new Set(nightActions.map(a => a.playerId));
+            
+            const allActionsIn = [...alivePlayersWithNightActions].every(pId => submittedActionsForRound.has(pId));
+            const timeIsUp = game.phaseEndsAt ? game.phaseEndsAt.toMillis() < Date.now() : false;
+
+            if (allActionsIn || timeIsUp) {
+                // Defer processing to a separate call to avoid nested transactions
+            }
+        });
+
+        // The logic to check if phase should end and trigger processing is now separate.
+        const updatedGameDoc = await getDoc(gameRef);
+        const updatedGame = updatedGameDoc.data() as Game;
+        const alivePlayersWithNightActions = new Set(updatedGame.players.filter(p => p.isAlive && p.role && ['werewolf', 'wolf_cub', 'seer', 'doctor', 'guardian', 'priest', 'hechicera', 'vampire', 'cult_leader', 'fisherman', 'silencer', 'elder_leader', 'witch', 'banshee'].includes(p.role)).map(p => p.userId));
+        const submittedActionsForRound = new Set((updatedGame.nightActions || []).filter(a => a.round === updatedGame.currentRound).map(a => a.playerId));
+        const allActionsIn = [...alivePlayersWithNightActions].every(pId => submittedActionsForRound.has(pId));
+        const timeIsUp = updatedGame.phaseEndsAt ? updatedGame.phaseEndsAt.toMillis() < Date.now() : false;
+
+        if (allActionsIn || timeIsUp) {
+            await processNight(db, gameId);
         }
 
-        nightActions.push(newAction);
+        return { success: true };
 
-        transaction.update(gameRef, {
-            nightActions,
-            players,
-        });
-    });
-
-    return { success: true };
-
-  } catch (error: any) {
-    if (error.code === 'permission-denied') {
-        const permissionError = new FirestorePermissionError({
-            path: gameRef.path,
-            operation: 'update',
-            requestResourceData: { nightActions: '...' }
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        return { error: "Permiso denegado al realizar la acción nocturna." };
+    } catch (error: any) {
+        if (error.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+                path: gameRef.path,
+                operation: 'update',
+                requestResourceData: { nightActions: '...' }
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            return { error: "Permiso denegado al realizar la acción nocturna." };
+        }
+        console.error("Error submitting night action: ", error);
+        return { success: false, error: error.message || "No se pudo registrar tu acción." };
     }
-    console.error("Error submitting night action: ", error);
-    return { success: false, error: error.message || "No se pudo registrar tu acción." };
-  }
 }
 
 export async function submitCupidAction(db: Firestore, gameId: string, cupidId: string, target1Id: string, target2Id: string) {
@@ -926,6 +938,7 @@ export async function processNight(db: Firestore, gameId: string) {
               players: game.players,
               events: game.events,
               phase: 'day',
+              phaseEndsAt: Timestamp.fromMillis(Date.now() + 45 * 1000), // Day phase lasts 45 seconds
               chatMessages: [], 
               wolfCubRevengeRound: game.wolfCubRevengeRound === game.currentRound ? 0 : game.wolfCubRevengeRound,
               pendingHunterShot: null,
@@ -1057,7 +1070,7 @@ export async function processVotes(db: Firestore, gameId: string) {
       game.players.forEach(p => { p.votedFor = null; });
 
       transaction.update(gameRef, {
-        players: game.players, events: game.events, phase: 'night', currentRound: increment(1), pendingHunterShot: null,
+        players: game.players, events: game.events, phase: 'night', currentRound: increment(1), pendingHunterShot: null, phaseEndsAt: Timestamp.fromMillis(Date.now() + 45 * 1000) // Night phase lasts 45 seconds
       });
     });
 
@@ -1183,6 +1196,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
 
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
             const nextRound = nextPhase === 'night' ? game.currentRound + 1 : game.currentRound;
+            const phaseDuration = nextPhase === 'night' ? 45 * 1000 : 45 * 1000;
 
             game.players.forEach(p => { p.votedFor = null; });
             
@@ -1192,6 +1206,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 phase: nextPhase,
                 currentRound: nextRound,
                 pendingHunterShot: null,
+                phaseEndsAt: Timestamp.fromMillis(Date.now() + phaseDuration),
             });
         });
         return { success: true };
@@ -1453,7 +1468,6 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             const playerIndex = game.players.findIndex(p => p.userId === voterId && p.isAlive);
             if (playerIndex === -1) throw new Error("Player not found or is not alive");
             
-            // Prevent re-voting
             if (game.players[playerIndex].votedFor) return;
 
             voterName = game.players[playerIndex].displayName;
@@ -1464,27 +1478,17 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             game.players[playerIndex].votedFor = targetId;
             
             transaction.update(gameRef, { players: game.players });
-
-            // Check if all alive players have voted
-            const alivePlayers = game.players.filter(p => p.isAlive);
-            const allVotesIn = alivePlayers.every(p => {
-                const currentPlayerState = game.players.find(gp => gp.userId === p.userId);
-                return !!currentPlayerState?.votedFor;
-            });
-
-            if (allVotesIn) {
-                // This is now safe because it's the final action of this transaction and will trigger the next one.
-                // We call this OUTSIDE and AFTER the transaction completes.
-            }
         });
         
-        // NOW check if we should process votes, outside the transaction.
+        // After vote is committed, check if the phase should end.
         const finalGameSnap = await getDoc(gameRef);
         if (finalGameSnap.exists()) {
             const game = finalGameSnap.data() as Game;
             const alivePlayers = game.players.filter(p => p.isAlive);
             const allVotesIn = alivePlayers.every(p => p.votedFor);
-            if (allVotesIn) {
+            const timeIsUp = game.phaseEndsAt ? game.phaseEndsAt.toMillis() < Date.now() : false;
+
+            if (allVotesIn || timeIsUp) {
                 await processVotes(db, gameId);
             }
         }
@@ -1632,6 +1636,7 @@ export async function resetGame(db: Firestore, gameId: string) {
                 players: resetHumanPlayers, 
                 vampireKills: 0,
                 boat: [],
+                phaseEndsAt: null,
             });
         });
         return { success: true };
@@ -1656,7 +1661,10 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
 
       // Only advance if we are in the role reveal phase
       if (game.phase === 'role_reveal') {
-        transaction.update(gameRef, { phase: 'night' });
+        transaction.update(gameRef, { 
+            phase: 'night',
+            phaseEndsAt: Timestamp.fromMillis(Date.now() + 45 * 1000) // Night phase lasts 45 seconds
+        });
       }
     });
     return { success: true };
@@ -1721,3 +1729,4 @@ export async function sendGhostMessage(
         return { success: false, error: error.message || "No se pudo enviar el mensaje." };
     }
 }
+
