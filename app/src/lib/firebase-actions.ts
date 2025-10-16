@@ -1696,7 +1696,8 @@ export async function sendFairyChatMessage(
             const game = gameDoc.data() as Game;
             
             const sender = game.players.find(p => p.userId === senderId);
-            if (!sender || (sender.role !== 'seeker_fairy' && sender.role !== 'sleeping_fairy') || !game.fairiesFound) {
+            const fairyRoles: PlayerRole[] = ['seeker_fairy', 'sleeping_fairy'];
+            if (!sender || !fairyRoles.includes(sender.role) || !game.fairiesFound) {
                 throw new Error("Solo las hadas unidas pueden usar este chat.");
             }
 

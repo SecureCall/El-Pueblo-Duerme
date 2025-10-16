@@ -196,7 +196,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages, wolf
 
 
 // A simplified version of the board for spectating, without interactive elements.
-function SpectatorGameBoard({ game, players, events, messages, wolfMessages, twinMessages, fairyMessages, currentPlayer }: Omit<GameBoardProps, 'currentPlayer' | 'messages' | 'wolfMessages' | 'twinMessages' | 'fairyMessages'> & { currentPlayer: Player, messages: ChatMessage[], wolfMessages: ChatMessage[], twinMessages: ChatMessage[], fairyMessages: ChatMessage[] }) {
+function SpectatorGameBoard({ game, players, events, messages, wolfMessages, twinMessages, fairyMessages, currentPlayer }: Omit<GameBoardProps, 'currentPlayer'> & { currentPlayer: Player }) {
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
   const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
