@@ -1,7 +1,24 @@
 import type {Metadata} from 'next';
+import { Playfair_Display, PT_Sans } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { FirebaseClientProvider } from '@/firebase/client-provider';
+import { cn } from '@/lib/utils';
+
+const pt_sans = PT_Sans({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-pt-sans',
+  weight: ['400', '700'],
+});
+
+const playfair_display = Playfair_Display({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-playfair-display',
+  weight: '700',
+});
+
 
 const APP_NAME = "El Pueblo Duerme";
 const APP_DEFAULT_TITLE = "El Pueblo Duerme";
@@ -50,12 +67,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="dark">
+    <html lang="es" className={cn("dark", pt_sans.variable, playfair_display.variable)}>
       <head>
         <link rel="icon" href="/logo.png" type="image/png" sizes="any" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=PT+Sans:wght@400;700&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased">
         <FirebaseClientProvider>
