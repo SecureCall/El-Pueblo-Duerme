@@ -18,7 +18,7 @@ const getMillis = (timestamp: any): number => {
     if (timestamp instanceof Timestamp) {
         return timestamp.toMillis();
     }
-    if (typeof timestamp === 'object' && timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
+    if (typeof timestamp === 'object' && 'seconds' in timestamp && 'nanoseconds' in timestamp) {
         return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
     }
     if (timestamp instanceof Date) {
@@ -56,31 +56,24 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
     const [timeLeft, setTimeLeft] = useState(calculateTimeLeft);
 
     useEffect(() => {
+        // Reset the processed flag whenever the phase or round changes
         timerProcessedRef.current = false;
         
-        // This function will be called every second.
-        const updateTimer = () => {
+        const interval = setInterval(() => {
             const remaining = calculateTimeLeft();
             setTimeLeft(remaining);
 
             if (remaining <= 0 && isCreator && !timerProcessedRef.current && firestore) {
                  if (game.phase === 'night' || game.phase === 'day') {
-                    timerProcessedRef.current = true;
+                    timerProcessedRef.current = true; // Mark as processing to prevent multiple calls
                     if (game.phase === 'night') {
-                        console.log("Creator client: Night timer ended. Calling processNight.");
                         processNight(firestore, game.id);
                     } else if (game.phase === 'day') {
-                        console.log("Creator client: Day timer ended. Calling processVotes.");
                         processVotes(firestore, game.id);
                     }
                 }
             }
-        };
-        
-        // Immediately update the timer on mount/game state change.
-        updateTimer(); 
-
-        const interval = setInterval(updateTimer, 1000);
+        }, 1000);
 
         return () => clearInterval(interval);
 

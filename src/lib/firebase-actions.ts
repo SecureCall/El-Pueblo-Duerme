@@ -539,7 +539,7 @@ function killPlayer(
         // Check for lover's death
         if (gameData.lovers?.includes(playerToKill.userId)) {
             const otherLoverId = gameData.lovers.find(id => id !== playerToKill.userId);
-            if (otherLoverId && !killedThisTurn.has(otherLoverId)) {
+            if (otherLoverId && !killedThisTurn.has(otherLoverId) && gameData.players.find(p => p.userId === otherLoverId)?.isAlive) {
                 const otherLover = gameData.players.find(p => p.userId === otherLoverId);
                 
                 gameData.events.push({

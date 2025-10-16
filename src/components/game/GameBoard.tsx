@@ -297,7 +297,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
                 </div>
                 <div className="w-10 flex-shrink-0"></div> {/* Spacer to balance the chronicle button */}
             </div>
-            { (game.phase === 'day' || game.phase === 'night') && (
+            {(game.phase === 'day' || game.phase === 'night' || game.phase === 'role_reveal') && (
                 <PhaseTimer 
                     game={game}
                     isCreator={game.creator === currentPlayer.userId}
