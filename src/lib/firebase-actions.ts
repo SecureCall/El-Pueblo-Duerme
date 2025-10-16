@@ -9,8 +9,6 @@ import {
   increment,
   runTransaction,
   type Firestore,
-  type Transaction,
-  DocumentReference,
 } from "firebase/firestore";
 import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage, AIPlayerPerspective } from "@/types";
 import { errorEmitter } from "@/firebase/error-emitter";

@@ -48,7 +48,6 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
     const isElderLeader = currentPlayer.role === 'elder_leader';
     const isBanshee = currentPlayer.role === 'banshee' && Object.keys(currentPlayer.bansheeScreams || {}).length < 2;
 
-    // Check if potions have been used in any previous round or this round
     const hasUsedPoison = !!currentPlayer.potions?.poison;
     const hasUsedSave = !!currentPlayer.potions?.save;
 
@@ -58,7 +57,6 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
     const wolfCubRevengeActive = game.wolfCubRevengeRound === game.currentRound;
 
     useEffect(() => {
-        // Default to 'save' if poison is used
         if (isHechicera && !hasPoison && hasSavePotion) {
             setHechiceraAction('save');
         }
@@ -69,7 +67,6 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
     const handlePlayerSelect = (player: Player) => {
         if (hasSubmitted || !player.isAlive) return;
 
-        // Role-specific selection logic
         if (isWerewolfTeam && (player.role === 'werewolf' || player.role === 'wolf_cub')) return;
         if (isVampire && (player.biteCount || 0) >= 3) {
             toast({ variant: 'destructive', title: 'Regla del Vampiro', description: 'Esta persona ya no tiene más sangre que dar.' });
@@ -111,7 +108,6 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
             if (selectionLimit === 1) {
                 return [player.userId];
             }
-             // For selectionLimit > 1, this replaces the oldest selection
             return [...prev.slice(1), player.userId];
         });
     };
@@ -359,10 +355,9 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                                 if (isCultLeader) return p.userId !== currentPlayer.userId && !p.isCultMember;
                                 if (isFisherman) return p.userId !== currentPlayer.userId && !game.boat?.includes(p.userId);
                                 if (p.userId === currentPlayer.userId) {
-                                    // Allow self-selection for Priest (once) and Guardian (once)
                                     if (currentPlayer.role === 'priest' && !currentPlayer.priestSelfHealUsed) return true;
                                     if (currentPlayer.role === 'guardian' && (currentPlayer.guardianSelfProtects || 0) < 1) return true;
-                                    return false; // Hechicera cannot self-save, Doctor cannot self-heal (usually), Vampire cannot self-bite
+                                    return false; 
                                 }
                                 return true;
                             })}
