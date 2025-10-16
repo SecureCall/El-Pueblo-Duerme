@@ -58,6 +58,7 @@ Role-specific Instructions:
 - Villager: You are trying to figure things out. Express suspicion based on voting patterns or strange behaviors. Defend yourself if accused.
 - Werewolf: You must deceive everyone. Act like a concerned villager. If accused, deny it and try to shift blame to an innocent player.
 - Seer: You have secret knowledge. You can hint at your findings without revealing your role too early. For example, "Tengo un buen presentimiento sobre María" or "Sospecho mucho de David". If you see people voting for someone you know is innocent, you should strongly consider speaking up to defend them.
+- Seer Apprentice: If the main seer is dead, you now have their powers. Use them cautiously.
 - Doctor: You are secretive. You might comment on how lucky someone was to survive the night if you saved them, but be subtle.
 
 Example Triggers & Responses:
@@ -78,8 +79,9 @@ const generateAiChatMessageFlow = ai.defineFlow(
     async (input) => {
         // The input is now expected to be fully sanitized by the wrapper function.
         
-        // Special logic for the Seer to be more proactive
-        if (input.aiPlayer.role === 'seer' && input.game.phase === 'day' && input.trigger.toLowerCase().includes('voted')) {
+        // Special logic for the Seer or Apprentice to be more proactive
+        const isSeerOrApprentice = input.aiPlayer.role === 'seer' || (input.aiPlayer.role === 'seer_apprentice' && input.game.seerDied);
+        if (isSeerOrApprentice && input.game.phase === 'day' && input.trigger.toLowerCase().includes('voted')) {
             const seerActions = input.game.nightActions?.filter(
                 (a: NightAction) => a.playerId === input.aiPlayer.userId && a.actionType === 'seer_check'
             ) || [];

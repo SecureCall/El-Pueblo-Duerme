@@ -53,9 +53,9 @@ export interface Game {
   players: Player[]; // Array of Player objects
   events: GameEvent[]; // Array of GameEvent objects
   chatMessages: ChatMessage[]; // Array of ChatMessage objects
-  wolfChatMessages?: ChatMessage[];
-  fairyChatMessages?: ChatMessage[];
-  twinChatMessages?: ChatMessage[];
+  wolfChatMessages: ChatMessage[];
+  fairyChatMessages: ChatMessage[];
+  twinChatMessages: ChatMessage[];
   maxPlayers: number;
   createdAt: Timestamp;
   currentRound: number;

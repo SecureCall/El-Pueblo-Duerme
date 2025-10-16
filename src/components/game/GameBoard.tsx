@@ -22,6 +22,8 @@ import { BanishedOverlay } from "./BanishedOverlay";
 import { HunterKillOverlay } from "./HunterKillOverlay";
 import { GhostAction } from "./GhostAction";
 import { GameChat } from "./GameChat";
+import { TwinChat } from "./TwinChat";
+import { FairyChat } from "./FairyChat";
 
 interface GameBoardProps {
   game: Game;
@@ -194,7 +196,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages, wolf
 
 
 // A simplified version of the board for spectating, without interactive elements.
-function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, currentPlayer }: Omit<GameBoardProps, 'currentPlayer'> & { currentPlayer: Player }) {
+function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, currentPlayer }: GameBoardProps) {
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
   const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
@@ -366,6 +368,12 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
                     behaviorClueEvent={behaviorClueEvent}
                     chatMessages={messages}
                 />
+                 {isTwin && (
+                    <TwinChat gameId={game.id} currentPlayer={currentPlayer} messages={twinMessages} />
+                 )}
+                 {game.fairiesFound && (currentPlayer.role === 'seeker_fairy' || currentPlayer.role === 'sleeping_fairy') && (
+                    <FairyChat gameId={game.id} currentPlayer={currentPlayer} messages={fairyMessages} />
+                 )}
             </div>
              <div className="w-full md:w-96">
                 <GameChat 
