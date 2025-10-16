@@ -401,7 +401,11 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                             <PlayerGrid 
                                 players={players.filter(p => {
                                     if (isCupidFirstNight) return true;
-                                    if (isWerewolfTeam) return p.role !== 'werewolf' && p.role !== 'wolf_cub';
+                                    if (isWerewolfTeam) {
+                                        // A witch who found the seer is an ally
+                                        if (game.witchFoundSeer && p.role === 'witch') return false;
+                                        return p.role !== 'werewolf' && p.role !== 'wolf_cub';
+                                    }
                                     if (canFairiesKill && (p.role === 'seeker_fairy' || p.role === 'sleeping_fairy')) return false;
                                     if (isVampire) return p.role !== 'vampire';
                                     if (isCultLeader) return p.userId !== currentPlayer.userId && !p.isCultMember;

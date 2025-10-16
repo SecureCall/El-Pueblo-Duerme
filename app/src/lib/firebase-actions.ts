@@ -829,6 +829,10 @@ export async function processNight(db: Firestore, gameId: string) {
                     let maxVotes = 0;
                     let mostVotedPlayerIds: string[] = [];
                     for (const targetId in voteCounts) {
+                        const targetPlayer = game.players.find(p => p.userId === targetId);
+                        if (game.witchFoundSeer && targetPlayer?.role === 'witch') {
+                            continue; // Witch is immune if they found the seer
+                        }
                         if (voteCounts[targetId] > maxVotes) {
                             maxVotes = voteCounts[targetId];
                             mostVotedPlayerIds = [targetId];
@@ -945,7 +949,7 @@ export async function processNight(db: Firestore, gameId: string) {
 
             if (game.phase === 'hunter_shot') {
                 transaction.update(gameRef, { 
-                    players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot, fairiesFound: game.fairiesFound, fairyKillUsed: game.fairyKillUsed
+                    players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot, fairiesFound: game.fairiesFound, fairyKillUsed: game.fairyKillUsed, witchFoundSeer: game.witchFoundSeer
                 });
                 return;
             }
@@ -962,6 +966,7 @@ export async function processNight(db: Firestore, gameId: string) {
               pendingHunterShot: null,
               fairiesFound: game.fairiesFound,
               fairyKillUsed: game.fairyKillUsed,
+              witchFoundSeer: game.witchFoundSeer,
             });
         });
 
@@ -1263,7 +1268,11 @@ const getDeterministicAIAction = (
     switch (role) {
         case 'werewolf':
         case 'wolf_cub': {
-            const nonWolves = potentialTargets.filter(p => !wolfRoles.includes(p.role));
+            const nonWolves = potentialTargets.filter(p => {
+                if (wolfRoles.includes(p.role)) return false;
+                if (game.witchFoundSeer && p.role === 'witch') return false; // Don't attack allied witch
+                return true;
+            });
             const killCount = wolfCubRevengeActive ? 2 : 1;
             return { actionType: 'werewolf_kill', targetId: randomTarget(nonWolves, killCount) };
         }
@@ -1326,6 +1335,13 @@ const getDeterministicAIAction = (
             }
             return { actionType: 'NONE', targetId: '' };
         }
+        case 'witch': {
+            if (game.phase === 'day') return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
+            if (!game.witchFoundSeer) {
+                return { actionType: 'witch_hunt', targetId: randomTarget(potentialTargets) };
+            }
+            return { actionType: 'NONE', targetId: '' };
+        }
         default:
             if (game.phase === 'day') return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
             if (game.phase === 'hunter_shot' && game.pendingHunterShot === userId) return { actionType: 'SHOOT', targetId: randomTarget(potentialTargets) };
@@ -1376,6 +1392,7 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
                 case 'elder_leader_exile':
                 case 'fairy_find':
                 case 'fairy_kill':
+                case 'witch_hunt':
                     await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
                     break;
                 case 'VOTE':

@@ -205,6 +205,14 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         color: "text-fuchsia-400",
         bgImageId: "role-bg-werewolf"
     },
+    witch: {
+        name: "Bruja",
+        description: "Cada noche te despiertas para cazar a la Vidente. Si la encuentras, el máster te revelará su identidad y podrás entregarla a los lobos. Desde ese momento, los lobos sabrán quién eres y no te atacarán.",
+        atmosphere: "Una aliada oscura, silenciosa y letal. Tu misión: borrar la luz del pueblo antes de que te descubran.",
+        image: "/roles/Witch.png",
+        color: "text-purple-500",
+        bgImageId: "role-bg-werewolf"
+    },
     // ==== Roles Especiales ====
     cupid: {
         name: "Cupido",
@@ -252,14 +260,6 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Un rol sigiloso y letal, capaz de cambiar el rumbo del juego sin que nadie lo note.",
         image: "/roles/Vampire.png",
         color: "text-red-700",
-        bgImageId: "role-bg-werewolf"
-    },
-    witch: {
-        name: "Bruja",
-        description: "Cada noche te despiertas para cazar a la Vidente. Si la encuentras, el máster te revelará su identidad y podrás entregarla a los lobos. Desde ese momento, los lobos sabrán quién eres y no te atacarán.",
-        atmosphere: "Una aliada oscura, silenciosa y letal. Tu misión: borrar la luz del pueblo antes de que te descubran.",
-        image: "/roles/Witch.png",
-        color: "text-purple-500",
         bgImageId: "role-bg-werewolf"
     },
     banshee: {
