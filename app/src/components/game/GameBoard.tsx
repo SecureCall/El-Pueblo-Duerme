@@ -23,6 +23,7 @@ import { HunterKillOverlay } from "./HunterKillOverlay";
 import { GhostAction } from "./GhostAction";
 import { GameChat } from "./GameChat";
 import { TwinChat } from "./TwinChat";
+import { FairyChat } from "./FairyChat";
 
 interface GameBoardProps {
   game: Game;
