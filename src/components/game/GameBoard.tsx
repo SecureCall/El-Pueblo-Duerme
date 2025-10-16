@@ -284,8 +284,8 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
    return (
     <>
        <Card className="text-center bg-card/80">
-        <CardHeader className="flex flex-col items-center justify-between p-4 pb-2">
-            <div className="w-full flex flex-row items-center justify-between">
+        <CardHeader className="p-4 pb-2">
+            <div className="relative w-full flex flex-row items-center justify-between">
                 <div className="flex-shrink-0 w-10">
                     <GameChronicle events={events} currentPlayerId={currentPlayer.userId} />
                 </div>
@@ -297,12 +297,14 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
                 </div>
                 <div className="w-10 flex-shrink-0"></div> {/* Spacer to balance the chronicle button */}
             </div>
-             {(game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && game.phaseEndsAt && (
-                <PhaseTimer 
-                    game={game}
-                    isCreator={game.creator === currentPlayer.userId}
-                />
-            )}
+             <div className="w-full flex justify-center">
+                {(game.phase === 'day' || game.phase === 'night' || game.phase === 'role_reveal') && game.status === 'in_progress' && game.phaseEndsAt && (
+                    <PhaseTimer 
+                        game={game}
+                        isCreator={game.creator === currentPlayer.userId}
+                    />
+                )}
+            </div>
         </CardHeader>
       </Card>
       
