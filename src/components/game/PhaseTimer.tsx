@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -53,7 +54,7 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
     };
 
     useEffect(() => {
-        timerProcessedRef.current = false;
+        timerProcessedRef.current = false; // Reset on phase change
         const initialTimeLeft = getDuration();
         setTimeLeft(initialTimeLeft);
         
@@ -82,7 +83,7 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
             if(timerRef.current) clearInterval(timerRef.current)
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [game.phase, game.currentRound, game.phaseEndsAt, isCreator, firestore]);
+    }, [game.phase, game.currentRound, game.phaseEndsAt, isCreator, firestore, game.id]);
 
     if (totalDuration <= 0) return null;
 

@@ -261,6 +261,10 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
           </CardHeader>
            <CardContent>
                <p className="text-lg text-muted-foreground">Se están repartiendo los roles. La primera noche caerá pronto.</p>
+                <PhaseTimer 
+                    game={game}
+                    isCreator={game.creator === currentPlayer.userId}
+                />
            </CardContent>
        </Card>
      )
@@ -293,7 +297,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
                 </div>
                 <div className="w-10 flex-shrink-0"></div> {/* Spacer to balance the chronicle button */}
             </div>
-            { (game.phase === 'day' || game.phase === 'night' || game.phase === 'role_reveal') && game.status === 'in_progress' && game.phaseEndsAt && (
+             {(game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && game.phaseEndsAt && (
                 <PhaseTimer 
                     game={game}
                     isCreator={game.creator === currentPlayer.userId}

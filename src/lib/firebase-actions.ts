@@ -399,7 +399,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         const finalGameSnap = await getDoc(gameRef);
         if (finalGameSnap.exists()) {
             const game = finalGameSnap.data() as Game;
-            const playersWithNightActions = game.players.filter(p => {
+            const alivePlayersWithNightActions = game.players.filter(p => {
                 const role = p.role;
                 if (!p.isAlive || !role) return false;
                 const rolesWithActions = [
@@ -412,7 +412,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
                 if (role === 'seer_apprentice' && game.seerDied) return true;
                 return false;
             });
-            const allActionsIn = playersWithNightActions.every(p => 
+            const allActionsIn = alivePlayersWithNightActions.every(p => 
                 game.nightActions?.some(na => na.playerId === p.userId && na.round === game.currentRound)
             );
             if (allActionsIn) {
