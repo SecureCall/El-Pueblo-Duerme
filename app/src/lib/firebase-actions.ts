@@ -84,7 +84,6 @@ export async function createGame(
       events: [],
       chatMessages: [],
       wolfChatMessages: [],
-      twinChatMessages: [],
       fairyChatMessages: [],
       maxPlayers: maxPlayers,
       createdAt: Timestamp.now(),
@@ -720,7 +719,6 @@ export async function processNight(db: Firestore, gameId: string) {
             game.events = game.events || [];
             game.chatMessages = game.chatMessages || [];
             game.wolfChatMessages = game.wolfChatMessages || [];
-            game.twinChatMessages = game.twinChatMessages || [];
             game.fairyChatMessages = game.fairyChatMessages || [];
             game.vampireKills = game.vampireKills || 0;
             game.boat = game.boat || [];
@@ -960,7 +958,6 @@ export async function processNight(db: Firestore, gameId: string) {
               phase: 'day',
               chatMessages: [], 
               wolfChatMessages: [], 
-              twinChatMessages: [], 
               fairyChatMessages: [],
               pendingHunterShot: null,
               fairiesFound: game.fairiesFound,
@@ -1651,58 +1648,6 @@ export async function sendWolfChatMessage(
     }
 }
 
-export async function sendTwinChatMessage(
-    db: Firestore,
-    gameId: string,
-    senderId: string,
-    senderName: string,
-    text: string
-) {
-    if (!text?.trim()) {
-        return { success: false, error: 'El mensaje no puede estar vacío.' };
-    }
-
-    const gameRef = doc(db, 'games', gameId);
-
-    try {
-        await runTransaction(db, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error('Game not found');
-            const game = gameDoc.data() as Game;
-            
-            const sender = game.players.find(p => p.userId === senderId);
-            if (!sender || sender.role !== 'twin') {
-                throw new Error("Solo las gemelas pueden usar este chat.");
-            }
-
-            const messageData: ChatMessage = {
-                id: `${Date.now()}_${senderId}`,
-                senderId,
-                senderName,
-                text: text.trim(),
-                round: game.currentRound,
-                createdAt: Timestamp.now(),
-            };
-
-            transaction.update(gameRef, {
-                twinChatMessages: arrayUnion(messageData)
-            });
-        });
-
-        return { success: true };
-
-    } catch (error: any) {
-        console.error("Error sending twin chat message: ", error);
-        if (error.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update', requestResourceData: { twinChatMessages: '...' } });
-            errorEmitter.emit('permission-error', permissionError);
-            return { error: 'Permiso denegado para enviar mensaje.' };
-        }
-        return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
-    }
-}
-
-
 export async function resetGame(db: Firestore, gameId: string) {
     const gameRef = doc(db, 'games', gameId);
 
@@ -1735,7 +1680,7 @@ export async function resetGame(db: Firestore, gameId: string) {
                 events: [],
                 chatMessages: [],
                 wolfChatMessages: [],
-                twinChatMessages: [],
+                fairyChatMessages: [],
                 nightActions: [],
                 lovers: null,
                 twins: null,
