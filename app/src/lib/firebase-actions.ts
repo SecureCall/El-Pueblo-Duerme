@@ -953,6 +953,7 @@ export async function processNight(db: Firestore, gameId: string) {
               chatMessages: [], 
               wolfChatMessages: [], 
               fairyChatMessages: [],
+              twinChatMessages: [],
               pendingHunterShot: null,
               fairiesFound: game.fairiesFound,
               fairyKillUsed: game.fairyKillUsed,
