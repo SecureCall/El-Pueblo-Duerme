@@ -8,8 +8,6 @@ import { Timestamp } from 'firebase/firestore';
 interface PhaseTimerProps {
     game: Game;
     onTimerEnd: () => void;
-    // Add key to force re-mount
-    timerKey: string;
 }
 
 // Helper to safely get milliseconds from either a Timestamp object or a plain object
@@ -22,7 +20,7 @@ const getMillis = (timestamp: any): number => {
   if (typeof timestamp === 'object' && timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
     return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
   }
-  // It might be a Date object already if converted somewhere
+   // It might be a Date object already if converted somewhere
   if (timestamp instanceof Date) {
       return timestamp.getTime();
   }
@@ -39,54 +37,46 @@ const getMillis = (timestamp: any): number => {
 
 const getTotalDuration = (phase: Game['phase']): number => {
     switch (phase) {
-        case 'day': return 45;
-        case 'night': return 45;
+        case 'day': return 45; // seconds
+        case 'night': return 45; // seconds
         case 'role_reveal': return 15;
         default: return 0;
     }
 };
 
-export function PhaseTimer({ game, onTimerEnd, timerKey }: PhaseTimerProps) {
-    const onTimerEndRef = useRef(onTimerEnd);
-
+export function PhaseTimer({ game, onTimerEnd }: PhaseTimerProps) {
+    const totalDuration = getTotalDuration(game.phase);
+    
     const calculateTimeLeft = () => {
         const phaseEndMillis = getMillis(game.phaseEndsAt);
-        if (phaseEndMillis === 0) return 0;
+        if (phaseEndMillis === 0) return totalDuration;
         const now = Date.now();
         return Math.max(0, Math.floor((phaseEndMillis - now) / 1000));
     };
-    
+
     const [timeLeft, setTimeLeft] = useState(calculateTimeLeft);
-    
-    // Keep the onTimerEnd callback fresh without causing re-renders.
+    const onTimerEndRef = useRef(onTimerEnd);
+
     useEffect(() => {
         onTimerEndRef.current = onTimerEnd;
     }, [onTimerEnd]);
 
     useEffect(() => {
-        // Reset timeLeft when the key changes (new phase/round starts)
+        // Reset timer when game phase or round changes
         setTimeLeft(calculateTimeLeft());
-        
-        const totalDuration = getTotalDuration(game.phase);
-        if (totalDuration <= 0) return;
 
         const interval = setInterval(() => {
-            setTimeLeft(prev => {
-                const newTimeLeft = calculateTimeLeft();
-                if (newTimeLeft <= 0) {
-                    clearInterval(interval);
-                    onTimerEndRef.current();
-                    return 0;
-                }
-                return newTimeLeft;
-            });
+             const newTimeLeft = calculateTimeLeft();
+             setTimeLeft(newTimeLeft);
+            if (newTimeLeft <= 0) {
+                clearInterval(interval);
+                onTimerEndRef.current();
+            }
         }, 1000);
 
-        // Cleanup function to clear the interval when the component unmounts or the key changes.
         return () => clearInterval(interval);
-    }, [timerKey, game.phaseEndsAt]); 
+    }, [game.phase, game.currentRound, game.phaseEndsAt]); // Key dependencies
 
-    const totalDuration = getTotalDuration(game.phase);
     if (totalDuration <= 0 || !game.phaseEndsAt) return null;
 
     const progress = (timeLeft / totalDuration) * 100;

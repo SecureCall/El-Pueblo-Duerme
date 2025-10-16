@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -6,21 +5,19 @@ import { RoleReveal } from "./RoleReveal";
 import { PlayerGrid } from "./PlayerGrid";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { useEffect, useState, useRef } from "react";
-import { doc, runTransaction } from "firebase/firestore";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
 import { processNight, processVotes, runAIActions, advanceToNightPhase } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
-import { HeartIcon, Moon, Sun, Users2, Gavel, Skull, Milestone, Swords, Repeat, BrainCircuit, Ghost } from "lucide-react";
+import { HeartIcon, Moon, Sun, Users2 } from "lucide-react";
 import { HunterShot } from "./HunterShot";
 import { GameChronicle } from "./GameChronicle";
 import { PhaseTimer } from "./PhaseTimer";
 import { CurrentPlayerRole } from "./CurrentPlayerRole";
-import { playNarration, playSoundEffect } from "@/lib/sounds";
+import { playNarration } from "@/lib/sounds";
 import { YouAreDeadOverlay } from "./YouAreDeadOverlay";
 import { BanishedOverlay } from "./BanishedOverlay";
-import Image from 'next/image';
 import { HunterKillOverlay } from "./HunterKillOverlay";
 import { GhostAction } from "./GhostAction";
 
@@ -35,17 +32,14 @@ interface GameBoardProps {
 export function GameBoard({ game, players, currentPlayer, events, messages }: GameBoardProps) {
   const { firestore } = useFirebase();
   const prevPhaseRef = useRef<Game['phase']>();
-  const prevRoundRef = useRef<number>();
-  const nightSoundsPlayedForRound = useRef<number>(0);
-  const voteSoundsPlayedForRound = useRef<number>(0);
   const [showRole, setShowRole] = useState(true);
   const [deathCause, setDeathCause] = useState<'eliminated' | 'vote' | 'hunter_shot' | null>(null);
+  const nightSoundsPlayedForRound = useRef<number>(0);
 
   // Sound effect logic
   useEffect(() => {
     const prevPhase = prevPhaseRef.current;
 
-    // Phase change narrations
     if (prevPhase !== game.phase) {
       switch (game.phase) {
         case 'night':
@@ -67,27 +61,24 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
     }
     
     prevPhaseRef.current = game.phase;
-    prevRoundRef.current = game.currentRound;
-
-  }, [game.phase, game.currentRound, events, currentPlayer.userId]);
 
     // Specific useEffect for night result sounds based on new events
-    useEffect(() => {
-        const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
-        if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
-            const hasDeaths = nightEvent.data?.killedPlayerIds?.length > 0;
-            const wasSaved = !hasDeaths && nightEvent.data?.savedPlayerIds?.length > 0;
-            
-            setTimeout(() => {
-                if (hasDeaths) {
-                    playNarration('Descanse en paz.mp3');
-                } else if (wasSaved) {
-                    playNarration('¡Milagro!.mp3');
-                }
-            }, 2500); // Delay to allow 'despierta' to finish
-            nightSoundsPlayedForRound.current = game.currentRound; // Mark as played for this round
-        }
-    }, [events, game.currentRound]);
+    const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
+    if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
+        const hasDeaths = nightEvent.data?.killedPlayerIds?.length > 0;
+        const wasSaved = !hasDeaths && nightEvent.data?.savedPlayerIds?.length > 0;
+        
+        setTimeout(() => {
+            if (hasDeaths) {
+                playNarration('Descanse en paz.mp3');
+            } else if (wasSaved) {
+                playNarration('¡Milagro!.mp3');
+            }
+        }, 2500); // Delay to allow 'despierta' to finish
+        nightSoundsPlayedForRound.current = game.currentRound; // Mark as played for this round
+    }
+
+  }, [game.phase, game.currentRound, events]);
 
      // Effect to check if the current player has died and by what cause
     useEffect(() => {
@@ -136,6 +127,18 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
       return () => clearTimeout(timer);
     }
   }, [game.phase, game.id, game.creator, currentPlayer.userId, firestore]);
+  
+   const handleTimerEnd = async () => {
+    if (!firestore || game.creator !== currentPlayer.userId) return; // Only creator advances phase on timer end
+    
+    if (game.phase === 'day' && game.status === 'in_progress') {
+        console.log("Creator fallback timer ended for day, processing votes.");
+        await processVotes(firestore, game.id);
+    } else if (game.phase === 'night' && game.status === 'in_progress') {
+        console.log("Creator fallback timer ended for night, processing night.");
+        await processNight(firestore, game.id);
+    }
+  };
 
   const handleAcknowledgeRole = async () => {
       if (!firestore) return;
@@ -186,7 +189,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
 
 
 // A simplified version of the board for spectating, without interactive elements.
-function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: Omit<GameBoardProps, 'currentPlayer' | 'messages'> & { currentPlayer: Player, messages: ChatMessage[] }) {
+function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: Omit<GameBoardProps, 'currentPlayer' | 'messages' | 'handleTimerEnd'> & { currentPlayer: Player, messages: ChatMessage[] }) {
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
   const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
@@ -212,15 +215,12 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
       }
   }
   
-  const handleTimerEnd = async () => {
-    if (!firestore) return;
-
-    // Any player can trigger phase end. Backend functions prevent race conditions.
+   const handleTimerEnd = async () => {
+    if (!firestore || game.creator !== currentPlayer.userId) return;
+    
     if (game.phase === 'day' && game.status === 'in_progress') {
-        console.log("Fallback timer ended for day, processing votes.");
         await processVotes(firestore, game.id);
     } else if (game.phase === 'night' && game.status === 'in_progress') {
-        console.log("Fallback timer ended for night, processing night.");
         await processNight(firestore, game.id);
     }
   };
@@ -293,7 +293,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
    return (
     <>
        <Card className="text-center bg-card/80">
-        <CardHeader className="flex flex-row items-center justify-between p-4 pb-8 relative">
+        <CardHeader className="flex flex-col items-center justify-center p-4 relative">
           <div className="absolute left-4 top-1/2 -translate-y-1/2">
              <GameChronicle events={events} currentPlayerId={currentPlayer.userId} />
           </div>
@@ -303,10 +303,9 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
               {getPhaseTitle()}
             </CardTitle>
           </div>
-           { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && (
+          { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && (
             <PhaseTimer 
                 game={game}
-                timerKey={`${game.id}-${game.phase}-${game.currentRound}`}
                 onTimerEnd={handleTimerEnd}
             />
           )}
