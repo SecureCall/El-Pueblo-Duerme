@@ -10,8 +10,13 @@ import {
   increment,
   runTransaction,
   type Firestore,
+  type Transaction,
+  DocumentReference,
+  collection,
+  addDoc,
+  writeBatch,
 } from "firebase/firestore";
-import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage, AIPlayerPerspective } from "@/types";
+import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage, AIPlayerPerspective, GameStatus, GamePhase } from "@/types";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
@@ -197,13 +202,11 @@ const generateRoles = (playerCount: number, settings: Game['settings']): (Player
     const specialRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[] = Object.keys(settings)
         .filter(key => key !== 'werewolves' && key !== 'fillWithAI' && settings[key as keyof typeof settings] === true) as any;
 
-    // Add werewolves first
     const numWerewolves = Math.max(1, Math.floor(playerCount / 5));
     for (let i = 0; i < numWerewolves; i++) {
         if(roles.length < playerCount) roles.push('werewolf');
     }
 
-    // Add selected special roles
     for (const role of specialRoles) {
         if (role === 'twin') {
             if (roles.length < playerCount - 1) {
@@ -431,7 +434,7 @@ export async function submitCupidAction(db: Firestore, gameId: string, cupidId: 
     }
 }
 
-function handleDrunkManWin(transaction: any, gameRef: any, gameData: Game, drunkPlayer: Player) {
+function handleDrunkManWin(transaction: Transaction, gameRef: DocumentReference, gameData: Game, drunkPlayer: Player) {
     const gameOverEvent: GameEvent = {
         id: `evt_gameover_${Date.now()}`,
         gameId: gameData.id!,
@@ -735,24 +738,36 @@ export async function processNight(db: Firestore, gameId: string) {
                     }
                     
                     const killCount = game.wolfCubRevengeRound === game.currentRound + 1 ? 2 : 1;
-                    for(let i = 0; i < killCount && mostVotedPlayerIds.length > 0; i++) {
-                        const randomIndex = Math.floor(Math.random() * mostVotedPlayerIds.length);
-                        const targetId = mostVotedPlayerIds.splice(randomIndex, 1)[0];
-                        const targetPlayer = game.players.find(p => p.userId === targetId);
+                    
+                    if (mostVotedPlayerIds.length > 0) {
+                         let targetsToKill = [];
+                         if (mostVotedPlayerIds.length === 1) {
+                             targetsToKill.push(mostVotedPlayerIds[0]);
+                         }
+                         // If revenge is active and there's a clear second most-voted, add them.
+                         // For simplicity, we can just pick one if tied.
+                         else if (mostVotedPlayerIds.length > 1 && killCount > 1) {
+                            targetsToKill = mostVotedPlayerIds.slice(0, killCount);
+                         }
+                         // If there's a tie for first place, no one is killed.
+                         // The `else if` above will not be met, and `targetsToKill` remains empty.
 
-                        if (!targetPlayer) continue;
+                         for (const targetId of targetsToKill) {
+                            const targetPlayer = game.players.find(p => p.userId === targetId);
+                            if (!targetPlayer) continue;
 
-                        if (allProtectedIds.has(targetId)) {
-                           // Saved
-                        } else if (targetPlayer.role === 'cursed' && game.settings.cursed) {
-                            const playerIndex = game.players.findIndex(p => p.userId === targetId);
-                            if (playerIndex > -1) {
-                                game.players[playerIndex].role = 'werewolf';
-                                game.events.push({ id: `evt_transform_${Date.now()}`, gameId, round: game.currentRound, type: 'player_transformed', message: `${targetPlayer.displayName} ha sido transformado en Hombre Lobo.`, data: { playerId: targetId }, createdAt: Timestamp.now() });
+                            if (allProtectedIds.has(targetId)) {
+                               // Saved
+                            } else if (targetPlayer.role === 'cursed' && game.settings.cursed) {
+                                const playerIndex = game.players.findIndex(p => p.userId === targetId);
+                                if (playerIndex > -1) {
+                                    game.players[playerIndex].role = 'werewolf';
+                                    game.events.push({ id: `evt_transform_${Date.now()}`, gameId, round: game.currentRound, type: 'player_transformed', message: `${targetPlayer.displayName} ha sido transformado en Hombre Lobo.`, data: { playerId: targetId }, createdAt: Timestamp.now() });
+                                }
+                            } else {
+                                finalKilledPlayerIds.push(targetId);
                             }
-                        } else {
-                            finalKilledPlayerIds.push(targetId);
-                        }
+                         }
                     }
                 }
             }
@@ -800,6 +815,8 @@ export async function processNight(db: Firestore, gameId: string) {
                 nightEvent.message = "Gracias a la Leprosa, los lobos no pudieron atacar esta noche. Nadie murió.";
             } else if (actions.some(a => a.actionType === 'werewolf_kill' || a.actionType === 'hechicera_poison' || a.actionType === 'vampire_bite')) {
                  nightEvent.message = "Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!";
+            } else if(actions.filter(a => a.actionType === 'werewolf_kill').length > 0) {
+                 nightEvent.message = "Los lobos no se pusieron de acuerdo en su víctima. Nadie murió por su ataque.";
             } else {
                  nightEvent.message = "La noche transcurre en un inquietante silencio. Nadie ha muerto.";
             }
@@ -829,8 +846,8 @@ export async function processNight(db: Firestore, gameId: string) {
               events: game.events,
               phase: 'day',
               chatMessages: [], 
-              wolfChatMessages: [], // Clear wolf chat for the new day
-              twinChatMessages: [], // Clear twin chat for the new day
+              wolfChatMessages: [], 
+              twinChatMessages: [], 
               pendingHunterShot: null,
             });
         });
@@ -1633,4 +1650,3 @@ export async function sendGhostMessage(
         return { success: false, error: error.message || "No se pudo enviar el mensaje." };
     }
 }
-
