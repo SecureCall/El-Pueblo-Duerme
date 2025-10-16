@@ -497,7 +497,10 @@ function killPlayer(
         killedThisTurn.add(playerIdToKill);
         
         if (playerToKill.role === 'seer') gameData.seerDied = true;
-        if (playerToKill.role === 'hunter' && gameData.settings.hunter && gameData.phase !== 'hunter_shot') hunterTriggeredId = playerToKill.userId;
+        if (playerToKill.role === 'hunter' && gameData.settings.hunter && gameData.phase !== 'hunter_shot') {
+            const hunterIsAlive = gameData.players[playerIndex].isAlive;
+            if(!hunterIsAlive) hunterTriggeredId = playerToKill.userId;
+        }
         if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) gameData.wolfCubRevengeRound = gameData.currentRound + 1;
         if (playerToKill.role === 'leprosa' && gameData.settings.leprosa) gameData.leprosaBlockedRound = gameData.currentRound + 1;
 
@@ -1115,7 +1118,8 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 .find(e => 
                     (e.type === 'vote_result' && e.data?.lynchedPlayerId === hunterId) ||
                     (e.type === 'night_result' && e.data?.killedPlayerIds?.includes(hunterId)) ||
-                    (e.type === 'lover_death' && e.data?.killedPlayerId === hunterId)
+                    (e.type === 'lover_death' && e.data?.killedPlayerId === hunterId) ||
+                    (e.type === 'special' && e.data?.killedPlayerId === hunterId)
                 );
 
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
@@ -1688,4 +1692,77 @@ export async function sendGhostMessage(
     }
 }
 
+export async function submitTroublemakerAction(
+  db: Firestore,
+  gameId: string,
+  troublemakerId: string,
+  target1Id: string,
+  target2Id: string
+) {
+  const gameRef = doc(db, 'games', gameId);
+
+  try {
+    await runTransaction(db, async (transaction) => {
+      const gameSnap = await transaction.get(gameRef);
+      if (!gameSnap.exists()) throw new Error("Partida no encontrada");
+      let game = gameSnap.data() as Game;
+
+      const player = game.players.find(p => p.userId === troublemakerId);
+      if (!player || player.role !== 'troublemaker' || game.troublemakerUsed) {
+        throw new Error("No puedes realizar esta acción.");
+      }
+
+      const target1 = game.players.find(p => p.userId === target1Id);
+      const target2 = game.players.find(p => p.userId === target2Id);
+
+      if (!target1 || !target2 || !target1.isAlive || !target2.isAlive) {
+        throw new Error("Los objetivos seleccionados no son válidos.");
+      }
+
+      const event: GameEvent = {
+        id: `evt_trouble_${Date.now()}`,
+        gameId,
+        round: game.currentRound,
+        type: 'special',
+        message: `${player.displayName} ha provocado una pelea mortal. ${target1.displayName} y ${target2.displayName} han sido eliminados.`,
+        createdAt: Timestamp.now(),
+        data: { eliminated: [target1Id, target2Id] }
+      };
+      game.events.push(event);
+
+      const { gameOver } = killPlayer(game, [target1Id, target2Id]);
+      if (gameOver) {
+        const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
+        if (drunkPlayer) handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
+        return;
+      }
+      
+      const { isGameOver, message, winnerCode, winners } = checkGameOver(game);
+      if (isGameOver) {
+        const gameOverEvent: GameEvent = {
+          id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message, data: { winnerCode, winners }, createdAt: Timestamp.now(),
+        };
+        game.events.push(gameOverEvent);
+        transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: game.events, troublemakerUsed: true });
+        return;
+      }
+
+      transaction.update(gameRef, {
+        players: game.players,
+        events: game.events,
+        troublemakerUsed: true,
+      });
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    if ((error as any).code === 'permission-denied') {
+      const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
+      errorEmitter.emit('permission-error', permissionError);
+      return { error: 'Permiso denegado para usar esta habilidad.' };
+    }
+    console.error("Error submitting troublemaker action:", error);
+    return { error: error.message || "No se pudo realizar la acción." };
+  }
+}
     

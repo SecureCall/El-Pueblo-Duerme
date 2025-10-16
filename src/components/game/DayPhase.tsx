@@ -7,8 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
-import { submitVote } from '@/lib/firebase-actions';
-import { Loader2 } from 'lucide-react';
+import { submitVote, submitTroublemakerAction } from '@/lib/firebase-actions';
+import { Loader2, Zap } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { HeartCrack, SunIcon, Users, BrainCircuit } from 'lucide-react';
 import { useFirebase } from '@/firebase';
@@ -24,6 +24,80 @@ interface DayPhaseProps {
     chatMessages: ChatMessage[];
 }
 
+function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, currentPlayer: Player, players: Player[] }) {
+    const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const { firestore } = useFirebase();
+    const { toast } = useToast();
+
+    const handlePlayerSelect = (player: Player) => {
+        if (!player.isAlive || player.userId === currentPlayer.userId) return;
+        
+        setSelectedPlayerIds(prev => {
+            if (prev.includes(player.userId)) {
+                return prev.filter(id => id !== player.userId);
+            }
+            if (prev.length < 2) {
+                return [...prev, player.userId];
+            }
+            return [...prev.slice(1), player.userId];
+        });
+    };
+
+    const handleSubmit = async () => {
+        if (selectedPlayerIds.length !== 2) {
+            toast({ variant: 'destructive', title: 'Debes seleccionar exactamente a dos jugadores.' });
+            return;
+        }
+        if (!firestore) return;
+
+        setIsSubmitting(true);
+        const result = await submitTroublemakerAction(firestore, game.id, currentPlayer.userId, selectedPlayerIds[0], selectedPlayerIds[1]);
+        if (result.success) {
+            toast({ title: '¡Caos desatado!', description: 'Has provocado una pelea mortal.' });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+            setIsSubmitting(false);
+        }
+    };
+    
+    const target1 = players.find(p => p.userId === selectedPlayerIds[0]);
+    const target2 = players.find(p => p.userId === selectedPlayerIds[1]);
+
+    return (
+        <Card className="bg-amber-900/30 border-amber-500/50 mt-4">
+            <CardHeader>
+                <CardTitle className="font-headline text-xl text-amber-400 flex items-center gap-2">
+                    <Zap /> Acción de Alborotadora
+                </CardTitle>
+                <CardDescription>
+                    Una vez por partida, puedes provocar una pelea mortal entre dos jugadores. Ambos serán eliminados.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <p className="text-center mb-4 text-muted-foreground">Selecciona a dos jugadores para que se peleen.</p>
+                <PlayerGrid 
+                    players={players.filter(p => p.isAlive && p.userId !== currentPlayer.userId)}
+                    onPlayerClick={handlePlayerSelect}
+                    clickable={true}
+                    selectedPlayerIds={selectedPlayerIds}
+                />
+                <Button 
+                    className="w-full mt-6 text-lg" 
+                    onClick={handleSubmit} 
+                    disabled={selectedPlayerIds.length !== 2 || isSubmitting}
+                    variant="destructive"
+                >
+                    {isSubmitting 
+                        ? <Loader2 className="animate-spin" /> 
+                        : `Provocar Pelea entre ${target1?.displayName || '...'} y ${target2?.displayName || '...'}`
+                    }
+                </Button>
+            </CardContent>
+        </Card>
+    );
+}
+
 export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathEvents = [], voteEvent, behaviorClueEvent, chatMessages }: DayPhaseProps) {
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -32,6 +106,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
 
     const hasVoted = !!currentPlayer.votedFor;
     const alivePlayers = players.filter(p => p.isAlive);
+    const isTroublemaker = currentPlayer.role === 'troublemaker' && currentPlayer.isAlive && !game.troublemakerUsed;
 
     const handlePlayerSelect = (player: Player) => {
         if (hasVoted || !currentPlayer.isAlive || !player.isAlive || player.userId === currentPlayer.userId) return;
@@ -156,6 +231,9 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                         />
                     </div>
                 )}
+                
+                {isTroublemaker && <TroublemakerPanel game={game} currentPlayer={currentPlayer} players={players} />}
+
             </CardContent>
         </Card>
     );
