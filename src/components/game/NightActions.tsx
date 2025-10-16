@@ -229,7 +229,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
         switch (currentPlayer.role) {
             case 'werewolf':
             case 'wolf_cub':
-                return wolfCubRevengeActive ? '¡Venganza! Elegid a dos aldeanos para eliminar.' : 'Elige a un aldeano para eliminar.';
+                return wolfCubRevengeActive ? '¡Venganza! La cría ha muerto. Elegid a dos aldeanos para eliminar.' : 'Elige a un aldeano para eliminar.';
             case 'seer': return 'Elige a un jugador para descubrir su identidad.';
             case 'doctor': return 'Elige a un jugador para proteger esta noche.';
             case 'guardian': return 'Elige a un jugador para proteger esta noche. Puedes protegerte a ti mismo una vez por partida.';
@@ -261,7 +261,7 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                         <AlertTriangle className="h-4 w-4" />
                         <AlertTitle>¡Venganza de la Cría de Lobo!</AlertTitle>
                         <AlertDescription>
-                            La cría de lobo ha muerto. Esta noche, podéis matar a un jugador.
+                            La cría de lobo ha muerto. Esta noche, podéis eliminar a dos jugadores.
                         </AlertDescription>
                     </Alert>
                 )}

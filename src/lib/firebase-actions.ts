@@ -10,6 +10,7 @@ import {
   runTransaction,
   type Firestore,
   type Transaction,
+  DocumentReference,
 } from "firebase/firestore";
 import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage, AIPlayerPerspective } from "@/types";
 import { errorEmitter } from "@/firebase/error-emitter";
@@ -298,7 +299,6 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
                 status: 'in_progress',
                 phase: 'role_reveal',
                 currentRound: 1,
-                phaseEndsAt: Timestamp.fromMillis(Date.now() + 15 * 1000) // 15 seconds for role reveal
             });
         });
         
@@ -484,7 +484,9 @@ function killPlayer(
 
         if (playerToKill.role === 'seer') gameData.seerDied = true;
         if (playerToKill.role === 'hunter' && gameData.settings.hunter && gameData.phase !== 'hunter_shot') hunterTriggeredId = playerToKill.userId;
-        if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) gameData.wolfCubRevengeRound = gameData.currentRound; 
+        if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) {
+            gameData.wolfCubRevengeRound = gameData.currentRound + 1;
+        }
         if (playerToKill.role === 'leprosa' && gameData.settings.leprosa) gameData.leprosaBlockedRound = gameData.currentRound + 1;
 
         const handleChainReaction = (linkedIds: string[] | null | undefined, victimId: string, eventType: 'lover_death' | 'special', messageTemplate: string) => {
@@ -824,7 +826,6 @@ export async function processNight(db: Firestore, gameId: string) {
               events: game.events,
               phase: 'day',
               chatMessages: [], 
-              wolfCubRevengeRound: game.wolfCubRevengeRound === game.currentRound ? 0 : game.wolfCubRevengeRound,
               pendingHunterShot: null,
               phaseEndsAt: Timestamp.fromMillis(Date.now() + 45 * 1000)
             });
@@ -1020,8 +1021,8 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             
             const { gameOver } = killPlayer(game, [targetId]);
             if (gameOver) {
-                 const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
-                 if (drunkPlayer) handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
+                const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
+                if (drunkPlayer) handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
                 return;
             }
             
@@ -1095,19 +1096,27 @@ const getDeterministicAIAction = (
     const { role, userId } = aiPlayer;
     const { currentRound } = game;
     const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed'];
+    const wolfCubRevengeActive = game.wolfCubRevengeRound === game.currentRound;
 
     const potentialTargets = alivePlayers.filter(p => p.userId !== userId);
 
-    const randomTarget = (targets: Player[]) => {
+    const randomTarget = (targets: Player[], count = 1): string => {
         if (targets.length === 0) return '';
-        return targets[Math.floor(Math.random() * targets.length)].userId;
+        let availableTargets = [...targets];
+        let selectedTargets: string[] = [];
+        for (let i = 0; i < count && availableTargets.length > 0; i++) {
+            const randomIndex = Math.floor(Math.random() * availableTargets.length);
+            selectedTargets.push(availableTargets.splice(randomIndex, 1)[0].userId);
+        }
+        return selectedTargets.join('|');
     };
 
     switch (role) {
         case 'werewolf':
         case 'wolf_cub': {
             const nonWolves = potentialTargets.filter(p => !wolfRoles.includes(p.role));
-            return { actionType: 'werewolf_kill', targetId: randomTarget(nonWolves) };
+            const killCount = wolfCubRevengeActive ? 2 : 1;
+            return { actionType: 'werewolf_kill', targetId: randomTarget(nonWolves, killCount) };
         }
         case 'seer': {
             if (game.phase === 'day') return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
