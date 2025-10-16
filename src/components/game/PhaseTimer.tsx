@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Progress } from '../ui/progress';
 import type { Game } from '@/types';
 import { Timestamp } from 'firebase/firestore';
@@ -17,8 +17,12 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
     const { firestore } = useFirebase();
     const timerProcessedRef = useRef(false);
 
-    const getRemainingSeconds = () => {
+    // useCallback ensures this function has a stable identity across re-renders,
+    // only changing if the game's phase-end time changes.
+    const getRemainingSeconds = useCallback(() => {
         if (!game.phaseEndsAt) return 0;
+        
+        // This handles both Firestore Timestamp objects and plain objects from serialization
         const phaseEndMillis = game.phaseEndsAt instanceof Timestamp
             ? game.phaseEndsAt.toMillis()
             : (game.phaseEndsAt.seconds * 1000 + game.phaseEndsAt.nanoseconds / 1000000);
@@ -26,7 +30,7 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
         const now = Date.now();
         const remaining = Math.max(0, Math.ceil((phaseEndMillis - now) / 1000));
         return remaining;
-    };
+    }, [game.phaseEndsAt]);
 
     const getTotalDuration = () => {
         switch (game.phase) {
@@ -37,11 +41,13 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
         }
     };
 
-    const [timeLeft, setTimeLeft] = useState(getRemainingSeconds);
+    // Correctly initialize state WITH the calculated value, not the function itself.
+    const [timeLeft, setTimeLeft] = useState(() => getRemainingSeconds());
     const totalDuration = getTotalDuration();
 
     useEffect(() => {
-        timerProcessedRef.current = false; // Reset on each phase change
+        // Reset the processed flag whenever the phase or round changes.
+        timerProcessedRef.current = false;
 
         const interval = setInterval(() => {
             const remaining = getRemainingSeconds();
@@ -62,7 +68,7 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
 
         return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [game.phase, game.currentRound, game.phaseEndsAt, isCreator, firestore, game.id]);
+    }, [game.phase, game.currentRound, getRemainingSeconds, isCreator, firestore, game.id]);
 
     if (totalDuration <= 0) return null;
 
