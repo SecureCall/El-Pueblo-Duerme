@@ -462,19 +462,23 @@ function killPlayer(
     playerIdsToKill: string[]
 ): { updatedGame: Game; triggeredHunterId: string | null; gameOver: boolean; } {
     let hunterTriggeredId: string | null = null;
-    const killedThisTurn = new Set<string>();
     let gameOver = false;
+    const killedThisTurn = new Set<string>();
 
     const killQueue = [...new Set(playerIdsToKill)]; 
 
-    while(killQueue.length > 0) {
-        const playerId = killQueue.shift();
-        if (!playerId || killedThisTurn.has(playerId)) continue;
+    while (killQueue.length > 0) {
+        const playerIdToKill = killQueue.shift();
+        if (!playerIdToKill || killedThisTurn.has(playerIdToKill)) {
+            continue;
+        }
 
-        const playerIndex = gameData.players.findIndex(p => p.userId === playerId);
-        if (playerIndex === -1 || !gameData.players[playerIndex].isAlive) continue;
+        const playerIndex = gameData.players.findIndex(p => p.userId === playerIdToKill);
+        if (playerIndex === -1 || !gameData.players[playerIndex].isAlive) {
+            continue;
+        }
         
-        const playerToKill = { ...gameData.players[playerIndex] };
+        const playerToKill = gameData.players[playerIndex];
 
         if (playerToKill.role === 'drunk_man' && gameData.settings.drunk_man) {
             gameData.players[playerIndex].isAlive = false;
@@ -483,20 +487,19 @@ function killPlayer(
         }
         
         gameData.players[playerIndex].isAlive = false;
-        killedThisTurn.add(playerId);
-
+        killedThisTurn.add(playerIdToKill);
+        
         if (playerToKill.role === 'seer') gameData.seerDied = true;
         if (playerToKill.role === 'hunter' && gameData.settings.hunter && gameData.phase !== 'hunter_shot') hunterTriggeredId = playerToKill.userId;
-        if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) {
-            gameData.wolfCubRevengeRound = gameData.currentRound + 1;
-        }
+        if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) gameData.wolfCubRevengeRound = gameData.currentRound + 1;
         if (playerToKill.role === 'leprosa' && gameData.settings.leprosa) gameData.leprosaBlockedRound = gameData.currentRound + 1;
 
-        const handleChainReaction = (linkedIds: string[] | null | undefined, victimId: string, eventType: 'lover_death' | 'special', messageTemplate: string) => {
-            if (!linkedIds || !linkedIds.includes(victimId)) return;
-            const otherId = linkedIds.find(id => id !== victimId);
-            if (!otherId || killedThisTurn.has(otherId) || killQueue.includes(otherId)) return;
+        const handleChainReaction = (linkedIds: string[] | null | undefined, deadPlayer: Player, eventType: 'lover_death' | 'special', messageTemplate: string) => {
+            if (!linkedIds || !linkedIds.includes(deadPlayer.userId)) return;
 
+            const otherId = linkedIds.find(id => id !== deadPlayer.userId);
+            if (!otherId || killedThisTurn.has(otherId) || killQueue.includes(otherId)) return;
+            
             const otherPlayer = gameData.players.find(p => p.userId === otherId);
             if (otherPlayer && otherPlayer.isAlive) {
                 gameData.events.push({
@@ -504,16 +507,16 @@ function killPlayer(
                     gameId: gameData.id!,
                     round: gameData.currentRound,
                     type: eventType,
-                    message: messageTemplate.replace('{otherName}', otherPlayer?.displayName || 'Alguien').replace('{victimName}', playerToKill.displayName),
-                    data: { killedPlayerId: otherId, originalVictimId: victimId },
+                    message: messageTemplate.replace('{otherName}', otherPlayer.displayName).replace('{victimName}', deadPlayer.displayName),
+                    data: { killedPlayerId: otherId, originalVictimId: deadPlayer.userId },
                     createdAt: Timestamp.now(),
                 });
                 killQueue.push(otherId);
             }
         };
 
-        handleChainReaction(gameData.lovers, playerToKill.userId, 'lover_death', '{otherName} no pudo soportar la pérdida de {victimName} y ha muerto de desamor.');
-        handleChainReaction(gameData.twins, playerToKill.userId, 'special', 'Tras la muerte de {victimName}, su gemelo/a {otherName} muere de pena.');
+        handleChainReaction(gameData.lovers, playerToKill, 'lover_death', '{otherName} no pudo soportar la pérdida de {victimName} y ha muerto de desamor.');
+        handleChainReaction(gameData.twins, playerToKill, 'special', 'Tras la muerte de {victimName}, su gemelo/a {otherName} muere de pena.');
         
         const virginiaLink = gameData.players.find(p => p.role === 'virginia_woolf' && p.virginiaWoolfTargetId && p.userId === playerToKill.userId);
         if (virginiaLink && virginiaLink.virginiaWoolfTargetId && !killedThisTurn.has(virginiaLink.virginiaWoolfTargetId)) {
@@ -740,11 +743,14 @@ export async function processNight(db: Firestore, gameId: string) {
                     
                     if (mostVotedPlayerIds.length > 0) {
                          let targetsToKill = [];
-                         if (mostVotedPlayerIds.length === 1) {
-                             targetsToKill.push(mostVotedPlayerIds[0]);
-                         }
-                         else if (mostVotedPlayerIds.length > 1 && killCount > 1) {
-                            targetsToKill = mostVotedPlayerIds.slice(0, killCount);
+                         if (mostVotedPlayerIds.length <= killCount) {
+                             targetsToKill = mostVotedPlayerIds;
+                         } else {
+                            // If more potential targets than kills, pick randomly
+                            for (let i = 0; i < killCount; i++) {
+                                const randomIndex = Math.floor(Math.random() * mostVotedPlayerIds.length);
+                                targetsToKill.push(mostVotedPlayerIds.splice(randomIndex, 1)[0]);
+                            }
                          }
 
                          for (const targetId of targetsToKill) {
