@@ -78,7 +78,7 @@ const generateAiChatMessageFlow = ai.defineFlow(
     async (input) => {
         // The input is now expected to be fully sanitized by the wrapper function.
         
-        // Special logic for the Seer to be more proactive
+        // Special logic for the Seer or Apprentice to be more proactive
         const isSeerOrApprentice = input.aiPlayer.role === 'seer' || (input.aiPlayer.role === 'seer_apprentice' && input.game.seerDied);
         if (isSeerOrApprentice && input.game.phase === 'day' && input.trigger.toLowerCase().includes('voted')) {
             const seerActions = input.game.nightActions?.filter(

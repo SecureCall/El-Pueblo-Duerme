@@ -710,6 +710,7 @@ export async function processNight(db: Firestore, gameId: string) {
             game.chatMessages = game.chatMessages || [];
             game.wolfChatMessages = game.wolfChatMessages || [];
             game.fairyChatMessages = game.fairyChatMessages || [];
+            game.twinChatMessages = game.twinChatMessages || [];
             game.vampireKills = game.vampireKills || 0;
             game.boat = game.boat || [];
 
@@ -1700,7 +1701,7 @@ export async function sendFairyChatMessage(
 
     } catch (error: any) {
         console.error("Error sending fairy chat message: ", error);
-        if (error.code === 'permission-denied') {
+        if ((error as any).code === 'permission-denied') {
             const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update', requestResourceData: { fairyChatMessages: '...' } });
             errorEmitter.emit('permission-error', permissionError);
             return { error: 'Permiso denegado para enviar mensaje.' };
