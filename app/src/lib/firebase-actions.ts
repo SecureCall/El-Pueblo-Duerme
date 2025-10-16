@@ -85,6 +85,7 @@ export async function createGame(
       chatMessages: [],
       wolfChatMessages: [],
       fairyChatMessages: [],
+      twinChatMessages: [],
       maxPlayers: maxPlayers,
       createdAt: Timestamp.now(),
       currentRound: 0,
@@ -654,15 +655,22 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
     }
 
     const banshee = gameData.players.find(p => p.role === 'banshee');
-    if (gameData.settings.banshee && banshee && banshee.isAlive) {
+    if (gameData.settings.banshee && banshee?.isAlive) {
         const screams = banshee.bansheeScreams || {};
         if (Object.keys(screams).length >= 2) {
-             return {
-                isGameOver: true,
-                winnerCode: 'banshee',
-                message: `¡La Banshee ha ganado! Sus dos gritos han sentenciado a muerte y ha cumplido su objetivo.`,
-                winners: [banshee.userId],
-            };
+             const scream1TargetId = screams[Object.keys(screams)[0]];
+             const scream2TargetId = screams[Object.keys(screams)[1]];
+             const target1 = gameData.players.find(p => p.userId === scream1TargetId);
+             const target2 = gameData.players.find(p => p.userId === scream2TargetId);
+
+             if (target1 && target2 && !target1.isAlive && !target2.isAlive) {
+                return {
+                    isGameOver: true,
+                    winnerCode: 'banshee',
+                    message: `¡La Banshee ha ganado! Sus dos gritos han sentenciado a muerte y ha cumplido su objetivo.`,
+                    winners: [banshee.userId],
+                };
+             }
         }
     }
 
@@ -720,6 +728,7 @@ export async function processNight(db: Firestore, gameId: string) {
             game.chatMessages = game.chatMessages || [];
             game.wolfChatMessages = game.wolfChatMessages || [];
             game.fairyChatMessages = game.fairyChatMessages || [];
+            game.twinChatMessages = game.twinChatMessages || [];
             game.vampireKills = game.vampireKills || 0;
             game.boat = game.boat || [];
 
@@ -963,6 +972,7 @@ export async function processNight(db: Firestore, gameId: string) {
               chatMessages: [], 
               wolfChatMessages: [], 
               fairyChatMessages: [],
+              twinChatMessages: [],
               pendingHunterShot: null,
               fairiesFound: game.fairiesFound,
               fairyKillUsed: game.fairyKillUsed,
@@ -1393,6 +1403,7 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
                 case 'fairy_find':
                 case 'fairy_kill':
                 case 'witch_hunt':
+                case 'banshee_scream':
                     await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
                     break;
                 case 'VOTE':
@@ -1716,6 +1727,58 @@ export async function sendFairyChatMessage(
     }
 }
 
+export async function sendTwinChatMessage(
+    db: Firestore,
+    gameId: string,
+    senderId: string,
+    senderName: string,
+    text: string
+) {
+    if (!text?.trim()) {
+        return { success: false, error: 'El mensaje no puede estar vacío.' };
+    }
+
+    const gameRef = doc(db, 'games', gameId);
+
+    try {
+        await runTransaction(db, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error('Game not found');
+            const game = gameDoc.data() as Game;
+            
+            const sender = game.players.find(p => p.userId === senderId);
+            if (!sender || sender.role !== 'twin' || !game.twins?.includes(senderId)) {
+                throw new Error("Solo las gemelas pueden usar este chat.");
+            }
+
+            const messageData: ChatMessage = {
+                id: `${Date.now()}_${senderId}`,
+                senderId,
+                senderName,
+                text: text.trim(),
+                round: game.currentRound,
+                createdAt: Timestamp.now(),
+            };
+
+            transaction.update(gameRef, {
+                twinChatMessages: arrayUnion(messageData)
+            });
+        });
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error("Error sending twin chat message: ", error);
+        if (error.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update', requestResourceData: { twinChatMessages: '...' } });
+            errorEmitter.emit('permission-error', permissionError);
+            return { error: 'Permiso denegado para enviar mensaje.' };
+        }
+        return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
+    }
+}
+
+
 export async function resetGame(db: Firestore, gameId: string) {
     const gameRef = doc(db, 'games', gameId);
 
@@ -1749,6 +1812,7 @@ export async function resetGame(db: Firestore, gameId: string) {
                 chatMessages: [],
                 wolfChatMessages: [],
                 fairyChatMessages: [],
+                twinChatMessages: [],
                 nightActions: [],
                 lovers: null,
                 twins: null,
