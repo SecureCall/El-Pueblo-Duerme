@@ -25,6 +25,17 @@ const getMillis = (timestamp: any): number => {
   if (typeof timestamp === 'object' && timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
     return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
   }
+  // It might be a Date object already if converted somewhere
+  if (timestamp instanceof Date) {
+      return timestamp.getTime();
+  }
+  // It might be an ISO string
+  if (typeof timestamp === 'string') {
+      const date = new Date(timestamp);
+      if (!isNaN(date.getTime())) {
+          return date.getTime();
+      }
+  }
   return 0; // Return 0 for any other invalid format
 };
 
@@ -46,7 +57,7 @@ export const useGameState = (gameId: string) => {
     if (!gameRef) {
         setLoading(false);
         if (!gameId) setError("No game ID provided.");
-        else setError("Cargando sesión de Firebase..."); // More informative message
+        else setError("Cargando sesión de Firebase...");
         return;
     };
 
@@ -56,7 +67,7 @@ export const useGameState = (gameId: string) => {
       if (snapshot.exists()) {
         const gameData = { ...snapshot.data() as Game, id: snapshot.id };
 
-        // **CRITICAL FIX**: Update the main game object state
+        // **CRITICAL FIX**: Update the main game object state. This was the bug.
         setGame(gameData);
         
         // Sort players by join time

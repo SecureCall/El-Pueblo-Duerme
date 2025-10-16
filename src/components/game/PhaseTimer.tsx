@@ -56,7 +56,7 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
     const [timeLeft, setTimeLeft] = useState(calculateTimeLeft);
 
     useEffect(() => {
-        // Reset the processed flag whenever the phase or round changes, ensuring the timer logic can run again.
+        // Reset the processed flag whenever the phase or phase-end-time changes, ensuring the timer logic can run again for the new phase.
         timerProcessedRef.current = false;
         
         // Immediately set the time left based on the new game state.
