@@ -28,12 +28,12 @@ export type PlayerRole =
   "silencer" |
   "seer_apprentice" |
   "elder_leader" |
+  "sleeping_fairy" |
   // Lobos
   "werewolf" |
   "wolf_cub" |
   "cursed" |
   "seeker_fairy" |
-  "sleeping_fairy" |
   // Especiales
   "shapeshifter" |
   "drunk_man" |
@@ -54,8 +54,9 @@ export interface Game {
   players: Player[]; // Array of Player objects
   events: GameEvent[]; // Array of GameEvent objects
   chatMessages: ChatMessage[]; // Array of ChatMessage objects
-  wolfChatMessages?: ChatMessage[]; // Array of private ChatMessage objects for werewolves
-  twinChatMessages?: ChatMessage[]; // Array of private ChatMessage objects for twins
+  wolfChatMessages?: ChatMessage[];
+  twinChatMessages?: ChatMessage[];
+  fairyChatMessages?: ChatMessage[];
   maxPlayers: number;
   createdAt: Timestamp;
   currentRound: number;
@@ -109,6 +110,8 @@ export interface Game {
   silencedPlayerId: string | null; // Player silenced for the day
   exiledPlayerId: string | null; // Player exiled for the night
   troublemakerUsed: boolean;
+  fairiesFound: boolean;
+  fairyKillUsed: boolean;
 }
 
 export interface Player {
@@ -158,7 +161,9 @@ export type NightActionType =
   "elder_leader_exile" |
   "witch_hunt" |
   "banshee_scream" |
-  "lookout_spy";
+  "lookout_spy" |
+  "fairy_find" |
+  "fairy_kill";
 
 
 export interface NightAction {

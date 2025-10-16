@@ -57,7 +57,8 @@ export const NightActionSchema = z.object({
     "werewolf_kill", "seer_check", "doctor_heal", "cupid_enchant", "hechicera_poison", 
     "hechicera_save", "guardian_protect", "priest_bless", "vampire_bite", "cult_recruit", 
     "fisherman_catch", "shapeshifter_select", "virginia_woolf_link", "river_siren_charm",
-    "silencer_silence", "elder_leader_exile", "witch_hunt", "banshee_scream", "lookout_spy"
+    "silencer_silence", "elder_leader_exile", "witch_hunt", "banshee_scream", "lookout_spy",
+    "fairy_find", "fairy_kill"
   ]),
   targetId: z.string(),
   createdAt: TimestampSchema,
@@ -130,6 +131,7 @@ export const GameSchema = z.object({
   chatMessages: z.array(ChatMessageSchema),
   wolfChatMessages: z.array(ChatMessageSchema).optional(),
   twinChatMessages: z.array(ChatMessageSchema).optional(),
+  fairyChatMessages: z.array(ChatMessageSchema).optional(),
   maxPlayers: z.number(),
   createdAt: TimestampSchema,
   currentRound: z.number(),
@@ -148,6 +150,8 @@ export const GameSchema = z.object({
   silencedPlayerId: z.string().nullable(),
   exiledPlayerId: z.string().nullable(),
   troublemakerUsed: z.boolean(),
+  fairiesFound: z.boolean(),
+  fairyKillUsed: z.boolean(),
 });
 
 export const AIPlayerPerspectiveSchema = z.object({
