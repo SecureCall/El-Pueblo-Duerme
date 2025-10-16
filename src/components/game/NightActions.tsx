@@ -56,7 +56,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages }: Nig
     const hasPoison = isHechicera && !hasUsedPoison;
     const hasSavePotion = isHechicera && !hasUsedSave;
     
-    const wolfCubRevengeActive = game.wolfCubRevengeRound === game.currentRound;
+    const wolfCubRevengeActive = game.wolfCubRevengeRound === game.currentRound + 1;
 
     useEffect(() => {
         if (isHechicera && !hasPoison && hasSavePotion) {

@@ -1,4 +1,3 @@
-
 'use client';
 import { 
   doc,
@@ -744,13 +743,9 @@ export async function processNight(db: Firestore, gameId: string) {
                          if (mostVotedPlayerIds.length === 1) {
                              targetsToKill.push(mostVotedPlayerIds[0]);
                          }
-                         // If revenge is active and there's a clear second most-voted, add them.
-                         // For simplicity, we can just pick one if tied.
                          else if (mostVotedPlayerIds.length > 1 && killCount > 1) {
                             targetsToKill = mostVotedPlayerIds.slice(0, killCount);
                          }
-                         // If there's a tie for first place, no one is killed.
-                         // The `else if` above will not be met, and `targetsToKill` remains empty.
 
                          for (const targetId of targetsToKill) {
                             const targetPlayer = game.players.find(p => p.userId === targetId);
