@@ -126,6 +126,7 @@ export const GameSchema = z.object({
   players: z.array(PlayerSchema),
   events: z.array(GameEventSchema),
   chatMessages: z.array(ChatMessageSchema),
+  wolfChatMessages: z.array(ChatMessageSchema).optional(),
   maxPlayers: z.number(),
   createdAt: TimestampSchema,
   currentRound: z.number(),

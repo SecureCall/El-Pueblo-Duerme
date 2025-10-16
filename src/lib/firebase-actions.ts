@@ -1,3 +1,4 @@
+
 'use client';
 import { 
   doc,
@@ -76,6 +77,7 @@ export async function createGame(
       players: [], 
       events: [],
       chatMessages: [],
+      wolfChatMessages: [],
       maxPlayers: maxPlayers,
       createdAt: Timestamp.now(),
       currentRound: 0,
@@ -428,7 +430,7 @@ export async function submitCupidAction(db: Firestore, gameId: string, cupidId: 
     }
 }
 
-function handleDrunkManWin(transaction: Transaction, gameRef: DocumentReference, gameData: Game, drunkPlayer: Player) {
+function handleDrunkManWin(transaction: any, gameRef: any, gameData: Game, drunkPlayer: Player) {
     const gameOverEvent: GameEvent = {
         id: `evt_gameover_${Date.now()}`,
         gameId: gameData.id!,
@@ -729,7 +731,7 @@ export async function processNight(db: Firestore, gameId: string) {
                         }
                     }
                     
-                    const killCount = game.wolfCubRevengeRound === game.currentRound ? 2 : 1;
+                    const killCount = game.wolfCubRevengeRound === game.currentRound + 1 ? 2 : 1;
                     for(let i = 0; i < killCount && mostVotedPlayerIds.length > 0; i++) {
                         const randomIndex = Math.floor(Math.random() * mostVotedPlayerIds.length);
                         const targetId = mostVotedPlayerIds.splice(randomIndex, 1)[0];
@@ -812,7 +814,7 @@ export async function processNight(db: Firestore, gameId: string) {
 
             if (game.phase === 'hunter_shot') {
                 transaction.update(gameRef, { 
-                    players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot, phaseEndsAt: Timestamp.fromMillis(Date.now() + 30 * 1000)
+                    players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot
                 });
                 return;
             }
@@ -824,8 +826,8 @@ export async function processNight(db: Firestore, gameId: string) {
               events: game.events,
               phase: 'day',
               chatMessages: [], 
+              wolfChatMessages: [], // Clear wolf chat for the new day
               pendingHunterShot: null,
-              phaseEndsAt: Timestamp.fromMillis(Date.now() + 45 * 1000)
             });
         });
 
@@ -938,7 +940,7 @@ export async function processVotes(db: Firestore, gameId: string) {
 
       if (game.phase === 'hunter_shot') {
         transaction.update(gameRef, {
-          players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot, phaseEndsAt: Timestamp.fromMillis(Date.now() + 30 * 1000)
+          players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot
         });
         return;
       }
@@ -946,7 +948,7 @@ export async function processVotes(db: Firestore, gameId: string) {
       game.players.forEach(p => { p.votedFor = null; });
 
       transaction.update(gameRef, {
-        players: game.players, events: game.events, phase: 'night', currentRound: increment(1), pendingHunterShot: null, phaseEndsAt: Timestamp.fromMillis(Date.now() + 45 * 1000)
+        players: game.players, events: game.events, phase: 'night', currentRound: increment(1), pendingHunterShot: null
       });
     });
 
@@ -1029,8 +1031,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                     players: game.players,
                     events: game.events,
                     phase: 'hunter_shot',
-                    pendingHunterShot: game.pendingHunterShot,
-                    phaseEndsAt: Timestamp.fromMillis(Date.now() + 30 * 1000)
+                    pendingHunterShot: game.pendingHunterShot
                 });
                 return;
             }
@@ -1061,7 +1062,6 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
 
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
             const nextRound = nextPhase === 'night' ? game.currentRound + 1 : game.currentRound;
-            const phaseDuration = nextPhase === 'day' ? 45 * 1000 : 45 * 1000;
 
             game.players.forEach(p => { p.votedFor = null; });
             
@@ -1071,7 +1071,6 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 phase: nextPhase,
                 currentRound: nextRound,
                 pendingHunterShot: null,
-                phaseEndsAt: Timestamp.fromMillis(Date.now() + phaseDuration)
             });
         });
         return { success: true };
@@ -1094,7 +1093,7 @@ const getDeterministicAIAction = (
     const { role, userId } = aiPlayer;
     const { currentRound } = game;
     const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed'];
-    const wolfCubRevengeActive = game.wolfCubRevengeRound === game.currentRound;
+    const wolfCubRevengeActive = game.wolfCubRevengeRound === game.currentRound + 1;
 
     const potentialTargets = alivePlayers.filter(p => p.userId !== userId);
 
@@ -1397,6 +1396,58 @@ export async function sendChatMessage(
     }
 }
 
+export async function sendWolfChatMessage(
+    db: Firestore,
+    gameId: string,
+    senderId: string,
+    senderName: string,
+    text: string
+) {
+    if (!text?.trim()) {
+        return { success: false, error: 'El mensaje no puede estar vacío.' };
+    }
+
+    const gameRef = doc(db, 'games', gameId);
+
+    try {
+        await runTransaction(db, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error('Game not found');
+            const game = gameDoc.data() as Game;
+            
+            const sender = game.players.find(p => p.userId === senderId);
+            const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
+            if (!sender || !wolfRoles.includes(sender.role)) {
+                throw new Error("Solo la manada puede usar este chat.");
+            }
+
+            const messageData: ChatMessage = {
+                id: `${Date.now()}_${senderId}`,
+                senderId,
+                senderName,
+                text: text.trim(),
+                round: game.currentRound,
+                createdAt: Timestamp.now(),
+            };
+
+            transaction.update(gameRef, {
+                wolfChatMessages: arrayUnion(messageData)
+            });
+        });
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error("Error sending wolf chat message: ", error);
+        if (error.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update', requestResourceData: { wolfChatMessages: '...' } });
+            errorEmitter.emit('permission-error', permissionError);
+            return { error: 'Permiso denegado para enviar mensaje.' };
+        }
+        return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
+    }
+}
+
 
 export async function resetGame(db: Firestore, gameId: string) {
     const gameRef = doc(db, 'games', gameId);
@@ -1429,6 +1480,7 @@ export async function resetGame(db: Firestore, gameId: string) {
                 currentRound: 0,
                 events: [],
                 chatMessages: [],
+                wolfChatMessages: [],
                 nightActions: [],
                 lovers: null,
                 twins: null,
@@ -1462,7 +1514,6 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
       if (game.phase === 'role_reveal') {
         transaction.update(gameRef, { 
             phase: 'night',
-            phaseEndsAt: Timestamp.fromMillis(Date.now() + 45 * 1000)
         });
       }
     });

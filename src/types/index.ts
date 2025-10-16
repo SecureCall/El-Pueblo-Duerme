@@ -54,6 +54,7 @@ export interface Game {
   players: Player[]; // Array of Player objects
   events: GameEvent[]; // Array of GameEvent objects
   chatMessages: ChatMessage[]; // Array of ChatMessage objects
+  wolfChatMessages?: ChatMessage[]; // Array of private ChatMessage objects for werewolves
   maxPlayers: number;
   createdAt: Timestamp;
   currentRound: number;
@@ -198,6 +199,7 @@ export interface GenerateAIChatMessageOutput {
     message: string;
     shouldSend: boolean;
 };
+
 
 
 

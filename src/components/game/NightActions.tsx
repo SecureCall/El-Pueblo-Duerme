@@ -2,28 +2,30 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import type { Game, Player, NightActionType } from '@/types';
+import type { Game, Player, NightActionType, ChatMessage } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
 import { submitNightAction, getSeerResult, submitCupidAction } from '@/lib/firebase-actions';
-import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, BotIcon, Sparkles } from 'lucide-react';
+import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, BotIcon } from 'lucide-react';
 import { SeerResult } from './SeerResult';
 import { useNightActions } from '@/hooks/use-night-actions';
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { useFirebase } from '@/firebase';
+import { WolfChat } from './WolfChat';
 
 interface NightActionsProps {
     game: Game;
     players: Player[];
     currentPlayer: Player;
+    wolfMessages: ChatMessage[];
 }
 
 type HechiceraAction = 'poison' | 'save';
 
-export function NightActions({ game, players, currentPlayer }: NightActionsProps) {
+export function NightActions({ game, players, currentPlayer, wolfMessages }: NightActionsProps) {
     const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [seerResult, setSeerResult] = useState<{ targetName: string; isWerewolf: boolean; } | null>(null);
@@ -382,6 +384,16 @@ export function NightActions({ game, players, currentPlayer }: NightActionsProps
                     </>
                 ) : (
                     <p className="text-center text-muted-foreground py-8">Duermes profundamente...</p>
+                )}
+
+                {isWerewolfTeam && (
+                    <div className="mt-6">
+                        <WolfChat
+                            gameId={game.id}
+                            currentPlayer={currentPlayer}
+                            messages={wolfMessages}
+                        />
+                    </div>
                 )}
             </CardContent>
         </Card>
