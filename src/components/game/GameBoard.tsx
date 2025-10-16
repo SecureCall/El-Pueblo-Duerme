@@ -148,7 +148,6 @@ export function GameBoard({ game, players, currentPlayer, events, messages, wolf
   };
 
   const handleAcknowledgeRole = async () => {
-      if (!firestore) return;
       setShowRole(false);
   };
   
