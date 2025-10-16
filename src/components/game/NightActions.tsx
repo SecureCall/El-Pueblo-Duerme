@@ -378,6 +378,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages }: Nig
                                     if (isVampire) return p.role !== 'vampire';
                                     if (isCultLeader) return p.userId !== currentPlayer.userId && !p.isCultMember;
                                     if (isFisherman) return p.userId !== currentPlayer.userId && !game.boat?.includes(p.userId);
+                                    if (isSilencer) return p.userId !== currentPlayer.userId;
                                     if (p.userId === currentPlayer.userId) {
                                         if (currentPlayer.role === 'priest' && !currentPlayer.priestSelfHealUsed) return true;
                                         if (currentPlayer.role === 'guardian' && (currentPlayer.guardianSelfProtects || 0) < 1) return true;

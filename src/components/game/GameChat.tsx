@@ -2,12 +2,12 @@
 "use client";
 
 import { useState, useRef, useEffect } from 'react';
-import type { ChatMessage, Player } from '@/types';
+import type { ChatMessage, Game, Player } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../ui/card';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
-import { Send, AlertTriangle } from 'lucide-react';
+import { Send, AlertTriangle, MicOff } from 'lucide-react';
 import { useFirebase } from '@/firebase';
 import { sendChatMessage } from '@/lib/firebase-actions';
 import { useToast } from '@/hooks/use-toast';
@@ -16,6 +16,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { playSoundEffect } from '@/lib/sounds';
 import type { Timestamp } from 'firebase/firestore';
+import { useGameState } from '@/hooks/use-game-state';
 
 interface GameChatProps {
     gameId: string;
@@ -38,6 +39,7 @@ export function GameChat({ gameId, currentPlayer, messages, players }: GameChatP
     const [newMessage, setNewMessage] = useState('');
     const { firestore } = useFirebase();
     const { toast } = useToast();
+    const { game } = useGameState(gameId);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const lastMessageCount = useRef(messages.length);
 
@@ -101,7 +103,8 @@ export function GameChat({ gameId, currentPlayer, messages, players }: GameChatP
         }
     };
 
-    const canChat = currentPlayer.isAlive;
+    const isSilenced = game?.silencedPlayerId === currentPlayer.userId;
+    const canChat = currentPlayer.isAlive && !isSilenced;
     
     const getDateFromTimestamp = (timestamp: Timestamp | { seconds: number; nanoseconds: number; } | string) => {
         if (!timestamp) return new Date();
@@ -152,6 +155,12 @@ export function GameChat({ gameId, currentPlayer, messages, players }: GameChatP
                                 </div>
                             )})
                         )}
+                         {isSilenced && (
+                            <div className="flex items-center justify-center gap-2 p-4 text-destructive">
+                                <MicOff className="h-5 w-5"/>
+                                <p className="font-semibold">Has sido silenciado/a. No puedes hablar.</p>
+                            </div>
+                        )}
                     </div>
                 </ScrollArea>
             </CardContent>
@@ -176,7 +185,13 @@ export function GameChat({ gameId, currentPlayer, messages, players }: GameChatP
                     <Input
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
-                        placeholder={canChat ? "Escribe tu mensaje..." : "Los muertos no hablan..."}
+                        placeholder={
+                            isSilenced 
+                            ? "¡Silenciado! No puedes escribir." 
+                            : canChat 
+                            ? "Escribe tu mensaje..." 
+                            : "Los muertos no hablan..."
+                        }
                         disabled={!canChat}
                     />
                     <Button type="submit" size="icon" disabled={!canChat || !newMessage.trim()}>

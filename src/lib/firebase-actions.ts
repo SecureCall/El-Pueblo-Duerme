@@ -1009,7 +1009,12 @@ export async function processVotes(db: Firestore, gameId: string) {
       game.players.forEach(p => { p.votedFor = null; });
 
       transaction.update(gameRef, {
-        players: game.players, events: game.events, phase: 'night', currentRound: increment(1), pendingHunterShot: null
+        players: game.players,
+        events: game.events,
+        phase: 'night',
+        currentRound: increment(1),
+        pendingHunterShot: null,
+        silencedPlayerId: null, // Reset silenced player for the new night
       });
     });
 
@@ -1262,6 +1267,7 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
                 case 'vampire_bite':
                 case 'cult_recruit':
                 case 'fisherman_catch':
+                case 'silencer_silence':
                     await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
                     break;
                 case 'VOTE':
@@ -1413,6 +1419,10 @@ export async function sendChatMessage(
             if (!gameDoc.exists()) throw new Error('Game not found');
             const game = gameDoc.data() as Game;
             latestGame = game;
+
+            if (game.silencedPlayerId === senderId) {
+                throw new Error("No puedes hablar, has sido silenciado esta ronda.");
+            }
             
             const textLowerCase = text.toLowerCase();
             game.players.forEach(p => {
