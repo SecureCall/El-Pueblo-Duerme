@@ -56,38 +56,38 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
     const [timeLeft, setTimeLeft] = useState(calculateTimeLeft);
 
     useEffect(() => {
-        // Reset the processed flag whenever the phase or round changes.
         timerProcessedRef.current = false;
         
-        // Immediately set the time left based on the new game state.
-        setTimeLeft(calculateTimeLeft());
-
-        const interval = setInterval(() => {
+        // This function will be called every second.
+        const updateTimer = () => {
             const remaining = calculateTimeLeft();
             setTimeLeft(remaining);
 
-            // This logic will run on the creator's client when the timer hits zero.
             if (remaining <= 0 && isCreator && !timerProcessedRef.current && firestore) {
                  if (game.phase === 'night' || game.phase === 'day') {
-                    // Mark as processed to prevent multiple executions.
-                    timerProcessedRef.current = true; 
-
-                    // Call the appropriate function to advance the game state.
+                    timerProcessedRef.current = true;
                     if (game.phase === 'night') {
+                        console.log("Creator client: Night timer ended. Calling processNight.");
                         processNight(firestore, game.id);
                     } else if (game.phase === 'day') {
+                        console.log("Creator client: Day timer ended. Calling processVotes.");
                         processVotes(firestore, game.id);
                     }
                 }
             }
-        }, 1000);
+        };
+        
+        // Immediately update the timer on mount/game state change.
+        updateTimer(); 
+
+        const interval = setInterval(updateTimer, 1000);
 
         return () => clearInterval(interval);
 
     }, [game.phase, game.currentRound, game.phaseEndsAt, game.id, isCreator, firestore]);
 
     const totalDuration = getTotalDuration(game.phase);
-    if (totalDuration <= 0) return null;
+    if (totalDuration <= 0 || !game.phaseEndsAt) return null;
 
     const progress = (timeLeft / totalDuration) * 100;
 

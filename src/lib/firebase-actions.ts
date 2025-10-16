@@ -712,8 +712,16 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
     return { isGameOver: false, message: "", winners: [], winnerCode: null };
 }
 
+let isProcessingNight = false;
+let isProcessingVotes = false;
 
 export async function processNight(db: Firestore, gameId: string) {
+    if (isProcessingNight) {
+        console.log("processNight is already running, skipping.");
+        return { success: false, error: "Night processing is already in progress." };
+    }
+    isProcessingNight = true;
+
     const gameRef = doc(db, 'games', gameId);
     
     try {
@@ -957,11 +965,19 @@ export async function processNight(db: Firestore, gameId: string) {
             return { error: "Permiso denegado al procesar la noche." };
         }
         return { error: `Hubo un problema al procesar la noche: ${error.message}` };
+    } finally {
+        isProcessingNight = false;
     }
 }
 
 
 export async function processVotes(db: Firestore, gameId: string) {
+    if (isProcessingVotes) {
+        console.log("processVotes is already running, skipping.");
+        return { success: false, error: "Vote processing is already in progress." };
+    }
+    isProcessingVotes = true;
+
   const gameRef = doc(db, 'games', gameId);
 
   try {
@@ -1085,6 +1101,8 @@ export async function processVotes(db: Firestore, gameId: string) {
       return { error: "Permiso denegado al procesar la votación." };
     }
     return { error: `Hubo un problema al procesar la votación: ${error.message}` };
+  } finally {
+      isProcessingVotes = false;
   }
 }
 
