@@ -10,6 +10,7 @@ const withPWA = withPWAInit({
   skipWaiting: true,
 });
 
+/** @type {import('next').NextConfig} */
 const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
@@ -45,6 +46,7 @@ const nextConfig: NextConfig = {
       }
     ],
   },
+  trailingSlash: true,
 };
 
 export default withPWA(nextConfig);
