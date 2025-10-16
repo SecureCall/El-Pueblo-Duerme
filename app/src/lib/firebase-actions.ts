@@ -307,7 +307,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
             
             transaction.update(gameRef, {
                 players: assignedPlayers,
-                twins: twinUserIds.length === 2 ? twinUserIds : null,
+                twins: twinUserIds.length === 2 ? [twinUserIds[0], twinUserIds[1]] as [string, string] : null,
                 status: 'in_progress',
                 phase: 'role_reveal',
                 currentRound: 1,
@@ -1648,6 +1648,57 @@ export async function sendWolfChatMessage(
     }
 }
 
+export async function sendFairyChatMessage(
+    db: Firestore,
+    gameId: string,
+    senderId: string,
+    senderName: string,
+    text: string
+) {
+    if (!text?.trim()) {
+        return { success: false, error: 'El mensaje no puede estar vacío.' };
+    }
+
+    const gameRef = doc(db, 'games', gameId);
+
+    try {
+        await runTransaction(db, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error('Game not found');
+            const game = gameDoc.data() as Game;
+            
+            const sender = game.players.find(p => p.userId === senderId);
+            if (!sender || (sender.role !== 'seeker_fairy' && sender.role !== 'sleeping_fairy') || !game.fairiesFound) {
+                throw new Error("Solo las hadas unidas pueden usar este chat.");
+            }
+
+            const messageData: ChatMessage = {
+                id: `${Date.now()}_${senderId}`,
+                senderId,
+                senderName,
+                text: text.trim(),
+                round: game.currentRound,
+                createdAt: Timestamp.now(),
+            };
+
+            transaction.update(gameRef, {
+                fairyChatMessages: arrayUnion(messageData)
+            });
+        });
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error("Error sending fairy chat message: ", error);
+        if (error.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update', requestResourceData: { fairyChatMessages: '...' } });
+            errorEmitter.emit('permission-error', permissionError);
+            return { error: 'Permiso denegado para enviar mensaje.' };
+        }
+        return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
+    }
+}
+
 export async function resetGame(db: Firestore, gameId: string) {
     const gameRef = doc(db, 'games', gameId);
 
@@ -1850,56 +1901,5 @@ export async function submitTroublemakerAction(
     console.error("Error submitting troublemaker action:", error);
     return { error: error.message || "No se pudo realizar la acción." };
   }
-}
-
-export async function sendFairyChatMessage(
-    db: Firestore,
-    gameId: string,
-    senderId: string,
-    senderName: string,
-    text: string
-) {
-    if (!text?.trim()) {
-        return { success: false, error: 'El mensaje no puede estar vacío.' };
-    }
-
-    const gameRef = doc(db, 'games', gameId);
-
-    try {
-        await runTransaction(db, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error('Game not found');
-            const game = gameDoc.data() as Game;
-            
-            const sender = game.players.find(p => p.userId === senderId);
-            if (!sender || (sender.role !== 'seeker_fairy' && sender.role !== 'sleeping_fairy') || !game.fairiesFound) {
-                throw new Error("Solo las hadas unidas pueden usar este chat.");
-            }
-
-            const messageData: ChatMessage = {
-                id: `${Date.now()}_${senderId}`,
-                senderId,
-                senderName,
-                text: text.trim(),
-                round: game.currentRound,
-                createdAt: Timestamp.now(),
-            };
-
-            transaction.update(gameRef, {
-                fairyChatMessages: arrayUnion(messageData)
-            });
-        });
-
-        return { success: true };
-
-    } catch (error: any) {
-        console.error("Error sending fairy chat message: ", error);
-        if (error.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update', requestResourceData: { fairyChatMessages: '...' } });
-            errorEmitter.emit('permission-error', permissionError);
-            return { error: 'Permiso denegado para enviar mensaje.' };
-        }
-        return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
-    }
 }
     
