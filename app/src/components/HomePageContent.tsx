@@ -8,16 +8,10 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
 import { BookOpen, Users } from 'lucide-react';
 import { GameMusic } from '@/components/game/GameMusic';
-import { useEffect } from 'react';
-import { playNarration } from '@/lib/sounds';
 
 export function HomePageContent() {
   const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
   
-  useEffect(() => {
-    playNarration('Que comience el juego..mp3');
-  }, []);
-
   return (
     <>
       <GameMusic src="/audio/menu-theme.mp3" />
