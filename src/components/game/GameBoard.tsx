@@ -40,6 +40,8 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
   const voteSoundsPlayedForRound = useRef<number>(0);
   const [showRole, setShowRole] = useState(true);
   const [deathCause, setDeathCause] = useState<'eliminated' | 'vote' | 'hunter_shot' | null>(null);
+  const timerProcessedRef = useRef(false);
+
 
   // Sound effect logic
   useEffect(() => {
@@ -141,7 +143,24 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
       if (!firestore) return;
       setShowRole(false);
   };
-  
+
+  const handleTimerEnd = () => {
+    if (game.creator === currentPlayer.userId && firestore && !timerProcessedRef.current) {
+        timerProcessedRef.current = true;
+        if (game.phase === 'night') {
+            processNight(firestore, game.id).finally(() => timerProcessedRef.current = false);
+        } else if (game.phase === 'day') {
+            processVotes(firestore, game.id).finally(() => timerProcessedRef.current = false);
+        } else if (game.phase === 'role_reveal') {
+            advanceToNightPhase(firestore, game.id).finally(() => timerProcessedRef.current = false);
+        }
+    }
+  };
+
+  useEffect(() => {
+    timerProcessedRef.current = false;
+  }, [game.phase, game.currentRound]);
+
   if (game.status === 'finished') {
     const gameOverEvent = events.find(e => e.type === 'game_over');
     return (
@@ -171,7 +190,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
         <>
             {renderDeathOverlay()}
             <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
-                <SpectatorGameBoard game={game} players={players} events={events} messages={messages} currentPlayer={currentPlayer} />
+                <SpectatorGameBoard game={game} players={players} events={events} messages={messages} currentPlayer={currentPlayer} onTimerEnd={handleTimerEnd}/>
             </div>
         </>
     );
@@ -179,14 +198,14 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
 
   return (
     <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
-       <SpectatorGameBoard game={game} players={players} events={events} messages={messages} currentPlayer={currentPlayer} />
+       <SpectatorGameBoard game={game} players={players} events={events} messages={messages} currentPlayer={currentPlayer} onTimerEnd={handleTimerEnd}/>
     </div>
   );
 }
 
 
 // A simplified version of the board for spectating, without interactive elements.
-function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: Omit<GameBoardProps, 'currentPlayer' | 'messages'> & { currentPlayer: Player, messages: ChatMessage[] }) {
+function SpectatorGameBoard({ game, players, events, messages, currentPlayer, onTimerEnd }: Omit<GameBoardProps, 'currentPlayer' | 'messages'> & { currentPlayer: Player, messages: ChatMessage[], onTimerEnd: () => void }) {
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
   const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
@@ -250,6 +269,7 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
     causeOfDeath: !p.isAlive ? getCauseOfDeath(p.userId) : undefined,
   }));
 
+  const timerKey = `${game.phase}-${game.currentRound}`;
 
   if (game.phase === 'role_reveal') {
      return (
@@ -263,7 +283,8 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
                <p className="text-lg text-muted-foreground">Se están repartiendo los roles. La primera noche caerá pronto.</p>
                 <PhaseTimer 
                     game={game}
-                    isCreator={game.creator === currentPlayer.userId}
+                    onTimerEnd={onTimerEnd}
+                    timerKey={timerKey}
                 />
            </CardContent>
        </Card>
@@ -300,7 +321,8 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: 
             {(game.phase === 'day' || game.phase === 'night' || game.phase === 'role_reveal') && (
                 <PhaseTimer 
                     game={game}
-                    isCreator={game.creator === currentPlayer.userId}
+                    onTimerEnd={onTimerEnd}
+                    timerKey={timerKey}
                 />
             )}
         </CardHeader>
