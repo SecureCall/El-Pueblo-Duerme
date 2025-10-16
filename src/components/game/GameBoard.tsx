@@ -40,8 +40,6 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
   const voteSoundsPlayedForRound = useRef<number>(0);
   const [showRole, setShowRole] = useState(true);
   const [deathCause, setDeathCause] = useState<'eliminated' | 'vote' | 'hunter_shot' | null>(null);
-  const timerProcessedRef = useRef(false);
-
 
   // Sound effect logic
   useEffect(() => {
@@ -143,24 +141,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
       if (!firestore) return;
       setShowRole(false);
   };
-
-  const handleTimerEnd = () => {
-    if (game.creator === currentPlayer.userId && firestore && !timerProcessedRef.current) {
-        timerProcessedRef.current = true;
-        if (game.phase === 'night') {
-            processNight(firestore, game.id).finally(() => timerProcessedRef.current = false);
-        } else if (game.phase === 'day') {
-            processVotes(firestore, game.id).finally(() => timerProcessedRef.current = false);
-        } else if (game.phase === 'role_reveal') {
-            advanceToNightPhase(firestore, game.id).finally(() => timerProcessedRef.current = false);
-        }
-    }
-  };
-
-  useEffect(() => {
-    timerProcessedRef.current = false;
-  }, [game.phase, game.currentRound]);
-
+  
   if (game.status === 'finished') {
     const gameOverEvent = events.find(e => e.type === 'game_over');
     return (
@@ -190,7 +171,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
         <>
             {renderDeathOverlay()}
             <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
-                <SpectatorGameBoard game={game} players={players} events={events} messages={messages} currentPlayer={currentPlayer} onTimerEnd={handleTimerEnd}/>
+                <SpectatorGameBoard game={game} players={players} events={events} messages={messages} currentPlayer={currentPlayer} />
             </div>
         </>
     );
@@ -198,14 +179,14 @@ export function GameBoard({ game, players, currentPlayer, events, messages }: Ga
 
   return (
     <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
-       <SpectatorGameBoard game={game} players={players} events={events} messages={messages} currentPlayer={currentPlayer} onTimerEnd={handleTimerEnd}/>
+       <SpectatorGameBoard game={game} players={players} events={events} messages={messages} currentPlayer={currentPlayer} />
     </div>
   );
 }
 
 
 // A simplified version of the board for spectating, without interactive elements.
-function SpectatorGameBoard({ game, players, events, messages, currentPlayer, onTimerEnd }: Omit<GameBoardProps, 'currentPlayer' | 'messages'> & { currentPlayer: Player, messages: ChatMessage[], onTimerEnd: () => void }) {
+function SpectatorGameBoard({ game, players, events, messages, currentPlayer }: Omit<GameBoardProps, 'currentPlayer' | 'messages'> & { currentPlayer: Player, messages: ChatMessage[] }) {
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
   const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
@@ -230,6 +211,19 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer, on
           default: return null;
       }
   }
+  
+  const handleTimerEnd = async () => {
+    if (!firestore) return;
+
+    // Any player can trigger phase end. Backend functions prevent race conditions.
+    if (game.phase === 'day' && game.status === 'in_progress') {
+        console.log("Fallback timer ended for day, processing votes.");
+        await processVotes(firestore, game.id);
+    } else if (game.phase === 'night' && game.status === 'in_progress') {
+        console.log("Fallback timer ended for night, processing night.");
+        await processNight(firestore, game.id);
+    }
+  };
   
   const isLover = !!game.lovers?.includes(currentPlayer?.userId || '');
   const otherLoverId = isLover ? game.lovers!.find(id => id !== currentPlayer!.userId) : null;
@@ -269,7 +263,6 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer, on
     causeOfDeath: !p.isAlive ? getCauseOfDeath(p.userId) : undefined,
   }));
 
-  const timerKey = `${game.phase}-${game.currentRound}`;
 
   if (game.phase === 'role_reveal') {
      return (
@@ -281,11 +274,6 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer, on
           </CardHeader>
            <CardContent>
                <p className="text-lg text-muted-foreground">Se están repartiendo los roles. La primera noche caerá pronto.</p>
-                <PhaseTimer 
-                    game={game}
-                    onTimerEnd={onTimerEnd}
-                    timerKey={timerKey}
-                />
            </CardContent>
        </Card>
      )
@@ -305,26 +293,23 @@ function SpectatorGameBoard({ game, players, events, messages, currentPlayer, on
    return (
     <>
        <Card className="text-center bg-card/80">
-        <CardHeader className="p-4 flex flex-col items-center">
-            <div className="relative w-full flex flex-row items-center justify-between">
-                <div className="flex-shrink-0 w-10">
-                    <GameChronicle events={events} currentPlayerId={currentPlayer.userId} />
-                </div>
-                <div className="flex-1 flex justify-center items-center gap-4">
-                    {getPhaseIcon()}
-                    <CardTitle className="font-headline text-3xl">
-                        {getPhaseTitle()}
-                    </CardTitle>
-                </div>
-                <div className="w-10 flex-shrink-0"></div> {/* Spacer to balance the chronicle button */}
-            </div>
-            {(game.phase === 'day' || game.phase === 'night' || game.phase === 'role_reveal') && (
-                <PhaseTimer 
-                    game={game}
-                    onTimerEnd={onTimerEnd}
-                    timerKey={timerKey}
-                />
-            )}
+        <CardHeader className="flex flex-row items-center justify-between p-4 pb-8 relative">
+          <div className="absolute left-4 top-1/2 -translate-y-1/2">
+             <GameChronicle events={events} currentPlayerId={currentPlayer.userId} />
+          </div>
+          <div className="flex-1 flex justify-center items-center gap-4">
+             {getPhaseIcon()}
+            <CardTitle className="font-headline text-3xl">
+              {getPhaseTitle()}
+            </CardTitle>
+          </div>
+           { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && (
+            <PhaseTimer 
+                game={game}
+                timerKey={`${game.id}-${game.phase}-${game.currentRound}`}
+                onTimerEnd={handleTimerEnd}
+            />
+          )}
         </CardHeader>
       </Card>
       
