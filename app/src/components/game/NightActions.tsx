@@ -414,6 +414,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                                     if (p.userId === currentPlayer.userId) {
                                         if (currentPlayer.role === 'priest' && !currentPlayer.priestSelfHealUsed) return true;
                                         if (currentPlayer.role === 'guardian' && (currentPlayer.guardianSelfProtects || 0) < 1) return true;
+                                        if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save') return false;
                                         return false; 
                                     }
                                     return true;
