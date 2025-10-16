@@ -1964,4 +1964,3 @@ export async function submitTroublemakerAction(
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
-    

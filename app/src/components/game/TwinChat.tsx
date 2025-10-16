@@ -1,164 +1,119 @@
-import { z } from 'zod';
 
-// Helper for Firebase Timestamps - now accepting string for client-server transfer
-const TimestampSchema = z.union([
-  z.object({
-    seconds: z.number(),
-    nanoseconds: z.number(),
-  }),
-  z.string().refine(val => !isNaN(Date.parse(val)), {
-    message: "Invalid date string format",
-  }), // ISO 8601 string
-  z.date(), // Accept Date objects as well
-]);
+"use client";
 
+import { useState, useRef, useEffect } from 'react';
+import type { ChatMessage, Player } from '@/types';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../ui/card';
+import { Input } from '../ui/input';
+import { Button } from '../ui/button';
+import { ScrollArea } from '../ui/scroll-area';
+import { Send, Users2 } from 'lucide-react';
+import { useFirebase } from '@/firebase';
+import { sendTwinChatMessage } from '@/lib/firebase-actions';
+import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+import { formatDistanceToNow } from 'date-fns';
+import { es } from 'date-fns/locale';
+import type { Timestamp } from 'firebase/firestore';
 
-export const PlayerRoleSchema = z.enum([
-  "villager", "seer", "doctor", "hunter", "cupid", "guardian", "priest", "prince", "lycanthrope", "twin",
-  "hechicera", "ghost", "virginia_woolf", "leprosa", "river_siren", "lookout", "troublemaker",
-  "silencer", "seer_apprentice", "elder_leader", "werewolf", "wolf_cub", "cursed", "seeker_fairy",
-  "sleeping_fairy", "shapeshifter", "drunk_man", "cult_leader", "fisherman", "vampire", "witch", "banshee"
-]).nullable();
+interface TwinChatProps {
+    gameId: string;
+    currentPlayer: Player;
+    messages: ChatMessage[];
+}
 
-export const PlayerSchema = z.object({
-  userId: z.string(),
-  gameId: z.string(),
-  role: PlayerRoleSchema,
-  isAlive: z.boolean(),
-  votedFor: z.string().nullable(),
-  displayName: z.string(),
-  joinedAt: TimestampSchema,
-  lastHealedRound: z.number(),
-  isAI: z.boolean(),
-  potions: z.object({
-    poison: z.number().nullable().optional(),
-    save: z.number().nullable().optional(),
-  }).optional(),
-  priestSelfHealUsed: z.boolean().optional(),
-  princeRevealed: z.boolean().optional(),
-  guardianSelfProtects: z.number().optional(),
-  biteCount: z.number(),
-  isCultMember: z.boolean(),
-  shapeshifterTargetId: z.string().nullable().optional(),
-  virginiaWoolfTargetId: z.string().nullable().optional(),
-  riverSirenTargetId: z.string().nullable().optional(),
-  ghostMessageSent: z.boolean().optional(),
-  bansheeScreams: z.record(z.string()).optional(),
-  lookoutUsed: z.boolean().optional(),
-});
+export function TwinChat({ gameId, currentPlayer, messages }: TwinChatProps) {
+    const [newMessage, setNewMessage] = useState('');
+    const { firestore } = useFirebase();
+    const { toast } = useToast();
+    const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-export const NightActionSchema = z.object({
-  gameId: z.string(),
-  round: z.number(),
-  playerId: z.string(),
-  actionType: z.enum([
-    "werewolf_kill", "seer_check", "doctor_heal", "cupid_enchant", "hechicera_poison", 
-    "hechicera_save", "guardian_protect", "priest_bless", "vampire_bite", "cult_recruit", 
-    "fisherman_catch", "shapeshifter_select", "virginia_woolf_link", "river_siren_charm",
-    "silencer_silence", "elder_leader_exile", "witch_hunt", "banshee_scream", "lookout_spy",
-    "fairy_find", "fairy_kill"
-  ]),
-  targetId: z.string(),
-  createdAt: TimestampSchema,
-});
+    useEffect(() => {
+        if (scrollAreaRef.current) {
+            scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
+        }
+    }, [messages]);
 
-export const GameEventSchema = z.object({
-    id: z.string(),
-    gameId: z.string(),
-    round: z.number(),
-    type: z.enum(['night_result', 'vote_result', 'game_start', 'role_reveal', 'game_over', 'lover_death', 'hunter_shot', 'player_transformed', 'behavior_clue', 'special']),
-    message: z.string(),
-    data: z.any().optional(),
-    createdAt: TimestampSchema,
-});
+    const handleSendMessage = async () => {
+        if (!newMessage.trim() || !firestore) return;
+        
+        const res = await sendTwinChatMessage(firestore, gameId, currentPlayer.userId, currentPlayer.displayName, newMessage);
 
-export const ChatMessageSchema = z.object({
-    id: z.string().optional(),
-    senderId: z.string(),
-    senderName: z.string(),
-    text: z.string(),
-    round: z.number(),
-    createdAt: TimestampSchema,
-    mentionedPlayerIds: z.array(z.string()).optional(),
-});
+        if (res.success) {
+            setNewMessage('');
+        } else {
+            toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: res.error || 'No se pudo enviar el mensaje.',
+            });
+        }
+    };
+    
+    const getDateFromTimestamp = (timestamp: Timestamp | { seconds: number; nanoseconds: number; } | string) => {
+        if (!timestamp) return new Date();
+        if (typeof timestamp === 'string') {
+            return new Date(timestamp);
+        }
+        if ('toDate' in timestamp && typeof timestamp.toDate === 'function') {
+            return timestamp.toDate();
+        }
+        return new Date(timestamp.seconds * 1000);
+    }
 
-export const GameSettingsSchema = z.object({
-    werewolves: z.number(),
-    fillWithAI: z.boolean(),
-    isPublic: z.boolean(),
-    seer: z.boolean(),
-    doctor: z.boolean(),
-    hunter: z.boolean(),
-    cupid: z.boolean(),
-    guardian: z.boolean(),
-    priest: z.boolean(),
-    prince: z.boolean(),
-    lycanthrope: z.boolean(),
-    twin: z.boolean(),
-    hechicera: z.boolean(),
-    wolf_cub: z.boolean(),
-    cursed: z.boolean(),
-    cult_leader: z.boolean(),
-    fisherman: z.boolean(),
-    vampire: z.boolean(),
-    ghost: z.boolean(),
-    virginia_woolf: z.boolean(),
-    leprosa: z.boolean(),
-    river_siren: z.boolean(),
-    lookout: z.boolean(),
-    troublemaker: z.boolean(),
-    silencer: z.boolean(),
-    seer_apprentice: z.boolean(),
-    elder_leader: z.boolean(),
-    seeker_fairy: z.boolean(),
-    sleeping_fairy: z.boolean(),
-    shapeshifter: z.boolean(),
-    witch: z.boolean(),
-    banshee: z.boolean(),
-    drunk_man: z.boolean(),
-});
-
-export const GameSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  status: z.enum(["waiting", "in_progress", "finished"]),
-  phase: z.enum(["waiting", "role_reveal", "night", "day", "voting", "hunter_shot", "finished"]),
-  creator: z.string(),
-  players: z.array(PlayerSchema),
-  events: z.array(GameEventSchema),
-  chatMessages: z.array(ChatMessageSchema),
-  wolfChatMessages: z.array(ChatMessageSchema).optional(),
-  fairyChatMessages: z.array(ChatMessageSchema).optional(),
-  maxPlayers: z.number(),
-  createdAt: TimestampSchema,
-  currentRound: z.number(),
-  settings: GameSettingsSchema,
-  phaseEndsAt: TimestampSchema.optional(),
-  lovers: z.tuple([z.string(), z.string()]).nullable(),
-  twins: z.tuple([z.string(), z.string()]).nullable(),
-  pendingHunterShot: z.string().nullable(),
-  wolfCubRevengeRound: z.number(),
-  nightActions: z.array(NightActionSchema).optional(),
-  vampireKills: z.number(),
-  boat: z.array(z.string()),
-  leprosaBlockedRound: z.number(),
-  witchFoundSeer: z.boolean(),
-  seerDied: z.boolean(),
-  silencedPlayerId: z.string().nullable(),
-  exiledPlayerId: z.string().nullable(),
-  troublemakerUsed: z.boolean(),
-  fairiesFound: z.boolean(),
-  fairyKillUsed: z.boolean(),
-});
-
-export const AIPlayerPerspectiveSchema = z.object({
-  game: GameSchema,
-  aiPlayer: PlayerSchema,
-  trigger: z.string(),
-  players: z.array(PlayerSchema),
-});
-
-export const GenerateAIChatMessageOutputSchema = z.object({
-  message: z.string(),
-  shouldSend: z.boolean(),
-});
+    return (
+        <Card className="bg-blue-900/20 border-blue-400/40 flex flex-col h-full max-h-80">
+            <CardHeader className='pb-2'>
+                <CardTitle className="font-headline text-blue-300 text-lg flex items-center gap-2">
+                    <Users2 className="h-5 w-5" />
+                    Chat de Gemelas
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-hidden p-0">
+                <ScrollArea className="h-full" ref={scrollAreaRef}>
+                    <div className="p-4 space-y-3">
+                        {messages.length === 0 ? (
+                            <p className="text-center text-sm text-muted-foreground">Vuestro vínculo os permite hablar en secreto. Usadlo con sabiduría.</p>
+                        ) : (
+                            messages.map((msg, index) => {
+                                const isOwnMessage = msg.senderId === currentPlayer.userId;
+                                return (
+                                <div key={msg.id || index} className={cn(
+                                    "flex flex-col",
+                                    isOwnMessage ? "items-end" : "items-start"
+                                )}>
+                                    <div className={cn(
+                                        "rounded-lg px-3 py-2 max-w-xs",
+                                        isOwnMessage ? "bg-blue-600 text-white" : "bg-card"
+                                    )}>
+                                        <p className="font-bold text-sm">{msg.senderName}</p>
+                                        <p className="text-base break-words">{msg.text}</p>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        {formatDistanceToNow(getDateFromTimestamp(msg.createdAt), { addSuffix: true, locale: es })}
+                                    </p>
+                                </div>
+                            )})
+                        )}
+                    </div>
+                </ScrollArea>
+            </CardContent>
+            <CardFooter className="p-2 border-t border-blue-400/30">
+                <form 
+                    onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} 
+                    className="w-full flex items-center gap-2"
+                >
+                    <Input
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        placeholder="Habla con tu gemela..."
+                        className="bg-card/50"
+                    />
+                    <Button type="submit" size="icon" variant="outline" className="bg-blue-600 hover:bg-blue-700" disabled={!newMessage.trim()}>
+                        <Send className="h-4 w-4" />
+                    </Button>
+                </form>
+            </CardFooter>
+        </Card>
+    );
+}
