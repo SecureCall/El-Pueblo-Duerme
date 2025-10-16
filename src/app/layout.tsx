@@ -1,18 +1,29 @@
-import './globals.css'
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import { Toaster } from '@/components/ui/toaster';
+import { FirebaseClientProvider } from '@/firebase/client-provider';
 
-export const metadata = {
+const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
+
+export const metadata: Metadata = {
   title: 'El Pueblo Duerme',
-  description: 'Juego de roles',
-}
+  description: 'Un juego de misterio, engaño y supervivencia.',
+};
 
 export default function RootLayout({
   children,
-}: {
-  children: React.ReactNode
-}) {
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html lang="es">
-      <body style={{ margin: 0, padding: 0 }}>{children}</body>
+      <body className={inter.className}>
+        <FirebaseClientProvider>
+          {children}
+          <Toaster />
+        </FirebaseClientProvider>
+      </body>
     </html>
-  )
+  );
 }
