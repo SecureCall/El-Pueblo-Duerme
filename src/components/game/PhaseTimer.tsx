@@ -13,29 +13,24 @@ interface PhaseTimerProps {
     isCreator: boolean;
 }
 
-// Helper function to reliably get milliseconds from various Timestamp formats
 const getMillis = (timestamp: any): number => {
     if (!timestamp) return 0;
-    // Check for Firebase Timestamp object
     if (timestamp instanceof Timestamp) {
         return timestamp.toMillis();
     }
-    // Check for serialized object { seconds, nanoseconds }
     if (typeof timestamp === 'object' && timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
         return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
     }
-    // Check for Date object
     if (timestamp instanceof Date) {
         return timestamp.getTime();
     }
-    // Check for ISO date string
     if (typeof timestamp === 'string') {
         const date = new Date(timestamp);
         if (!isNaN(date.getTime())) {
             return date.getTime();
         }
     }
-    return 0; // Fallback for any other case
+    return 0;
 };
 
 const getTotalDuration = (phase: Game['phase']): number => {
@@ -50,26 +45,22 @@ const getTotalDuration = (phase: Game['phase']): number => {
 export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
     const { firestore } = useFirebase();
     const timerProcessedRef = useRef(false);
-    const [timeLeft, setTimeLeft] = useState<number>(0);
+    
+    const calculateTimeLeft = () => {
+        const phaseEndMillis = getMillis(game.phaseEndsAt);
+        if (phaseEndMillis === 0) return 0;
+        const now = Date.now();
+        return Math.max(0, Math.floor((phaseEndMillis - now) / 1000));
+    };
+
+    const [timeLeft, setTimeLeft] = useState(calculateTimeLeft);
 
     useEffect(() => {
-        // Function to calculate remaining time
-        const calculateRemainingTime = () => {
-            const phaseEndMillis = getMillis(game.phaseEndsAt);
-            if (phaseEndMillis === 0) return 0;
-            const now = Date.now();
-            return Math.max(0, Math.floor((phaseEndMillis - now) / 1000));
-        };
-        
-        // Set initial time
-        setTimeLeft(calculateRemainingTime());
-        
-        // Reset the processed flag whenever the phase changes
-        timerProcessedRef.current = false;
+        timerProcessedRef.current = false; // Reset processed flag on phase/time change
+        setTimeLeft(calculateTimeLeft()); // Immediately update time left on re-render
 
-        // Set up the interval
         const interval = setInterval(() => {
-            const remaining = calculateRemainingTime();
+            const remaining = calculateTimeLeft();
             setTimeLeft(remaining);
 
             if (remaining <= 0 && isCreator && !timerProcessedRef.current && firestore) {
@@ -85,10 +76,9 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
             }
         }, 1000);
 
-        // Cleanup interval on component unmount or when dependencies change
         return () => clearInterval(interval);
 
-    }, [game.phase, game.phaseEndsAt, game.currentRound, game.id, isCreator, firestore]);
+    }, [game.phase, game.phaseEndsAt, game.id, isCreator, firestore]);
 
     const totalDuration = getTotalDuration(game.phase);
     if (totalDuration <= 0) return null;
