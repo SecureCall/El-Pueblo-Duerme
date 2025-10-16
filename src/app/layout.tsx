@@ -1,24 +1,11 @@
 import type {Metadata} from 'next';
-import { Playfair_Display, PT_Sans } from 'next/font/google';
+import { Inter } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { cn } from '@/lib/utils';
 
-const pt_sans = PT_Sans({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-pt-sans',
-  weight: ['400', '700'],
-});
-
-const playfair_display = Playfair_Display({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-playfair-display',
-  weight: '700',
-});
-
+const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 const APP_NAME = "El Pueblo Duerme";
 const APP_DEFAULT_TITLE = "El Pueblo Duerme";
@@ -67,11 +54,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className={cn("dark", pt_sans.variable, playfair_display.variable)}>
+    <html lang="es" className={cn("dark", inter.variable)}>
       <head>
         <link rel="icon" href="/logo.png" type="image/png" sizes="any" />
       </head>
-      <body className="font-body antialiased">
+      <body className="font-sans antialiased">
         <FirebaseClientProvider>
           {children}
         </FirebaseClientProvider>
