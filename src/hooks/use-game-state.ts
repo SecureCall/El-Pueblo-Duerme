@@ -70,13 +70,9 @@ export const useGameState = (gameId: string) => {
         // **CRITICAL FIX**: Update the main game object state.
         setGame(gameData);
         
-        // Sort players by join time
+        // **CRITICAL FIX**: Use the corrected getMillis function for sorting.
         setPlayers([...gameData.players].sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt)));
-        
-        // Sort events by creation time (descending)
         setEvents([...(gameData.events || [])].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)));
-        
-        // Filter and sort chat messages for the current round
         setMessages(
           (gameData.chatMessages || [])
             .filter(m => m.round === gameData.currentRound)
