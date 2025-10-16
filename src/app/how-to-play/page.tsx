@@ -1,3 +1,4 @@
+
 import {
     Accordion,
     AccordionContent,
@@ -23,11 +24,11 @@ const aldeanoRoleKeys: NonNullable<PlayerRole>[] = [
 ];
 
 const loboRoleKeys: NonNullable<PlayerRole>[] = [
-    'werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'
+    'werewolf', 'wolf_cub', 'cursed', 'seeker_fairy', 'witch'
 ];
 
 const especialRoleKeys: NonNullable<PlayerRole>[] = [
-    'cupid', 'shapeshifter', 'drunk_man', 'cult_leader', 'fisherman', 'vampire', 'witch', 'banshee'
+    'cupid', 'shapeshifter', 'drunk_man', 'cult_leader', 'fisherman', 'vampire', 'banshee'
 ];
 
 

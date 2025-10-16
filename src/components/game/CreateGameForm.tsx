@@ -54,7 +54,6 @@ interface CreateGameFormValues {
   cult_leader: boolean;
   fisherman: boolean;
   vampire: boolean;
-  // Roles a implementar
   ghost: boolean;
   virginia_woolf: boolean;
   leprosa: boolean;

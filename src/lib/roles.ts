@@ -164,6 +164,14 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         color: "text-gray-500",
         bgImageId: "role-bg-villager"
     },
+    sleeping_fairy: {
+        name: "Hada Durmiente",
+        description: "Eres del equipo de los aldeanos. Si durante la partida eres descubierta por el Hada del equipo de los lobos, cambiarás de bando y te unirás a los lobos para maldecir y matar.",
+        atmosphere: "Una transformación que puede dar un giro total a la partida.",
+        image: "/roles/Sleeping Faerie.png",
+        color: "text-emerald-400",
+        bgImageId: "role-bg-villager"
+    },
     // ==== Equipo de los Lobos ====
     werewolf: {
         name: "Hombre Lobo",
@@ -197,13 +205,13 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         color: "text-fuchsia-400",
         bgImageId: "role-bg-werewolf"
     },
-    sleeping_fairy: {
-        name: "Hada Durmiente",
-        description: "Eres del equipo de los aldeanos. Si durante la partida eres descubierta por el Hada del equipo de los lobos, cambiarás de bando y te unirás a los lobos para maldecir y matar.",
-        atmosphere: "Una transformación que puede dar un giro total a la partida.",
-        image: "/roles/Sleeping Faerie.png",
-        color: "text-emerald-400",
-        bgImageId: "role-bg-villager"
+    witch: {
+        name: "Bruja",
+        description: "Cada noche te despiertas para cazar a la Vidente. Si la encuentras, el máster te revelará su identidad y podrás entregarla a los lobos. Desde ese momento, los lobos sabrán quién eres y no te atacarán.",
+        atmosphere: "Una aliada oscura, silenciosa y letal. Tu misión: borrar la luz del pueblo antes de que te descubran.",
+        image: "/roles/Witch.png",
+        color: "text-purple-500",
+        bgImageId: "role-bg-werewolf"
     },
     // ==== Roles Especiales ====
     cupid: {
@@ -254,14 +262,6 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         color: "text-red-700",
         bgImageId: "role-bg-werewolf"
     },
-    witch: {
-        name: "Bruja",
-        description: "Cada noche te despiertas para cazar a la Vidente. Si la encuentras, el máster te revelará su identidad y podrás entregarla a los lobos. Desde ese momento, los lobos sabrán quién eres y no te atacarán.",
-        atmosphere: "Una aliada oscura, silenciosa y letal. Tu misión: borrar la luz del pueblo antes de que te descubran.",
-        image: "/roles/Witch.png",
-        color: "text-purple-500",
-        bgImageId: "role-bg-werewolf"
-    },
     banshee: {
         name: "Banshee",
         description: "Te despiertas una vez por partida para lanzar tu grito y señalar a un jugador. Si muere esa noche o al día siguiente, podrás lanzar un último grito en otra noche. Si aciertas ambas veces, ganas.",
@@ -280,5 +280,3 @@ export const defaultRoleDetail: RoleDetail = {
     color: "text-gray-400",
     bgImageId: "role-bg-villager"
 };
-
-    

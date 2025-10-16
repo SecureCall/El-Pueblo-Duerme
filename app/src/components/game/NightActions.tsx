@@ -46,14 +46,14 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     const isSeekerFairy = currentPlayer.role === 'seeker_fairy' && !game.fairiesFound;
 
     const isHechicera = currentPlayer.role === 'hechicera';
-    const isWerewolfTeam = currentPlayer.role === 'werewolf' || currentPlayer.role === 'wolf_cub';
+    const isWerewolfTeam = ['werewolf', 'wolf_cub', 'cursed'].includes(currentPlayer.role || '');
     const isVampire = currentPlayer.role === 'vampire';
     const isCultLeader = currentPlayer.role === 'cult_leader';
     const isFisherman = currentPlayer.role === 'fisherman';
     const isSilencer = currentPlayer.role === 'silencer';
     const isElderLeader = currentPlayer.role === 'elder_leader';
     const isBanshee = currentPlayer.role === 'banshee' && Object.keys(currentPlayer.bansheeScreams || {}).length < 2;
-    const isFairyTeam = currentPlayer.role === 'seeker_fairy' || currentPlayer.role === 'sleeping_fairy';
+    const isFairyTeam = ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer.role || '');
 
     const hasUsedPoison = !!currentPlayer.potions?.poison;
     const hasUsedSave = !!currentPlayer.potions?.save;
@@ -62,7 +62,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     const hasSavePotion = isHechicera && !hasUsedSave;
     
     const wolfCubRevengeActive = game.wolfCubRevengeRound === game.currentRound + 1;
-    const canFairiesKill = game.fairiesFound && !game.fairyKillUsed && (currentPlayer.role === 'seeker_fairy' || currentPlayer.role === 'sleeping_fairy');
+    const canFairiesKill = game.fairiesFound && !game.fairyKillUsed && isFairyTeam;
 
     useEffect(() => {
         if (isHechicera && !hasPoison && hasSavePotion) {
@@ -75,7 +75,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     const handlePlayerSelect = (player: Player) => {
         if (hasSubmitted || !player.isAlive || isLookout) return;
 
-        if (isWerewolfTeam && (player.role === 'werewolf' || player.role === 'wolf_cub')) return;
+        if (isWerewolfTeam && ['werewolf', 'wolf_cub'].includes(player.role || '')) return;
         if (isVampire && (player.biteCount || 0) >= 3) {
             toast({ variant: 'destructive', title: 'Regla del Vampiro', description: 'Esta persona ya no tiene más sangre que dar.' });
             return;
@@ -240,7 +240,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     };
     
     const otherWerewolves = isWerewolfTeam
-        ? players.filter(p => (p.role === 'werewolf' || p.role === 'wolf_cub') && p.userId !== currentPlayer.userId) 
+        ? players.filter(p => ['werewolf', 'wolf_cub'].includes(p.role || '') && p.userId !== currentPlayer.userId) 
         : [];
     
     const getActionPrompt = () => {
@@ -404,9 +404,9 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                                     if (isWerewolfTeam) {
                                         // A witch who found the seer is an ally
                                         if (game.witchFoundSeer && p.role === 'witch') return false;
-                                        return p.role !== 'werewolf' && p.role !== 'wolf_cub';
+                                        return !['werewolf', 'wolf_cub'].includes(p.role || '');
                                     }
-                                    if (canFairiesKill && (p.role === 'seeker_fairy' || p.role === 'sleeping_fairy')) return false;
+                                    if (canFairiesKill && ['seeker_fairy', 'sleeping_fairy'].includes(p.role || '')) return false;
                                     if (isVampire) return p.role !== 'vampire';
                                     if (isCultLeader) return p.userId !== currentPlayer.userId && !p.isCultMember;
                                     if (isFisherman) return p.userId !== currentPlayer.userId && !game.boat?.includes(p.userId);
