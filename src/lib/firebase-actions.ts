@@ -10,7 +10,6 @@ import {
   runTransaction,
   type Firestore,
   type Transaction,
-  DocumentReference,
 } from "firebase/firestore";
 import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage, AIPlayerPerspective } from "@/types";
 import { errorEmitter } from "@/firebase/error-emitter";
@@ -491,19 +490,21 @@ function killPlayer(
         const handleChainReaction = (linkedIds: string[] | null | undefined, victimId: string, eventType: 'lover_death' | 'special', messageTemplate: string) => {
             if (!linkedIds || !linkedIds.includes(victimId)) return;
             const otherId = linkedIds.find(id => id !== victimId);
-            if (!otherId || killedThisTurn.has(otherId)) return;
+            if (!otherId || killedThisTurn.has(otherId) || killQueue.includes(otherId)) return;
 
             const otherPlayer = gameData.players.find(p => p.userId === otherId);
-            gameData.events.push({
-                id: `evt_${eventType}_${Date.now()}_${otherId}`,
-                gameId: gameData.id!,
-                round: gameData.currentRound,
-                type: eventType,
-                message: messageTemplate.replace('{otherName}', otherPlayer?.displayName || 'Alguien').replace('{victimName}', playerToKill.displayName),
-                data: { killedPlayerId: otherId, originalVictimId: victimId },
-                createdAt: Timestamp.now(),
-            });
-            killQueue.push(otherId);
+            if (otherPlayer && otherPlayer.isAlive) {
+                gameData.events.push({
+                    id: `evt_${eventType}_${Date.now()}_${otherId}`,
+                    gameId: gameData.id!,
+                    round: gameData.currentRound,
+                    type: eventType,
+                    message: messageTemplate.replace('{otherName}', otherPlayer?.displayName || 'Alguien').replace('{victimName}', playerToKill.displayName),
+                    data: { killedPlayerId: otherId, originalVictimId: victimId },
+                    createdAt: Timestamp.now(),
+                });
+                killQueue.push(otherId);
+            }
         };
 
         handleChainReaction(gameData.lovers, playerToKill.userId, 'lover_death', '{otherName} no pudo soportar la pérdida de {victimName} y ha muerto de desamor.');
@@ -512,16 +513,18 @@ function killPlayer(
         const virginiaLink = gameData.players.find(p => p.role === 'virginia_woolf' && p.virginiaWoolfTargetId && p.userId === playerToKill.userId);
         if (virginiaLink && virginiaLink.virginiaWoolfTargetId && !killedThisTurn.has(virginiaLink.virginiaWoolfTargetId)) {
             const linkedPlayer = gameData.players.find(p => p.userId === virginiaLink.virginiaWoolfTargetId);
-            gameData.events.push({
-                id: `evt_virginia_${Date.now()}_${linkedPlayer?.userId}`,
-                gameId: gameData.id!,
-                round: gameData.currentRound,
-                type: 'special',
-                message: `Tras la muerte de ${playerToKill.displayName}, ${linkedPlayer?.displayName || 'alguien'} muere por un vínculo misterioso.`,
-                data: { killedPlayerId: linkedPlayer?.userId, originalVictimId: playerToKill.userId },
-                createdAt: Timestamp.now(),
-            });
-            killQueue.push(linkedPlayer!.userId);
+            if (linkedPlayer && linkedPlayer.isAlive) {
+                gameData.events.push({
+                    id: `evt_virginia_${Date.now()}_${linkedPlayer?.userId}`,
+                    gameId: gameData.id!,
+                    round: gameData.currentRound,
+                    type: 'special',
+                    message: `Tras la muerte de ${playerToKill.displayName}, ${linkedPlayer?.displayName || 'alguien'} muere por un vínculo misterioso.`,
+                    data: { killedPlayerId: linkedPlayer?.userId, originalVictimId: playerToKill.userId },
+                    createdAt: Timestamp.now(),
+                });
+                killQueue.push(linkedPlayer!.userId);
+            }
         }
     }
     
