@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -16,15 +17,30 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
     const { firestore } = useFirebase();
     const timerProcessedRef = useRef(false);
 
+    // This robustly gets milliseconds from either a Timestamp object, a plain serialized object, or a Date object.
+    const getMillis = (timestamp: any): number => {
+        if (!timestamp) return 0;
+        if (timestamp instanceof Timestamp) {
+            return timestamp.toMillis();
+        }
+        if (typeof timestamp.toDate === 'function') { // Another check for Firebase-like objects
+            return timestamp.toDate().getTime();
+        }
+        if (typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
+            return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
+        }
+        if (timestamp instanceof Date) {
+            return timestamp.getTime();
+        }
+        return 0; // Fallback for unknown formats
+    };
+
     const getRemainingSeconds = useCallback(() => {
-        if (!game.phaseEndsAt) return 0;
-        
-        const phaseEndMillis = game.phaseEndsAt instanceof Timestamp
-            ? game.phaseEndsAt.toMillis()
-            : (game.phaseEndsAt.seconds * 1000 + (game.phaseEndsAt.nanoseconds || 0) / 1000000);
+        const phaseEndMillis = getMillis(game.phaseEndsAt);
+        if (phaseEndMillis === 0) return 0;
         
         const now = Date.now();
-        const remaining = Math.max(0, Math.ceil((phaseEndMillis - now) / 1000));
+        const remaining = Math.max(0, Math.floor((phaseEndMillis - now) / 1000));
         return remaining;
     }, [game.phaseEndsAt]);
 
@@ -41,23 +57,21 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
     const totalDuration = getTotalDuration();
 
     useEffect(() => {
-        // Reset the processed flag when the phase or round changes, ensuring the creator can trigger the next phase.
         timerProcessedRef.current = false;
         
-        // Update the time left immediately when the component re-renders due to game state changes.
-        setTimeLeft(getRemainingSeconds());
-
         const interval = setInterval(() => {
             const remaining = getRemainingSeconds();
             setTimeLeft(remaining);
 
-            if (remaining <= 0 && isCreator && !timerProcessedRef.current) {
-                timerProcessedRef.current = true; // Prevent multiple executions
-                
-                if (game.phase === 'night') {
-                    processNight(firestore, game.id);
-                } else if (game.phase === 'day') {
-                    processVotes(firestore, game.id);
+            if (remaining <= 0 && isCreator && !timerProcessedRef.current && firestore) {
+                if (game.phase === 'night' || game.phase === 'day') {
+                    timerProcessedRef.current = true; // Prevent multiple executions
+                    
+                    if (game.phase === 'night') {
+                        processNight(firestore, game.id);
+                    } else if (game.phase === 'day') {
+                        processVotes(firestore, game.id);
+                    }
                 }
             }
         }, 1000);
