@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Progress } from '../ui/progress';
 import type { Game } from '@/types';
 import { Timestamp } from 'firebase/firestore';
@@ -13,60 +13,58 @@ interface PhaseTimerProps {
     isCreator: boolean;
 }
 
+// Helper function to reliably get milliseconds from various Timestamp formats
+const getMillis = (timestamp: any): number => {
+    if (!timestamp) return 0;
+    if (timestamp instanceof Timestamp) {
+        return timestamp.toMillis();
+    }
+    if (timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
+        return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
+    }
+    if (timestamp instanceof Date) {
+        return timestamp.getTime();
+    }
+    return 0; // Fallback
+};
+
+const getTotalDuration = (phase: Game['phase']): number => {
+    switch (phase) {
+        case 'day': return 45;
+        case 'night': return 45;
+        case 'role_reveal': return 15;
+        default: return 0;
+    }
+};
+
 export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
     const { firestore } = useFirebase();
     const timerProcessedRef = useRef(false);
-
-    // This robustly gets milliseconds from either a Timestamp object, a plain serialized object, or a Date object.
-    const getMillis = (timestamp: any): number => {
-        if (!timestamp) return 0;
-        if (timestamp instanceof Timestamp) {
-            return timestamp.toMillis();
-        }
-        if (typeof timestamp.toDate === 'function') { // Another check for Firebase-like objects
-            return timestamp.toDate().getTime();
-        }
-        if (typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
-            return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
-        }
-        if (timestamp instanceof Date) {
-            return timestamp.getTime();
-        }
-        return 0; // Fallback for unknown formats
-    };
-
-    const getRemainingSeconds = useCallback(() => {
-        const phaseEndMillis = getMillis(game.phaseEndsAt);
-        if (phaseEndMillis === 0) return 0;
-        
-        const now = Date.now();
-        const remaining = Math.max(0, Math.floor((phaseEndMillis - now) / 1000));
-        return remaining;
-    }, [game.phaseEndsAt]);
-
-    const getTotalDuration = () => {
-        switch (game.phase) {
-            case 'day': return 45;
-            case 'night': return 45;
-            case 'role_reveal': return 15;
-            default: return 0;
-        }
-    };
-
-    const [timeLeft, setTimeLeft] = useState(getRemainingSeconds);
-    const totalDuration = getTotalDuration();
+    const [timeLeft, setTimeLeft] = useState<number>(0);
 
     useEffect(() => {
-        timerProcessedRef.current = false;
+        // Function to calculate remaining time
+        const calculateRemainingTime = () => {
+            const phaseEndMillis = getMillis(game.phaseEndsAt);
+            if (phaseEndMillis === 0) return 0;
+            const now = Date.now();
+            return Math.max(0, Math.floor((phaseEndMillis - now) / 1000));
+        };
         
+        // Set initial time
+        setTimeLeft(calculateRemainingTime());
+        // Reset the processed flag whenever the phase changes
+        timerProcessedRef.current = false;
+
+        // Set up the interval
         const interval = setInterval(() => {
-            const remaining = getRemainingSeconds();
+            const remaining = calculateRemainingTime();
             setTimeLeft(remaining);
 
             if (remaining <= 0 && isCreator && !timerProcessedRef.current && firestore) {
                 if (game.phase === 'night' || game.phase === 'day') {
                     timerProcessedRef.current = true; // Prevent multiple executions
-                    
+
                     if (game.phase === 'night') {
                         processNight(firestore, game.id);
                     } else if (game.phase === 'day') {
@@ -76,12 +74,15 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
             }
         }, 1000);
 
+        // Cleanup interval on component unmount or when dependencies change
         return () => clearInterval(interval);
-    }, [game.phase, game.currentRound, game.id, getRemainingSeconds, isCreator, firestore]);
 
+    }, [game.phase, game.phaseEndsAt, game.currentRound, game.id, isCreator, firestore]);
+
+    const totalDuration = getTotalDuration(game.phase);
     if (totalDuration <= 0) return null;
 
-    const progress = totalDuration > 0 ? (timeLeft / totalDuration) * 100 : 0;
+    const progress = (timeLeft / totalDuration) * 100;
 
     return (
         <div className="w-3/4 max-w-sm mt-2">
