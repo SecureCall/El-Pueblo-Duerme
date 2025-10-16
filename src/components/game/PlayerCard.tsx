@@ -6,7 +6,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { Bot, Crown, Gavel, Skull } from "lucide-react";
+import { Bot, Crown, Gavel, Skull, HeartCrack } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { roleDetails, defaultRoleDetail } from "@/lib/roles";
@@ -14,7 +14,7 @@ import Image from "next/image";
 import type { SVGProps } from "react";
 
 interface PlayerCardProps {
-  player: Player & { causeOfDeath?: 'werewolf_kill' | 'vote_result' | 'other' };
+  player: Player & { causeOfDeath?: 'werewolf_kill' | 'vote_result' | 'lover_death' | 'other' };
   onClick?: () => void;
   isClickable?: boolean;
   isSelected?: boolean;
@@ -59,6 +59,12 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
               <Gavel className={cn(iconClasses, "text-amber-800")} />
             </div>
           );
+        case 'lover_death':
+            return (
+            <div className={baseClasses}>
+                <HeartCrack className={cn(iconClasses, "text-pink-400")} />
+            </div>
+            );
         default:
           return (
              <div className={cn(baseClasses)}>

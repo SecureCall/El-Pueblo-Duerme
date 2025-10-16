@@ -248,7 +248,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, twi
     highlightedPlayers.push({ userId: otherTwin.userId, color: 'rgba(135, 206, 250, 0.7)' });
   }
 
-  const getCauseOfDeath = (playerId: string): 'werewolf_kill' | 'vote_result' | 'other' => {
+  const getCauseOfDeath = (playerId: string): 'werewolf_kill' | 'vote_result' | 'lover_death' | 'other' => {
     // Find the most recent event related to this player's death
     const deathEvent = events
         .filter(e =>
@@ -261,6 +261,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, twi
     if (deathEvent) {
         if (deathEvent.type === 'vote_result') return 'vote_result';
         if (deathEvent.type === 'night_result') return 'werewolf_kill';
+        if (deathEvent.type === 'lover_death') return 'lover_death';
     }
     return 'other';
   };
