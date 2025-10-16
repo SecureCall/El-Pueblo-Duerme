@@ -46,7 +46,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     const isSeekerFairy = currentPlayer.role === 'seeker_fairy' && !game.fairiesFound;
 
     const isHechicera = currentPlayer.role === 'hechicera';
-    const isWerewolfTeam = ['werewolf', 'wolf_cub', 'cursed'].includes(currentPlayer.role || '');
+    const isWerewolfTeam = ['werewolf', 'wolf_cub'].includes(currentPlayer.role || '');
     const isVampire = currentPlayer.role === 'vampire';
     const isCultLeader = currentPlayer.role === 'cult_leader';
     const isFisherman = currentPlayer.role === 'fisherman';

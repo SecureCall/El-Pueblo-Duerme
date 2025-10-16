@@ -47,7 +47,6 @@ export const useGameState = (gameId: string) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [wolfMessages, setWolfMessages] = useState<ChatMessage[]>([]);
   const [fairyMessages, setFairyMessages] = useState<ChatMessage[]>([]);
-  const [twinMessages, setTwinMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -86,10 +85,6 @@ export const useGameState = (gameId: string) => {
           (gameData.fairyChatMessages || [])
             .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
         );
-        setTwinMessages(
-          (gameData.twinChatMessages || [])
-            .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
-        );
 
         setError(null);
       } else {
@@ -100,7 +95,6 @@ export const useGameState = (gameId: string) => {
         setMessages([]);
         setWolfMessages([]);
         setFairyMessages([]);
-        setTwinMessages([]);
       }
       setLoading(false);
     }, (err: FirestoreError) => {
@@ -118,5 +112,5 @@ export const useGameState = (gameId: string) => {
     };
   }, [gameId, firestore, gameRef]);
 
-  return { game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loading, error };
+  return { game, players, events, messages, wolfMessages, fairyMessages, loading, error };
 };

@@ -85,7 +85,6 @@ export async function createGame(
       chatMessages: [],
       wolfChatMessages: [],
       fairyChatMessages: [],
-      twinChatMessages: [],
       maxPlayers: maxPlayers,
       createdAt: Timestamp.now(),
       currentRound: 0,
@@ -486,43 +485,33 @@ function killPlayer(
     let hunterTriggeredId: string | null = null;
     let gameOver = false;
     
-    // Using a Set to automatically handle duplicates and track who has been killed in this turn.
     const killedThisTurn = new Set<string>();
-
-    // The queue of players to process for killing.
     const killQueue = [...new Set(playerIdsToKill)];
 
     while (killQueue.length > 0) {
         const playerIdToKill = killQueue.shift();
 
-        // Skip if the player ID is invalid or already processed.
         if (!playerIdToKill || killedThisTurn.has(playerIdToKill)) {
             continue;
         }
 
         const playerIndex = gameData.players.findIndex(p => p.userId === playerIdToKill);
 
-        // Skip if the player is not found or is already dead.
         if (playerIndex === -1 || !gameData.players[playerIndex].isAlive) {
             continue;
         }
         
         const playerToKill = gameData.players[playerIndex];
 
-        // Special win condition for Drunk Man.
         if (playerToKill.role === 'drunk_man' && gameData.settings.drunk_man) {
             gameData.players[playerIndex].isAlive = false;
             gameOver = true;
-            // The game ends immediately, no need to process further deaths.
             return { updatedGame: gameData, triggeredHunterId: null, gameOver: true };
         }
         
-        // Mark the player as dead and add to the set of players killed in this turn.
         gameData.players[playerIndex].isAlive = false;
         killedThisTurn.add(playerIdToKill);
         
-        // --- Trigger Side Effects of Death ---
-
         if (playerToKill.role === 'seer') gameData.seerDied = true;
         if (playerToKill.role === 'hunter' && gameData.settings.hunter && gameData.phase !== 'hunter_shot') {
             hunterTriggeredId = playerToKill.userId;
@@ -530,15 +519,12 @@ function killPlayer(
         if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) gameData.wolfCubRevengeRound = gameData.currentRound + 1;
         if (playerToKill.role === 'leprosa' && gameData.settings.leprosa) gameData.leprosaBlockedRound = gameData.currentRound + 1;
 
-        // --- Handle Chain Reaction Deaths ---
-
         const checkAndQueueChainDeath = (linkedIds: string[] | null | undefined, deadPlayer: Player, eventType: 'lover_death' | 'special', messageTemplate: string) => {
             if (!linkedIds || !linkedIds.includes(deadPlayer.userId)) return;
 
             const otherId = linkedIds.find(id => id !== deadPlayer.userId);
             const otherPlayer = otherId ? gameData.players.find(p => p.userId === otherId) : undefined;
             
-            // Check if the other player is alive and not already queued for death.
             if (otherPlayer && otherPlayer.isAlive && !killQueue.includes(otherId) && !killedThisTurn.has(otherId)) {
                 gameData.events.push({
                     id: `evt_${eventType}_${Date.now()}_${otherId}`,
@@ -549,17 +535,13 @@ function killPlayer(
                     data: { killedPlayerId: otherId, originalVictimId: deadPlayer.userId },
                     createdAt: Timestamp.now(),
                 });
-                killQueue.push(otherId); // Add the linked player to the kill queue.
+                killQueue.push(otherId);
             }
         };
 
-        // Lover's death
         checkAndQueueChainDeath(gameData.lovers, playerToKill, 'lover_death', '{otherName} no pudo soportar la pérdida de {victimName} y ha muerto de desamor.');
-        
-        // Twin's death
         checkAndQueueChainDeath(gameData.twins, playerToKill, 'special', 'Tras la muerte de {victimName}, su gemelo/a {otherName} muere de pena.');
         
-        // Virginia Woolf's linked death
         const virginiaLinker = gameData.players.find(p => p.role === 'virginia_woolf' && p.userId === playerToKill.userId);
         if (virginiaLinker && virginiaLinker.virginiaWoolfTargetId) {
              const linkedPlayerId = virginiaLinker.virginiaWoolfTargetId;
@@ -579,7 +561,6 @@ function killPlayer(
         }
     }
     
-    // If a hunter died, set the pending shot phase.
     if (hunterTriggeredId) {
         gameData.pendingHunterShot = hunterTriggeredId;
         gameData.phase = 'hunter_shot';
@@ -728,7 +709,6 @@ export async function processNight(db: Firestore, gameId: string) {
             game.chatMessages = game.chatMessages || [];
             game.wolfChatMessages = game.wolfChatMessages || [];
             game.fairyChatMessages = game.fairyChatMessages || [];
-            game.twinChatMessages = game.twinChatMessages || [];
             game.vampireKills = game.vampireKills || 0;
             game.boat = game.boat || [];
 
@@ -972,7 +952,6 @@ export async function processNight(db: Firestore, gameId: string) {
               chatMessages: [], 
               wolfChatMessages: [], 
               fairyChatMessages: [],
-              twinChatMessages: [],
               pendingHunterShot: null,
               fairiesFound: game.fairiesFound,
               fairyKillUsed: game.fairyKillUsed,
@@ -1813,7 +1792,6 @@ export async function resetGame(db: Firestore, gameId: string) {
                 chatMessages: [],
                 wolfChatMessages: [],
                 fairyChatMessages: [],
-                twinChatMessages: [],
                 nightActions: [],
                 lovers: null,
                 twins: null,

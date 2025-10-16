@@ -18,7 +18,7 @@ import { GameMusic } from "./GameMusic";
 
 export function GameRoom({ gameId }: { gameId: string }) {
   const { userId, displayName, setDisplayName, isSessionLoaded } = useGameSession();
-  const { game, players, events, messages, wolfMessages, twinMessages, fairyMessages, loading, error } = useGameState(gameId);
+  const { game, players, events, messages, wolfMessages, fairyMessages, loading, error } = useGameState(gameId);
   const [isJoining, setIsJoining] = useState(false);
   const { toast } = useToast();
   const { firestore } = useFirebase();
@@ -95,7 +95,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
             return <GameLobby game={game} players={players} isCreator={game.creator === userId} />;
         case 'in_progress':
         case 'finished':
-            return <GameBoard game={game} players={players} currentPlayer={currentPlayer} events={events} messages={messages} wolfMessages={wolfMessages} twinMessages={twinMessages} fairyMessages={fairyMessages}/>;
+            return <GameBoard game={game} players={players} currentPlayer={currentPlayer} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} />;
         default:
             return <p>Estado de la partida desconocido.</p>;
     }
