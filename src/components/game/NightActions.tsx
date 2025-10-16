@@ -8,7 +8,7 @@ import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
 import { submitNightAction, getSeerResult, submitCupidAction } from '@/lib/firebase-actions';
-import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, BotIcon } from 'lucide-react';
+import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, BotIcon, Eye } from 'lucide-react';
 import { SeerResult } from './SeerResult';
 import { useNightActions } from '@/hooks/use-night-actions';
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
@@ -40,6 +40,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages }: Nig
     const isVirginiaWoolfFirstNight = currentPlayer.role === 'virginia_woolf' && game.currentRound === 1;
     const isRiverSirenFirstNight = currentPlayer.role === 'river_siren' && game.currentRound === 1;
     const isWitch = currentPlayer.role === 'witch';
+    const isLookout = currentPlayer.role === 'lookout' && !currentPlayer.lookoutUsed;
 
     const isHechicera = currentPlayer.role === 'hechicera';
     const isWerewolfTeam = currentPlayer.role === 'werewolf' || currentPlayer.role === 'wolf_cub';
@@ -64,10 +65,10 @@ export function NightActions({ game, players, currentPlayer, wolfMessages }: Nig
         }
     }, [isHechicera, hasPoison, hasSavePotion]);
     
-    const selectionLimit = isCupidFirstNight || wolfCubRevengeActive ? 2 : 1;
+    const selectionLimit = isCupidFirstNight || wolfCubRevengeActive ? 2 : (isLookout ? 0 : 1);
 
     const handlePlayerSelect = (player: Player) => {
-        if (hasSubmitted || !player.isAlive) return;
+        if (hasSubmitted || !player.isAlive || isLookout) return;
 
         if (isWerewolfTeam && (player.role === 'werewolf' || player.role === 'wolf_cub')) return;
         if (isVampire && (player.biteCount || 0) >= 3) {
@@ -134,6 +135,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages }: Nig
             case 'elder_leader': return 'elder_leader_exile';
             case 'witch': return 'witch_hunt';
             case 'banshee': return 'banshee_scream';
+            case 'lookout': return 'lookout_spy';
             case 'hechicera':
                 if (hechiceraAction === 'poison') return 'hechicera_poison';
                 if (hechiceraAction === 'save') return 'hechicera_save';
@@ -144,7 +146,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages }: Nig
 
     const handleSubmit = async () => {
         if (!firestore) return;
-        if (selectedPlayerIds.length !== selectionLimit) {
+        if (selectedPlayerIds.length !== selectionLimit && !isLookout) {
             toast({ variant: 'destructive', title: `Debes seleccionar ${selectionLimit} jugador(es).` });
             return;
         }
@@ -199,7 +201,11 @@ export function NightActions({ game, players, currentPlayer, wolfMessages }: Nig
         }
 
         if (result.success) {
-            toast({ title: 'Acción registrada.', description: 'Tu decisión ha sido guardada.' });
+            if (actionType === 'lookout_spy') {
+                 toast({ title: 'Espionaje en curso...', description: 'El resultado de tu acción se revelará pronto.' });
+            } else {
+                toast({ title: 'Acción registrada.', description: 'Tu decisión ha sido guardada.' });
+            }
 
             if (currentPlayer.role === 'seer' || (currentPlayer.role === 'seer_apprentice' && game.seerDied)) {
                 const seerResultData = await getSeerResult(firestore, game.id, currentPlayer.userId, selectedPlayerIds[0]);
@@ -245,6 +251,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages }: Nig
             case 'seer_apprentice': return apprenticeIsActive ? 'La vidente ha muerto. Has heredado su don. Elige a quién investigar.' : 'Aún eres un aprendiz. Espera tu momento.';
             case 'witch': return game.witchFoundSeer ? 'Has encontrado a la vidente. Los lobos te protegerán.' : 'Busca a la vidente entre los jugadores.';
             case 'banshee': return isBanshee ? 'Lanza tu grito y sentencia a un jugador.' : 'Ya has usado tus dos gritos en esta partida.';
+            case 'lookout': return 'Puedes arriesgarte a espiar a los lobos. Si tienes éxito, los conocerás. Si fallas, morirás.';
             default: return 'No tienes acciones esta noche. Espera al amanecer.';
         }
     }
@@ -327,11 +334,25 @@ export function NightActions({ game, players, currentPlayer, wolfMessages }: Nig
         isElderLeader ||
         isWitch ||
         isBanshee ||
+        isLookout ||
         apprenticeIsActive
     );
 
     if (seerResult) {
         return <SeerResult targetName={seerResult.targetName} isWerewolf={seerResult.isWerewolf} />;
+    }
+
+    if (isLookout && hasSubmitted) {
+        return (
+            <Card className="mt-8 bg-card/80">
+                <CardHeader>
+                    <CardTitle className="font-headline text-2xl">Acción del Vigía</CardTitle>
+                </CardHeader>
+                <CardContent className="text-center py-8">
+                    <p className="text-lg text-primary">Has intentado espiar. El resultado se revelará al amanecer.</p>
+                </CardContent>
+            </Card>
+        )
     }
 
     return (
@@ -349,24 +370,26 @@ export function NightActions({ game, players, currentPlayer, wolfMessages }: Nig
                     </div>
                 ) : canPerformAction ? (
                     <>
-                        <PlayerGrid 
-                            players={players.filter(p => {
-                                if (isCupidFirstNight) return true;
-                                if (isWerewolfTeam) return p.role !== 'werewolf' && p.role !== 'wolf_cub';
-                                if (isVampire) return p.role !== 'vampire';
-                                if (isCultLeader) return p.userId !== currentPlayer.userId && !p.isCultMember;
-                                if (isFisherman) return p.userId !== currentPlayer.userId && !game.boat?.includes(p.userId);
-                                if (p.userId === currentPlayer.userId) {
-                                    if (currentPlayer.role === 'priest' && !currentPlayer.priestSelfHealUsed) return true;
-                                    if (currentPlayer.role === 'guardian' && (currentPlayer.guardianSelfProtects || 0) < 1) return true;
-                                    return false; 
-                                }
-                                return true;
-                            })}
-                            onPlayerClick={handlePlayerSelect}
-                            clickable={true}
-                            selectedPlayerIds={selectedPlayerIds}
-                        />
+                        {!isLookout && (
+                            <PlayerGrid 
+                                players={players.filter(p => {
+                                    if (isCupidFirstNight) return true;
+                                    if (isWerewolfTeam) return p.role !== 'werewolf' && p.role !== 'wolf_cub';
+                                    if (isVampire) return p.role !== 'vampire';
+                                    if (isCultLeader) return p.userId !== currentPlayer.userId && !p.isCultMember;
+                                    if (isFisherman) return p.userId !== currentPlayer.userId && !game.boat?.includes(p.userId);
+                                    if (p.userId === currentPlayer.userId) {
+                                        if (currentPlayer.role === 'priest' && !currentPlayer.priestSelfHealUsed) return true;
+                                        if (currentPlayer.role === 'guardian' && (currentPlayer.guardianSelfProtects || 0) < 1) return true;
+                                        return false; 
+                                    }
+                                    return true;
+                                })}
+                                onPlayerClick={handlePlayerSelect}
+                                clickable={true}
+                                selectedPlayerIds={selectedPlayerIds}
+                            />
+                        )}
                          {(isCupidFirstNight || wolfCubRevengeActive) && (
                             <div className="flex justify-center items-center gap-4 mt-4">
                                 <span className='text-lg'>{players.find(p => p.userId === selectedPlayerIds[0])?.displayName || '?'}</span>
@@ -377,9 +400,12 @@ export function NightActions({ game, players, currentPlayer, wolfMessages }: Nig
                         <Button 
                             className="w-full mt-6 text-lg" 
                             onClick={handleSubmit} 
-                            disabled={selectedPlayerIds.length !== selectionLimit || isSubmitting}
+                            disabled={(selectedPlayerIds.length !== selectionLimit && !isLookout) || isSubmitting}
                         >
-                            {isSubmitting ? <Loader2 className="animate-spin" /> : 'Confirmar Acción'}
+                            {isSubmitting 
+                                ? <Loader2 className="animate-spin" /> 
+                                : (isLookout ? <><Eye className="mr-2" /> Intentar Espiar</> : 'Confirmar Acción')
+                            }
                         </Button>
                     </>
                 ) : (

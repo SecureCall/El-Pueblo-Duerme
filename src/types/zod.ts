@@ -46,6 +46,7 @@ export const PlayerSchema = z.object({
   riverSirenTargetId: z.string().nullable().optional(),
   ghostMessageSent: z.boolean().optional(),
   bansheeScreams: z.record(z.string()).optional(),
+  lookoutUsed: z.boolean().optional(),
 });
 
 export const NightActionSchema = z.object({
@@ -56,7 +57,7 @@ export const NightActionSchema = z.object({
     "werewolf_kill", "seer_check", "doctor_heal", "cupid_enchant", "hechicera_poison", 
     "hechicera_save", "guardian_protect", "priest_bless", "vampire_bite", "cult_recruit", 
     "fisherman_catch", "shapeshifter_select", "virginia_woolf_link", "river_siren_charm",
-    "silencer_silence", "elder_leader_exile", "witch_hunt", "banshee_scream"
+    "silencer_silence", "elder_leader_exile", "witch_hunt", "banshee_scream", "lookout_spy"
   ]),
   targetId: z.string(),
   createdAt: TimestampSchema,
@@ -160,6 +161,7 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
+
 
 
 

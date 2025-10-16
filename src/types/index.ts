@@ -136,6 +136,7 @@ export interface Player {
   riverSirenTargetId?: string | null;
   ghostMessageSent?: boolean;
   bansheeScreams?: Record<number, string>; // round: targetId
+  lookoutUsed?: boolean;
 }
 
 export type NightActionType = 
@@ -156,7 +157,8 @@ export type NightActionType =
   "silencer_silence" |
   "elder_leader_exile" |
   "witch_hunt" |
-  "banshee_scream";
+  "banshee_scream" |
+  "lookout_spy";
 
 
 export interface NightAction {
@@ -201,6 +203,7 @@ export interface GenerateAIChatMessageOutput {
     message: string;
     shouldSend: boolean;
 };
+
 
 
 

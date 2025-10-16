@@ -1,3 +1,4 @@
+
 'use client';
 import { 
   doc,
@@ -50,6 +51,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     biteCount: 0,
     isCultMember: false,
     ghostMessageSent: false,
+    lookoutUsed: false,
 });
 
 
@@ -352,6 +354,9 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         if (action.actionType === 'guardian_protect' && action.targetId === action.playerId && (player.guardianSelfProtects || 0) >= 1) {
              throw new Error("Solo puedes protegerte a ti mismo una vez.");
         }
+        if (action.actionType === 'lookout_spy' && player.lookoutUsed) {
+            throw new Error("Ya has usado tu habilidad de Vigía.");
+        }
         
         if (existingActionIndex > -1) {
             nightActions.splice(existingActionIndex, 1);
@@ -375,6 +380,8 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
             players[playerIndex].priestSelfHealUsed = true;
         } else if (action.actionType === 'guardian_protect' && action.targetId === action.playerId) {
             players[playerIndex].guardianSelfProtects = (players[playerIndex].guardianSelfProtects || 0) + 1;
+        } else if (action.actionType === 'lookout_spy') {
+            players[playerIndex].lookoutUsed = true;
         }
 
         nightActions.push(newAction);
@@ -695,6 +702,36 @@ export async function processNight(db: Firestore, gameId: string) {
                 }
             });
 
+            const lookoutAction = actions.find(a => a.actionType === 'lookout_spy');
+            if (lookoutAction) {
+                const successChance = 0.4; // 40% chance of success
+                const isSuccessful = Math.random() < successChance;
+                let lookoutEvent;
+
+                if (isSuccessful) {
+                    const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed'];
+                    const wolves = game.players.filter(p => wolfRoles.includes(p.role) && p.isAlive);
+                    const wolfNames = wolves.map(w => w.displayName).join(', ');
+                    lookoutEvent = {
+                        id: `evt_lookout_success_${Date.now()}`,
+                        gameId, round: game.currentRound, type: 'special',
+                        message: `¡Has espiado con éxito! Los lobos son: ${wolfNames || 'ninguno (ya están todos muertos)'}.`,
+                        data: { targetId: lookoutAction.playerId },
+                        createdAt: Timestamp.now(),
+                    };
+                } else {
+                    lookoutEvent = {
+                        id: `evt_lookout_fail_${Date.now()}`,
+                        gameId, round: game.currentRound, type: 'special',
+                        message: `¡Te han descubierto! Los lobos te han visto espiar y te han eliminado.`,
+                        data: { targetId: lookoutAction.playerId },
+                        createdAt: Timestamp.now(),
+                    };
+                    finalKilledPlayerIds.push(lookoutAction.playerId);
+                }
+                game.events.push(lookoutEvent);
+            }
+
             const vampireAction = actions.find(a => a.actionType === 'vampire_bite');
             if (vampireAction?.targetId) {
                 const targetIndex = game.players.findIndex(p => p.userId === vampireAction.targetId);
@@ -813,7 +850,7 @@ export async function processNight(db: Firestore, gameId: string) {
                 if (fishermanDied) nightEvent.message += ` El Pescador eligió a un lobo y murió.`;
             } else if (game.leprosaBlockedRound === game.currentRound) {
                 nightEvent.message = "Gracias a la Leprosa, los lobos no pudieron atacar esta noche. Nadie murió.";
-            } else if (actions.some(a => a.actionType === 'werewolf_kill' || a.actionType === 'hechicera_poison' || a.actionType === 'vampire_bite')) {
+            } else if (actions.some(a => a.actionType === 'werewolf_kill' || a.actionType === 'hechicera_poison' || a.actionType === 'vampire_bite' || a.actionType === 'lookout_spy')) {
                  nightEvent.message = "Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!";
             } else if(actions.filter(a => a.actionType === 'werewolf_kill').length > 0) {
                  nightEvent.message = "Los lobos no se pusieron de acuerdo en su víctima. Nadie murió por su ataque.";
