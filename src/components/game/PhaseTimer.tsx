@@ -17,71 +17,50 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
     const { firestore } = useFirebase();
     const timerProcessedRef = useRef(false);
 
-    const getDuration = () => {
+    const getRemainingSeconds = () => {
         if (!game.phaseEndsAt) return 0;
-        const phaseEndMillis = game.phaseEndsAt instanceof Timestamp 
+        const phaseEndMillis = game.phaseEndsAt instanceof Timestamp
             ? game.phaseEndsAt.toMillis()
             : (game.phaseEndsAt.seconds * 1000 + game.phaseEndsAt.nanoseconds / 1000000);
-            
-        const now = Date.now();
-        const durationSeconds = Math.max(0, Math.ceil((phaseEndMillis - now) / 1000));
         
-        return durationSeconds;
+        const now = Date.now();
+        const remaining = Math.max(0, Math.ceil((phaseEndMillis - now) / 1000));
+        return remaining;
     };
-    
+
     const getTotalDuration = () => {
-         switch (game.phase) {
+        switch (game.phase) {
             case 'day': return 45;
             case 'night': return 45;
             case 'role_reveal': return 15;
             default: return 0;
         }
-    }
-
-    const [timeLeft, setTimeLeft] = useState(getDuration);
-    const totalDuration = getTotalDuration();
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
-
-    const onTimerEnd = async () => {
-        if (!isCreator || !firestore || !game || timerProcessedRef.current) return;
-        timerProcessedRef.current = true;
-        
-        if (game.phase === 'night') {
-            await processNight(firestore, game.id);
-        } else if (game.phase === 'day') {
-            await processVotes(firestore, game.id);
-        }
     };
 
-    useEffect(() => {
-        timerProcessedRef.current = false; // Reset on phase change
-        const initialTimeLeft = getDuration();
-        setTimeLeft(initialTimeLeft);
-        
-        if (timerRef.current) {
-            clearInterval(timerRef.current);
-        }
-        
-        if (initialTimeLeft <= 0) {
-            if (isCreator) onTimerEnd();
-            return;
-        }
+    const [timeLeft, setTimeLeft] = useState(getRemainingSeconds);
+    const totalDuration = getTotalDuration();
 
-        timerRef.current = setInterval(() => {
-            setTimeLeft(prev => {
-                const newTimeLeft = prev - 1;
-                if (newTimeLeft <= 0) {
-                    clearInterval(timerRef.current!);
-                    onTimerEnd();
-                    return 0;
+    useEffect(() => {
+        timerProcessedRef.current = false; // Reset on each phase change
+
+        const interval = setInterval(() => {
+            const remaining = getRemainingSeconds();
+            setTimeLeft(remaining);
+
+            if (remaining <= 0) {
+                clearInterval(interval);
+                if (isCreator && !timerProcessedRef.current) {
+                    timerProcessedRef.current = true; // Mark as processed immediately
+                    if (game.phase === 'night') {
+                        processNight(firestore, game.id);
+                    } else if (game.phase === 'day') {
+                        processVotes(firestore, game.id);
+                    }
                 }
-                return newTimeLeft;
-            });
+            }
         }, 1000);
 
-        return () => {
-            if(timerRef.current) clearInterval(timerRef.current)
-        };
+        return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [game.phase, game.currentRound, game.phaseEndsAt, isCreator, firestore, game.id]);
 
