@@ -1650,3 +1650,5 @@ export async function sendGhostMessage(
         return { success: false, error: error.message || "No se pudo enviar el mensaje." };
     }
 }
+
+    
