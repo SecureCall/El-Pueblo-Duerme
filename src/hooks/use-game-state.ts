@@ -4,10 +4,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { 
   doc, 
-  collection,
-  query,
-  where,
-  orderBy,
   onSnapshot, 
   type DocumentData, 
   type DocumentSnapshot, 
@@ -19,6 +15,18 @@ import { useFirebase, useMemoFirebase } from '@/firebase';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
+// Helper to safely get milliseconds from either a Timestamp object or a plain object
+const getMillis = (timestamp: any): number => {
+  if (!timestamp) return 0;
+  if (timestamp instanceof Timestamp) {
+    return timestamp.toMillis();
+  }
+  // It's a plain object from JSON serialization
+  if (typeof timestamp === 'object' && timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
+    return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
+  }
+  return 0; // Return 0 for any other invalid format
+};
 
 export const useGameState = (gameId: string) => {
   const { firestore } = useFirebase();
@@ -34,20 +42,11 @@ export const useGameState = (gameId: string) => {
     return doc(firestore, 'games', gameId);
   }, [gameId, firestore]);
 
-  // Helper to safely get milliseconds from either a Timestamp object or a plain object
-  const getMillis = (timestamp: Timestamp | { seconds: number, nanoseconds: number }): number => {
-    if (!timestamp) return 0;
-    if (timestamp instanceof Timestamp) {
-      return timestamp.toMillis();
-    }
-    // It's a plain object from JSON serialization
-    return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
-  };
-
   useEffect(() => {
     if (!gameRef) {
         setLoading(false);
         if (!gameId) setError("No game ID provided.");
+        else setError("Cargando sesión de Firebase..."); // More informative message
         return;
     };
 
@@ -56,13 +55,23 @@ export const useGameState = (gameId: string) => {
     const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
         const gameData = { ...snapshot.data() as Game, id: snapshot.id };
+
+        // **CRITICAL FIX**: Update the main game object state
         setGame(gameData);
-        // Use the safe getMillis function for sorting
+        
+        // Sort players by join time
         setPlayers([...gameData.players].sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt)));
+        
+        // Sort events by creation time (descending)
         setEvents([...(gameData.events || [])].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)));
         
-        // Only get messages for the current round
-        setMessages(gameData.chatMessages?.filter(m => m.round === gameData.currentRound) || []);
+        // Filter and sort chat messages for the current round
+        setMessages(
+          (gameData.chatMessages || [])
+            .filter(m => m.round === gameData.currentRound)
+            .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
+        );
+
         setError(null);
       } else {
         setError('Partida no encontrada.');
@@ -82,7 +91,6 @@ export const useGameState = (gameId: string) => {
         errorEmitter.emit('permission-error', contextualError);
     });
 
-
     return () => {
       unsubscribeGame();
     };
@@ -90,4 +98,3 @@ export const useGameState = (gameId: string) => {
 
   return { game, players, events, messages, loading, error };
 };
-

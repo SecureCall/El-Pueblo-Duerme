@@ -56,17 +56,23 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
     const [timeLeft, setTimeLeft] = useState(calculateTimeLeft);
 
     useEffect(() => {
-        timerProcessedRef.current = false; // Reset processed flag on phase/time change
-        setTimeLeft(calculateTimeLeft()); // Immediately update time left on re-render
+        // Reset the processed flag whenever the phase or round changes, ensuring the timer logic can run again.
+        timerProcessedRef.current = false;
+        
+        // Immediately set the time left based on the new game state.
+        setTimeLeft(calculateTimeLeft());
 
         const interval = setInterval(() => {
             const remaining = calculateTimeLeft();
             setTimeLeft(remaining);
 
+            // This logic will run on the creator's client when the timer hits zero.
             if (remaining <= 0 && isCreator && !timerProcessedRef.current && firestore) {
                  if (game.phase === 'night' || game.phase === 'day') {
-                    timerProcessedRef.current = true; // Prevent multiple executions
+                    // Mark as processed to prevent multiple executions.
+                    timerProcessedRef.current = true; 
 
+                    // Call the appropriate function to advance the game state.
                     if (game.phase === 'night') {
                         processNight(firestore, game.id);
                     } else if (game.phase === 'day') {
@@ -78,7 +84,7 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
 
         return () => clearInterval(interval);
 
-    }, [game.phase, game.phaseEndsAt, game.id, isCreator, firestore]);
+    }, [game.phase, game.currentRound, game.phaseEndsAt, game.id, isCreator, firestore]);
 
     const totalDuration = getTotalDuration(game.phase);
     if (totalDuration <= 0) return null;
