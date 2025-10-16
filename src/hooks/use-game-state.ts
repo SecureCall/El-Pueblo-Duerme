@@ -67,7 +67,7 @@ export const useGameState = (gameId: string) => {
       if (snapshot.exists()) {
         const gameData = { ...snapshot.data() as Game, id: snapshot.id };
 
-        // **CRITICAL FIX**: Update the main game object state. This was the bug.
+        // **CRITICAL FIX**: Update the main game object state.
         setGame(gameData);
         
         // Sort players by join time
