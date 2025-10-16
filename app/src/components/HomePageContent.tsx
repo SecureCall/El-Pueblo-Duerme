@@ -15,6 +15,7 @@ export function HomePageContent() {
   const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
   
   useEffect(() => {
+    // This will only run on the client, and is safe here.
     playNarration('Que comience el juego..mp3');
   }, []);
 
@@ -34,7 +35,6 @@ export function HomePageContent() {
         )}
         <div className="absolute inset-0 bg-background/70 backdrop-blur-sm" />
         <main className="relative z-10 flex flex-col items-center justify-center text-center text-primary-foreground space-y-8">
-          {/* Usando una etiqueta <img> estándar para forzar la carga del logo */}
           <img
             src="/logo.png"
             alt="El Pueblo Duerme Logo"
