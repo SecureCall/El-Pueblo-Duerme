@@ -1273,6 +1273,7 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
                 case 'VOTE':
                     if (phase === 'day') await submitVote(db, gameId, ai.userId, targetId);
                     break;
+
                 case 'SHOOT':
                     if (phase === 'hunter_shot' && ai.userId === game.pendingHunterShot) await submitHunterShot(db, gameId, ai.userId, targetId);
                     break;

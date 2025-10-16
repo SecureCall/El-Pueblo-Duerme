@@ -126,7 +126,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     lookout: {
         name: "Vigía",
-        description: "Cuando los lobos se levanten, puedes intentar abrir los ojos disimuladamente para espiar. Si logras ver quiénes son sin que te descubran, tendrás información clave. Si te descubren, serás eliminado.",
+        description: "Puedes arriesgarte una vez por partida a espiar a los lobos durante la noche. Si tienes éxito, conocerás sus identidades. Si fallas, te descubrirán y morirás.",
         atmosphere: "Una carta silenciosa pero muy poderosa... si sabes usarla bien.",
         image: "/roles/Watcher.png",
         color: "text-gray-400",

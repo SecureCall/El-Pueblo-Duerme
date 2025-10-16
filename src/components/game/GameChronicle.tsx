@@ -19,8 +19,8 @@ import { es } from 'date-fns/locale';
 import type { Timestamp } from 'firebase/firestore';
 
 interface GameChronicleProps {
-  events: GameEvent[];
   currentPlayerId: string;
+  events: GameEvent[];
 }
 
 function getEventIcon(type: GameEvent['type']) {

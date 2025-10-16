@@ -313,8 +313,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, twi
           </div>
            { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && (
             <PhaseTimer 
-                game={game}
-                timerKey={`${game.id}-${game.phase}-${game.currentRound}`}
+                key={`${game.id}-${game.phase}-${game.currentRound}`}
                 onTimerEnd={handleTimerEnd}
             />
           )}
