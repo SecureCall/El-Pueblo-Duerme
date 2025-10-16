@@ -382,6 +382,8 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
             players[playerIndex].guardianSelfProtects = (players[playerIndex].guardianSelfProtects || 0) + 1;
         } else if (action.actionType === 'lookout_spy') {
             players[playerIndex].lookoutUsed = true;
+        } else if (action.actionType === 'river_siren_charm' && playerIndex > -1) {
+            players[playerIndex].riverSirenTargetId = action.targetId;
         }
 
         nightActions.push(newAction);
@@ -1361,8 +1363,20 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             const targetPlayer = game.players.find(p => p.userId === targetId);
             if (!targetPlayer) throw new Error("Target player not found");
             targetName = targetPlayer.displayName;
+            
+            const siren = game.players.find(p => p.role === 'river_siren');
+            const charmedPlayerId = siren?.riverSirenTargetId;
 
-            game.players[playerIndex].votedFor = targetId;
+            // Check if voter is the charmed one
+            if (voterId === charmedPlayerId && siren && siren.isAlive) {
+                if (siren.votedFor) {
+                    game.players[playerIndex].votedFor = siren.votedFor;
+                } else {
+                    throw new Error("Debes esperar a que la Sirena vote primero.");
+                }
+            } else {
+                 game.players[playerIndex].votedFor = targetId;
+            }
             
             transaction.update(gameRef, { players: game.players });
         });

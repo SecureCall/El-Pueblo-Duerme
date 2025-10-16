@@ -104,6 +104,12 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
     const { toast } = useToast();
     const { firestore } = useFirebase();
 
+    const siren = players.find(p => p.role === 'river_siren');
+    const isCharmed = siren?.riverSirenTargetId === currentPlayer.userId;
+    const hasSirenVoted = !!siren?.votedFor;
+    const isSirenAlive = !!siren?.isAlive;
+
+    const canPlayerVote = !isCharmed || (isCharmed && isSirenAlive && hasSirenVoted);
     const hasVoted = !!currentPlayer.votedFor;
     const alivePlayers = players.filter(p => p.isAlive);
     const isTroublemaker = currentPlayer.role === 'troublemaker' && currentPlayer.isAlive && !game.troublemakerUsed;
@@ -130,6 +136,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
         }
     };
     
+    const sirenVote = isCharmed && isSirenAlive && siren?.votedFor ? players.find(p => p.userId === siren.votedFor) : null;
     const votedForPlayer = players.find(p => p.userId === currentPlayer.votedFor);
     
     const votesByPlayer = alivePlayers.reduce((acc, player) => {
@@ -195,6 +202,11 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                 {currentPlayer.isAlive ? (
                     hasVoted ? (
                         <div className="text-center py-4 space-y-4">
+                             {isCharmed && (
+                                <p className="text-lg text-cyan-300">
+                                    Tu voto ha sido forzado por el canto de la Sirena.
+                                </p>
+                            )}
                             <p className="text-lg text-primary">
                                 Has votado por {votedForPlayer?.displayName || 'alguien'}. Esperando al resto de jugadores...
                             </p>
@@ -205,20 +217,37 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                         </div>
                     ) : (
                         <>
+                            {isCharmed && isSirenAlive && !hasSirenVoted && (
+                                <Alert className="mb-4 bg-cyan-900/40 border-cyan-400/50 text-cyan-300">
+                                    <AlertTitle>Hechizado por la Sirena</AlertTitle>
+                                    <AlertDescription>
+                                        Estás bajo el encanto de la Sirena del Río. Debes esperar a que vote para poder votar tú.
+                                    </AlertDescription>
+                                </Alert>
+                            )}
+                            {isCharmed && sirenVote && (
+                                 <Alert className="mb-4 bg-cyan-900/40 border-cyan-400/50 text-cyan-300">
+                                    <AlertTitle>Voto Forzado por la Sirena</AlertTitle>
+                                    <AlertDescription>
+                                        La Sirena ha votado. Tu voto será automáticamente para <strong>{sirenVote.displayName}</strong>.
+                                    </AlertDescription>
+                                </Alert>
+                            )}
+
                             <p className="text-center mb-4 text-muted-foreground">Selecciona al jugador que crees que es un Hombre Lobo.</p>
                             <PlayerGrid 
                                 players={alivePlayers.filter(p => p.userId !== currentPlayer.userId)}
                                 onPlayerClick={handlePlayerSelect}
-                                clickable={true}
+                                clickable={canPlayerVote}
                                 selectedPlayerIds={selectedPlayerId ? [selectedPlayerId] : []}
                                 votesByPlayer={votesByPlayer}
                             />
                             <Button 
                                 className="w-full mt-6 text-lg" 
                                 onClick={handleVoteSubmit} 
-                                disabled={!selectedPlayerId || isSubmitting}
+                                disabled={(!selectedPlayerId && !sirenVote) || isSubmitting || !canPlayerVote}
                             >
-                                {isSubmitting ? <Loader2 className="animate-spin" /> : `Votar por ${players.find(p=>p.userId === selectedPlayerId)?.displayName || '...'}`}
+                                {isSubmitting ? <Loader2 className="animate-spin" /> : `Votar por ${sirenVote?.displayName || players.find(p=>p.userId === selectedPlayerId)?.displayName || '...'}`}
                             </Button>
                         </>
                     )
@@ -238,5 +267,3 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
         </Card>
     );
 }
-
-    
