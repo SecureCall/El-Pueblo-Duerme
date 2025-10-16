@@ -16,16 +16,26 @@ interface PhaseTimerProps {
 // Helper function to reliably get milliseconds from various Timestamp formats
 const getMillis = (timestamp: any): number => {
     if (!timestamp) return 0;
+    // Check for Firebase Timestamp object
     if (timestamp instanceof Timestamp) {
         return timestamp.toMillis();
     }
-    if (timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
+    // Check for serialized object { seconds, nanoseconds }
+    if (typeof timestamp === 'object' && timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
         return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
     }
+    // Check for Date object
     if (timestamp instanceof Date) {
         return timestamp.getTime();
     }
-    return 0; // Fallback
+    // Check for ISO date string
+    if (typeof timestamp === 'string') {
+        const date = new Date(timestamp);
+        if (!isNaN(date.getTime())) {
+            return date.getTime();
+        }
+    }
+    return 0; // Fallback for any other case
 };
 
 const getTotalDuration = (phase: Game['phase']): number => {
@@ -53,6 +63,7 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
         
         // Set initial time
         setTimeLeft(calculateRemainingTime());
+        
         // Reset the processed flag whenever the phase changes
         timerProcessedRef.current = false;
 
@@ -62,7 +73,7 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
             setTimeLeft(remaining);
 
             if (remaining <= 0 && isCreator && !timerProcessedRef.current && firestore) {
-                if (game.phase === 'night' || game.phase === 'day') {
+                 if (game.phase === 'night' || game.phase === 'day') {
                     timerProcessedRef.current = true; // Prevent multiple executions
 
                     if (game.phase === 'night') {
