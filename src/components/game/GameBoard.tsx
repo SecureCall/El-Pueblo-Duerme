@@ -21,6 +21,7 @@ import { YouAreDeadOverlay } from "./YouAreDeadOverlay";
 import { BanishedOverlay } from "./BanishedOverlay";
 import { HunterKillOverlay } from "./HunterKillOverlay";
 import { GhostAction } from "./GhostAction";
+import { TwinChat } from "./TwinChat";
 
 interface GameBoardProps {
   game: Game;
@@ -29,9 +30,10 @@ interface GameBoardProps {
   events: GameEvent[];
   messages: ChatMessage[];
   wolfMessages: ChatMessage[];
+  twinMessages: ChatMessage[];
 }
 
-export function GameBoard({ game, players, currentPlayer, events, messages, wolfMessages }: GameBoardProps) {
+export function GameBoard({ game, players, currentPlayer, events, messages, wolfMessages, twinMessages }: GameBoardProps) {
   const { firestore } = useFirebase();
   const prevPhaseRef = useRef<Game['phase']>();
   const [showRole, setShowRole] = useState(true);
@@ -176,7 +178,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages, wolf
         <>
             {renderDeathOverlay()}
             <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
-                <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} currentPlayer={currentPlayer} />
+                <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} twinMessages={twinMessages} currentPlayer={currentPlayer} />
             </div>
         </>
     );
@@ -184,14 +186,14 @@ export function GameBoard({ game, players, currentPlayer, events, messages, wolf
 
   return (
     <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
-       <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} currentPlayer={currentPlayer} />
+       <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} twinMessages={twinMessages} currentPlayer={currentPlayer} />
     </div>
   );
 }
 
 
 // A simplified version of the board for spectating, without interactive elements.
-function SpectatorGameBoard({ game, players, events, messages, wolfMessages, currentPlayer }: Omit<GameBoardProps, 'currentPlayer' | 'messages' | 'wolfMessages'> & { currentPlayer: Player, messages: ChatMessage[], wolfMessages: ChatMessage[] }) {
+function SpectatorGameBoard({ game, players, events, messages, wolfMessages, twinMessages, currentPlayer }: Omit<GameBoardProps, 'currentPlayer' | 'messages' | 'wolfMessages' | 'twinMessages'> & { currentPlayer: Player, messages: ChatMessage[], wolfMessages: ChatMessage[], twinMessages: ChatMessage[] }) {
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
   const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
@@ -298,7 +300,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, cur
    return (
     <>
        <Card className="text-center bg-card/80">
-        <CardHeader className="flex flex-row items-center justify-between p-4 relative">
+        <CardHeader className="flex flex-row items-center justify-between p-4 pb-8 relative">
           <div className="absolute left-4 top-1/2 -translate-y-1/2">
              <GameChronicle events={events} currentPlayerId={currentPlayer.userId} />
           </div>
@@ -308,14 +310,13 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, cur
               {getPhaseTitle()}
             </CardTitle>
           </div>
-           <div className='absolute right-4 top-1/2 -translate-y-1/2 w-32'>
-            { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && (
-              <PhaseTimer 
-                  timerKey={`${game.id}-${game.phase}-${game.currentRound}`}
-                  onTimerEnd={handleTimerEnd}
-              />
-            )}
-          </div>
+           { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && (
+            <PhaseTimer 
+                game={game}
+                timerKey={`${game.id}-${game.phase}-${game.currentRound}`}
+                onTimerEnd={handleTimerEnd}
+            />
+          )}
         </CardHeader>
       </Card>
       
@@ -352,16 +353,35 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, cur
       )}
       
       {game.phase === 'day' && (
-        <DayPhase 
-            game={game} 
-            players={players}
-            currentPlayer={currentPlayer}
-            nightEvent={nightEvent}
-            loverDeathEvents={loverDeathEvents}
-            voteEvent={voteEvent}
-            behaviorClueEvent={behaviorClueEvent}
-            chatMessages={messages}
-        />
+        <div className="mt-8 w-full flex flex-col md:flex-row gap-4">
+            <div className="flex-1 flex flex-col gap-4">
+                <DayPhase 
+                    game={game} 
+                    players={players}
+                    currentPlayer={currentPlayer}
+                    nightEvent={nightEvent}
+                    loverDeathEvents={loverDeathEvents}
+                    voteEvent={voteEvent}
+                    behaviorClueEvent={behaviorClueEvent}
+                    chatMessages={messages}
+                />
+                 {isTwin && (
+                    <TwinChat
+                        gameId={game.id}
+                        currentPlayer={currentPlayer}
+                        messages={twinMessages}
+                    />
+                )}
+            </div>
+             <div className="w-full md:w-96">
+                <GameChat 
+                    gameId={game.id} 
+                    currentPlayer={currentPlayer} 
+                    messages={messages} 
+                    players={players}
+                />
+            </div>
+        </div>
       )}
 
       { game.phase === 'hunter_shot' && !isHunterWaitingToShoot && (

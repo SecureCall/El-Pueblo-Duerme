@@ -127,6 +127,7 @@ export const GameSchema = z.object({
   events: z.array(GameEventSchema),
   chatMessages: z.array(ChatMessageSchema),
   wolfChatMessages: z.array(ChatMessageSchema).optional(),
+  twinChatMessages: z.array(ChatMessageSchema).optional(),
   maxPlayers: z.number(),
   createdAt: TimestampSchema,
   currentRound: z.number(),
@@ -140,7 +141,7 @@ export const GameSchema = z.object({
   vampireKills: z.number(),
   boat: z.array(z.string()),
   leprosaBlockedRound: z.number(),
-  witchFoundSeer: z.boolean(),
+witchFoundSeer: z.boolean(),
   seerDied: z.boolean(),
   silencedPlayerId: z.string().nullable(),
   exiledPlayerId: z.string().nullable(),
@@ -158,5 +159,6 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
+
 
 

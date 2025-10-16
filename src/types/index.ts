@@ -55,6 +55,7 @@ export interface Game {
   events: GameEvent[]; // Array of GameEvent objects
   chatMessages: ChatMessage[]; // Array of ChatMessage objects
   wolfChatMessages?: ChatMessage[]; // Array of private ChatMessage objects for werewolves
+  twinChatMessages?: ChatMessage[]; // Array of private ChatMessage objects for twins
   maxPlayers: number;
   createdAt: Timestamp;
   currentRound: number;
@@ -199,6 +200,7 @@ export interface GenerateAIChatMessageOutput {
     message: string;
     shouldSend: boolean;
 };
+
 
 
 
