@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -17,15 +16,12 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
     const { firestore } = useFirebase();
     const timerProcessedRef = useRef(false);
 
-    // useCallback ensures this function has a stable identity across re-renders,
-    // only changing if the game's phase-end time changes.
     const getRemainingSeconds = useCallback(() => {
         if (!game.phaseEndsAt) return 0;
         
-        // This handles both Firestore Timestamp objects and plain objects from serialization
         const phaseEndMillis = game.phaseEndsAt instanceof Timestamp
             ? game.phaseEndsAt.toMillis()
-            : (game.phaseEndsAt.seconds * 1000 + game.phaseEndsAt.nanoseconds / 1000000);
+            : (game.phaseEndsAt.seconds * 1000 + (game.phaseEndsAt.nanoseconds || 0) / 1000000);
         
         const now = Date.now();
         const remaining = Math.max(0, Math.ceil((phaseEndMillis - now) / 1000));
@@ -41,38 +37,37 @@ export function PhaseTimer({ game, isCreator }: PhaseTimerProps) {
         }
     };
 
-    // Correctly initialize state WITH the calculated value, not the function itself.
-    const [timeLeft, setTimeLeft] = useState(() => getRemainingSeconds());
+    const [timeLeft, setTimeLeft] = useState(getRemainingSeconds);
     const totalDuration = getTotalDuration();
 
     useEffect(() => {
-        // Reset the processed flag whenever the phase or round changes.
+        // Reset the processed flag when the phase or round changes, ensuring the creator can trigger the next phase.
         timerProcessedRef.current = false;
+        
+        // Update the time left immediately when the component re-renders due to game state changes.
+        setTimeLeft(getRemainingSeconds());
 
         const interval = setInterval(() => {
             const remaining = getRemainingSeconds();
             setTimeLeft(remaining);
 
-            if (remaining <= 0) {
-                clearInterval(interval);
-                if (isCreator && !timerProcessedRef.current) {
-                    timerProcessedRef.current = true; // Mark as processed immediately
-                    if (game.phase === 'night') {
-                        processNight(firestore, game.id);
-                    } else if (game.phase === 'day') {
-                        processVotes(firestore, game.id);
-                    }
+            if (remaining <= 0 && isCreator && !timerProcessedRef.current) {
+                timerProcessedRef.current = true; // Prevent multiple executions
+                
+                if (game.phase === 'night') {
+                    processNight(firestore, game.id);
+                } else if (game.phase === 'day') {
+                    processVotes(firestore, game.id);
                 }
             }
         }, 1000);
 
         return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [game.phase, game.currentRound, getRemainingSeconds, isCreator, firestore, game.id]);
+    }, [game.phase, game.currentRound, game.id, getRemainingSeconds, isCreator, firestore]);
 
     if (totalDuration <= 0) return null;
 
-    const progress = (timeLeft / totalDuration) * 100;
+    const progress = totalDuration > 0 ? (timeLeft / totalDuration) * 100 : 0;
 
     return (
         <div className="w-3/4 max-w-sm mt-2">
