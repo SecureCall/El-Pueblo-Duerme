@@ -85,6 +85,7 @@ export const ChatMessageSchema = z.object({
 export const GameSettingsSchema = z.object({
     werewolves: z.number(),
     fillWithAI: z.boolean(),
+    isPublic: z.boolean(),
     seer: z.boolean(),
     doctor: z.boolean(),
     hunter: z.boolean(),

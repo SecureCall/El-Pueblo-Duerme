@@ -38,6 +38,7 @@ interface CreateGameFormValues {
   displayName: string;
   maxPlayers: number;
   fillWithAI: boolean;
+  isPublic: boolean;
   seer: boolean;
   doctor: boolean;
   hunter: boolean;
@@ -91,6 +92,7 @@ export function CreateGameForm() {
       displayName: displayName || "",
       maxPlayers: 8,
       fillWithAI: true,
+      isPublic: false,
       seer: true,
       doctor: true,
       hunter: true,
@@ -153,16 +155,17 @@ export function CreateGameForm() {
     setIsSubmitting(true);
     setDisplayName(data.displayName.trim());
 
-    const { gameName, displayName: pName, maxPlayers, fillWithAI, ...roles } = data;
+    const { gameName, displayName: pName, maxPlayers, ...settings } = data;
 
     // Ensure all role settings are booleans (not undefined)
     const sanitizedRoles = implementedRoles.reduce((acc, roleId) => {
-        acc[roleId as keyof typeof roles] = !!roles[roleId as keyof typeof roles];
+        acc[roleId as keyof typeof settings] = !!settings[roleId as keyof typeof settings];
         return acc;
     }, {} as Record<Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>, boolean>);
 
     const gameSettings = {
-        fillWithAI,
+        fillWithAI: settings.fillWithAI,
+        isPublic: settings.isPublic,
         werewolves: Math.max(1, Math.floor(data.maxPlayers / 5)),
         ...sanitizedRoles
     };
@@ -300,6 +303,27 @@ export function CreateGameForm() {
                     <FormLabel>Llenar con IA</FormLabel>
                     <FormDescription>
                       Rellena los huecos con bots si no se unen suficientes jugadores.
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="isPublic"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background/50">
+                  <div className="space-y-0.5">
+                    <FormLabel>Partida Pública</FormLabel>
+                    <FormDescription>
+                      Permite que otros jugadores encuentren y se unan a tu partida.
                     </FormDescription>
                   </div>
                   <FormControl>

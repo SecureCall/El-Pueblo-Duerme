@@ -62,6 +62,7 @@ export interface Game {
   settings: {
     werewolves: number;
     fillWithAI: boolean;
+    isPublic: boolean;
     // Roles from user
     seer: boolean;
     doctor: boolean;
@@ -200,8 +201,6 @@ export interface GenerateAIChatMessageOutput {
     message: string;
     shouldSend: boolean;
 };
-
-
 
 
 

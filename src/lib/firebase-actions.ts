@@ -199,7 +199,7 @@ export async function joinGame(
 const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
     let roles: (PlayerRole)[] = [];
     const specialRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[] = Object.keys(settings)
-        .filter(key => key !== 'werewolves' && key !== 'fillWithAI' && settings[key as keyof typeof settings] === true) as any;
+        .filter(key => key !== 'werewolves' && key !== 'fillWithAI' && key !== 'isPublic' && settings[key as keyof typeof settings] === true) as any;
 
     const numWerewolves = Math.max(1, Math.floor(playerCount / 5));
     for (let i = 0; i < numWerewolves; i++) {
@@ -746,7 +746,6 @@ export async function processNight(db: Firestore, gameId: string) {
                          if (mostVotedPlayerIds.length <= killCount) {
                              targetsToKill = mostVotedPlayerIds;
                          } else {
-                            // If more potential targets than kills, pick randomly
                             for (let i = 0; i < killCount; i++) {
                                 const randomIndex = Math.floor(Math.random() * mostVotedPlayerIds.length);
                                 targetsToKill.push(mostVotedPlayerIds.splice(randomIndex, 1)[0]);

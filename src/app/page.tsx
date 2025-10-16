@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { JoinGameForm } from '@/components/JoinGameForm';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
-import { BookOpen } from 'lucide-react';
+import { BookOpen, Users } from 'lucide-react';
 import { GameMusic } from '@/components/game/GameMusic';
 import { useEffect } from 'react';
 import { playNarration } from '@/lib/sounds';
@@ -48,17 +48,20 @@ export default function Home() {
             Una noche más cae sobre el pueblo. Entre vosotros se esconden lobos. ¿Podréis descubrirlos antes de que sea tarde?
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center gap-4 w-full max-w-md">
-            <Button asChild size="lg" className="w-full sm:w-auto flex-1 font-bold text-lg">
-              <Link href="/create">Crear Nueva Partida</Link>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-lg">
+            <Button asChild size="lg" className="w-full font-bold text-lg">
+              <Link href="/create">Crear Partida</Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="w-full sm:w-auto text-foreground">
+             <Button asChild size="lg" variant="secondary" className="w-full font-bold text-lg text-foreground">
+              <Link href="/public-games"><Users className="mr-2 h-5 w-5"/> Salas Públicas</Link>
+            </Button>
+            <Button asChild size="lg" variant="outline" className="w-full text-foreground">
                <Link href="/how-to-play"><BookOpen className="mr-2 h-5 w-5"/> Cómo Jugar</Link>
             </Button>
           </div>
           
           <div className="w-full max-w-md pt-8">
-            <p className="mb-4 text-lg font-semibold">O únete a una partida existente:</p>
+            <p className="mb-4 text-lg font-semibold">O únete con un código:</p>
             <JoinGameForm />
           </div>
         </main>
