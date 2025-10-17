@@ -123,12 +123,14 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     const getActionType = (): NightActionType | null => {
         if (canFairiesKill) return 'fairy_kill';
         const apprenticeIsActive = currentPlayer.role === 'seer_apprentice' && game.seerDied;
+        if (apprenticeIsActive) return 'seer_check';
+        if (isShapeshifterFirstNight) return 'shapeshifter_select';
+
         switch (currentPlayer.role) {
             case 'werewolf':
             case 'wolf_cub':
                 return 'werewolf_kill';
             case 'seer': return 'seer_check';
-            case 'seer_apprentice': return apprenticeIsActive ? 'seer_check' : null;
             case 'doctor': return 'doctor_heal';
             case 'guardian': return 'guardian_protect';
             case 'priest': return 'priest_bless';
@@ -136,7 +138,6 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             case 'vampire': return 'vampire_bite';
             case 'cult_leader': return 'cult_recruit';
             case 'fisherman': return 'fisherman_catch';
-            case 'shapeshifter': return isShapeshifterFirstNight ? 'shapeshifter_select' : null;
             case 'virginia_woolf': return isVirginiaWoolfFirstNight ? 'virginia_woolf_link' : null;
             case 'river_siren': return isRiverSirenFirstNight ? 'river_siren_charm' : null;
             case 'silencer': return 'silencer_silence';
@@ -415,6 +416,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                                     if (p.userId === currentPlayer.userId) {
                                         if (currentPlayer.role === 'priest' && !currentPlayer.priestSelfHealUsed) return true;
                                         if (currentPlayer.role === 'guardian' && (currentPlayer.guardianSelfProtects || 0) < 1) return true;
+                                        // Hechicera cannot save self
                                         if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save') return false;
                                         // By default, cannot target self unless specified above.
                                         return false; 
