@@ -878,23 +878,27 @@ export async function processNight(db: Firestore, gameId: string) {
             }
 
             // Now, process all deaths atomically
-            const { gameOver } = killPlayer(game, [...new Set(allKilledPlayerIds)]);
+            const { gameOver, updatedGame } = killPlayer(game, [...new Set(allKilledPlayerIds)]);
+            game = updatedGame; // Make sure we use the updated game state from killPlayer
+
             if (gameOver) {
                 const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
-                if (drunkPlayer) handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
-                return;
+                if (drunkPlayer) {
+                    handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
+                    return;
+                }
             }
-
+            
             const nightEvent: GameEvent = {
                 id: `evt_night_${game.currentRound}`, gameId, round: game.currentRound, type: 'night_result',
                 message: '', data: {}, createdAt: Timestamp.now(),
             };
 
-            const newlyKilledPlayers = game.players.filter(p => allKilledPlayerIds.includes(p.userId));
-            const newlyKilledNames = newlyKilledPlayers.map(p => `${p.displayName} (${roleDetails[p.role!]?.name || 'rol desconocido'})`);
+            const allKilledInPhase = game.players.filter(p => !p.isAlive && killedThisTurn.has(p.userId));
+            const killedPlayerDetails = allKilledInPhase.map(p => `${p.displayName} (que era ${roleDetails[p.role!]?.name || 'un rol desconocido'})`);
 
-            if (newlyKilledNames.length > 0) {
-                nightEvent.message = `Anoche, el pueblo perdió a ${newlyKilledNames.join(' y a ')}.`;
+            if (allKilledInPhase.length > 0) {
+                nightEvent.message = `Anoche, el pueblo perdió a ${killedPlayerDetails.join(' y a ')}.`;
                 if (fishermanDied) nightEvent.message += ` El Pescador eligió a un lobo y murió.`;
             } else if (game.leprosaBlockedRound === game.currentRound) {
                 nightEvent.message = "Gracias a la Leprosa, los lobos no pudieron atacar esta noche. Nadie murió.";
@@ -906,11 +910,11 @@ export async function processNight(db: Firestore, gameId: string) {
                  nightEvent.message = "La noche transcurre en un inquietante silencio. Nadie ha muerto.";
             }
             game.events.push(nightEvent);
-
+            
             const { isGameOver, message, winnerCode, winners } = checkGameOver(game);
             if (isGameOver) {
                 game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message, data: { winnerCode, winners }, createdAt: Timestamp.now() });
-                transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: game.events, pendingHunterShot: null });
+                transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: game.events });
                 return;
             }
 
@@ -943,6 +947,9 @@ export async function processNight(db: Firestore, gameId: string) {
                 boat: game.boat || [],
                 leprosaBlockedRound: game.leprosaBlockedRound,
                 wolfCubRevengeRound: game.wolfCubRevengeRound,
+                nightActions: game.nightActions,
+                silencedPlayerId: null,
+                exiledPlayerId: null
             });
         });
 
@@ -1037,11 +1044,14 @@ export async function processVotes(db: Firestore, gameId: string) {
       game.events.push(voteResultEvent);
 
       if (lynchedPlayerId) {
-          const { gameOver } = killPlayer(game, [lynchedPlayerId]);
+          const { gameOver, updatedGame } = killPlayer(game, [lynchedPlayerId]);
+          game = updatedGame; // Use the updated state
           if (gameOver) {
             const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
-            if (drunkPlayer) handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
-            return;
+            if (drunkPlayer) {
+              handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
+              return;
+            }
           }
       }
       
@@ -1051,7 +1061,7 @@ export async function processVotes(db: Firestore, gameId: string) {
               id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message, data: { winnerCode, winners }, createdAt: Timestamp.now(),
           };
           game.events.push(gameOverEvent);
-          transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: game.events, pendingHunterShot: null });
+          transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: game.events });
           return;
       }
 
@@ -1139,17 +1149,21 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 data: {killedPlayerId: targetId},
             };
             
-            game.events = game.events || [];
             game.events.push(shotEvent);
             
-            const { gameOver } = killPlayer(game, [targetId]);
+            const { gameOver, updatedGame } = killPlayer(game, [targetId]);
+            game = updatedGame; // Use the updated state
+
             if (gameOver) {
                 const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
-                if (drunkPlayer) handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
-                return;
+                if (drunkPlayer) {
+                  handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
+                  return;
+                }
             }
             
             if (game.phase === 'hunter_shot' && game.pendingHunterShot !== hunterId) {
+                // Another hunter was triggered by this shot, keep the phase
                 transaction.update(gameRef, { 
                     players: game.players,
                     events: game.events,
@@ -1171,7 +1185,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                     createdAt: Timestamp.now(),
                 };
                 game.events.push(gameOverEvent);
-                transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: game.events, pendingHunterShot: null });
+                transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: game.events });
                 return;
             }
             
@@ -1919,11 +1933,15 @@ export async function submitTroublemakerAction(
       };
       game.events.push(event);
 
-      const { gameOver } = killPlayer(game, [target1Id, target2Id]);
+      const { gameOver, updatedGame } = killPlayer(game, [target1Id, target2Id]);
+      game = updatedGame; // Use updated state
+
       if (gameOver) {
         const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
-        if (drunkPlayer) handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
-        return;
+        if (drunkPlayer) {
+          handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
+          return;
+        }
       }
       
       const { isGameOver, message, winnerCode, winners } = checkGameOver(game);
