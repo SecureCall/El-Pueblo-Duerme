@@ -934,7 +934,12 @@ export async function processNight(db: Firestore, gameId: string) {
                 }
             }
             
-            const killedPlayersThisPhase = game.players.filter(p => !p.isAlive && !finalKilledPlayerIds.includes(p.userId));
+            const killedPlayersNow = game.players.filter(p => !p.isAlive);
+            const killedPlayerIds = killedPlayersNow.map(p => p.userId);
+            const initialDeadCount = game.players.length - finalKilledPlayerIds.length - (game.players.filter(p => !p.isAlive).length - finalKilledPlayerIds.length) ;
+
+            const killedPlayersThisPhase = game.players.filter(p => killedPlayerIds.includes(p.userId) && !initialDeadCount);
+            
             const killedPlayerNamesAndRoles = killedPlayersThisPhase.map(p => `${p.displayName} (que era ${roleDetails[p.role!]?.name || 'un rol desconocido'})`);
 
             const nightEvent: GameEvent = {
@@ -1998,5 +2003,3 @@ export async function submitTroublemakerAction(
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
-
-    
