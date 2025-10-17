@@ -280,3 +280,5 @@ export const defaultRoleDetail: RoleDetail = {
     color: "text-gray-400",
     bgImageId: "role-bg-villager"
 };
+
+    
