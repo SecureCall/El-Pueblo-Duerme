@@ -17,7 +17,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         description: "No tienes poderes ni habilidades especiales. Tu única misión es observar, razonar y participar en los juicios del día para intentar descubrir quiénes son los hombres lobo y proteger al pueblo.",
         atmosphere: "Tu ingenio y tu voz son tus únicas armas. Sobrevive.",
         image: "/roles/villager.png",
-        color: "text-primary-foreground/80",
+        color: "text-white",
         bgImageId: "role-bg-villager"
     },
     seer: {
