@@ -178,7 +178,7 @@ export interface GameEvent {
     id: string; // unique id for the event, can be generated on client
     gameId: string;
     round: number;
-    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot' | 'player_transformed' | 'behavior_clue' | 'special';
+    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot' | 'player_transformed' | 'behavior_clue' | 'special' | 'vampire_kill';
     message: string;
     data?: any;
     createdAt: Timestamp;

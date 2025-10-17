@@ -12,9 +12,10 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "../ui/
 import { roleDetails, defaultRoleDetail } from "@/lib/roles";
 import Image from "next/image";
 import type { SVGProps } from "react";
+import { VampireIcon } from "../icons";
 
 interface PlayerCardProps {
-  player: Player & { causeOfDeath?: 'werewolf_kill' | 'vote_result' | 'lover_death' | 'other' };
+  player: Player & { causeOfDeath?: 'werewolf_kill' | 'vote_result' | 'lover_death' | 'vampire_kill' | 'other' };
   onClick?: () => void;
   isClickable?: boolean;
   isSelected?: boolean;
@@ -63,6 +64,12 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
             return (
             <div className={baseClasses}>
                 <HeartCrack className={cn(iconClasses, "text-pink-400")} />
+            </div>
+            );
+        case 'vampire_kill':
+             return (
+            <div className={baseClasses}>
+                <VampireIcon className={cn(iconClasses, "text-red-900")} />
             </div>
             );
         default:

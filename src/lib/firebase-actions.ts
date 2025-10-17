@@ -481,7 +481,8 @@ function handleDrunkManWin(transaction: Transaction, gameRef: DocumentReference,
 
 function killPlayer(
     gameData: Game,
-    playerIdsToKill: string[]
+    playerIdsToKill: string[],
+    cause: 'vampire' | 'wolf' | 'other' = 'other'
 ): { updatedGame: Game; triggeredHunterId: string | null; gameOver: boolean; } {
     let hunterTriggeredId: string | null = null;
     let gameOver = false;
@@ -512,6 +513,18 @@ function killPlayer(
         
         gameData.players[playerIndex].isAlive = false;
         killedThisTurn.add(playerIdToKill);
+        
+        if (cause === 'vampire') {
+             gameData.events.push({
+                id: `evt_vampire_kill_${Date.now()}_${playerIdToKill}`,
+                gameId: gameData.id!,
+                round: gameData.currentRound,
+                type: 'vampire_kill',
+                message: `${playerToKill.displayName} ha sido desangrado por un vampiro.`,
+                data: { killedPlayerId: playerIdToKill },
+                createdAt: Timestamp.now(),
+            });
+        }
         
         if (playerToKill.role === 'seer') gameData.seerDied = true;
         if (playerToKill.role === 'hunter' && gameData.settings.hunter && gameData.phase !== 'hunter_shot') {
@@ -789,7 +802,12 @@ export async function processNight(db: Firestore, gameId: string) {
                 if (targetIndex > -1) {
                     game.players[targetIndex].biteCount = (game.players[targetIndex].biteCount || 0) + 1;
                     if (game.players[targetIndex].biteCount >= 3 && !allProtectedIds.has(vampireAction.targetId)) {
-                        finalKilledPlayerIds.push(vampireAction.targetId);
+                        const { gameOver } = killPlayer(game, [vampireAction.targetId], 'vampire');
+                        if (gameOver) {
+                            const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
+                            if (drunkPlayer) handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
+                            return;
+                        }
                         game.vampireKills = (game.vampireKills || 0) + 1;
                     }
                 }
@@ -896,7 +914,7 @@ export async function processNight(db: Firestore, gameId: string) {
             }
 
             if (finalKilledPlayerIds.length > 0) {
-                const { gameOver } = killPlayer(game, finalKilledPlayerIds);
+                const { gameOver } = killPlayer(game, finalKilledPlayerIds, 'wolf');
                 if (gameOver) {
                     const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
                     if (drunkPlayer) handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
@@ -904,7 +922,7 @@ export async function processNight(db: Firestore, gameId: string) {
                 }
             }
             
-            const killedPlayersThisPhase = game.players.filter(p => finalKilledPlayerIds.includes(p.userId));
+            const killedPlayersThisPhase = game.players.filter(p => !p.isAlive && !finalKilledPlayerIds.includes(p.userId));
             const killedPlayerNamesAndRoles = killedPlayersThisPhase.map(p => `${p.displayName} (que era ${roleDetails[p.role!]?.name || 'un rol desconocido'})`);
 
             const nightEvent: GameEvent = {
@@ -1967,5 +1985,3 @@ export async function submitTroublemakerAction(
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
-
-    
