@@ -38,7 +38,7 @@ export function CurrentPlayerRole({ player }: CurrentPlayerRoleProps) {
                 unoptimized
             />
           </div>
-          <span className={cn("font-bold text-primary-foreground", details.color)}>{details.name}</span>
+          <span className={cn("font-bold text-white", details.color)}>{details.name}</span>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full">
               <Info className="h-4 w-4" />
@@ -75,3 +75,5 @@ export function CurrentPlayerRole({ player }: CurrentPlayerRoleProps) {
     </Sheet>
   );
 }
+
+    
