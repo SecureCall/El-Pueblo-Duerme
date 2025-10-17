@@ -122,6 +122,10 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
 
     const getActionType = (): NightActionType | null => {
         if (canFairiesKill) return 'fairy_kill';
+        const apprenticeIsActive = currentPlayer.role === 'seer_apprentice' && game.seerDied;
+        if (apprenticeIsActive) return 'seer_check';
+        if (isShapeshifterFirstNight) return 'shapeshifter_select';
+
         switch (currentPlayer.role) {
             case 'werewolf':
             case 'wolf_cub':
@@ -130,20 +134,18 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             case 'doctor': return 'doctor_heal';
             case 'guardian': return 'guardian_protect';
             case 'priest': return 'priest_bless';
-            case 'cupid': return 'cupid_enchant';
+            case 'cupid': return isCupidFirstNight ? 'cupid_enchant' : null;
             case 'vampire': return 'vampire_bite';
             case 'cult_leader': return 'cult_recruit';
             case 'fisherman': return 'fisherman_catch';
-            case 'shapeshifter': return 'shapeshifter_select';
-            case 'virginia_woolf': return 'virginia_woolf_link';
-            case 'river_siren': return 'river_siren_charm';
+            case 'virginia_woolf': return isVirginiaWoolfFirstNight ? 'virginia_woolf_link' : null;
+            case 'river_siren': return isRiverSirenFirstNight ? 'river_siren_charm' : null;
             case 'silencer': return 'silencer_silence';
             case 'elder_leader': return 'elder_leader_exile';
             case 'witch': return 'witch_hunt';
             case 'banshee': return 'banshee_scream';
             case 'lookout': return 'lookout_spy';
             case 'seeker_fairy': return 'fairy_find';
-            case 'seer_apprentice': return 'seer_check';
             case 'hechicera':
                 if (hechiceraAction === 'poison') return 'hechicera_poison';
                 if (hechiceraAction === 'save') return 'hechicera_save';
@@ -414,6 +416,8 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                                     if (p.userId === currentPlayer.userId) {
                                         if (currentPlayer.role === 'priest' && !currentPlayer.priestSelfHealUsed) return true;
                                         if (currentPlayer.role === 'guardian' && (currentPlayer.guardianSelfProtects || 0) < 1) return true;
+                                        if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save') return false;
+                                        // By default, cannot target self unless specified above.
                                         return false; 
                                     }
                                     return true;
