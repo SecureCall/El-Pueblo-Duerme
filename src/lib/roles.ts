@@ -86,7 +86,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     hechicera: {
         name: "Hechicera",
-        description: "Te despiertas todas las noches hasta que hayas utilizado tus dos pociones: una de veneno para eliminar a un jugador, y una de protección para evitar que alguien muera. No puedes usar la de protección en ti misma.",
+        description: "Te despiertas todas las noches hasta que hayas utilizado tus dos pociones: una de veneno para eliminar a un jugador, y una de protección para evitar que alguien muera. No puedes usar la poción de protección en ti misma.",
         atmosphere: "El poder de la vida y la muerte está en tus manos.",
         image: "/roles/Enchantress.png",
         color: "text-purple-400",

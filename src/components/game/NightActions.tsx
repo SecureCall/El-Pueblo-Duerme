@@ -416,6 +416,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                                     if (p.userId === currentPlayer.userId) {
                                         if (currentPlayer.role === 'priest' && !currentPlayer.priestSelfHealUsed) return true;
                                         if (currentPlayer.role === 'guardian' && (currentPlayer.guardianSelfProtects || 0) < 1) return true;
+                                        // Hechicera cannot save self
                                         if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save') return false;
                                         // By default, cannot target self unless specified above.
                                         return false; 
