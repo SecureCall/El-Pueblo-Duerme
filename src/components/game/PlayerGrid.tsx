@@ -5,7 +5,7 @@ import type { Player } from "@/types";
 import { PlayerCard } from "./PlayerCard";
 
 interface PlayerGridProps {
-    players: (Player & { causeOfDeath?: 'werewolf_kill' | 'vote_result' | 'lover_death' | 'other' })[];
+    players: (Player & { causeOfDeath?: 'werewolf_kill' | 'vote_result' | 'lover_death' | 'vampire_kill' | 'other' })[];
     onPlayerClick?: (player: Player) => void;
     clickable?: boolean;
     selectedPlayerIds?: string[];
@@ -30,7 +30,7 @@ export function PlayerGrid({
                 <PlayerCard 
                     player={player} 
                     onClick={onPlayerClick ? () => onPlayerClick(player) : undefined}
-                    isClickable={clickable}
+                    isClickable={clickable && player.isAlive}
                     isSelected={selectedPlayerIds.includes(player.userId)}
                     highlightColor={highlight?.color}
                     votes={votesByPlayer[player.userId]}

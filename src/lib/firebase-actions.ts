@@ -433,19 +433,20 @@ export async function submitCupidAction(db: Firestore, gameId: string, cupidId: 
             if (!gameSnap.exists()) throw new Error("Game not found");
             const game = gameSnap.data() as Game;
 
-            const nightActions = game.nightActions || [];
-            nightActions.push({
+            // CORRECT: Read-modify-write for the nightActions array
+            const currentNightActions = game.nightActions || [];
+            const newAction: NightAction = {
                 gameId,
                 round: 1,
                 playerId: cupidId,
                 actionType: 'cupid_enchant',
                 targetId: `${target1Id}|${target2Id}`,
                 createdAt: Timestamp.now(),
-            });
+            };
 
             transaction.update(gameRef, {
                 lovers: [target1Id, target2Id],
-                nightActions: nightActions
+                nightActions: [...currentNightActions, newAction]
             });
         });
 
@@ -1193,12 +1194,10 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             
             const hunterDeathEvent = [...game.events]
                 .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds)
-                .find(e => 
-                    (e.type === 'vote_result' && e.data?.lynchedPlayerId === hunterId) ||
-                    (e.type === 'night_result' && e.data?.killedPlayerIds?.includes(hunterId)) ||
-                    (e.type === 'lover_death' && e.data?.killedPlayerId === hunterId) ||
-                    (e.type === 'special' && e.data?.killedPlayerId === hunterId)
-                );
+                .find(e => {
+                    const killedId = e.data?.killedPlayerId || (e.data?.killedPlayerIds && e.data.killedPlayerIds[0]) || e.data?.lynchedPlayerId;
+                    return killedId === hunterId;
+                });
 
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
             const nextRound = nextPhase === 'night' ? game.currentRound + 1 : game.currentRound;
@@ -1787,6 +1786,8 @@ export async function resetGame(db: Firestore, gameId: string) {
                 guardianSelfProtects: 0,
                 biteCount: 0,
                 isCultMember: false,
+                ghostMessageSent: false,
+                lookoutUsed: false,
                 bansheeScreams: {},
             }));
 

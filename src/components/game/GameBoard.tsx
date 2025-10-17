@@ -73,8 +73,13 @@ export function GameBoard({ game, players, currentPlayer, events, messages, wolf
     // Specific useEffect for night result sounds based on new events
     const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
     if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
-        const hasDeaths = nightEvent.data?.killedPlayerIds?.length > 0;
-        const wasSaved = !hasDeaths && nightEvent.data?.savedPlayerIds?.length > 0;
+        const newlyKilledPlayers = game.players.filter((p, i) => {
+            const oldPlayerState = players.find(op => op.userId === p.userId);
+            return !p.isAlive && (oldPlayerState?.isAlive ?? true);
+        });
+
+        const hasDeaths = newlyKilledPlayers.length > 0;
+        const wasSaved = !hasDeaths && ((nightEvent.data?.savedPlayerIds?.length || 0) > 0);
         
         setTimeout(() => {
             if (hasDeaths) {
@@ -86,7 +91,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages, wolf
         nightSoundsPlayedForRound.current = game.currentRound; // Mark as played for this round
     }
 
-  }, [game.phase, game.currentRound, events]);
+  }, [game.phase, game.currentRound, events, game.players, players]);
 
      // Effect to check if the current player has died and by what cause
     useEffect(() => {
@@ -95,14 +100,10 @@ export function GameBoard({ game, players, currentPlayer, events, messages, wolf
         if (playerIsDead) {
             const deathEvent = [...events] 
                 .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
-                .find(e =>
-                    (e.type === 'night_result' && e.data?.killedPlayerIds?.includes(currentPlayer.userId)) ||
-                    (e.type === 'vote_result' && e.data?.lynchedPlayerId === currentPlayer.userId) ||
-                    (e.type === 'lover_death' && e.data?.killedPlayerId === currentPlayer.userId) ||
-                    (e.type === 'hunter_shot' && e.data?.killedPlayerId === currentPlayer.userId) ||
-                    (e.type === 'vampire_kill' && e.data?.killedPlayerId === currentPlayer.userId) ||
-                    (e.type === 'special' && e.data?.killedPlayerId === currentPlayer.userId) // For Twin/Virginia deaths
-            );
+                .find(e => {
+                    const killedId = e.data?.killedPlayerId || (e.data?.killedPlayerIds && e.data.killedPlayerIds[0]) || e.data?.lynchedPlayerId;
+                    return killedId === currentPlayer.userId || (e.data?.killedPlayerIds && e.data.killedPlayerIds.includes(currentPlayer.userId));
+                });
 
             if (deathEvent) {
                 if (deathEvent.type === 'hunter_shot') {
@@ -265,7 +266,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
         .filter(e =>
             (e.type === 'night_result' && e.data?.killedPlayerIds?.includes(playerId)) ||
             (e.type === 'vote_result' && e.data?.lynchedPlayerId === playerId) ||
-            ((e.type === 'lover_death' || e.type === 'hunter_shot' || e.type === 'special' || e.type === 'vampire_kill') && e.data?.killedPlayerId === playerId)
+            ((e.type === 'lover_death' || e.type === 'hunter_shot' || e.type === 'special' || e.type === 'vampire_kill') && (e.data?.killedPlayerId === playerId || e.data?.killedPlayerIds?.includes(playerId)))
         )
         .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())[0];
 
