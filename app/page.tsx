@@ -42,10 +42,10 @@ export default function Home() {
             height={250}
             className="rounded-full"
           />
-          <h1 className="font-headline text-6xl md:text-8xl font-bold tracking-tight text-shadow-lg shadow-black/50">
+          <h1 className="font-headline text-6xl md:text-8xl font-bold tracking-tight text-shadow-lg shadow-black/50 text-white">
             El Pueblo Duerme
           </h1>
-          <p className="max-w-2xl text-lg md:text-xl text-primary-foreground/80">
+          <p className="max-w-2xl text-lg md:text-xl text-white/80">
             Una noche más cae sobre el pueblo. Entre vosotros se esconden lobos. ¿Podréis descubrirlos antes de que sea tarde?
           </p>
 
