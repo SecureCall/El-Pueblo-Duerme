@@ -500,13 +500,13 @@ function killPlayer(
     let hunterTriggeredId: string | null = null;
     let gameOver = false;
     
-    const killedThisTurn = new Set<string>();
     const killQueue = [...new Set(playerIdsToKill)];
+    const alreadyProcessed = new Set<string>();
 
     while (killQueue.length > 0) {
         const playerIdToKill = killQueue.shift();
 
-        if (!playerIdToKill || killedThisTurn.has(playerIdToKill)) {
+        if (!playerIdToKill || alreadyProcessed.has(playerIdToKill)) {
             continue;
         }
 
@@ -516,16 +516,16 @@ function killPlayer(
             continue;
         }
         
+        alreadyProcessed.add(playerIdToKill);
         const playerToKill = gameData.players[playerIndex];
 
         if (playerToKill.role === 'drunk_man' && gameData.settings.drunk_man) {
             gameData.players[playerIndex].isAlive = false;
-            gameOver = true;
+            gameOver = true; // Drunk man win condition takes precedence
             return { updatedGame: gameData, triggeredHunterId: null, gameOver: true };
         }
         
         gameData.players[playerIndex].isAlive = false;
-        killedThisTurn.add(playerIdToKill);
         
         if (cause === 'vampire') {
              gameData.events.push({
@@ -540,7 +540,7 @@ function killPlayer(
         }
         
         if (playerToKill.role === 'seer') gameData.seerDied = true;
-        if (playerToKill.role === 'hunter' && gameData.settings.hunter && gameData.phase !== 'hunter_shot') {
+        if (playerToKill.role === 'hunter' && gameData.settings.hunter && !hunterTriggeredId) {
             hunterTriggeredId = playerToKill.userId;
         }
         if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) gameData.wolfCubRevengeRound = gameData.currentRound + 1;
@@ -552,7 +552,7 @@ function killPlayer(
             const otherId = linkedIds.find(id => id !== deadPlayer.userId);
             const otherPlayer = otherId ? gameData.players.find(p => p.userId === otherId) : undefined;
             
-            if (otherPlayer && otherPlayer.isAlive && !killQueue.includes(otherId) && !killedThisTurn.has(otherId)) {
+            if (otherPlayer && otherPlayer.isAlive && !alreadyProcessed.has(otherId) && !killQueue.includes(otherId)) {
                 gameData.events.push({
                     id: `evt_${eventType}_${Date.now()}_${otherId}`,
                     gameId: gameData.id!,
@@ -573,7 +573,7 @@ function killPlayer(
         if (virginiaLinker && virginiaLinker.virginiaWoolfTargetId) {
              const linkedPlayerId = virginiaLinker.virginiaWoolfTargetId;
              const linkedPlayer = gameData.players.find(p => p.userId === linkedPlayerId);
-             if (linkedPlayer && linkedPlayer.isAlive && !killQueue.includes(linkedPlayerId) && !killedThisTurn.has(linkedPlayerId)) {
+             if (linkedPlayer && linkedPlayer.isAlive && !alreadyProcessed.has(linkedPlayerId) && !killQueue.includes(linkedPlayerId)) {
                  gameData.events.push({
                     id: `evt_virginia_${Date.now()}_${linkedPlayer.userId}`,
                     gameId: gameData.id!,
@@ -731,6 +731,8 @@ export async function processNight(db: Firestore, gameId: string) {
                 return;
             }
 
+            const initialPlayerState = JSON.parse(JSON.stringify(game.players));
+
             // Ensure all fields are initialized to prevent writing 'undefined'
             game.nightActions = game.nightActions || [];
             game.events = game.events || [];
@@ -829,6 +831,7 @@ export async function processNight(db: Firestore, gameId: string) {
                     let maxVotes = 0;
                     let mostVotedPlayerIds: string[] = [];
                      for (const targetId in voteCounts) {
+                        if(!targetId) continue;
                         const targetPlayer = game.players.find(p => p.userId === targetId);
                         if (game.witchFoundSeer && targetPlayer?.role === 'witch') continue;
                         if (voteCounts[targetId] > maxVotes) {
@@ -843,11 +846,11 @@ export async function processNight(db: Firestore, gameId: string) {
                     const killCount = (game.wolfCubRevengeRound === game.currentRound + 1) ? 2 : 1;
                     
                     let targetsToKill: string[] = [];
-                    if (mostVotedPlayerIds.length > 0) {
+                    if (mostVotedPlayerIds.length > 0 && maxVotes > 0) {
                         if (mostVotedPlayerIds.length <= killCount) {
                             targetsToKill = mostVotedPlayerIds;
-                        } else { // Tie-breaker
-                             targetsToKill = []; // No kill on unbreakable tie for regular wolves
+                        } else { 
+                             targetsToKill = [];
                         }
                     }
                      if (isFairyKill) game.fairyKillUsed = true;
@@ -876,9 +879,9 @@ export async function processNight(db: Firestore, gameId: string) {
                 allKilledPlayerIds.push(poisonAction.targetId);
             }
 
-            const initialPlayerState = game.players;
+            // Now, process all deaths atomically and get the final state of the game
             const { gameOver, updatedGame } = killPlayer(game, [...new Set(allKilledPlayerIds)]);
-            game = updatedGame; 
+            game = updatedGame; // IMPORTANT: Use the updated game state from killPlayer for all subsequent logic
 
             if (gameOver) {
                 const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
@@ -921,7 +924,7 @@ export async function processNight(db: Firestore, gameId: string) {
                 transaction.update(gameRef, {
                     players: game.players,
                     events: game.events,
-                    phase: game.phase,
+                    phase: 'hunter_shot',
                     pendingHunterShot: game.pendingHunterShot
                 });
                 return;
@@ -1971,5 +1974,3 @@ export async function submitTroublemakerAction(
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
-
-    
