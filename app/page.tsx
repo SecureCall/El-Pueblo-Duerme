@@ -53,16 +53,16 @@ export default function Home() {
             <Button asChild size="lg" className="w-full font-bold text-lg">
               <Link href="/create">Crear Partida</Link>
             </Button>
-             <Button asChild size="lg" variant="secondary" className="w-full font-bold text-lg text-foreground">
+             <Button asChild size="lg" variant="secondary" className="w-full font-bold text-lg">
               <Link href="/public-games"><Users className="mr-2 h-5 w-5"/> Salas Públicas</Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="w-full text-foreground">
+            <Button asChild size="lg" variant="outline" className="w-full">
                <Link href="/how-to-play"><BookOpen className="mr-2 h-5 w-5"/> Cómo Jugar</Link>
             </Button>
           </div>
           
           <div className="w-full max-w-md pt-8">
-            <p className="mb-4 text-lg font-semibold">O únete con un código:</p>
+            <p className="mb-4 text-lg font-semibold text-white">O únete con un código:</p>
             <JoinGameForm />
           </div>
         </main>
