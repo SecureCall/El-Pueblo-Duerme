@@ -922,7 +922,12 @@ export async function processNight(db: Firestore, gameId: string) {
             }
 
             if (game.phase === 'hunter_shot') { // killPlayer might change the phase
-                transaction.update(gameRef, { ...game });
+                transaction.update(gameRef, {
+                    players: game.players,
+                    events: game.events,
+                    phase: game.phase,
+                    pendingHunterShot: game.pendingHunterShot
+                });
                 return;
             }
 
@@ -940,9 +945,9 @@ export async function processNight(db: Firestore, gameId: string) {
                 fairiesFound: game.fairiesFound,
                 fairyKillUsed: game.fairyKillUsed,
                 witchFoundSeer: game.witchFoundSeer,
-                vampireKills: game.vampireKills,
+                vampireKills: game.vampireKills || 0,
                 seerDied: game.seerDied,
-                boat: game.boat,
+                boat: game.boat || [],
                 leprosaBlockedRound: game.leprosaBlockedRound,
                 wolfCubRevengeRound: game.wolfCubRevengeRound,
             });
@@ -1956,3 +1961,5 @@ export async function submitTroublemakerAction(
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
+
+    
