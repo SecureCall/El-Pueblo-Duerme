@@ -34,7 +34,7 @@ export default function Home() {
           />
         )}
         <div className="absolute inset-0 bg-background/70 backdrop-blur-sm" />
-        <main className="relative z-10 flex flex-col items-center justify-center text-center text-primary-foreground space-y-8">
+        <main className="relative z-10 flex flex-col items-center justify-center text-center text-white space-y-8">
           <img
             src="/logo.png"
             alt="El Pueblo Duerme Logo"
@@ -42,7 +42,7 @@ export default function Home() {
             height={250}
             className="rounded-full"
           />
-          <h1 className="font-headline text-6xl md:text-8xl font-bold tracking-tight text-shadow-lg shadow-black/50 text-white">
+          <h1 className="font-headline text-6xl md:text-8xl font-bold tracking-tight text-shadow-lg shadow-black/50">
             El Pueblo Duerme
           </h1>
           <p className="max-w-2xl text-lg md:text-xl text-white/80">

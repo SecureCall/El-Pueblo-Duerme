@@ -87,7 +87,7 @@ export default function HowToPlayPage() {
                 )}
                 <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
 
-                <main className="relative z-10 w-full max-w-4xl mx-auto space-y-8 text-primary-foreground py-12">
+                <main className="relative z-10 w-full max-w-4xl mx-auto space-y-8 text-white py-12">
                     <div className="text-center space-y-2">
                         <h1 className="font-headline text-5xl md:text-6xl font-bold tracking-tight text-white">
                             Cómo Jugar
