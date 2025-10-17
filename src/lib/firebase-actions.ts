@@ -588,12 +588,6 @@ function killPlayer(
         }
     }
     
-    // Sanitize players array to ensure no undefined fields are written
-    gameData.players.forEach(p => {
-        p.bansheeScreams = p.bansheeScreams || {};
-        p.nightActions = p.nightActions || [];
-    });
-
     if (hunterTriggeredId) {
         gameData.pendingHunterShot = hunterTriggeredId;
         gameData.phase = 'hunter_shot';
@@ -891,7 +885,6 @@ export async function processNight(db: Firestore, gameId: string) {
                 return;
             }
 
-            const deadPlayers = game.players.filter(p => !p.isAlive);
             const nightEvent: GameEvent = {
                 id: `evt_night_${game.currentRound}`, gameId, round: game.currentRound, type: 'night_result',
                 message: '', data: {}, createdAt: Timestamp.now(),
@@ -1961,5 +1954,3 @@ export async function submitTroublemakerAction(
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
-
-    
