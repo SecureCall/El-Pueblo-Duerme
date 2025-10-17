@@ -52,6 +52,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     isCultMember: false,
     ghostMessageSent: false,
     lookoutUsed: false,
+    bansheeScreams: {},
 });
 
 
@@ -440,7 +441,7 @@ export async function submitCupidAction(db: Firestore, gameId: string, cupidId: 
                 actionType: 'cupid_enchant',
                 targetId: `${target1Id}|${target2Id}`,
                 createdAt: Timestamp.now(),
-            } as NightAction);
+            });
 
             transaction.update(gameRef, {
                 lovers: [target1Id, target2Id],
@@ -587,6 +588,12 @@ function killPlayer(
         }
     }
     
+    // Sanitize players array to ensure no undefined fields are written
+    gameData.players.forEach(p => {
+        p.bansheeScreams = p.bansheeScreams || {};
+        p.nightActions = p.nightActions || [];
+    });
+
     if (hunterTriggeredId) {
         gameData.pendingHunterShot = hunterTriggeredId;
         gameData.phase = 'hunter_shot';
@@ -1821,6 +1828,7 @@ export async function resetGame(db: Firestore, gameId: string) {
                 guardianSelfProtects: 0,
                 biteCount: 0,
                 isCultMember: false,
+                bansheeScreams: {},
             }));
 
             transaction.update(gameRef, {
