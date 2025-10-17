@@ -820,9 +820,8 @@ export async function processNight(db: Firestore, gameId: string) {
             if (game.leprosaBlockedRound !== game.currentRound) {
                 const wolfKillActions = actions.filter(a => a.actionType === 'werewolf_kill' || a.actionType === 'fairy_kill');
                 if (wolfKillActions.length > 0) {
-                    // Vote counting logic remains the same
                      const voteCounts = wolfKillActions.reduce((acc, vote) => {
-                        const targets = vote.targetId.split('|');
+                        const targets = vote.targetId ? vote.targetId.split('|') : [];
                         targets.forEach(targetId => { if(targetId) acc[targetId] = (acc[targetId] || 0) + 1; });
                         return acc;
                     }, {} as Record<string, number>);
@@ -877,9 +876,9 @@ export async function processNight(db: Firestore, gameId: string) {
                 allKilledPlayerIds.push(poisonAction.targetId);
             }
 
-            // Now, process all deaths atomically
+            const initialPlayerState = game.players;
             const { gameOver, updatedGame } = killPlayer(game, [...new Set(allKilledPlayerIds)]);
-            game = updatedGame; // Make sure we use the updated game state from killPlayer
+            game = updatedGame; 
 
             if (gameOver) {
                 const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
@@ -893,11 +892,11 @@ export async function processNight(db: Firestore, gameId: string) {
                 id: `evt_night_${game.currentRound}`, gameId, round: game.currentRound, type: 'night_result',
                 message: '', data: {}, createdAt: Timestamp.now(),
             };
+            
+            const newlyKilledPlayers = game.players.filter((p, i) => !p.isAlive && initialPlayerState[i].isAlive);
+            const killedPlayerDetails = newlyKilledPlayers.map(p => `${p.displayName} (que era ${roleDetails[p.role!]?.name || 'un rol desconocido'})`);
 
-            const allKilledInPhase = game.players.filter(p => !p.isAlive && killedThisTurn.has(p.userId));
-            const killedPlayerDetails = allKilledInPhase.map(p => `${p.displayName} (que era ${roleDetails[p.role!]?.name || 'un rol desconocido'})`);
-
-            if (allKilledInPhase.length > 0) {
+            if (newlyKilledPlayers.length > 0) {
                 nightEvent.message = `Anoche, el pueblo perdió a ${killedPlayerDetails.join(' y a ')}.`;
                 if (fishermanDied) nightEvent.message += ` El Pescador eligió a un lobo y murió.`;
             } else if (game.leprosaBlockedRound === game.currentRound) {
@@ -1972,3 +1971,5 @@ export async function submitTroublemakerAction(
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
+
+    
