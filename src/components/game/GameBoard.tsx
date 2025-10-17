@@ -11,7 +11,7 @@ import { NightActions } from "./NightActions";
 import { processNight, processVotes, runAIActions, advanceToNightPhase } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
-import { HeartIcon, Moon, Sun, Users2 } from "lucide-react";
+import { HeartIcon, Moon, Sun, Users2, Wand2 } from "lucide-react";
 import { HunterShot } from "./HunterShot";
 import { GameChronicle } from "./GameChronicle";
 import { PhaseTimer } from "./PhaseTimer";
@@ -242,6 +242,8 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
   const otherTwinId = isTwin ? game.twins!.find(id => id !== currentPlayer!.userId) : null;
   const otherTwin = otherTwinId ? players.find(p => p.userId === otherTwinId) : null;
 
+  const isFairy = ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer?.role || '');
+
   const highlightedPlayers = [];
   if (otherLover) {
     highlightedPlayers.push({ userId: otherLover.userId, color: 'rgba(255, 105, 180, 0.7)' });
@@ -346,6 +348,17 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
         </Card>
       )}
 
+       {isFairy && game.fairiesFound && (
+            <Card className="bg-fuchsia-900/30 border-fuchsia-400/50">
+                <CardContent className="pt-6">
+                    <div className="flex items-center justify-center gap-3 text-fuchsia-300">
+                        <Wand2 className="h-5 w-5" />
+                        <p>¡Las hadas se han encontrado! Vuestro poder ha despertado.</p>
+                    </div>
+                </CardContent>
+            </Card>
+        )}
+
       {currentPlayer && game.phase === 'night' && currentPlayer.isAlive && (
         <NightActions game={game} players={players.filter(p=>p.isAlive)} currentPlayer={currentPlayer} wolfMessages={wolfMessages} fairyMessages={fairyMessages} />
       )}
@@ -370,7 +383,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
                  {isTwin && (
                     <TwinChat gameId={game.id} currentPlayer={currentPlayer} messages={twinMessages} />
                  )}
-                 {game.fairiesFound && (currentPlayer.role === 'seeker_fairy' || currentPlayer.role === 'sleeping_fairy') && (
+                 {game.fairiesFound && isFairy && (
                     <FairyChat gameId={game.id} currentPlayer={currentPlayer} messages={fairyMessages} />
                  )}
             </div>
