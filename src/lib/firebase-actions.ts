@@ -427,16 +427,25 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
 export async function submitCupidAction(db: Firestore, gameId: string, cupidId: string, target1Id: string, target2Id: string) {
     const gameRef = doc(db, 'games', gameId);
     try {
-        await updateDoc(gameRef, {
-            lovers: [target1Id, target2Id],
-            nightActions: arrayUnion({
+        await runTransaction(db, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found");
+            const game = gameSnap.data() as Game;
+
+            const nightActions = game.nightActions || [];
+            nightActions.push({
                 gameId,
                 round: 1,
                 playerId: cupidId,
                 actionType: 'cupid_enchant',
                 targetId: `${target1Id}|${target2Id}`,
                 createdAt: Timestamp.now(),
-            } as NightAction)
+            } as NightAction);
+
+            transaction.update(gameRef, {
+                lovers: [target1Id, target2Id],
+                nightActions: nightActions
+            });
         });
 
         return { success: true };
@@ -469,11 +478,14 @@ function handleDrunkManWin(transaction: Transaction, gameRef: DocumentReference,
     if(playerIndex > -1) {
         gameData.players[playerIndex].isAlive = false;
     }
+    
+    gameData.events.push(gameOverEvent);
+    
     transaction.update(gameRef, {
         status: 'finished',
         phase: 'finished',
         players: gameData.players,
-        events: arrayUnion(gameOverEvent)
+        events: gameData.events,
     });
     return true; 
 }
@@ -1894,10 +1906,11 @@ export async function sendGhostMessage(
             };
 
             game.players[playerIndex].ghostMessageSent = true;
+            game.events.push(ghostEvent);
 
             transaction.update(gameRef, {
                 players: game.players,
-                events: arrayUnion(ghostEvent),
+                events: game.events,
             });
         });
         return { success: true };
@@ -1985,3 +1998,5 @@ export async function submitTroublemakerAction(
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
+
+    
