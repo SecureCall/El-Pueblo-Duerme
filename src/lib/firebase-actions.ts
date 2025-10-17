@@ -432,9 +432,8 @@ export async function submitCupidAction(db: Firestore, gameId: string, cupidId: 
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
             const game = gameSnap.data() as Game;
-
-            // CORRECT: Read-modify-write for the nightActions array
             const currentNightActions = game.nightActions || [];
+            
             const newAction: NightAction = {
                 gameId,
                 round: 1,
@@ -446,7 +445,7 @@ export async function submitCupidAction(db: Firestore, gameId: string, cupidId: 
 
             transaction.update(gameRef, {
                 lovers: [target1Id, target2Id],
-                nightActions: [...currentNightActions, newAction]
+                nightActions: arrayUnion(newAction)
             });
         });
 
@@ -734,7 +733,6 @@ export async function processNight(db: Firestore, gameId: string) {
 
             const initialPlayerState = JSON.parse(JSON.stringify(game.players));
 
-            // Ensure all fields are initialized to prevent writing 'undefined'
             game.nightActions = game.nightActions || [];
             game.events = game.events || [];
             game.players.forEach(p => {
@@ -880,9 +878,8 @@ export async function processNight(db: Firestore, gameId: string) {
                 allKilledPlayerIds.push(poisonAction.targetId);
             }
 
-            // Now, process all deaths atomically and get the final state of the game
             const { gameOver, updatedGame } = killPlayer(game, [...new Set(allKilledPlayerIds)]);
-            game = updatedGame; // IMPORTANT: Use the updated game state from killPlayer for all subsequent logic
+            game = updatedGame; 
 
             if (gameOver) {
                 const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
@@ -921,7 +918,7 @@ export async function processNight(db: Firestore, gameId: string) {
                 return;
             }
 
-            if (game.phase === 'hunter_shot') { // killPlayer might change the phase
+            if (game.phase === 'hunter_shot') { 
                 transaction.update(gameRef, {
                     players: game.players,
                     events: game.events,

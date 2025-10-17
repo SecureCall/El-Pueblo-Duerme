@@ -18,7 +18,7 @@ import { GameMusic } from "./GameMusic";
 
 export function GameRoom({ gameId }: { gameId: string }) {
   const { userId, displayName, setDisplayName, isSessionLoaded } = useGameSession();
-  const { game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loading, error } = useGameState(gameId);
+  const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loading, error } = useGameState(gameId);
   const [isJoining, setIsJoining] = useState(false);
   const { toast } = useToast();
   const { firestore } = useFirebase();
@@ -73,8 +73,6 @@ export function GameRoom({ gameId }: { gameId: string }) {
     if (!displayName) {
         return <EnterNameModal isOpen={!displayName} onNameSubmit={setDisplayName} />;
     }
-
-    const currentPlayer = players.find((p) => p.userId === userId);
 
     if (!currentPlayer) {
       if (game.status !== 'waiting') {
