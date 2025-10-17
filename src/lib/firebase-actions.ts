@@ -934,13 +934,13 @@ export async function processNight(db: Firestore, gameId: string) {
                     id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message, data: { winnerCode, winners }, createdAt: Timestamp.now(),
                 };
                 game.events.push(gameOverEvent);
-                transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: game.events, pendingHunterShot: null });
+                transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: game.events, pendingHunterShot: null, vampireKills: game.vampireKills });
                 return;
             }
 
             if (game.phase === 'hunter_shot') {
                 transaction.update(gameRef, { 
-                    players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot, fairiesFound: game.fairiesFound, fairyKillUsed: game.fairyKillUsed, witchFoundSeer: game.witchFoundSeer
+                    players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot, fairiesFound: game.fairiesFound, fairyKillUsed: game.fairyKillUsed, witchFoundSeer: game.witchFoundSeer, vampireKills: game.vampireKills
                 });
                 return;
             }
@@ -959,6 +959,7 @@ export async function processNight(db: Firestore, gameId: string) {
               fairiesFound: game.fairiesFound,
               fairyKillUsed: game.fairyKillUsed,
               witchFoundSeer: game.witchFoundSeer,
+              vampireKills: game.vampireKills,
             });
         });
 
@@ -1966,3 +1967,5 @@ export async function submitTroublemakerAction(
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
+
+    
