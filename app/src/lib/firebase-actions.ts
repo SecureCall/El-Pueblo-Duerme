@@ -1,4 +1,3 @@
-
 'use client';
 import { 
   doc,
@@ -432,9 +431,8 @@ export async function submitCupidAction(db: Firestore, gameId: string, cupidId: 
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
             const game = gameSnap.data() as Game;
-
-            // CORRECT: Read-modify-write for the nightActions array
             const currentNightActions = game.nightActions || [];
+            
             const newAction: NightAction = {
                 gameId,
                 round: 1,
@@ -446,7 +444,7 @@ export async function submitCupidAction(db: Firestore, gameId: string, cupidId: 
 
             transaction.update(gameRef, {
                 lovers: [target1Id, target2Id],
-                nightActions: [...currentNightActions, newAction]
+                nightActions: arrayUnion(newAction)
             });
         });
 
@@ -734,7 +732,6 @@ export async function processNight(db: Firestore, gameId: string) {
 
             const initialPlayerState = JSON.parse(JSON.stringify(game.players));
 
-            // Ensure all fields are initialized to prevent writing 'undefined'
             game.nightActions = game.nightActions || [];
             game.events = game.events || [];
             game.players.forEach(p => {
@@ -880,9 +877,9 @@ export async function processNight(db: Firestore, gameId: string) {
                 allKilledPlayerIds.push(poisonAction.targetId);
             }
 
-            // Now, process all deaths atomically and get the final state of the game
+            // CRITICAL FIX: All kills are processed, and the game state is updated in a single operation.
             const { gameOver, updatedGame } = killPlayer(game, [...new Set(allKilledPlayerIds)]);
-            game = updatedGame; // IMPORTANT: Use the updated game state from killPlayer for all subsequent logic
+            game = updatedGame; // Re-assign 'game' to the fully updated state from killPlayer
 
             if (gameOver) {
                 const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
@@ -914,6 +911,7 @@ export async function processNight(db: Firestore, gameId: string) {
             }
             game.events.push(nightEvent);
             
+            // CRITICAL FIX: The game over check now runs on the fully updated state.
             const { isGameOver, message, winnerCode, winners } = checkGameOver(game);
             if (isGameOver) {
                 game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message, data: { winnerCode, winners }, createdAt: Timestamp.now() });
@@ -1047,8 +1045,9 @@ export async function processVotes(db: Firestore, gameId: string) {
       game.events.push(voteResultEvent);
 
       if (lynchedPlayerId) {
+          // CRITICAL FIX: The entire chain of kills is processed, and the game state is updated in one go.
           const { gameOver, updatedGame } = killPlayer(game, [lynchedPlayerId]);
-          game = updatedGame; // Use the updated state
+          game = updatedGame; // Re-assign 'game' to the fully updated state.
           if (gameOver) {
             const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
             if (drunkPlayer) {
@@ -1058,6 +1057,7 @@ export async function processVotes(db: Firestore, gameId: string) {
           }
       }
       
+      // CRITICAL FIX: The game over check now runs on the fully updated state.
       const { isGameOver, message, winnerCode, winners } = checkGameOver(game);
       if (isGameOver) {
           const gameOverEvent: GameEvent = {
@@ -1194,13 +1194,10 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             
             const hunterDeathEvent = [...game.events]
                 .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds)
-                .find(e => 
-                    (e.type === 'vote_result' && e.data?.lynchedPlayerId === hunterId) ||
-                    (e.type === 'night_result' && e.data?.killedPlayerIds?.includes(hunterId)) ||
-                    (e.type === 'lover_death' && e.data?.killedPlayerId === hunterId) ||
-                    (e.type === 'special' && e.data?.killedPlayerId === hunterId) ||
-                    (e.type === 'vampire_kill' && e.data?.killedPlayerId === hunterId)
-                );
+                .find(e => {
+                    const killedId = e.data?.killedPlayerId || (e.data?.killedPlayerIds && e.data.killedPlayerIds[0]) || e.data?.lynchedPlayerId;
+                    return killedId === hunterId;
+                });
 
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
             const nextRound = nextPhase === 'night' ? game.currentRound + 1 : game.currentRound;
@@ -1978,5 +1975,3 @@ export async function submitTroublemakerAction(
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
-
-    

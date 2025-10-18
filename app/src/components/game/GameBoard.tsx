@@ -25,6 +25,7 @@ import { GameChat } from "./GameChat";
 import { TwinChat } from "./TwinChat";
 import { FairyChat } from "./FairyChat";
 import { VampireKillOverlay } from "./VampireKillOverlay";
+import { useGameState } from "@/hooks/use-game-state";
 
 interface GameBoardProps {
   game: Game;
@@ -37,8 +38,19 @@ interface GameBoardProps {
   twinMessages: ChatMessage[];
 }
 
-export function GameBoard({ game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages }: GameBoardProps) {
+export function GameBoard({ game: initialGame, players: initialPlayers, currentPlayer: initialCurrentPlayer, events: initialEvents, messages: initialMessages, wolfMessages: initialWolfMessages, fairyMessages: initialFairyMessages, twinMessages: initialTwinMessages }: GameBoardProps) {
   const { firestore } = useFirebase();
+  const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loading, error } = useGameState(initialGame.id, {
+    initialGame,
+    initialPlayers,
+    initialCurrentPlayer,
+    initialEvents,
+    initialMessages,
+    initialWolfMessages,
+    initialFairyMessages,
+    initialTwinMessages,
+  });
+  
   const prevPhaseRef = useRef<Game['phase']>();
   const [showRole, setShowRole] = useState(true);
   const [deathCause, setDeathCause] = useState<'eliminated' | 'vote' | 'hunter_shot' | 'vampire' | null>(null);
@@ -46,6 +58,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages, wolf
 
   // Sound effect logic
   useEffect(() => {
+    if (!game) return;
     const prevPhase = prevPhaseRef.current;
 
     if (prevPhase !== game.phase) {
@@ -73,11 +86,14 @@ export function GameBoard({ game, players, currentPlayer, events, messages, wolf
     // Specific useEffect for night result sounds based on new events
     const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
     if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
+        const newlyKilledPlayers = game.players.filter((p, i) => {
+            const oldPlayerState = players.find(op => op.userId === p.userId);
+            return !p.isAlive && (oldPlayerState?.isAlive ?? true);
+        });
+
         const hasDeaths = newlyKilledPlayers.length > 0;
         const wasSaved = !hasDeaths && ((nightEvent.data?.savedPlayerIds?.length || 0) > 0);
         
-        const newlyKilledPlayers = game.players.filter((p, i) => !p.isAlive && players[i]?.isAlive);
-
         setTimeout(() => {
             if (hasDeaths) {
                 playNarration('Descanse en paz.mp3');
@@ -88,10 +104,11 @@ export function GameBoard({ game, players, currentPlayer, events, messages, wolf
         nightSoundsPlayedForRound.current = game.currentRound; // Mark as played for this round
     }
 
-  }, [game.phase, game.currentRound, events, game.players, players]);
+  }, [game?.phase, game?.currentRound, events, game?.players, players]);
 
      // Effect to check if the current player has died and by what cause
     useEffect(() => {
+        if (!currentPlayer) return;
         const playerIsDead = !currentPlayer.isAlive;
 
         if (playerIsDead) {
@@ -99,7 +116,7 @@ export function GameBoard({ game, players, currentPlayer, events, messages, wolf
                 .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
                 .find(e => {
                     const killedId = e.data?.killedPlayerId || (e.data?.killedPlayerIds && e.data.killedPlayerIds[0]) || e.data?.lynchedPlayerId;
-                    return killedId === currentPlayer.userId;
+                    return killedId === currentPlayer.userId || (e.data?.killedPlayerIds && e.data.killedPlayerIds.includes(currentPlayer.userId));
                 });
 
             if (deathEvent) {
@@ -114,20 +131,22 @@ export function GameBoard({ game, players, currentPlayer, events, messages, wolf
                 }
             }
         }
-    }, [currentPlayer.isAlive, events, currentPlayer.userId]);
+    }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
 
   // Handle AI actions when phase changes
   useEffect(() => {
+    if (!game || !currentPlayer) return;
     // Only the creator should trigger AI actions to avoid multiple executions
     if (game.creator === currentPlayer.userId && firestore) {
       if ((game.phase === 'night' || game.phase === 'day' || game.phase === 'hunter_shot') && game.settings.fillWithAI) {
          runAIActions(firestore, game.id, game.phase);
       }
     }
-  }, [game.phase, game.id, game.creator, currentPlayer.userId, game.currentRound, game.settings.fillWithAI, firestore]);
+  }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, game?.currentRound, game?.settings.fillWithAI, firestore]);
   
   // Effect for creator to automatically advance from role_reveal
   useEffect(() => {
+    if (!game || !currentPlayer) return;
     if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore) {
       const timer = setTimeout(() => {
         advanceToNightPhase(firestore, game.id);
@@ -135,10 +154,10 @@ export function GameBoard({ game, players, currentPlayer, events, messages, wolf
 
       return () => clearTimeout(timer);
     }
-  }, [game.phase, game.id, game.creator, currentPlayer.userId, firestore]);
+  }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, firestore]);
   
    const handleTimerEnd = async () => {
-    if (!firestore || game.creator !== currentPlayer.userId) return; // Only creator advances phase on timer end
+    if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId) return; 
     
     if (game.phase === 'day' && game.status === 'in_progress') {
         console.log("Creator fallback timer ended for day, processing votes.");
@@ -152,6 +171,10 @@ export function GameBoard({ game, players, currentPlayer, events, messages, wolf
   const handleAcknowledgeRole = async () => {
       setShowRole(false);
   };
+
+  if (!game || !currentPlayer) {
+      return null;
+  }
   
   if (game.status === 'finished') {
     const gameOverEvent = events.find(e => e.type === 'game_over');
@@ -263,7 +286,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
         .filter(e =>
             (e.type === 'night_result' && e.data?.killedPlayerIds?.includes(playerId)) ||
             (e.type === 'vote_result' && e.data?.lynchedPlayerId === playerId) ||
-            ((e.type === 'lover_death' || e.type === 'hunter_shot' || e.type === 'special' || e.type === 'vampire_kill') && (e.data?.killedPlayerId === playerId || e.data?.killedPlayerIds?.includes(playerId)))
+            ((e.type === 'lover_death' || e.type === 'hunter_shot' || e.type === 'special' || e.type === 'vampire_kill') && (e.data?.killedPlayerId === playerId || (e.data?.killedPlayerIds && e.data.killedPlayerIds.includes(playerId))))
         )
         .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())[0];
 
@@ -421,5 +444,3 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </>
   );
 }
-
-    

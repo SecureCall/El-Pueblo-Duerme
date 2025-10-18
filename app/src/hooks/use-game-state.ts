@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { 
   doc, 
   onSnapshot, 
@@ -14,41 +14,53 @@ import type { Game, Player, GameEvent, ChatMessage } from '@/types';
 import { useFirebase, useMemoFirebase } from '@/firebase';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { useGameSession } from './use-game-session';
 
-// Helper to safely get milliseconds from either a Timestamp object or a plain object
+
 const getMillis = (timestamp: any): number => {
   if (!timestamp) return 0;
   if (timestamp instanceof Timestamp) {
     return timestamp.toMillis();
   }
-  // It's a plain object from JSON serialization
   if (typeof timestamp === 'object' && timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
     return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
   }
-  // It might be a Date object already if converted somewhere
   if (timestamp instanceof Date) {
       return timestamp.getTime();
   }
-  // It might be an ISO string
   if (typeof timestamp === 'string') {
       const date = new Date(timestamp);
       if (!isNaN(date.getTime())) {
           return date.getTime();
       }
   }
-  return 0; // Return 0 for any other invalid format
+  return 0;
 };
 
-export const useGameState = (gameId: string) => {
+interface InitialState {
+    initialGame: Game;
+    initialPlayers: Player[];
+    initialCurrentPlayer: Player;
+    initialEvents: GameEvent[];
+    initialMessages: ChatMessage[];
+    initialWolfMessages: ChatMessage[];
+    initialFairyMessages: ChatMessage[];
+    initialTwinMessages: ChatMessage[];
+}
+
+export const useGameState = (gameId: string, initialState?: InitialState) => {
   const { firestore } = useFirebase();
-  const [game, setGame] = useState<Game | null>(null);
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [events, setEvents] = useState<GameEvent[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [wolfMessages, setWolfMessages] = useState<ChatMessage[]>([]);
-  const [fairyMessages, setFairyMessages] = useState<ChatMessage[]>([]);
-  const [twinMessages, setTwinMessages] = useState<ChatMessage[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { userId } = useGameSession();
+
+  const [game, setGame] = useState<Game | null>(initialState?.initialGame ?? null);
+  const [players, setPlayers] = useState<Player[]>(initialState?.initialPlayers ?? []);
+  const [currentPlayer, setCurrentPlayer] = useState<Player | null>(initialState?.initialCurrentPlayer ?? null);
+  const [events, setEvents] = useState<GameEvent[]>(initialState?.initialEvents ?? []);
+  const [messages, setMessages] = useState<ChatMessage[]>(initialState?.initialMessages ?? []);
+  const [wolfMessages, setWolfMessages] = useState<ChatMessage[]>(initialState?.initialWolfMessages ?? []);
+  const [fairyMessages, setFairyMessages] = useState<ChatMessage[]>(initialState?.initialFairyMessages ?? []);
+  const [twinMessages, setTwinMessages] = useState<ChatMessage[]>(initialState?.initialTwinMessages ?? []);
+  const [loading, setLoading] = useState(!initialState);
   const [error, setError] = useState<string | null>(null);
 
   const gameRef = useMemoFirebase(() => {
@@ -58,20 +70,26 @@ export const useGameState = (gameId: string) => {
 
   useEffect(() => {
     if (!gameRef) {
-        setLoading(false);
-        if (!gameId) setError("No game ID provided.");
-        else setError("Cargando sesión de Firebase...");
+        if (!initialState) {
+            setLoading(false);
+            if (!gameId) setError("No game ID provided.");
+            else setError("Cargando sesión de Firebase...");
+        }
         return;
     };
 
-    setLoading(true);
+    if (!initialState) setLoading(true);
 
     const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
         const gameData = { ...snapshot.data() as Game, id: snapshot.id };
 
         setGame(gameData);
-        setPlayers([...gameData.players].sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt)));
+        
+        const sortedPlayers = [...gameData.players].sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
+        setPlayers(sortedPlayers);
+        setCurrentPlayer(sortedPlayers.find(p => p.userId === userId) || null);
+
         setEvents([...(gameData.events || [])].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)));
         setMessages(
           (gameData.chatMessages || [])
@@ -96,6 +114,7 @@ export const useGameState = (gameId: string) => {
         setError('Partida no encontrada.');
         setGame(null);
         setPlayers([]);
+        setCurrentPlayer(null);
         setEvents([]);
         setMessages([]);
         setWolfMessages([]);
@@ -116,7 +135,7 @@ export const useGameState = (gameId: string) => {
     return () => {
       unsubscribeGame();
     };
-  }, [gameId, firestore, gameRef]);
+  }, [gameId, firestore, gameRef, userId, initialState]);
 
-  return { game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loading, error };
+  return { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loading, error };
 };
