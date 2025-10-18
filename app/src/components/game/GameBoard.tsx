@@ -40,7 +40,7 @@ interface GameBoardProps {
 
 export function GameBoard({ game: initialGame, players: initialPlayers, currentPlayer: initialCurrentPlayer, events: initialEvents, messages: initialMessages, wolfMessages: initialWolfMessages, fairyMessages: initialFairyMessages, twinMessages: initialTwinMessages }: GameBoardProps) {
   const { firestore } = useFirebase();
-  const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loading, error } = useGameState(initialGame.id, {
+  const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages } = useGameState(initialGame.id, {
     initialGame,
     initialPlayers,
     initialCurrentPlayer,
@@ -86,7 +86,7 @@ export function GameBoard({ game: initialGame, players: initialPlayers, currentP
     // Specific useEffect for night result sounds based on new events
     const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
     if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
-        const newlyKilledPlayers = game.players.filter((p, i) => {
+        const newlyKilledPlayers = game.players.filter((p) => {
             const oldPlayerState = players.find(op => op.userId === p.userId);
             return !p.isAlive && (oldPlayerState?.isAlive ?? true);
         });
@@ -189,18 +189,19 @@ export function GameBoard({ game: initialGame, players: initialPlayers, currentP
 
   // Show a non-blocking "You are dead" overlay if the current player is not alive
   if (!currentPlayer.isAlive && game.status === 'in_progress') {
+     const isAngelInPlay = game.settings.resurrector_angel && players.some(p => p.role === 'resurrector_angel' && p.isAlive && !p.resurrectorAngelUsed);
      const renderDeathOverlay = () => {
       if (deathCause === 'vote') {
-        return <BanishedOverlay />;
+        return <BanishedOverlay angelInPlay={isAngelInPlay} />;
       }
       if (deathCause === 'hunter_shot') {
-        return <HunterKillOverlay />;
+        return <HunterKillOverlay angelInPlay={isAngelInPlay} />;
       }
       if (deathCause === 'vampire') {
-        return <VampireKillOverlay />;
+        return <VampireKillOverlay angelInPlay={isAngelInPlay} />;
       }
       if (deathCause === 'eliminated') {
-        return <YouAreDeadOverlay />;
+        return <YouAreDeadOverlay angelInPlay={isAngelInPlay} />;
       }
       return null;
     };
@@ -389,7 +390,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
         )}
 
       {currentPlayer && game.phase === 'night' && currentPlayer.isAlive && (
-        <NightActions game={game} players={players.filter(p=>p.isAlive)} currentPlayer={currentPlayer} wolfMessages={wolfMessages} fairyMessages={fairyMessages} />
+        <NightActions game={game} players={players} currentPlayer={currentPlayer} wolfMessages={wolfMessages} fairyMessages={fairyMessages} />
       )}
 
       {showGhostAction && (
