@@ -511,7 +511,7 @@ function killPlayer(
             triggeredHunterId = playerToKill.userId;
         }
         if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) {
-            gameData.wolfCubRevengeRound = gameData.currentRound;
+            gameData.wolfCubRevengeRound = gameData.currentRound + 1;
         }
         if (playerToKill.role === 'leprosa' && gameData.settings.leprosa) gameData.leprosaBlockedRound = gameData.currentRound + 1;
 
@@ -688,6 +688,17 @@ export async function processNight(db: Firestore, gameId: string) {
                 return;
             }
 
+            // Process Resurrection first
+            const resurrectAction = game.nightActions?.find(a => a.round === game.currentRound && a.actionType === 'resurrect');
+            let resurrectedPlayerName: string | null = null;
+            if (resurrectAction) {
+                const targetIndex = game.players.findIndex(p => p.userId === resurrectAction.targetId);
+                if (targetIndex > -1 && !game.players[targetIndex].isAlive) {
+                    game.players[targetIndex].isAlive = true;
+                    resurrectedPlayerName = game.players[targetIndex].displayName;
+                }
+            }
+            
             const initialPlayerState = JSON.parse(JSON.stringify(game.players));
 
             game.nightActions = game.nightActions || [];
@@ -704,24 +715,6 @@ export async function processNight(db: Firestore, gameId: string) {
             let vampireKilledPlayerIds: string[] = [];
             let savedPlayerIds: string[] = [];
             let fishermanDied = false;
-
-            // Process Resurrection first
-            const resurrectAction = actions.find(a => a.actionType === 'resurrect');
-            if (resurrectAction) {
-                const targetIndex = game.players.findIndex(p => p.userId === resurrectAction.targetId);
-                if (targetIndex > -1 && !game.players[targetIndex].isAlive) {
-                    game.players[targetIndex].isAlive = true;
-                    game.events.push({
-                        id: `evt_resurrect_${Date.now()}`,
-                        gameId,
-                        round: game.currentRound,
-                        type: 'special',
-                        message: `¡Un milagro! ${game.players[targetIndex].displayName} ha sido devuelto a la vida por el Ángel Resucitador.`,
-                        data: { resurrectedPlayerId: resurrectAction.targetId },
-                        createdAt: Timestamp.now(),
-                    });
-                }
-            }
 
             const savedByDoctorId = actions.find(a => a.actionType === 'doctor_heal')?.targetId || null;
             const savedByHechiceraId = actions.find(a => a.actionType === 'hechicera_save')?.targetId || null;
@@ -883,9 +876,10 @@ export async function processNight(db: Firestore, gameId: string) {
                 message: '', data: {}, createdAt: Timestamp.now(),
             };
             
-            const newlyKilledPlayers = game.players.filter((p, i) => {
+            const newlyKilledPlayers = game.players.filter((p) => {
                  const oldPlayerState = initialPlayerState.find(ip => ip.userId === p.userId);
-                 return !p.isAlive && (oldPlayerState?.isAlive ?? true);
+                 // Died this round if not alive now, but was alive before (or was resurrected and then killed again)
+                 return !p.isAlive && (oldPlayerState?.isAlive);
             });
 
             const killedPlayerDetails = newlyKilledPlayers.map(p => `${p.displayName} (que era ${roleDetails[p.role!]?.name || 'un rol desconocido'})`);
@@ -903,12 +897,10 @@ export async function processNight(db: Firestore, gameId: string) {
                  nightEvent.message = "La noche transcurre en un inquietante silencio. Nadie ha muerto.";
             }
 
-            if (resurrectAction) {
-                const resurrectedPlayer = game.players.find(p => p.userId === resurrectAction.targetId);
-                if (resurrectedPlayer) {
-                    nightEvent.message += ` Pero un milagro ha ocurrido: ¡${resurrectedPlayer.displayName} ha vuelto a la vida!`;
-                }
+            if (resurrectedPlayerName) {
+                nightEvent.message += ` Pero un milagro ha ocurrido: ¡${resurrectedPlayerName} ha vuelto a la vida!`;
             }
+
             nightEvent.data = {
                 killedPlayerIds: newlyKilledPlayers.map(p => p.userId),
                 savedPlayerIds: savedPlayerIds,
@@ -1049,6 +1041,10 @@ export async function processVotes(db: Firestore, gameId: string) {
       game.events.push(voteResultEvent);
 
       if (lynchedPlayerId) {
+          const lynchedPlayer = game.players.find(p => p.userId === lynchedPlayerId)!;
+          if (lynchedPlayer.role === 'wolf_cub' && game.settings.wolf_cub) {
+            game.wolfCubRevengeRound = game.currentRound + 1;
+          }
           const { gameOver, updatedGame } = killPlayer(game, [lynchedPlayerId]);
           game = updatedGame; 
           if (gameOver) {
