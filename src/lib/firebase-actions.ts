@@ -744,6 +744,7 @@ export async function processNight(db: Firestore, gameId: string) {
             const actions = game.nightActions.filter(a => a.round === game.currentRound);
             
             let allKilledPlayerIds: string[] = [];
+            let vampireKilledPlayerIds: string[] = [];
             let savedPlayerIds: string[] = [];
             let fishermanDied = false;
 
@@ -800,7 +801,7 @@ export async function processNight(db: Firestore, gameId: string) {
                 if (targetIndex > -1) {
                     game.players[targetIndex].biteCount = (game.players[targetIndex].biteCount || 0) + 1;
                     if (game.players[targetIndex].biteCount >= 3 && !allProtectedIds.has(vampireAction.targetId)) {
-                        allKilledPlayerIds.push(vampireAction.targetId);
+                        vampireKilledPlayerIds.push(vampireAction.targetId);
                         game.vampireKills = (game.vampireKills || 0) + 1;
                     }
                 }
@@ -880,11 +881,23 @@ export async function processNight(db: Firestore, gameId: string) {
                 allKilledPlayerIds.push(poisonAction.targetId);
             }
 
-            // Atomically process all deaths and their chain reactions
-            const { gameOver, updatedGame } = killPlayer(game, [...new Set(allKilledPlayerIds)]);
-            game = updatedGame; // CRITICAL: Use the fully updated game state from now on
+            // Process vampire kills separately to assign correct cause
+            let vampireKillResult: ReturnType<typeof killPlayer> = { updatedGame: game, triggeredHunterId: null, gameOver: false };
+            if (vampireKilledPlayerIds.length > 0) {
+                vampireKillResult = killPlayer(game, vampireKilledPlayerIds, 'vampire');
+                game = vampireKillResult.updatedGame;
+            }
 
-            if (gameOver) {
+            // Process all other kills
+            const otherKillResult = killPlayer(game, allKilledPlayerIds, 'wolf');
+            game = otherKillResult.updatedGame;
+
+            const finalHunterId = vampireKillResult.triggeredHunterId || otherKillResult.triggeredHunterId;
+            const isDrunkWin = vampireKillResult.gameOver || otherKillResult.gameOver;
+
+            if (finalHunterId) game.pendingHunterShot = finalHunterId;
+
+            if (isDrunkWin) {
                 const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
                 if (drunkPlayer) {
                     handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
@@ -897,7 +910,11 @@ export async function processNight(db: Firestore, gameId: string) {
                 message: '', data: {}, createdAt: Timestamp.now(),
             };
             
-            const newlyKilledPlayers = game.players.filter((p, i) => !p.isAlive && initialPlayerState.find(ip => ip.userId === p.userId)?.isAlive);
+            const newlyKilledPlayers = game.players.filter((p) => {
+                const oldPlayerState = initialPlayerState.find(ip => ip.userId === p.userId);
+                return !p.isAlive && (oldPlayerState?.isAlive ?? true);
+            });
+
             const killedPlayerDetails = newlyKilledPlayers.map(p => `${p.displayName} (que era ${roleDetails[p.role!]?.name || 'un rol desconocido'})`);
 
             if (newlyKilledPlayers.length > 0) {
@@ -914,7 +931,6 @@ export async function processNight(db: Firestore, gameId: string) {
             }
             game.events.push(nightEvent);
             
-            // CRITICAL: Check for game over *after* all state changes are consolidated in `game`.
             const { isGameOver, message, winnerCode, winners } = checkGameOver(game);
             if (isGameOver) {
                 game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message, data: { winnerCode, winners }, createdAt: Timestamp.now() });
@@ -1976,5 +1992,3 @@ export async function submitTroublemakerAction(
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
-
-    
