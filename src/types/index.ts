@@ -28,6 +28,7 @@ export type PlayerRole =
   "seer_apprentice" |
   "elder_leader" |
   "sleeping_fairy" |
+  "resurrector_angel" |
   // Lobos
   "werewolf" |
   "wolf_cub" |
@@ -94,6 +95,7 @@ export interface Game {
     witch: boolean;
     banshee: boolean;
     drunk_man: boolean;
+    resurrector_angel: boolean;
   };
   phaseEndsAt?: Timestamp;
   lovers: [string, string] | null;
@@ -137,6 +139,7 @@ export interface Player {
   virginiaWoolfTargetId?: string | null;
   riverSirenTargetId?: string | null;
   ghostMessageSent?: boolean;
+  resurrectorAngelUsed?: boolean;
   bansheeScreams?: Record<number, string>; // round: targetId
   lookoutUsed?: boolean;
 }
@@ -162,7 +165,8 @@ export type NightActionType =
   "banshee_scream" |
   "lookout_spy" |
   "fairy_find" |
-  "fairy_kill";
+  "fairy_kill" |
+  "resurrect";
 
 
 export interface NightAction {
@@ -207,5 +211,3 @@ export interface GenerateAIChatMessageOutput {
     message: string;
     shouldSend: boolean;
 };
-
-    

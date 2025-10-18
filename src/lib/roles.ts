@@ -172,6 +172,14 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         color: "text-emerald-400",
         bgImageId: "role-bg-villager"
     },
+    resurrector_angel: {
+        name: "Ángel Resucitador",
+        description: "Una vez por partida, durante la noche, puedes elegir a un jugador que haya muerto para devolverlo a la vida. El jugador resucitado volverá al juego con su rol original.",
+        atmosphere: "Un destello de esperanza en la oscuridad. La muerte no es el final.",
+        image: "/roles/angel resucitador.png",
+        color: "text-yellow-200",
+        bgImageId: "role-bg-seer"
+    },
     // ==== Equipo de los Lobos ====
     werewolf: {
         name: "Hombre Lobo",

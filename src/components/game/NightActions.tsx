@@ -44,6 +44,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     const isWitch = currentPlayer.role === 'witch';
     const isLookout = currentPlayer.role === 'lookout' && !currentPlayer.lookoutUsed;
     const isSeekerFairy = currentPlayer.role === 'seeker_fairy' && !game.fairiesFound;
+    const isResurrectorAngel = currentPlayer.role === 'resurrector_angel' && !currentPlayer.resurrectorAngelUsed;
 
     const isHechicera = currentPlayer.role === 'hechicera';
     const isWerewolfTeam = ['werewolf', 'wolf_cub'].includes(currentPlayer.role || '');
@@ -73,7 +74,17 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     const selectionLimit = isCupidFirstNight || wolfCubRevengeActive ? 2 : (isLookout ? 0 : 1);
 
     const handlePlayerSelect = (player: Player) => {
-        if (hasSubmitted || !player.isAlive || isLookout) return;
+        if (hasSubmitted || isLookout) return;
+        
+        if(isResurrectorAngel) {
+             if (player.isAlive) {
+                 toast({ variant: 'destructive', title: 'Regla del Ángel', description: 'Solo puedes resucitar a jugadores muertos.' });
+                 return;
+             }
+        } else {
+             if (!player.isAlive) return;
+        }
+
 
         if (isWerewolfTeam && ['werewolf', 'wolf_cub'].includes(player.role || '')) return;
         if (isVampire && (player.biteCount || 0) >= 3) {
@@ -146,6 +157,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             case 'banshee': return 'banshee_scream';
             case 'lookout': return 'lookout_spy';
             case 'seeker_fairy': return 'fairy_find';
+            case 'resurrector_angel': return 'resurrect';
             case 'hechicera':
                 if (hechiceraAction === 'poison') return 'hechicera_poison';
                 if (hechiceraAction === 'save') return 'hechicera_save';
@@ -277,6 +289,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             case 'lookout': return 'Puedes arriesgarte a espiar a los lobos. Si tienes éxito, los conocerás. Si fallas, morirás.';
             case 'seeker_fairy': return game.fairiesFound ? '¡Has encontrado al Hada Durmiente!' : 'Elige a un jugador para saber si es el Hada Durmiente.';
             case 'sleeping_fairy': return game.fairiesFound ? '¡El Hada Buscadora te ha encontrado!' : 'Duermes, esperando una conexión mágica.';
+            case 'resurrector_angel': return 'Elige a un jugador muerto para devolverle la vida. Solo puedes usar este poder una vez.';
             default: return 'No tienes acciones esta noche. Espera al amanecer.';
         }
     }
@@ -363,7 +376,8 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             isLookout ||
             apprenticeIsActive ||
             isSeekerFairy ||
-            canFairiesKill
+            canFairiesKill ||
+            isResurrectorAngel
         ) && game.exiledPlayerId !== currentPlayer.userId
     );
 
@@ -384,6 +398,8 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         )
     }
 
+    const playersForGrid = isResurrectorAngel ? game.players.filter(p => !p.isAlive) : players.filter(p=>p.isAlive);
+
     return (
         <Card className="mt-8 bg-card/80">
             <CardHeader>
@@ -401,7 +417,8 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                     <>
                         {(!isLookout && currentPlayer.role !== 'sleeping_fairy') && (
                             <PlayerGrid 
-                                players={players.filter(p => {
+                                players={playersForGrid.filter(p => {
+                                    if (isResurrectorAngel) return true; // Show all dead players
                                     if (isCupidFirstNight) return true;
                                     if (isWerewolfTeam) {
                                         // A witch who found the seer is an ally

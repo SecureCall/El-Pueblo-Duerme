@@ -19,7 +19,8 @@ export const PlayerRoleSchema = z.enum([
   "villager", "seer", "doctor", "hunter", "cupid", "guardian", "priest", "prince", "lycanthrope", "twin",
   "hechicera", "ghost", "virginia_woolf", "leprosa", "river_siren", "lookout", "troublemaker",
   "silencer", "seer_apprentice", "elder_leader", "werewolf", "wolf_cub", "cursed", "seeker_fairy",
-  "sleeping_fairy", "shapeshifter", "drunk_man", "cult_leader", "fisherman", "vampire", "witch", "banshee"
+  "sleeping_fairy", "shapeshifter", "drunk_man", "cult_leader", "fisherman", "vampire", "witch", "banshee",
+  "resurrector_angel"
 ]).nullable();
 
 export const PlayerSchema = z.object({
@@ -45,6 +46,7 @@ export const PlayerSchema = z.object({
   virginiaWoolfTargetId: z.string().nullable().optional(),
   riverSirenTargetId: z.string().nullable().optional(),
   ghostMessageSent: z.boolean().optional(),
+  resurrectorAngelUsed: z.boolean().optional(),
   bansheeScreams: z.record(z.string()).optional(),
   lookoutUsed: z.boolean().optional(),
 });
@@ -58,7 +60,7 @@ export const NightActionSchema = z.object({
     "hechicera_save", "guardian_protect", "priest_bless", "vampire_bite", "cult_recruit", 
     "fisherman_catch", "shapeshifter_select", "virginia_woolf_link", "river_siren_charm",
     "silencer_silence", "elder_leader_exile", "witch_hunt", "banshee_scream", "lookout_spy",
-    "fairy_find", "fairy_kill"
+    "fairy_find", "fairy_kill", "resurrect"
   ]),
   targetId: z.string(),
   createdAt: TimestampSchema,
@@ -118,6 +120,7 @@ export const GameSettingsSchema = z.object({
     witch: z.boolean(),
     banshee: z.boolean(),
     drunk_man: z.boolean(),
+    resurrector_angel: z.boolean(),
 });
 
 export const GameSchema = z.object({
@@ -165,5 +168,3 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
-
-    

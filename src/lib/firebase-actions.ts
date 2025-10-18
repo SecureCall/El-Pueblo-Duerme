@@ -51,6 +51,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     biteCount: 0,
     isCultMember: false,
     ghostMessageSent: false,
+    resurrectorAngelUsed: false,
     lookoutUsed: false,
     bansheeScreams: {},
 });
@@ -371,6 +372,9 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         if (action.actionType === 'lookout_spy' && player.lookoutUsed) {
             throw new Error("Ya has usado tu habilidad de Vigía.");
         }
+        if (action.actionType === 'resurrect' && player.resurrectorAngelUsed) {
+            throw new Error("Ya has usado tu poder de resurrección.");
+        }
         
         if (existingActionIndex > -1) {
             nightActions.splice(existingActionIndex, 1);
@@ -398,6 +402,8 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
             players[playerIndex].lookoutUsed = true;
         } else if (action.actionType === 'river_siren_charm' && playerIndex > -1) {
             players[playerIndex].riverSirenTargetId = action.targetId;
+        } else if (action.actionType === 'resurrect' && playerIndex > -1) {
+            players[playerIndex].resurrectorAngelUsed = true;
         }
 
         nightActions.push(newAction);
@@ -781,6 +787,24 @@ export async function processNight(db: Firestore, gameId: string) {
                 }
             });
 
+            // Process Resurrection
+            const resurrectAction = actions.find(a => a.actionType === 'resurrect');
+            if (resurrectAction) {
+                const targetIndex = game.players.findIndex(p => p.userId === resurrectAction.targetId);
+                if (targetIndex > -1 && !game.players[targetIndex].isAlive) {
+                    game.players[targetIndex].isAlive = true;
+                    game.events.push({
+                        id: `evt_resurrect_${Date.now()}`,
+                        gameId,
+                        round: game.currentRound,
+                        type: 'special',
+                        message: `¡Un milagro! ${game.players[targetIndex].displayName} ha sido devuelto a la vida por el Ángel Resucitador.`,
+                        data: { resurrectedPlayerId: resurrectAction.targetId },
+                        createdAt: Timestamp.now(),
+                    });
+                }
+            }
+
             const lookoutAction = actions.find(a => a.actionType === 'lookout_spy');
             if (lookoutAction) {
                 const isSuccessful = Math.random() < 0.4;
@@ -929,6 +953,14 @@ export async function processNight(db: Firestore, gameId: string) {
             } else {
                  nightEvent.message = "La noche transcurre en un inquietante silencio. Nadie ha muerto.";
             }
+
+            if (resurrectAction) {
+                const resurrectedPlayer = game.players.find(p => p.userId === resurrectAction.targetId);
+                if (resurrectedPlayer) {
+                    nightEvent.message += ` Pero un milagro ha ocurrido: ¡${resurrectedPlayer.displayName} ha vuelto a la vida!`;
+                }
+            }
+
             game.events.push(nightEvent);
             
             const { isGameOver, message, winnerCode, winners } = checkGameOver(game);
