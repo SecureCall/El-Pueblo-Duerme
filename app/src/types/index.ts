@@ -11,7 +11,6 @@ export type PlayerRole =
   "seer" | 
   "doctor" | 
   "hunter" | 
-  "cupid" |
   "guardian" |
   "priest" |
   "prince" |
@@ -28,6 +27,7 @@ export type PlayerRole =
   "seer_apprentice" |
   "elder_leader" |
   "sleeping_fairy" |
+  "resurrector_angel" |
   // Lobos
   "werewolf" |
   "wolf_cub" |
@@ -67,7 +67,6 @@ export interface Game {
     seer: boolean;
     doctor: boolean;
     hunter: boolean;
-    cupid: boolean;
     guardian: boolean;
     priest: boolean;
     prince: boolean;
@@ -94,9 +93,9 @@ export interface Game {
     witch: boolean;
     banshee: boolean;
     drunk_man: boolean;
+    resurrector_angel: boolean;
   };
   phaseEndsAt?: Timestamp;
-  lovers: [string, string] | null;
   twins: [string, string] | null;
   pendingHunterShot: string | null; // userId of the hunter who needs to shoot
   wolfCubRevengeRound: number; // The round where werewolves get an extra kill
@@ -137,6 +136,7 @@ export interface Player {
   virginiaWoolfTargetId?: string | null;
   riverSirenTargetId?: string | null;
   ghostMessageSent?: boolean;
+  resurrectorAngelUsed?: boolean;
   bansheeScreams?: Record<number, string>; // round: targetId
   lookoutUsed?: boolean;
 }
@@ -145,7 +145,6 @@ export type NightActionType =
   "werewolf_kill" | 
   "seer_check" | 
   "doctor_heal" | 
-  "cupid_enchant" | 
   "hechicera_poison" | 
   "hechicera_save" | 
   "guardian_protect" | 
@@ -162,7 +161,8 @@ export type NightActionType =
   "banshee_scream" |
   "lookout_spy" |
   "fairy_find" |
-  "fairy_kill";
+  "fairy_kill" |
+  "resurrect";
 
 
 export interface NightAction {
@@ -178,7 +178,7 @@ export interface GameEvent {
     id: string; // unique id for the event, can be generated on client
     gameId: string;
     round: number;
-    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot' | 'player_transformed' | 'behavior_clue' | 'special';
+    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot' | 'player_transformed' | 'behavior_clue' | 'special' | 'vampire_kill';
     message: string;
     data?: any;
     createdAt: Timestamp;

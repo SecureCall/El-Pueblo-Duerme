@@ -109,26 +109,31 @@ export function GameBoard({ game: initialGame, players: initialPlayers, currentP
      // Effect to check if the current player has died and by what cause
     useEffect(() => {
         if (!currentPlayer) return;
-        const playerIsDead = !currentPlayer.isAlive;
+        if (currentPlayer.isAlive) {
+            setDeathCause(null); // Reset death cause if player is alive
+            return;
+        }
 
-        if (playerIsDead) {
-            const deathEvent = [...events] 
-                .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
-                .find(e => {
-                    const killedId = e.data?.killedPlayerId || (e.data?.killedPlayerIds && e.data.killedPlayerIds[0]) || e.data?.lynchedPlayerId;
-                    return killedId === currentPlayer.userId || (e.data?.killedPlayerIds && e.data.killedPlayerIds.includes(currentPlayer.userId));
-                });
+        const deathEvent = [...events] 
+            .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
+            .find(e => {
+                const killedId = e.data?.killedPlayerId;
+                const killedPlayerIds = e.data?.killedPlayerIds || [];
+                const lynchedId = e.data?.lynchedPlayerId;
+                return killedId === currentPlayer.userId || killedPlayerIds.includes(currentPlayer.userId) || lynchedId === currentPlayer.userId;
+            });
 
-            if (deathEvent) {
-                if (deathEvent.type === 'hunter_shot') {
-                    setDeathCause('hunter_shot');
-                } else if (deathEvent.type === 'vote_result') {
-                    setDeathCause('vote');
-                } else if (deathEvent.type === 'vampire_kill') {
-                    setDeathCause('vampire');
-                } else {
-                    setDeathCause('eliminated'); 
-                }
+        if (deathEvent) {
+            if (deathEvent.type === 'hunter_shot') {
+                setDeathCause('hunter_shot');
+            } else if (deathEvent.type === 'vote_result') {
+                setDeathCause('vote');
+            } else if (deathEvent.type === 'vampire_kill') {
+                setDeathCause('vampire');
+            } else if (deathEvent.type === 'night_result') {
+                setDeathCause('eliminated'); 
+            } else {
+                setDeathCause('eliminated');
             }
         }
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
@@ -189,7 +194,9 @@ export function GameBoard({ game: initialGame, players: initialPlayers, currentP
 
   // Show a non-blocking "You are dead" overlay if the current player is not alive
   if (!currentPlayer.isAlive && game.status === 'in_progress') {
-     const isAngelInPlay = game.settings.resurrector_angel && players.some(p => p.role === 'resurrector_angel' && p.isAlive && !p.resurrectorAngelUsed);
+     const angelPlayer = players.find(p => p.role === 'resurrector_angel');
+     const isAngelInPlay = game.settings.resurrector_angel && !!angelPlayer && angelPlayer.isAlive && !angelPlayer.resurrectorAngelUsed;
+
      const renderDeathOverlay = () => {
       if (deathCause === 'vote') {
         return <BanishedOverlay angelInPlay={isAngelInPlay} />;
@@ -263,10 +270,6 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     }
   };
   
-  const isLover = !!game.lovers?.includes(currentPlayer?.userId || '');
-  const otherLoverId = isLover ? game.lovers!.find(id => id !== currentPlayer!.userId) : null;
-  const otherLover = otherLoverId ? players.find(p => p.userId === otherLoverId) : null;
-  
   const isTwin = currentPlayer?.role === 'twin' && !!game.twins?.includes(currentPlayer.userId);
   const otherTwinId = isTwin ? game.twins!.find(id => id !== currentPlayer!.userId) : null;
   const otherTwin = otherTwinId ? players.find(p => p.userId === otherTwinId) : null;
@@ -274,20 +277,17 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
   const isFairy = ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer?.role || '');
 
   const highlightedPlayers = [];
-  if (otherLover) {
-    highlightedPlayers.push({ userId: otherLover.userId, color: 'rgba(255, 105, 180, 0.7)' });
-  }
   if (otherTwin) {
     highlightedPlayers.push({ userId: otherTwin.userId, color: 'rgba(135, 206, 250, 0.7)' });
   }
 
-  const getCauseOfDeath = (playerId: string): 'werewolf_kill' | 'vote_result' | 'lover_death' | 'vampire_kill' | 'other' => {
+  const getCauseOfDeath = (playerId: string): 'werewolf_kill' | 'vote_result' | 'vampire_kill' | 'other' => {
     // Find the most recent event related to this player's death
     const deathEvent = events
         .filter(e =>
             (e.type === 'night_result' && e.data?.killedPlayerIds?.includes(playerId)) ||
             (e.type === 'vote_result' && e.data?.lynchedPlayerId === playerId) ||
-            ((e.type === 'lover_death' || e.type === 'hunter_shot' || e.type === 'special' || e.type === 'vampire_kill') && (e.data?.killedPlayerId === playerId || (e.data?.killedPlayerIds && e.data.killedPlayerIds.includes(playerId))))
+            ((e.type === 'hunter_shot' || e.type === 'special' || e.type === 'vampire_kill') && (e.data?.killedPlayerId === playerId || (e.data?.killedPlayerIds && e.data.killedPlayerIds.includes(playerId))))
         )
         .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())[0];
 
@@ -295,7 +295,6 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
         if (deathEvent.type === 'vote_result') return 'vote_result';
         if (deathEvent.type === 'night_result') return 'werewolf_kill';
         if (deathEvent.type === 'vampire_kill') return 'vampire_kill';
-        if (deathEvent.type === 'lover_death') return 'lover_death';
     }
     return 'other';
   };
@@ -355,17 +354,6 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
       </Card>
       
       <PlayerGrid players={playersWithDeathCause} highlightedPlayers={highlightedPlayers} />
-
-       {isLover && otherLover && currentPlayer?.isAlive && (
-        <Card className="bg-pink-900/30 border-pink-400/50">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-center gap-3 text-pink-300">
-              <HeartIcon className="h-5 w-5" />
-              <p>Estás enamorado de {otherLover.isAlive ? otherLover.displayName : `${otherLover.displayName} (fallecido)`}. Vuestro destino está unido.</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {isTwin && otherTwin && currentPlayer?.isAlive && (
         <Card className="bg-blue-900/30 border-blue-400/50">

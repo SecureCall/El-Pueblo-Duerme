@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
-import { submitNightAction, getSeerResult, submitCupidAction } from '@/lib/firebase-actions';
+import { submitNightAction, getSeerResult } from '@/lib/firebase-actions';
 import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, BotIcon, Eye, Wand2 } from 'lucide-react';
 import { SeerResult } from './SeerResult';
 import { useNightActions } from '@/hooks/use-night-actions';
@@ -37,13 +37,13 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     const { toast } = useToast();
     const { hasSubmitted } = useNightActions(game.id, game.currentRound, currentPlayer.userId);
 
-    const isCupidFirstNight = currentPlayer.role === 'cupid' && game.currentRound === 1;
     const isShapeshifterFirstNight = currentPlayer.role === 'shapeshifter' && game.currentRound === 1;
     const isVirginiaWoolfFirstNight = currentPlayer.role === 'virginia_woolf' && game.currentRound === 1;
     const isRiverSirenFirstNight = currentPlayer.role === 'river_siren' && game.currentRound === 1;
     const isWitch = currentPlayer.role === 'witch';
     const isLookout = currentPlayer.role === 'lookout' && !currentPlayer.lookoutUsed;
     const isSeekerFairy = currentPlayer.role === 'seeker_fairy' && !game.fairiesFound;
+    const isResurrectorAngel = currentPlayer.role === 'resurrector_angel' && !currentPlayer.resurrectorAngelUsed;
 
     const isHechicera = currentPlayer.role === 'hechicera';
     const isWerewolfTeam = ['werewolf', 'wolf_cub'].includes(currentPlayer.role || '');
@@ -61,7 +61,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     const hasPoison = isHechicera && !hasUsedPoison;
     const hasSavePotion = isHechicera && !hasUsedSave;
     
-    const wolfCubRevengeActive = game.wolfCubRevengeRound === game.currentRound + 1;
+    const wolfCubRevengeActive = game.wolfCubRevengeRound === game.currentRound;
     const canFairiesKill = game.fairiesFound && !game.fairyKillUsed && isFairyTeam;
 
     useEffect(() => {
@@ -70,10 +70,20 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         }
     }, [isHechicera, hasPoison, hasSavePotion]);
     
-    const selectionLimit = isCupidFirstNight || wolfCubRevengeActive ? 2 : (isLookout ? 0 : 1);
+    const selectionLimit = isWerewolfTeam && wolfCubRevengeActive ? 2 : (isLookout ? 0 : 1);
 
     const handlePlayerSelect = (player: Player) => {
-        if (hasSubmitted || !player.isAlive || isLookout) return;
+        if (hasSubmitted || isLookout) return;
+        
+        if(isResurrectorAngel) {
+             if (player.isAlive) {
+                 toast({ variant: 'destructive', title: 'Regla del Ángel', description: 'Solo puedes resucitar a jugadores muertos.' });
+                 return;
+             }
+        } else {
+             if (!player.isAlive) return;
+        }
+
 
         if (isWerewolfTeam && ['werewolf', 'wolf_cub'].includes(player.role || '')) return;
         if (isVampire && (player.biteCount || 0) >= 3) {
@@ -116,6 +126,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             if (selectionLimit === 1) {
                 return [player.userId];
             }
+            // For selectionLimit > 1 (like wolf cub revenge)
             return [...prev.slice(1), player.userId];
         });
     };
@@ -134,7 +145,6 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             case 'doctor': return 'doctor_heal';
             case 'guardian': return 'guardian_protect';
             case 'priest': return 'priest_bless';
-            case 'cupid': return isCupidFirstNight ? 'cupid_enchant' : null;
             case 'vampire': return 'vampire_bite';
             case 'cult_leader': return 'cult_recruit';
             case 'fisherman': return 'fisherman_catch';
@@ -146,6 +156,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             case 'banshee': return 'banshee_scream';
             case 'lookout': return 'lookout_spy';
             case 'seeker_fairy': return 'fairy_find';
+            case 'resurrector_angel': return 'resurrect';
             case 'hechicera':
                 if (hechiceraAction === 'poison') return 'hechicera_poison';
                 if (hechiceraAction === 'save') return 'hechicera_save';
@@ -202,18 +213,13 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
 
         setIsSubmitting(true);
 
-        let result;
-        if (isCupidFirstNight) {
-            result = await submitCupidAction(firestore, game.id, currentPlayer.userId, selectedPlayerIds[0], selectedPlayerIds[1]);
-        } else {
-             result = await submitNightAction(firestore, {
-                gameId: game.id,
-                round: game.currentRound,
-                playerId: currentPlayer.userId,
-                actionType: actionType,
-                targetId: selectedPlayerIds.join('|'),
-            });
-        }
+        const result = await submitNightAction(firestore, {
+            gameId: game.id,
+            round: game.currentRound,
+            playerId: currentPlayer.userId,
+            actionType: actionType,
+            targetId: selectedPlayerIds.join('|'),
+        });
 
         if (result.success) {
             if (actionType === 'lookout_spy') {
@@ -242,7 +248,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     };
     
     const otherWerewolves = isWerewolfTeam
-        ? players.filter(p => ['werewolf', 'wolf_cub'].includes(p.role || '') && p.userId !== currentPlayer.userId) 
+        ? players.filter(p => p.isAlive && ['werewolf', 'wolf_cub'].includes(p.role || '') && p.userId !== currentPlayer.userId) 
         : [];
     
     const getActionPrompt = () => {
@@ -261,7 +267,6 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             case 'doctor': return 'Elige a un jugador para proteger esta noche.';
             case 'guardian': return 'Elige a un jugador para proteger esta noche. Puedes protegerte a ti mismo una vez por partida.';
             case 'priest': return 'Elige a un jugador para otorgarle tu bendición y protegerlo de todo mal.';
-            case 'cupid': return game.currentRound === 1 ? 'Elige a dos jugadores para que se enamoren.' : 'Tu flecha ya ha unido dos corazones.';
             case 'hechicera': return (hasPoison || hasSavePotion) ? 'Elige una poción y un objetivo.' : 'Has usado todas tus pociones.';
             case 'vampire': return 'Elige un jugador para morder y acercarte a tu victoria.';
             case 'cult_leader': return 'Elige un nuevo miembro para unir a tu culto.';
@@ -277,6 +282,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             case 'lookout': return 'Puedes arriesgarte a espiar a los lobos. Si tienes éxito, los conocerás. Si fallas, morirás.';
             case 'seeker_fairy': return game.fairiesFound ? '¡Has encontrado al Hada Durmiente!' : 'Elige a un jugador para saber si es el Hada Durmiente.';
             case 'sleeping_fairy': return game.fairiesFound ? '¡El Hada Buscadora te ha encontrado!' : 'Duermes, esperando una conexión mágica.';
+            case 'resurrector_angel': return 'Elige a un jugador muerto para devolverle la vida. Solo puedes usar este poder una vez.';
             default: return 'No tienes acciones esta noche. Espera al amanecer.';
         }
     }
@@ -348,7 +354,6 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             currentPlayer.role === 'doctor' ||
             currentPlayer.role === 'guardian' ||
             currentPlayer.role === 'priest' ||
-            isCupidFirstNight ||
             isVampire ||
             isCultLeader ||
             isFisherman ||
@@ -363,7 +368,8 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             isLookout ||
             apprenticeIsActive ||
             isSeekerFairy ||
-            canFairiesKill
+            canFairiesKill ||
+            isResurrectorAngel
         ) && game.exiledPlayerId !== currentPlayer.userId
     );
 
@@ -384,6 +390,8 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         )
     }
 
+    const playersForGrid = isResurrectorAngel ? game.players.filter(p => !p.isAlive) : players.filter(p=>p.isAlive);
+
     return (
         <Card className="mt-8 bg-card/80">
             <CardHeader>
@@ -401,8 +409,8 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                     <>
                         {(!isLookout && currentPlayer.role !== 'sleeping_fairy') && (
                             <PlayerGrid 
-                                players={players.filter(p => {
-                                    if (isCupidFirstNight) return true;
+                                players={playersForGrid.filter(p => {
+                                    if (isResurrectorAngel) return true; // Show all dead players
                                     if (isWerewolfTeam) {
                                         // A witch who found the seer is an ally
                                         if (game.witchFoundSeer && p.role === 'witch') return false;
@@ -428,10 +436,10 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                                 selectedPlayerIds={selectedPlayerIds}
                             />
                         )}
-                         {(isCupidFirstNight || wolfCubRevengeActive) && (
+                         {isWerewolfTeam && wolfCubRevengeActive && (
                             <div className="flex justify-center items-center gap-4 mt-4">
                                 <span className='text-lg'>{players.find(p => p.userId === selectedPlayerIds[0])?.displayName || '?'}</span>
-                                {isCupidFirstNight ? <Heart className="h-6 w-6 text-pink-400" /> : <span className='text-destructive font-bold'>&</span>}
+                                <span className='text-destructive font-bold'>&</span>
                                 <span className='text-lg'>{players.find(p => p.userId === selectedPlayerIds[1])?.displayName || '?'}</span>
                             </div>
                         )}
