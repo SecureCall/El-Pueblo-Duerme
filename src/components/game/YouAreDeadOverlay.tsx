@@ -3,9 +3,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { playNarration } from '@/lib/sounds';
-import { cn } from '@/lib/utils';
 
-export function YouAreDeadOverlay() {
+interface YouAreDeadOverlayProps {
+    angelInPlay: boolean;
+}
+
+export function YouAreDeadOverlay({ angelInPlay }: YouAreDeadOverlayProps) {
     const hasPlayedSound = useRef(false);
     const [isVisible, setIsVisible] = useState(true);
 
@@ -18,7 +21,7 @@ export function YouAreDeadOverlay() {
 
     useEffect(() => {
         if(isVisible) {
-            const timer = setTimeout(() => setIsVisible(false), 5000);
+            const timer = setTimeout(() => setIsVisible(false), 8000); // Increased time
             return () => clearTimeout(timer);
         }
     }, [isVisible]);
@@ -42,6 +45,11 @@ export function YouAreDeadOverlay() {
             <h1 className="font-headline text-5xl md:text-7xl font-bold text-destructive text-shadow-lg shadow-black/50 mt-8">
                 HAS SIDO DEVORADO
             </h1>
+            {angelInPlay && (
+                 <p className="text-lg text-yellow-300 mt-4 animate-pulse">
+                    Pero no pierdas la esperanza... un Ángel Resucitador podría devolverte a la vida.
+                </p>
+            )}
             <p className="text-lg text-primary-foreground/70 mt-4">
                 Ahora eres un espectador. (Toca para continuar)
             </p>
