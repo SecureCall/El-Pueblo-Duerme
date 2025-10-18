@@ -463,7 +463,7 @@ function handleDrunkManWin(transaction: Transaction, gameRef: DocumentReference,
 function killPlayer(
     gameData: Game,
     playerIdsToKill: string[],
-    cause: 'vampire' | 'wolf' | 'other' = 'other'
+    cause: 'vampire' | 'werewolf_kill' | 'other' = 'other'
 ): { updatedGame: Game; triggeredHunterId: string | null; gameOver: boolean; } {
     let triggeredHunterId: string | null = null;
     let gameOver = false;
@@ -862,7 +862,7 @@ export async function processNight(db: Firestore, gameId: string) {
             }
 
             // Process all other kills
-            const otherKillResult = killPlayer(game, allKilledPlayerIds, 'wolf');
+            const otherKillResult = killPlayer(game, allKilledPlayerIds, 'werewolf_kill');
             game = otherKillResult.updatedGame;
 
             const finalHunterId = vampireKillResult.triggeredHunterId || otherKillResult.triggeredHunterId;
@@ -909,7 +909,10 @@ export async function processNight(db: Firestore, gameId: string) {
                     nightEvent.message += ` Pero un milagro ha ocurrido: ¡${resurrectedPlayer.displayName} ha vuelto a la vida!`;
                 }
             }
-
+            nightEvent.data = {
+                killedPlayerIds: newlyKilledPlayers.map(p => p.userId),
+                savedPlayerIds: savedPlayerIds,
+            }
             game.events.push(nightEvent);
             
             const { isGameOver, message, winnerCode, winners } = checkGameOver(game);

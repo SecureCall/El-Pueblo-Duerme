@@ -11,7 +11,7 @@ import { NightActions } from "./NightActions";
 import { processNight, processVotes, runAIActions, advanceToNightPhase } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
-import { HeartIcon, Moon, Sun, Users2, Wand2 } from "lucide-react";
+import { Moon, Sun, Users2, Wand2 } from "lucide-react";
 import { HunterShot } from "./HunterShot";
 import { GameChronicle } from "./GameChronicle";
 import { PhaseTimer } from "./PhaseTimer";
