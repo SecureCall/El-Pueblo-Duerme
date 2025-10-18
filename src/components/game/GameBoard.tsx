@@ -30,7 +30,7 @@ import { useGameState } from "@/hooks/use-game-state";
 interface GameBoardProps {
   game: Game;
   players: Player[];
-  currentPlayer: Player;
+  currentPlayer: Player | null;
   events: GameEvent[];
   messages: ChatMessage[];
   wolfMessages: ChatMessage[];
@@ -115,7 +115,7 @@ export function GameBoard({ game: initialGame, players: initialPlayers, currentP
 
         const deathEvent = [...events]
             .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
-            .find(e => (e.type === 'werewolf_kill' || e.type === 'vampire_kill' || e.type === 'hunter_shot' || e.type === 'troublemaker_duel' || e.type === 'vote_result' || e.type === 'special') && e.data?.killedPlayerId === currentPlayer.userId);
+            .find(e => (e.data?.killedPlayerIds || []).includes(currentPlayer.userId));
 
         setDeathCause(deathEvent?.type || 'other');
 
@@ -177,22 +177,21 @@ export function GameBoard({ game: initialGame, players: initialPlayers, currentP
 
   // Show a non-blocking "You are dead" overlay if the current player is not alive
   if (!currentPlayer.isAlive && game.status === 'in_progress') {
-     const isAngelInPlay = game.settings.resurrector_angel && players.some(p => p.role === 'resurrector_angel' && p.isAlive && !p.resurrectorAngelUsed);
+     const isAngelInPlay = !!(game.settings.resurrector_angel && players.some(p => p.role === 'resurrector_angel' && p.isAlive && !p.resurrectorAngelUsed));
+     
      const renderDeathOverlay = () => {
-      if (deathCause === 'vote_result') {
-        return <BanishedOverlay angelInPlay={isAngelInPlay} />;
-      }
-      if (deathCause === 'hunter_shot') {
-        return <HunterKillOverlay angelInPlay={isAngelInPlay} />;
-      }
-      if (deathCause === 'vampire_kill') {
-        return <VampireKillOverlay angelInPlay={isAngelInPlay} />;
-      }
-      if (deathCause === 'werewolf_kill') {
-        return <YouAreDeadOverlay angelInPlay={isAngelInPlay} />;
-      }
-      // Can add other specific overlays here for troublemaker etc.
-      return <YouAreDeadOverlay angelInPlay={isAngelInPlay} />;
+        switch (deathCause) {
+            case 'vote_result':
+                return <BanishedOverlay angelInPlay={isAngelInPlay} />;
+            case 'hunter_shot':
+                return <HunterKillOverlay angelInPlay={isAngelInPlay} />;
+            case 'vampire_kill':
+                return <VampireKillOverlay angelInPlay={isAngelInPlay} />;
+            case 'werewolf_kill':
+                return <YouAreDeadOverlay angelInPlay={isAngelInPlay} />;
+            default: // troublemaker_duel, special, other
+                return <YouAreDeadOverlay angelInPlay={isAngelInPlay} />;
+        }
     };
     return (
         <>
@@ -263,9 +262,10 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
   }
 
  const getCauseOfDeath = (playerId: string): GameEvent['type'] | 'other' => {
-    const deathEvent = events
-        .find(e => (e.type === 'werewolf_kill' || e.type === 'vampire_kill' || e.type === 'hunter_shot' || e.type === 'vote_result' || e.type === 'special' || e.type === 'troublemaker_duel') && e.data?.killedPlayerId === playerId);
-
+    const deathEvent = [...events]
+        .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
+        .find(e => (e.data?.killedPlayerIds || []).includes(playerId));
+    
     return deathEvent?.type || 'other';
   };
 
@@ -298,7 +298,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
       );
   }
 
-  const showGhostAction = currentPlayer.role === 'ghost' && !currentPlayer.isAlive && !currentPlayer.ghostMessageSent;
+  const showGhostAction = !!(currentPlayer && currentPlayer.role === 'ghost' && !currentPlayer.isAlive && !currentPlayer.ghostMessageSent);
 
 
    return (
@@ -306,7 +306,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
        <Card className="text-center bg-card/80">
         <CardHeader className="flex flex-row items-center justify-between p-4 pb-8 relative">
           <div className="absolute left-4 top-1/2 -translate-y-1/2">
-             <GameChronicle events={events} currentPlayerId={currentPlayer.userId} />
+             <GameChronicle events={events} currentPlayerId={currentPlayer?.userId || ''} />
           </div>
           <div className="flex-1 flex justify-center items-center gap-4">
              {getPhaseIcon()}
@@ -351,11 +351,11 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
         <NightActions game={game} players={players} currentPlayer={currentPlayer} wolfMessages={wolfMessages} fairyMessages={fairyMessages} />
       )}
 
-      {showGhostAction && (
+      {showGhostAction && currentPlayer && (
         <GhostAction game={game} currentPlayer={currentPlayer} players={players.filter(p => p.isAlive)} />
       )}
       
-      {game.phase === 'day' && (
+      {game.phase === 'day' && currentPlayer && (
         <div className="mt-8 w-full flex flex-col md:flex-row gap-4">
             <div className="flex-1 flex flex-col gap-4">
                 <DayPhase 
@@ -402,5 +402,3 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </>
   );
 }
-
-    
