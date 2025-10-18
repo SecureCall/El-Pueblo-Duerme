@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { 
   doc, 
   onSnapshot, 
@@ -60,7 +60,10 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
   const [wolfMessages, setWolfMessages] = useState<ChatMessage[]>(initialState?.initialWolfMessages ?? []);
   const [fairyMessages, setFairyMessages] = useState<ChatMessage[]>(initialState?.initialFairyMessages ?? []);
   const [twinMessages, setTwinMessages] = useState<ChatMessage[]>(initialState?.initialTwinMessages ?? []);
-  const [loading, setLoading] = useState(!initialState);
+  
+  // Use a ref to manage loading state to prevent re-renders from triggering useEffect
+  const isLoadingRef = useRef(!initialState);
+  
   const [error, setError] = useState<string | null>(null);
 
   const gameRef = useMemoFirebase(() => {
@@ -71,14 +74,12 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
   useEffect(() => {
     if (!gameRef) {
         if (!initialState) {
-            setLoading(false);
+            isLoadingRef.current = false;
             if (!gameId) setError("No game ID provided.");
             else setError("Cargando sesión de Firebase...");
         }
         return;
     };
-
-    if (!initialState) setLoading(true);
 
     const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
@@ -121,21 +122,34 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
         setFairyMessages([]);
         setTwinMessages([]);
       }
-      setLoading(false);
+      isLoadingRef.current = false;
     }, (err: FirestoreError) => {
         const contextualError = new FirestorePermissionError({
             operation: 'get',
             path: gameRef.path,
         });
         setError("Error al cargar la partida. Permisos insuficientes.");
-        setLoading(false);
+        isLoadingRef.current = false;
         errorEmitter.emit('permission-error', contextualError);
     });
 
     return () => {
       unsubscribeGame();
     };
-  }, [gameId, firestore, gameRef, userId, initialState]);
+  }, [gameId, firestore, gameRef, userId]);
 
-  return { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loading, error };
+  return { 
+    game, 
+    players, 
+    currentPlayer, 
+    events, 
+    messages, 
+    wolfMessages, 
+    fairyMessages, 
+    twinMessages, 
+    loading: isLoadingRef.current && !game, // Loading is true only initially if there's no game data
+    error 
+  };
 };
+
+    

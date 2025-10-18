@@ -40,7 +40,7 @@ interface GameBoardProps {
 
 export function GameBoard({ game: initialGame, players: initialPlayers, currentPlayer: initialCurrentPlayer, events: initialEvents, messages: initialMessages, wolfMessages: initialWolfMessages, fairyMessages: initialFairyMessages, twinMessages: initialTwinMessages }: GameBoardProps) {
   const { firestore } = useFirebase();
-  const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loading, error } = useGameState(initialGame.id, {
+  const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages } = useGameState(initialGame.id, {
     initialGame,
     initialPlayers,
     initialCurrentPlayer,
@@ -86,7 +86,7 @@ export function GameBoard({ game: initialGame, players: initialPlayers, currentP
     // Specific useEffect for night result sounds based on new events
     const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
     if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
-        const newlyKilledPlayers = game.players.filter((p, i) => {
+        const newlyKilledPlayers = game.players.filter((p) => {
             const oldPlayerState = players.find(op => op.userId === p.userId);
             return !p.isAlive && (oldPlayerState?.isAlive ?? true);
         });
@@ -286,7 +286,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
         .filter(e =>
             (e.type === 'night_result' && e.data?.killedPlayerIds?.includes(playerId)) ||
             (e.type === 'vote_result' && e.data?.lynchedPlayerId === playerId) ||
-            ((e.type === 'lover_death' || e.type === 'hunter_shot' || e.type === 'special' || e.type === 'vampire_kill') && (e.data?.killedPlayerId === playerId || e.data?.killedPlayerIds?.includes(playerId)))
+            ((e.type === 'lover_death' || e.type === 'hunter_shot' || e.type === 'special' || e.type === 'vampire_kill') && (e.data?.killedPlayerId === playerId || (e.data?.killedPlayerIds && e.data.killedPlayerIds.includes(playerId))))
         )
         .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())[0];
 
@@ -444,3 +444,5 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </>
   );
 }
+
+    

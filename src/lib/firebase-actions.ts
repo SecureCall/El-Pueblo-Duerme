@@ -822,8 +822,10 @@ export async function processNight(db: Firestore, gameId: string) {
                 const wolfKillActions = actions.filter(a => a.actionType === 'werewolf_kill' || a.actionType === 'fairy_kill');
                 if (wolfKillActions.length > 0) {
                      const voteCounts = wolfKillActions.reduce((acc, vote) => {
-                        const targets = vote.targetId ? vote.targetId.split('|') : [];
-                        targets.forEach(targetId => { if(targetId) acc[targetId] = (acc[targetId] || 0) + 1; });
+                        if (vote.targetId) {
+                            const targets = vote.targetId.split('|');
+                            targets.forEach(targetId => { if(targetId) acc[targetId] = (acc[targetId] || 0) + 1; });
+                        }
                         return acc;
                     }, {} as Record<string, number>);
 
@@ -878,8 +880,9 @@ export async function processNight(db: Firestore, gameId: string) {
                 allKilledPlayerIds.push(poisonAction.targetId);
             }
 
+            // Atomically process all deaths and their chain reactions
             const { gameOver, updatedGame } = killPlayer(game, [...new Set(allKilledPlayerIds)]);
-            game = updatedGame; 
+            game = updatedGame; // CRITICAL: Use the fully updated game state from now on
 
             if (gameOver) {
                 const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
@@ -894,7 +897,7 @@ export async function processNight(db: Firestore, gameId: string) {
                 message: '', data: {}, createdAt: Timestamp.now(),
             };
             
-            const newlyKilledPlayers = game.players.filter((p, i) => !p.isAlive && initialPlayerState[i].isAlive);
+            const newlyKilledPlayers = game.players.filter((p, i) => !p.isAlive && initialPlayerState.find(ip => ip.userId === p.userId)?.isAlive);
             const killedPlayerDetails = newlyKilledPlayers.map(p => `${p.displayName} (que era ${roleDetails[p.role!]?.name || 'un rol desconocido'})`);
 
             if (newlyKilledPlayers.length > 0) {
@@ -911,6 +914,7 @@ export async function processNight(db: Firestore, gameId: string) {
             }
             game.events.push(nightEvent);
             
+            // CRITICAL: Check for game over *after* all state changes are consolidated in `game`.
             const { isGameOver, message, winnerCode, winners } = checkGameOver(game);
             if (isGameOver) {
                 game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message, data: { winnerCode, winners }, createdAt: Timestamp.now() });
@@ -1045,7 +1049,7 @@ export async function processVotes(db: Firestore, gameId: string) {
 
       if (lynchedPlayerId) {
           const { gameOver, updatedGame } = killPlayer(game, [lynchedPlayerId]);
-          game = updatedGame; // Use the updated state
+          game = updatedGame; 
           if (gameOver) {
             const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
             if (drunkPlayer) {
@@ -1972,3 +1976,5 @@ export async function submitTroublemakerAction(
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
+
+    
