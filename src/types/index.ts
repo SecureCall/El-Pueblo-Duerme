@@ -178,7 +178,7 @@ export interface GameEvent {
     id: string; // unique id for the event, can be generated on client
     gameId: string;
     round: number;
-    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'hunter_shot' | 'player_transformed' | 'behavior_clue' | 'special' | 'vampire_kill';
+    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'hunter_shot' | 'player_transformed' | 'behavior_clue' | 'special' | 'vampire_kill' | 'werewolf_kill' | 'troublemaker_duel';
     message: string;
     data?: any;
     createdAt: Timestamp;
@@ -207,3 +207,5 @@ export interface GenerateAIChatMessageOutput {
     message: string;
     shouldSend: boolean;
 };
+
+    

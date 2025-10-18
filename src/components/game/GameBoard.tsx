@@ -53,7 +53,7 @@ export function GameBoard({ game: initialGame, players: initialPlayers, currentP
   
   const prevPhaseRef = useRef<Game['phase']>();
   const [showRole, setShowRole] = useState(true);
-  const [deathCause, setDeathCause] = useState<'eliminated' | 'vote' | 'hunter_shot' | 'vampire' | null>(null);
+  const [deathCause, setDeathCause] = useState<GameEvent['type'] | 'other' | null>(null);
   const nightSoundsPlayedForRound = useRef<number>(0);
 
   // Sound effect logic
@@ -115,24 +115,10 @@ export function GameBoard({ game: initialGame, players: initialPlayers, currentP
 
         const deathEvent = [...events]
             .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
-            .find(e => {
-                const killedId = e.data?.killedPlayerId;
-                const killedPlayerIds = e.data?.killedPlayerIds || [];
-                const lynchedId = e.data?.lynchedPlayerId;
-                return killedId === currentPlayer.userId || killedPlayerIds.includes(currentPlayer.userId) || lynchedId === currentPlayer.userId;
-            });
+            .find(e => (e.type === 'werewolf_kill' || e.type === 'vampire_kill' || e.type === 'hunter_shot' || e.type === 'troublemaker_duel' || e.type === 'vote_result' || e.type === 'special') && e.data?.killedPlayerId === currentPlayer.userId);
 
-        if (deathEvent) {
-            if (deathEvent.type === 'hunter_shot') {
-                setDeathCause('hunter_shot');
-            } else if (deathEvent.type === 'vote_result') {
-                setDeathCause('vote');
-            } else if (deathEvent.type === 'vampire_kill') {
-                setDeathCause('vampire');
-            } else {
-                setDeathCause('eliminated'); 
-            }
-        }
+        setDeathCause(deathEvent?.type || 'other');
+
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
 
   // Handle AI actions when phase changes
@@ -193,19 +179,20 @@ export function GameBoard({ game: initialGame, players: initialPlayers, currentP
   if (!currentPlayer.isAlive && game.status === 'in_progress') {
      const isAngelInPlay = game.settings.resurrector_angel && players.some(p => p.role === 'resurrector_angel' && p.isAlive && !p.resurrectorAngelUsed);
      const renderDeathOverlay = () => {
-      if (deathCause === 'vote') {
+      if (deathCause === 'vote_result') {
         return <BanishedOverlay angelInPlay={isAngelInPlay} />;
       }
       if (deathCause === 'hunter_shot') {
         return <HunterKillOverlay angelInPlay={isAngelInPlay} />;
       }
-      if (deathCause === 'vampire') {
+      if (deathCause === 'vampire_kill') {
         return <VampireKillOverlay angelInPlay={isAngelInPlay} />;
       }
-      if (deathCause === 'eliminated') {
+      if (deathCause === 'werewolf_kill') {
         return <YouAreDeadOverlay angelInPlay={isAngelInPlay} />;
       }
-      return null;
+      // Can add other specific overlays here for troublemaker etc.
+      return <YouAreDeadOverlay angelInPlay={isAngelInPlay} />;
     };
     return (
         <>
@@ -275,24 +262,13 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     highlightedPlayers.push({ userId: otherTwin.userId, color: 'rgba(135, 206, 250, 0.7)' });
   }
 
-  const getCauseOfDeath = (playerId: string): 'werewolf_kill' | 'vote_result' | 'vampire_kill' | 'other' => {
-    // Find the most recent event related to this player's death
+ const getCauseOfDeath = (playerId: string): GameEvent['type'] | 'other' => {
     const deathEvent = events
-        .filter(e =>
-            (e.type === 'night_result' && e.data?.killedPlayerIds?.includes(playerId)) ||
-            (e.type === 'vote_result' && e.data?.lynchedPlayerId === playerId) ||
-            ((e.type === 'hunter_shot' || e.type === 'special' || e.type === 'vampire_kill') && (e.data?.killedPlayerId === playerId || (e.data?.killedPlayerIds && e.data.killedPlayerIds.includes(playerId))))
-        )
-        .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())[0];
+        .find(e => (e.type === 'werewolf_kill' || e.type === 'vampire_kill' || e.type === 'hunter_shot' || e.type === 'vote_result' || e.type === 'special' || e.type === 'troublemaker_duel') && e.data?.killedPlayerId === playerId);
 
-    if (deathEvent) {
-        if (deathEvent.type === 'vote_result') return 'vote_result';
-        if (deathEvent.type === 'night_result') return 'werewolf_kill';
-        if (deathEvent.type === 'vampire_kill') return 'vampire_kill';
-    }
-    return 'other';
+    return deathEvent?.type || 'other';
   };
-  
+
   const playersWithDeathCause = players.map(p => ({
     ...p,
     causeOfDeath: !p.isAlive ? getCauseOfDeath(p.userId) : undefined,
@@ -426,3 +402,5 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </>
   );
 }
+
+    

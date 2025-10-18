@@ -463,7 +463,7 @@ function handleDrunkManWin(transaction: Transaction, gameRef: DocumentReference,
 function killPlayer(
     gameData: Game,
     playerIdsToKill: string[],
-    cause: 'vampire' | 'werewolf_kill' | 'other' = 'other'
+    cause: 'vampire_kill' | 'werewolf_kill' | 'hunter_shot' | 'troublemaker_duel' | 'special' | 'other'
 ): { updatedGame: Game; triggeredHunterId: string | null; gameOver: boolean; } {
     let triggeredHunterId: string | null = null;
     let gameOver = false;
@@ -494,17 +494,15 @@ function killPlayer(
         
         gameData.players[playerIndex].isAlive = false;
         
-        if (cause === 'vampire') {
-             gameData.events.push({
-                id: `evt_vampire_kill_${Date.now()}_${playerIdToKill}`,
-                gameId: gameData.id!,
-                round: gameData.currentRound,
-                type: 'vampire_kill',
-                message: `${playerToKill.displayName} ha sido desangrado por un vampiro.`,
-                data: { killedPlayerId: playerIdToKill },
-                createdAt: Timestamp.now(),
-            });
-        }
+        gameData.events.push({
+            id: `evt_kill_${cause}_${Date.now()}_${playerIdToKill}`,
+            gameId: gameData.id!,
+            round: gameData.currentRound,
+            type: cause,
+            message: `${playerToKill.displayName} ha sido eliminado.`,
+            data: { killedPlayerId: playerIdToKill, cause },
+            createdAt: Timestamp.now(),
+        });
         
         if (playerToKill.role === 'seer') gameData.seerDied = true;
         if (playerToKill.role === 'hunter' && gameData.settings.hunter && !triggeredHunterId) {
@@ -850,7 +848,7 @@ export async function processNight(db: Firestore, gameId: string) {
             // Process vampire kills separately to assign correct cause
             let vampireKillResult: ReturnType<typeof killPlayer> = { updatedGame: game, triggeredHunterId: null, gameOver: false };
             if (vampireKilledPlayerIds.length > 0) {
-                vampireKillResult = killPlayer(game, vampireKilledPlayerIds, 'vampire');
+                vampireKillResult = killPlayer(game, vampireKilledPlayerIds, 'vampire_kill');
                 game = vampireKillResult.updatedGame;
             }
 
@@ -1045,7 +1043,7 @@ export async function processVotes(db: Firestore, gameId: string) {
           if (lynchedPlayer.role === 'wolf_cub' && game.settings.wolf_cub) {
             game.wolfCubRevengeRound = game.currentRound + 1;
           }
-          const { gameOver, updatedGame } = killPlayer(game, [lynchedPlayerId]);
+          const { gameOver, updatedGame } = killPlayer(game, [lynchedPlayerId], 'vote_result');
           game = updatedGame; 
           if (gameOver) {
             const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
@@ -1138,22 +1136,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 throw new Error("No es tu momento de disparar.");
             }
             
-            const hunterPlayer = game.players.find(p => p.userId === hunterId)!;
-            const targetPlayer = game.players.find(p => p.userId === targetId)!;
-
-            const shotEvent: GameEvent = {
-                id: `evt_huntershot_${Date.now()}`,
-                gameId,
-                round: game.currentRound,
-                type: 'hunter_shot',
-                message: `En su último aliento, ${hunterPlayer.displayName} dispara y se lleva consigo a ${targetPlayer.displayName}.`,
-                createdAt: Timestamp.now(),
-                data: {killedPlayerId: targetId},
-            };
-            
-            game.events.push(shotEvent);
-            
-            const { gameOver, updatedGame } = killPlayer(game, [targetId]);
+            const { gameOver, updatedGame } = killPlayer(game, [targetId], 'hunter_shot');
             game = updatedGame; // Use the updated state
 
             if (gameOver) {
@@ -1930,19 +1913,8 @@ export async function submitTroublemakerAction(
       if (!target1 || !target2 || !target1.isAlive || !target2.isAlive) {
         throw new Error("Los objetivos seleccionados no son válidos.");
       }
-
-      const event: GameEvent = {
-        id: `evt_trouble_${Date.now()}`,
-        gameId,
-        round: game.currentRound,
-        type: 'special',
-        message: `${player.displayName} ha provocado una pelea mortal. ${target1.displayName} y ${target2.displayName} han sido eliminados.`,
-        createdAt: Timestamp.now(),
-        data: { eliminated: [target1Id, target2Id] }
-      };
-      game.events.push(event);
-
-      const { gameOver, updatedGame } = killPlayer(game, [target1Id, target2Id]);
+      
+      const { gameOver, updatedGame } = killPlayer(game, [target1Id, target2Id], 'troublemaker_duel');
       game = updatedGame; // Use updated state
 
       if (gameOver) {
@@ -1981,3 +1953,5 @@ export async function submitTroublemakerAction(
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
+
+    

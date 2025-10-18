@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { Player } from "@/types";
+import type { Player, GameEvent } from "@/types";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -15,7 +15,7 @@ import type { SVGProps } from "react";
 import { VampireIcon } from "../icons";
 
 interface PlayerCardProps {
-  player: Player & { causeOfDeath?: 'werewolf_kill' | 'vote_result' | 'lover_death' | 'vampire_kill' | 'other' };
+  player: Player & { causeOfDeath?: GameEvent['type'] | 'other' };
   onClick?: () => void;
   isClickable?: boolean;
   isSelected?: boolean;
@@ -60,16 +60,23 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
               <Gavel className={cn(iconClasses, "text-amber-800")} />
             </div>
           );
-        case 'lover_death':
-            return (
-            <div className={baseClasses}>
-                <HeartCrack className={cn(iconClasses, "text-pink-400")} />
-            </div>
-            );
         case 'vampire_kill':
              return (
             <div className={baseClasses}>
                 <VampireIcon className={cn(iconClasses, "text-red-900")} />
+            </div>
+            );
+        case 'hunter_shot':
+        case 'troublemaker_duel':
+             return (
+            <div className={baseClasses}>
+                <Skull className={cn(iconClasses, "text-destructive")} />
+            </div>
+            );
+        case 'special':
+             return (
+            <div className={baseClasses}>
+                <HeartCrack className={cn(iconClasses, "text-pink-400")} />
             </div>
             );
         default:
@@ -152,3 +159,5 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
     </TooltipProvider>
   );
 }
+
+    

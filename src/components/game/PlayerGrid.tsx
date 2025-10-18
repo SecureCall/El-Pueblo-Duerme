@@ -1,11 +1,11 @@
 
 "use client";
 
-import type { Player } from "@/types";
+import type { Player, GameEvent } from "@/types";
 import { PlayerCard } from "./PlayerCard";
 
 interface PlayerGridProps {
-    players: (Player & { causeOfDeath?: 'werewolf_kill' | 'vote_result' | 'lover_death' | 'vampire_kill' | 'other' })[];
+    players: (Player & { causeOfDeath?: GameEvent['type'] | 'other' })[];
     onPlayerClick?: (player: Player) => void;
     clickable?: boolean;
     selectedPlayerIds?: string[];
@@ -41,3 +41,5 @@ export function PlayerGrid({
     </div>
   );
 }
+
+    
