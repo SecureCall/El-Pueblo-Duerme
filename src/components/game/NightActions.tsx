@@ -254,7 +254,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     };
     
     const otherWerewolves = isWerewolfTeam
-        ? players.filter(p => ['werewolf', 'wolf_cub'].includes(p.role || '') && p.userId !== currentPlayer.userId) 
+        ? players.filter(p => p.isAlive && ['werewolf', 'wolf_cub'].includes(p.role || '') && p.userId !== currentPlayer.userId) 
         : [];
     
     const getActionPrompt = () => {
