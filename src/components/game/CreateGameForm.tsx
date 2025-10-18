@@ -42,7 +42,6 @@ interface CreateGameFormValues {
   seer: boolean;
   doctor: boolean;
   hunter: boolean;
-  cupid: boolean;
   guardian: boolean;
   priest: boolean;
   prince: boolean;
@@ -73,7 +72,7 @@ interface CreateGameFormValues {
 }
 
 const implementedRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[] = [
-    'seer', 'doctor', 'hunter', 'cupid', 'guardian', 'priest', 'prince', 'lycanthrope', 'twin', 
+    'seer', 'doctor', 'hunter', 'guardian', 'priest', 'prince', 'lycanthrope', 'twin', 
     'hechicera', 'wolf_cub', 'cursed', 'cult_leader', 'fisherman', 'vampire', 'ghost', 'virginia_woolf',
     'leprosa', 'river_siren', 'lookout', 'troublemaker', 'silencer', 'seer_apprentice',
     'elder_leader', 'seeker_fairy', 'sleeping_fairy', 'shapeshifter', 'witch', 'banshee', 'drunk_man',
@@ -97,7 +96,6 @@ export function CreateGameForm() {
       seer: true,
       doctor: true,
       hunter: true,
-      cupid: true,
       hechicera: true,
       guardian: true,
       prince: true,
@@ -169,7 +167,8 @@ export function CreateGameForm() {
         fillWithAI: settings.fillWithAI,
         isPublic: settings.isPublic,
         werewolves: Math.max(1, Math.floor(data.maxPlayers / 5)),
-        ...sanitizedRoles
+        ...sanitizedRoles,
+        cupid: false, // Ensure cupid is always false
     };
     
     const response = await createGame(
@@ -348,3 +347,5 @@ export function CreateGameForm() {
     </Card>
   );
 }
+
+    

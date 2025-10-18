@@ -16,7 +16,7 @@ const TimestampSchema = z.union([
 
 
 export const PlayerRoleSchema = z.enum([
-  "villager", "seer", "doctor", "hunter", "cupid", "guardian", "priest", "prince", "lycanthrope", "twin",
+  "villager", "seer", "doctor", "hunter", "guardian", "priest", "prince", "lycanthrope", "twin",
   "hechicera", "ghost", "virginia_woolf", "leprosa", "river_siren", "lookout", "troublemaker",
   "silencer", "seer_apprentice", "elder_leader", "werewolf", "wolf_cub", "cursed", "seeker_fairy",
   "sleeping_fairy", "shapeshifter", "drunk_man", "cult_leader", "fisherman", "vampire", "witch", "banshee",
@@ -56,7 +56,7 @@ export const NightActionSchema = z.object({
   round: z.number(),
   playerId: z.string(),
   actionType: z.enum([
-    "werewolf_kill", "seer_check", "doctor_heal", "cupid_enchant", "hechicera_poison", 
+    "werewolf_kill", "seer_check", "doctor_heal", "hechicera_poison", 
     "hechicera_save", "guardian_protect", "priest_bless", "vampire_bite", "cult_recruit", 
     "fisherman_catch", "shapeshifter_select", "virginia_woolf_link", "river_siren_charm",
     "silencer_silence", "elder_leader_exile", "witch_hunt", "banshee_scream", "lookout_spy",
@@ -168,3 +168,5 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
+
+    

@@ -11,7 +11,6 @@ export type PlayerRole =
   "seer" | 
   "doctor" | 
   "hunter" | 
-  "cupid" |
   "guardian" |
   "priest" |
   "prince" |
@@ -148,7 +147,6 @@ export type NightActionType =
   "werewolf_kill" | 
   "seer_check" | 
   "doctor_heal" | 
-  "cupid_enchant" | 
   "hechicera_poison" | 
   "hechicera_save" | 
   "guardian_protect" | 
@@ -211,3 +209,5 @@ export interface GenerateAIChatMessageOutput {
     message: string;
     shouldSend: boolean;
 };
+
+    

@@ -28,7 +28,7 @@ const loboRoleKeys: NonNullable<PlayerRole>[] = [
 ];
 
 const especialRoleKeys: NonNullable<PlayerRole>[] = [
-    'cupid', 'shapeshifter', 'drunk_man', 'cult_leader', 'fisherman', 'vampire', 'banshee'
+    'shapeshifter', 'drunk_man', 'cult_leader', 'fisherman', 'vampire', 'banshee'
 ];
 
 
@@ -181,3 +181,5 @@ export default function HowToPlayPage() {
         </>
     );
 }
+
+    
