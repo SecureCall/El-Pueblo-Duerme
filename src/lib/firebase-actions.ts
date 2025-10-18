@@ -1020,7 +1020,7 @@ export async function processVotes(db: Firestore, gameId: string) {
           const { gameOver, updatedGame } = killPlayer(game, [lynchedPlayerId], 'vote_result');
           game = updatedGame; 
           
-          const killedPlayer = game.players.find(p => p.userId === lynchedPlayerId)!;
+          const killedPlayer = game.players.find(p => !p.isAlive && p.userId === lynchedPlayerId)!;
           game.events.push({
               id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result',
               message: `${killedPlayer.displayName} fue linchado por el pueblo. Su rol era: ${roleDetails[killedPlayer.role!]?.name || 'desconocido'}.`,
@@ -1960,3 +1960,5 @@ export async function submitTroublemakerAction(
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
+
+    
