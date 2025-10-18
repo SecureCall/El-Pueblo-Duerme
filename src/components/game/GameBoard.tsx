@@ -189,7 +189,10 @@ export function GameBoard({ game: initialGame, players: initialPlayers, currentP
                 return <VampireKillOverlay angelInPlay={isAngelInPlay} />;
             case 'werewolf_kill':
                 return <YouAreDeadOverlay angelInPlay={isAngelInPlay} />;
-            default: // troublemaker_duel, special, other
+            case 'troublemaker_duel':
+            case 'special':
+            case 'other':
+            default:
                 return <YouAreDeadOverlay angelInPlay={isAngelInPlay} />;
         }
     };
@@ -402,3 +405,4 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </>
   );
 }
+

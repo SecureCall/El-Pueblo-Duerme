@@ -282,7 +282,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             case 'lookout': return 'Puedes arriesgarte a espiar a los lobos. Si tienes éxito, los conocerás. Si fallas, morirás.';
             case 'seeker_fairy': return game.fairiesFound ? '¡Has encontrado al Hada Durmiente!' : 'Elige a un jugador para saber si es el Hada Durmiente.';
             case 'sleeping_fairy': return game.fairiesFound ? '¡El Hada Buscadora te ha encontrado!' : 'Duermes, esperando una conexión mágica.';
-            case 'resurrector_angel': return 'Elige a un jugador muerto para devolverle la vida. Solo puedes usar este poder una vez.';
+            case 'resurrector_angel': return isResurrectorAngel ? 'Elige a un jugador muerto para devolverle la vida. Solo puedes usar este poder una vez.' : 'Ya has usado tu poder de resurrección.';
             default: return 'No tienes acciones esta noche. Espera al amanecer.';
         }
     }
