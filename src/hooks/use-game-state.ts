@@ -40,7 +40,7 @@ const getMillis = (timestamp: any): number => {
 interface InitialState {
     initialGame: Game;
     initialPlayers: Player[];
-    initialCurrentPlayer: Player;
+    initialCurrentPlayer: Player | null;
     initialEvents: GameEvent[];
     initialMessages: ChatMessage[];
     initialWolfMessages: ChatMessage[];
@@ -78,7 +78,7 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
         return;
     };
 
-    if (!initialState) setLoading(true);
+    setLoading(true);
 
     const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
@@ -135,9 +135,7 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
     return () => {
       unsubscribeGame();
     };
-  }, [gameId, firestore, gameRef, userId, initialState]);
+  }, [gameId, firestore, gameRef, userId]);
 
   return { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loading, error };
 };
-
-    

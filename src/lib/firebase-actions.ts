@@ -50,6 +50,9 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     guardianSelfProtects: 0,
     biteCount: 0,
     isCultMember: false,
+    shapeshifterTargetId: null,
+    virginiaWoolfTargetId: null,
+    riverSirenTargetId: null,
     ghostMessageSent: false,
     resurrectorAngelUsed: false,
     lookoutUsed: false,
@@ -96,7 +99,6 @@ export async function createGame(
           werewolves: werewolfCount,
       },
       pendingHunterShot: null,
-      lovers: null,
       twins: null,
       wolfCubRevengeRound: 0,
       nightActions: [],
@@ -431,48 +433,6 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
   }
 }
 
-export async function submitCupidAction(db: Firestore, gameId: string, cupidId: string, target1Id: string, target2Id: string) {
-    const gameRef = doc(db, 'games', gameId);
-    try {
-        await runTransaction(db, async (transaction) => {
-            const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found");
-            
-            const game = gameSnap.data() as Game;
-            const currentNightActions = game.nightActions || [];
-            
-            const newAction: NightAction = {
-                gameId,
-                round: 1,
-                playerId: cupidId,
-                actionType: 'cupid_enchant',
-                targetId: `${target1Id}|${target2Id}`,
-                createdAt: Timestamp.now(),
-            };
-
-            // Read-modify-write for nightActions
-            transaction.update(gameRef, {
-                lovers: [target1Id, target2Id],
-                nightActions: arrayUnion(newAction)
-            });
-        });
-
-        return { success: true };
-    } catch (error) {
-        if ((error as any).code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({
-                path: gameRef.path,
-                operation: 'update',
-                requestResourceData: { lovers: [target1Id, target2Id] },
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            return { error: "Permiso denegado al elegir enamorados." };
-        }
-        console.error("Error submitting cupid action: ", error);
-        return { error: "No se pudo registrar tu acción." };
-    }
-}
-
 function handleDrunkManWin(transaction: Transaction, gameRef: DocumentReference, gameData: Game, drunkPlayer: Player) {
     const gameOverEvent: GameEvent = {
         id: `evt_gameover_${Date.now()}`,
@@ -573,7 +533,6 @@ function killPlayer(
             }
         };
 
-        checkAndQueueChainDeath(gameData.lovers, playerToKill, 'lover_death', '{otherName} no pudo soportar la pérdida de {victimName} y ha muerto de desamor.');
         checkAndQueueChainDeath(gameData.twins, playerToKill, 'special', 'Tras la muerte de {victimName}, su gemelo/a {otherName} muere de pena.');
         
         const virginiaLinker = gameData.players.find(p => p.role === 'virginia_woolf' && p.userId === playerToKill.userId);
@@ -625,17 +584,6 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
         }
     }
     
-    if (gameData.lovers && alivePlayers.length === 2 && alivePlayers.every(p => gameData.lovers!.includes(p.userId))) {
-        const lover1 = gameData.players.find(p => p.userId === gameData.lovers![0]);
-        const lover2 = gameData.players.find(p => p.userId === gameData.lovers![1]);
-        return {
-            isGameOver: true,
-            winnerCode: 'lovers',
-            message: `¡Los enamorados han ganado! Desafiando a sus bandos, ${lover1?.displayName} y ${lover2?.displayName} han triunfado solos contra el mundo.`,
-            winners: gameData.lovers
-        };
-    }
-
     if (gameData.settings.cult_leader && aliveCultMembers.length > 0 && aliveCultMembers.length === alivePlayers.length) {
          const cultLeader = gameData.players.find(p => p.role === 'cult_leader');
          return {
@@ -755,6 +703,24 @@ export async function processNight(db: Firestore, gameId: string) {
             let savedPlayerIds: string[] = [];
             let fishermanDied = false;
 
+            // Process Resurrection first
+            const resurrectAction = actions.find(a => a.actionType === 'resurrect');
+            if (resurrectAction) {
+                const targetIndex = game.players.findIndex(p => p.userId === resurrectAction.targetId);
+                if (targetIndex > -1 && !game.players[targetIndex].isAlive) {
+                    game.players[targetIndex].isAlive = true;
+                    game.events.push({
+                        id: `evt_resurrect_${Date.now()}`,
+                        gameId,
+                        round: game.currentRound,
+                        type: 'special',
+                        message: `¡Un milagro! ${game.players[targetIndex].displayName} ha sido devuelto a la vida por el Ángel Resucitador.`,
+                        data: { resurrectedPlayerId: resurrectAction.targetId },
+                        createdAt: Timestamp.now(),
+                    });
+                }
+            }
+
             const savedByDoctorId = actions.find(a => a.actionType === 'doctor_heal')?.targetId || null;
             const savedByHechiceraId = actions.find(a => a.actionType === 'hechicera_save')?.targetId || null;
             const savedByGuardianId = actions.find(a => a.actionType === 'guardian_protect')?.targetId || null;
@@ -787,24 +753,6 @@ export async function processNight(db: Firestore, gameId: string) {
                     }
                 }
             });
-
-            // Process Resurrection
-            const resurrectAction = actions.find(a => a.actionType === 'resurrect');
-            if (resurrectAction) {
-                const targetIndex = game.players.findIndex(p => p.userId === resurrectAction.targetId);
-                if (targetIndex > -1 && !game.players[targetIndex].isAlive) {
-                    game.players[targetIndex].isAlive = true;
-                    game.events.push({
-                        id: `evt_resurrect_${Date.now()}`,
-                        gameId,
-                        round: game.currentRound,
-                        type: 'special',
-                        message: `¡Un milagro! ${game.players[targetIndex].displayName} ha sido devuelto a la vida por el Ángel Resucitador.`,
-                        data: { resurrectedPlayerId: resurrectAction.targetId },
-                        createdAt: Timestamp.now(),
-                    });
-                }
-            }
 
             const lookoutAction = actions.find(a => a.actionType === 'lookout_spy');
             if (lookoutAction) {
@@ -876,8 +824,6 @@ export async function processNight(db: Firestore, gameId: string) {
                     if (mostVotedPlayerIds.length > 0 && maxVotes > 0) {
                         if (mostVotedPlayerIds.length <= killCount) {
                             targetsToKill = mostVotedPlayerIds;
-                        } else { 
-                             targetsToKill = [];
                         }
                     }
                      if (isFairyKill) game.fairyKillUsed = true;
@@ -935,9 +881,9 @@ export async function processNight(db: Firestore, gameId: string) {
                 message: '', data: {}, createdAt: Timestamp.now(),
             };
             
-            const newlyKilledPlayers = game.players.filter((p) => {
-                const oldPlayerState = initialPlayerState.find(ip => ip.userId === p.userId);
-                return !p.isAlive && (oldPlayerState?.isAlive ?? true);
+            const newlyKilledPlayers = game.players.filter((p, i) => {
+                 const oldPlayerState = initialPlayerState.find(ip => ip.userId === p.userId);
+                 return !p.isAlive && (oldPlayerState?.isAlive ?? true);
             });
 
             const killedPlayerDetails = newlyKilledPlayers.map(p => `${p.displayName} (que era ${roleDetails[p.role!]?.name || 'un rol desconocido'})`);
@@ -1277,7 +1223,8 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
 const getDeterministicAIAction = (
     aiPlayer: Player,
     game: Game,
-    alivePlayers: Player[]
+    alivePlayers: Player[],
+    deadPlayers: Player[],
 ): { actionType: NightActionType | 'VOTE' | 'SHOOT' | 'NONE', targetId: string } => {
     const { role, userId } = aiPlayer;
     const { currentRound } = game;
@@ -1347,6 +1294,13 @@ const getDeterministicAIAction = (
             if (!aiPlayer.priestSelfHealUsed && Math.random() < 0.2) return { actionType: 'priest_bless', targetId: userId };
             return { actionType: 'priest_bless', targetId: randomTarget(potentialTargets) };
         }
+        case 'resurrector_angel': {
+            if (game.phase === 'day') return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
+            if (!aiPlayer.resurrectorAngelUsed && deadPlayers.length > 0) {
+                 return { actionType: 'resurrect', targetId: randomTarget(deadPlayers, 1) };
+            }
+            return { actionType: 'NONE', targetId: '' };
+        }
          case 'vampire': {
             if (game.phase === 'day') return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
             const biteableTargets = potentialTargets.filter(p => (p.biteCount || 0) < 3);
@@ -1405,6 +1359,7 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
         });
 
         const alivePlayers = game.players.filter(p => p.isAlive);
+        const deadPlayers = game.players.filter(p => !p.isAlive);
         const nightActions = game.nightActions?.filter(a => a.round === game.currentRound) || [];
 
         for (const ai of aiPlayers) {
@@ -1416,7 +1371,7 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
             
             if (phase === 'hunter_shot' && ai.userId !== game.pendingHunterShot) continue;
             
-            const { actionType, targetId } = getDeterministicAIAction(ai, game, alivePlayers);
+            const { actionType, targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
 
             if (!actionType || actionType === 'NONE' || !targetId) continue;
 
@@ -1437,6 +1392,7 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
                 case 'fairy_kill':
                 case 'witch_hunt':
                 case 'banshee_scream':
+                case 'resurrect':
                     await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
                     break;
                 case 'VOTE':
@@ -1839,7 +1795,6 @@ export async function resetGame(db: Firestore, gameId: string) {
                 fairyChatMessages: [],
                 twinChatMessages: [],
                 nightActions: [],
-                lovers: null,
                 twins: null,
                 pendingHunterShot: null,
                 wolfCubRevengeRound: 0,
@@ -2021,6 +1976,3 @@ export async function submitTroublemakerAction(
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
-
-
-      

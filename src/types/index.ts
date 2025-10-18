@@ -67,7 +67,6 @@ export interface Game {
     seer: boolean;
     doctor: boolean;
     hunter: boolean;
-    cupid: boolean;
     guardian: boolean;
     priest: boolean;
     prince: boolean;
@@ -97,7 +96,6 @@ export interface Game {
     resurrector_angel: boolean;
   };
   phaseEndsAt?: Timestamp;
-  lovers: [string, string] | null;
   twins: [string, string] | null;
   pendingHunterShot: string | null; // userId of the hunter who needs to shoot
   wolfCubRevengeRound: number; // The round where werewolves get an extra kill
@@ -180,7 +178,7 @@ export interface GameEvent {
     id: string; // unique id for the event, can be generated on client
     gameId: string;
     round: number;
-    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot' | 'player_transformed' | 'behavior_clue' | 'special' | 'vampire_kill';
+    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'hunter_shot' | 'player_transformed' | 'behavior_clue' | 'special' | 'vampire_kill';
     message: string;
     data?: any;
     createdAt: Timestamp;
@@ -209,5 +207,3 @@ export interface GenerateAIChatMessageOutput {
     message: string;
     shouldSend: boolean;
 };
-
-    
