@@ -437,6 +437,7 @@ export async function submitCupidAction(db: Firestore, gameId: string, cupidId: 
         await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
+            
             const game = gameSnap.data() as Game;
             const currentNightActions = game.nightActions || [];
             
@@ -449,6 +450,7 @@ export async function submitCupidAction(db: Firestore, gameId: string, cupidId: 
                 createdAt: Timestamp.now(),
             };
 
+            // Read-modify-write for nightActions
             transaction.update(gameRef, {
                 lovers: [target1Id, target2Id],
                 nightActions: arrayUnion(newAction)
@@ -503,7 +505,7 @@ function killPlayer(
     playerIdsToKill: string[],
     cause: 'vampire' | 'wolf' | 'other' = 'other'
 ): { updatedGame: Game; triggeredHunterId: string | null; gameOver: boolean; } {
-    let hunterTriggeredId: string | null = null;
+    let triggeredHunterId: string | null = null;
     let gameOver = false;
     
     const killQueue = [...new Set(playerIdsToKill)];
@@ -517,7 +519,6 @@ function killPlayer(
         }
 
         const playerIndex = gameData.players.findIndex(p => p.userId === playerIdToKill);
-
         if (playerIndex === -1 || !gameData.players[playerIndex].isAlive) {
             continue;
         }
@@ -546,8 +547,8 @@ function killPlayer(
         }
         
         if (playerToKill.role === 'seer') gameData.seerDied = true;
-        if (playerToKill.role === 'hunter' && gameData.settings.hunter && !hunterTriggeredId) {
-            hunterTriggeredId = playerToKill.userId;
+        if (playerToKill.role === 'hunter' && gameData.settings.hunter && !triggeredHunterId) {
+            triggeredHunterId = playerToKill.userId;
         }
         if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) gameData.wolfCubRevengeRound = gameData.currentRound + 1;
         if (playerToKill.role === 'leprosa' && gameData.settings.leprosa) gameData.leprosaBlockedRound = gameData.currentRound + 1;
@@ -594,12 +595,12 @@ function killPlayer(
         }
     }
     
-    if (hunterTriggeredId) {
-        gameData.pendingHunterShot = hunterTriggeredId;
+    if (triggeredHunterId) {
+        gameData.pendingHunterShot = triggeredHunterId;
         gameData.phase = 'hunter_shot';
     }
 
-    return { updatedGame: gameData, triggeredHunterId: hunterTriggeredId, gameOver };
+    return { updatedGame: gameData, triggeredHunterId: triggeredHunterId, gameOver };
 }
 
 
@@ -1824,20 +1825,8 @@ export async function resetGame(db: Firestore, gameId: string) {
             const humanPlayers = game.players.filter(p => !p.isAI);
 
             const resetHumanPlayers = humanPlayers.map(player => ({
-                ...player,
-                role: null,
-                isAlive: true,
-                votedFor: null,
-                lastHealedRound: 0,
-                potions: { poison: null, save: null },
-                priestSelfHealUsed: false,
-                princeRevealed: false,
-                guardianSelfProtects: 0,
-                biteCount: 0,
-                isCultMember: false,
-                ghostMessageSent: false,
-                lookoutUsed: false,
-                bansheeScreams: {},
+                ...createPlayerObject(player.userId, game.id, player.displayName, player.isAI),
+                joinedAt: player.joinedAt, // Keep original join time
             }));
 
             transaction.update(gameRef, {
@@ -1857,6 +1846,14 @@ export async function resetGame(db: Firestore, gameId: string) {
                 players: resetHumanPlayers, 
                 vampireKills: 0,
                 boat: [],
+                leprosaBlockedRound: 0,
+                witchFoundSeer: false,
+                seerDied: false,
+                silencedPlayerId: null,
+                exiledPlayerId: null,
+                troublemakerUsed: false,
+                fairiesFound: false,
+                fairyKillUsed: false,
             });
         });
         return { success: true };
@@ -2024,3 +2021,6 @@ export async function submitTroublemakerAction(
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
+
+
+      
