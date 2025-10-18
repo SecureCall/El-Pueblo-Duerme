@@ -510,10 +510,12 @@ function killPlayer(
         if (playerToKill.role === 'hunter' && gameData.settings.hunter && !triggeredHunterId) {
             triggeredHunterId = playerToKill.userId;
         }
-        if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) gameData.wolfCubRevengeRound = gameData.currentRound + 1;
+        if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) {
+            gameData.wolfCubRevengeRound = gameData.currentRound;
+        }
         if (playerToKill.role === 'leprosa' && gameData.settings.leprosa) gameData.leprosaBlockedRound = gameData.currentRound + 1;
 
-        const checkAndQueueChainDeath = (linkedIds: string[] | null | undefined, deadPlayer: Player, eventType: 'lover_death' | 'special', messageTemplate: string) => {
+        const checkAndQueueChainDeath = (linkedIds: string[] | null | undefined, deadPlayer: Player, eventType: 'special', messageTemplate: string) => {
             if (!linkedIds || !linkedIds.includes(deadPlayer.userId)) return;
 
             const otherId = linkedIds.find(id => id !== deadPlayer.userId);
@@ -818,7 +820,7 @@ export async function processNight(db: Firestore, gameId: string) {
                     }
 
                     const isFairyKill = actions.some(a => a.actionType === 'fairy_kill');
-                    const killCount = (game.wolfCubRevengeRound === game.currentRound + 1) ? 2 : 1;
+                    const killCount = (game.wolfCubRevengeRound === game.currentRound) ? 2 : 1;
                     
                     let targetsToKill: string[] = [];
                     if (mostVotedPlayerIds.length > 0 && maxVotes > 0) {
@@ -922,7 +924,8 @@ export async function processNight(db: Firestore, gameId: string) {
                     players: game.players,
                     events: game.events,
                     phase: 'hunter_shot',
-                    pendingHunterShot: game.pendingHunterShot
+                    pendingHunterShot: game.pendingHunterShot,
+                    wolfCubRevengeRound: game.wolfCubRevengeRound,
                 });
                 return;
             }
@@ -1066,7 +1069,7 @@ export async function processVotes(db: Firestore, gameId: string) {
 
       if (game.phase === 'hunter_shot') {
         transaction.update(gameRef, {
-          players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot
+          players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot, wolfCubRevengeRound: game.wolfCubRevengeRound,
         });
         return;
       }
@@ -1081,6 +1084,7 @@ export async function processVotes(db: Firestore, gameId: string) {
         pendingHunterShot: null,
         silencedPlayerId: null, // Reset silenced player for the new night
         exiledPlayerId: null, // Reset exiled player for the new night
+        wolfCubRevengeRound: game.wolfCubRevengeRound,
       });
     });
 
@@ -1167,7 +1171,8 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                     players: game.players,
                     events: game.events,
                     phase: 'hunter_shot',
-                    pendingHunterShot: game.pendingHunterShot
+                    pendingHunterShot: game.pendingHunterShot,
+                    wolfCubRevengeRound: game.wolfCubRevengeRound,
                 });
                 return;
             }
@@ -1184,7 +1189,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                     createdAt: Timestamp.now(),
                 };
                 game.events.push(gameOverEvent);
-                transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: game.events });
+                transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: game.events, wolfCubRevengeRound: game.wolfCubRevengeRound });
                 return;
             }
             
@@ -1206,6 +1211,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 phase: nextPhase,
                 currentRound: nextRound,
                 pendingHunterShot: null,
+                wolfCubRevengeRound: game.wolfCubRevengeRound,
             });
         });
         return { success: true };
@@ -1229,7 +1235,7 @@ const getDeterministicAIAction = (
     const { role, userId } = aiPlayer;
     const { currentRound } = game;
     const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed'];
-    const wolfCubRevengeActive = game.wolfCubRevengeRound === game.currentRound + 1;
+    const wolfCubRevengeActive = game.wolfCubRevengeRound === game.currentRound;
     const apprenticeIsActive = role === 'seer_apprentice' && game.seerDied;
     const canFairiesKill = game.fairiesFound && !game.fairyKillUsed && (role === 'seeker_fairy' || role === 'sleeping_fairy');
 
