@@ -1,4 +1,5 @@
 
+
 import { z } from 'zod';
 
 // Helper for Firebase Timestamps - now accepting string for client-server transfer
@@ -171,3 +172,5 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
+
+    

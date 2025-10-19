@@ -19,6 +19,8 @@ import { FirestorePermissionError } from "@/firebase/errors";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { roleDetails } from "@/lib/roles";
 
+const PHASE_DURATION_SECONDS = 45;
+
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
@@ -707,22 +709,6 @@ export async function processNight(db: Firestore, gameId: string) {
                 console.log(`Skipping night process, phase is '${game.phase}'.`);
                 return;
             }
-
-            // First round special actions (Cupid)
-            if (game.currentRound === 1 && game.settings.cupid) {
-                const cupidAction = game.nightActions?.find(a => a.round === 1 && a.actionType === 'cupid_love');
-                if (cupidAction) {
-                    const loverIds = cupidAction.targetId.split('|') as [string, string];
-                    if (loverIds.length === 2) {
-                        game.players.forEach(p => {
-                            if (loverIds.includes(p.userId)) {
-                                p.isLover = true;
-                            }
-                        });
-                        game.lovers = loverIds;
-                    }
-                }
-            }
             
             game.nightActions = game.nightActions || [];
             game.events = game.events || [];
@@ -897,8 +883,7 @@ export async function processNight(db: Firestore, gameId: string) {
             }
 
             game.players.forEach(p => p.votedFor = null);
-            const phaseDurationSeconds = 45;
-            const phaseEndsAt = Timestamp.fromMillis(Date.now() + phaseDurationSeconds * 1000);
+            const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
             
             transaction.update(gameRef, {
                 players: game.players,
@@ -1027,8 +1012,7 @@ export async function processVotes(db: Firestore, gameId: string) {
       }
 
       game.players.forEach(p => { p.votedFor = null; });
-      const phaseDurationSeconds = 45;
-      const phaseEndsAt = Timestamp.fromMillis(Date.now() + phaseDurationSeconds * 1000);
+      const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
       
       transaction.update(gameRef, {
         players: game.players,
@@ -1142,8 +1126,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             const nextRound = nextPhase === 'night' ? game.currentRound + 1 : game.currentRound;
 
             game.players.forEach(p => { p.votedFor = null; });
-            const phaseDurationSeconds = 45;
-            const phaseEndsAt = Timestamp.fromMillis(Date.now() + phaseDurationSeconds * 1000);
+            const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
             
             transaction.update(gameRef, {
                 players: game.players,
@@ -1166,6 +1149,19 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
         return { success: false, error: error.message || "No se pudo registrar el disparo." };
     }
 }
+
+export async function runAIActions(db: Firestore, gameId: string, phase: Game['phase']) {
+  // This function is now a NO-OP. The logic has been centralized in GameBoard.
+}
+
+async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: string, mentionedPlayerId?: string) {
+    // This function is now a NO-OP. The logic has been centralized in GameBoard.
+}
+
+async function triggerAIAwake(db: Firestore, gameId: string, trigger: string) {
+   // This function is now a NO-OP. The logic has been centralized in GameBoard.
+}
+
 
 export async function submitVote(db: Firestore, gameId: string, voterId: string, targetId: string) {
     const gameRef = doc(db, 'games', gameId);
@@ -1206,24 +1202,7 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             transaction.update(gameRef, { players: game.players });
         });
         
-        // After vote, immediately check if phase should end
-        const finalGameSnap = await getDoc(gameRef);
-        if (finalGameSnap.exists()) {
-             const game = finalGameSnap.data() as Game;
-            const aliveHumanPlayers = game.players.filter(p => p.isAlive && !p.isAI);
-            if (aliveHumanPlayers.every(p => p.votedFor)) {
-                await processVotes(db, gameId);
-            }
-        }
-
-        if (voterName && targetName) {
-             const allPlayers = ((await getDoc(gameRef)).data() as Game).players || [];
-             for (const p of allPlayers) {
-                if (p.isAI && p.isAlive) {
-                     await triggerAIChat(db, gameId, `${voterName} ha votado por ${targetName}.`, p.userId);
-                }
-            }
-        }
+        // Let the timer handle the phase end.
 
         return { success: true };
     } catch (error: any) {
@@ -1285,16 +1264,6 @@ export async function sendChatMessage(
                 chatMessages: arrayUnion(messageData)
             });
         });
-
-        if (!isFromAI && latestGame) {
-            const triggerMessage = `${senderName} dijo: "${text.trim()}"`;
-            for (const p of latestGame.players) {
-                if (p.isAI && p.isAlive && p.userId !== senderId && mentionedPlayerIds.includes(p.userId)) {
-                    // This function is not awaited, runs in the background.
-                    triggerAIChat(db, gameId, triggerMessage, p.userId);
-                }
-            }
-        }
 
         return { success: true };
 
@@ -1466,11 +1435,10 @@ export async function setPhaseToNight(db: Firestore, gameId: string) {
     const game = gameSnap.data() as Game;
 
     if (game.phase === 'role_reveal') {
-        const phaseDurationSeconds = 45;
-        const phaseEndsAt = Timestamp.fromMillis(Date.now() + phaseDurationSeconds * 1000);
+        const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
         let updateData: Partial<Game> = { phase: 'night', phaseEndsAt };
         
-        if (game.settings.cupid) {
+        if (game.settings.cupid && game.currentRound === 1) {
             const cupidAction = game.nightActions?.find(a => a.round === 1 && a.actionType === 'cupid_love');
             if (cupidAction) {
                 const loverIds = cupidAction.targetId.split('|') as [string, string];
@@ -1615,3 +1583,5 @@ export async function submitTroublemakerAction(
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
+
+    
