@@ -1,5 +1,4 @@
 
-
 import { z } from 'zod';
 
 // Helper for Firebase Timestamps - now accepting string for client-server transfer
@@ -12,7 +11,7 @@ const TimestampSchema = z.union([
     message: "Invalid date string format",
   }), // ISO 8601 string
   z.date(), // Accept Date objects as well
-]);
+]).nullable();
 
 
 export const PlayerRoleSchema = z.enum([
@@ -172,5 +171,3 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
-
-    

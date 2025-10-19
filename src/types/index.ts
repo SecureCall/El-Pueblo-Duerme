@@ -100,7 +100,7 @@ export interface Game {
     cupid: boolean;
     executioner: boolean;
   };
-  phaseEndsAt?: Timestamp;
+  phaseEndsAt?: Timestamp | null;
   twins: [string, string] | null;
   lovers: [string, string] | null;
   pendingHunterShot: string | null; // userId of the hunter who needs to shoot
@@ -216,5 +216,3 @@ export interface GenerateAIChatMessageOutput {
     message: string;
     shouldSend: boolean;
 };
-
-    

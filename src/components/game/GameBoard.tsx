@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { useEffect, useState, useRef } from "react";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
-import { processNight, processVotes, runAIActions, setPhaseToNight } from "@/lib/firebase-actions";
+import { processNight, processVotes, setPhaseToNight } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { Heart, Moon, Sun, Users2, Wand2 } from "lucide-react";
@@ -27,6 +27,8 @@ import { FairyChat } from "./FairyChat";
 import { VampireKillOverlay } from "./VampireKillOverlay";
 import { useGameState } from "@/hooks/use-game-state";
 import { LoversChat } from "./LoversChat";
+
+const PHASE_DURATION_SECONDS = 45;
 
 interface GameBoardProps {
   game: Game;
@@ -133,7 +135,7 @@ export function GameBoard({
         setDeathCause(getCauseOfDeath(currentPlayer.userId));
 
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
-
+  
   // Effect for creator to automatically advance from role_reveal
   useEffect(() => {
     if (!game || !currentPlayer) return;
@@ -146,17 +148,38 @@ export function GameBoard({
     }
   }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, firestore]);
   
-   const handleTimerEnd = async () => {
+   const handlePhaseEnd = async () => {
     if (!firestore || !game || game.status !== 'in_progress') return; 
     
-    // The server-side function will handle the idempotency.
     // Any active client can trigger the phase end.
+    // The backend functions (processVotes/processNight) MUST be idempotent.
     if (game.phase === 'day') {
         await processVotes(firestore, game.id);
     } else if (game.phase === 'night') {
         await processNight(firestore, game.id);
     }
   };
+
+  useEffect(() => {
+      if (!game || !game.phaseEndsAt || game.status !== 'in_progress' || (game.phase !== 'day' && game.phase !== 'night')) {
+          return;
+      }
+      
+      const endTime = game.phaseEndsAt.toMillis();
+      const now = Date.now();
+      
+      if (now >= endTime) {
+          handlePhaseEnd();
+          return;
+      }
+
+      const timeout = setTimeout(() => {
+          handlePhaseEnd();
+      }, endTime - now);
+
+      return () => clearTimeout(timeout);
+  }, [game?.phaseEndsAt, game?.id, game?.phase]);
+
 
   if (!game || !currentPlayer) {
       return null;
@@ -208,7 +231,6 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
   const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
   const behaviorClueEvent = events.find(e => e.type === 'behavior_clue' && e.round === game.currentRound -1);
-  const { firestore } = useFirebase();
 
   const getPhaseTitle = () => {
     switch(game.phase) {
@@ -228,18 +250,6 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
           default: return null;
       }
   }
-  
-  const handleTimerEnd = async () => {
-    if (!firestore || !game || game.status !== 'in_progress') return; 
-    
-    // The server-side function will handle the idempotency.
-    // Any active client can trigger the phase end.
-    if (game.phase === 'day') {
-        await processVotes(firestore, game.id);
-    } else if (game.phase === 'night') {
-        await processNight(firestore, game.id);
-    }
-  };
   
   const isTwin = currentPlayer?.role === 'twin' && !!game.twins?.includes(currentPlayer.userId);
   const otherTwinId = isTwin ? game.twins!.find(id => id !== currentPlayer!.userId) : null;
@@ -301,8 +311,8 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
           </div>
            { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && (
             <PhaseTimer 
-                timerKey={`${game.id}-${game.phase}-${game.currentRound}`}
-                onTimerEnd={handleTimerEnd}
+                phaseEndsAt={game.phaseEndsAt}
+                phaseDuration={PHASE_DURATION_SECONDS}
             />
           )}
         </CardHeader>

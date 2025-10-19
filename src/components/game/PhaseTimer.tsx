@@ -1,50 +1,35 @@
 
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import * as React from "react"
 import { Progress } from '../ui/progress';
 
 interface PhaseTimerProps {
-    onTimerEnd: () => void;
-    timerKey: string;
+    phaseEndsAt?: { seconds: number; nanoseconds: number; } | null;
+    phaseDuration: number;
 }
 
-export function PhaseTimer({ onTimerEnd, timerKey }: PhaseTimerProps) {
-    const duration = 45; // Day and Night are both 45s
+export function PhaseTimer({ phaseEndsAt, phaseDuration }: PhaseTimerProps) {
+    const [timeLeft, setTimeLeft] = React.useState(phaseDuration);
 
-    const [timeLeft, setTimeLeft] = useState(duration);
-    const onTimerEndRef = useRef(onTimerEnd);
+    React.useEffect(() => {
+        if (!phaseEndsAt) {
+            setTimeLeft(phaseDuration);
+            return;
+        }
 
-    // Keep the onTimerEnd callback fresh without causing re-renders.
-    useEffect(() => {
-        onTimerEndRef.current = onTimerEnd;
-    }, [onTimerEnd]);
-
-    useEffect(() => {
-        setTimeLeft(duration);
+        const endTime = new Date(phaseEndsAt.seconds * 1000 + phaseEndsAt.nanoseconds / 1000000);
         
-        if (duration <= 0) return;
-
         const interval = setInterval(() => {
-            setTimeLeft(prev => {
-                if (prev <= 1) {
-                    clearInterval(interval);
-                    // Prevent multiple rapid calls
-                    if (timeLeft > 0) { 
-                        onTimerEndRef.current();
-                    }
-                    return 0;
-                }
-                return prev - 1;
-            });
+            const now = new Date();
+            const remaining = Math.max(0, Math.round((endTime.getTime() - now.getTime()) / 1000));
+            setTimeLeft(remaining);
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [timerKey, duration, timeLeft]); 
+    }, [phaseEndsAt, phaseDuration]);
 
-    if (duration <= 0) return null;
-
-    const progress = (timeLeft / duration) * 100;
+    const progress = (timeLeft / phaseDuration) * 100;
 
     return (
         <div className="w-full">
