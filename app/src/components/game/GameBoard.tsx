@@ -5,10 +5,10 @@ import type { Game, Player, GameEvent, ChatMessage } from "@/types";
 import { RoleReveal } from "./RoleReveal";
 import { PlayerGrid } from "./PlayerGrid";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
-import { processNight, processVotes, setPhaseToNight, triggerAIVote, runAIActions } from "@/lib/firebase-actions";
+import { processNight, processVotes, setPhaseToNight, triggerAIVote } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { Heart, Moon, Sun, Users2, Wand2 } from "lucide-react";
@@ -40,7 +40,7 @@ interface GameBoardProps {
   loversMessages: ChatMessage[];
 }
 
-const handlePhaseEnd = async (firestore: any, game: Game, currentPlayer: Player) => {
+const handlePhaseEnd = async (firestore: any, game: Game | null, currentPlayer: Player | null) => {
     if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId) return;
 
     if (game.phase === 'day') {
@@ -162,18 +162,18 @@ export function GameBoard({
   }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, firestore]);
   
   useEffect(() => {
-    if (!game?.phaseEndsAt || !firestore || !currentPlayer) {
+    if (!game?.phaseEndsAt || !firestore) {
       setTimeLeft(0);
       return;
     }
 
     const interval = setInterval(() => {
       const now = Date.now();
-      const endTime = game.phaseEndsAt!.toMillis();
+      const endTime = game.phaseEndsAt.toMillis();
       const remaining = Math.max(0, endTime - now);
       setTimeLeft(Math.round(remaining / 1000));
 
-      if (remaining <= 0 && game.creator === currentPlayer.userId) {
+      if (remaining <= 0 && game.creator === currentPlayer?.userId) {
         handlePhaseEnd(firestore, game, currentPlayer);
         clearInterval(interval); 
       }
@@ -408,5 +408,3 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
-
-    

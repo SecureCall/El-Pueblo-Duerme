@@ -138,6 +138,7 @@ export interface Player {
   biteCount: number;
   isCultMember: boolean;
   isLover: boolean;
+  usedNightAbility: boolean;
   // New role-specific fields
   shapeshifterTargetId?: string | null;
   virginiaWoolfTargetId?: string | null;
@@ -216,5 +217,3 @@ export interface GenerateAIChatMessageOutput {
     message: string;
     shouldSend: boolean;
 };
-
-    
