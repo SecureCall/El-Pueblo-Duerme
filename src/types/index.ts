@@ -146,7 +146,7 @@ export interface Player {
   resurrectorAngelUsed?: boolean;
   bansheeScreams?: Record<number, string>; // round: targetId
   lookoutUsed?: boolean;
-  executionerTargetId?: string | null;
+  executionerTargetId: string | null;
 }
 
 export type NightActionType = 

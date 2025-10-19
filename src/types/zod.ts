@@ -50,7 +50,7 @@ export const PlayerSchema = z.object({
   resurrectorAngelUsed: z.boolean().optional(),
   bansheeScreams: z.record(z.string()).optional(),
   lookoutUsed: z.boolean().optional(),
-  executionerTargetId: z.string().nullable().optional(),
+  executionerTargetId: z.string().nullable(),
 });
 
 export const NightActionSchema = z.object({

@@ -243,7 +243,7 @@ const generateRoles = (playerCount: number, settings: Game['settings']): (Player
     roles = roles.slice(0, playerCount);
 
     const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
-    const hasWolfRole = roles.some(r => wolfRoles.includes(r));
+    const hasWolfRole = roles.some(r => r && wolfRoles.includes(r));
     
     if (!hasWolfRole && playerCount > 0) {
         const villagerIndex = roles.indexOf('villager');
@@ -316,7 +316,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
             if (executioner) {
                 const nonWolfPlayers = assignedPlayers.filter(p => {
                     const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
-                    return !wolfRoles.includes(p.role) && p.userId !== executioner.userId;
+                    return p.role && !wolfRoles.includes(p.role) && p.userId !== executioner.userId;
                 });
                 if (nonWolfPlayers.length > 0) {
                     const target = nonWolfPlayers[Math.floor(Math.random() * nonWolfPlayers.length)];
@@ -802,7 +802,7 @@ export async function processNight(db: Firestore, gameId: string) {
             }
 
             if (game.leprosaBlockedRound !== game.currentRound) {
-                const wolfKillActions = actions.filter(a => a.actionType === 'werewolf_kill' || a.actionType === 'fairy_kill');
+                const wolfKillActions = actions.filter(a => a.actionType === 'werewolf_kill');
                 if (wolfKillActions.length > 0) {
                      const killCount = (game.wolfCubRevengeRound === game.currentRound) ? 2 : 1;
                      const targets = new Set<string>();
@@ -811,10 +811,15 @@ export async function processNight(db: Firestore, gameId: string) {
                      const targetsToKill = Array.from(targets).slice(0, killCount);
                      targetsToKill.forEach(id => {
                         allKilledPlayerIds.push(id);
-                        deathCauses[id] = a.actionType === 'fairy_kill' ? 'special' : 'werewolf_kill';
+                        deathCauses[id] = 'werewolf_kill';
                      });
-
-                     if (actions.some(a => a.actionType === 'fairy_kill')) game.fairyKillUsed = true;
+                }
+                const fairyKillAction = actions.find(a => a.actionType === 'fairy_kill');
+                if (fairyKillAction) {
+                    const targetId = fairyKillAction.targetId;
+                     allKilledPlayerIds.push(targetId);
+                     deathCauses[targetId] = 'special';
+                     game.fairyKillUsed = true;
                 }
             }
             
@@ -1630,10 +1635,11 @@ export async function resetGame(db: Firestore, gameId: string) {
 
             const humanPlayers = game.players.filter(p => !p.isAI);
 
-            const resetHumanPlayers = humanPlayers.map(player => ({
-                ...createPlayerObject(player.userId, game.id, player.displayName, player.isAI),
-                joinedAt: player.joinedAt, 
-            }));
+            const resetHumanPlayers = humanPlayers.map(player => {
+                const newPlayer = createPlayerObject(player.userId, game.id, player.displayName, player.isAI);
+                newPlayer.joinedAt = player.joinedAt;
+                return newPlayer;
+            });
 
             transaction.update(gameRef, {
                 status: 'waiting',
