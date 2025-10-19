@@ -282,7 +282,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         name: "Verdugo",
         description: "Al inicio de la partida se te asigna un objetivo secreto del pueblo. Tu único objetivo es convencer a los demás para que linchen a ese jugador. Si lo consigues, ganas la partida en solitario.",
         atmosphere: "La justicia, por tus manos, es ciega y caprichosa.",
-        image: "/roles/executioner.png",
+        image: "/roles/verdugo.png",
         color: "text-gray-400",
         bgImageId: "role-bg-hunter"
     },
