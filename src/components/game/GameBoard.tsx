@@ -39,6 +39,16 @@ interface GameBoardProps {
   loversMessages: ChatMessage[];
 }
 
+const handlePhaseEnd = async (firestore: any, game: Game, currentPlayer: Player) => {
+    if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId) return;
+
+    if (game.phase === 'day') {
+        await processVotes(firestore, game.id);
+    } else if (game.phase === 'night') {
+        await processNight(firestore, game.id);
+    }
+};
+
 export function GameBoard({ 
     game: initialGame, 
     players: initialPlayers, 
@@ -68,19 +78,6 @@ export function GameBoard({
   const [deathCause, setDeathCause] = useState<GameEvent['type'] | 'other' | null>(null);
   const nightSoundsPlayedForRound = useRef<number>(0);
   const [timeLeft, setTimeLeft] = useState(0);
-  const phaseEndHandled = useRef(false);
-
-  const handlePhaseEnd = useCallback(async () => {
-    if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId || phaseEndHandled.current) return;
-    phaseEndHandled.current = true;
-
-    if (game.phase === 'day') {
-        await processVotes(firestore, game.id);
-    } else if (game.phase === 'night') {
-        await processNight(firestore, game.id);
-    }
-  }, [firestore, game, currentPlayer]);
-
 
   // Sound effect logic
   useEffect(() => {
@@ -88,7 +85,6 @@ export function GameBoard({
     const prevPhase = prevPhaseRef.current;
 
     if (prevPhase !== game.phase) {
-       phaseEndHandled.current = false; // Reset handler on phase change
       switch (game.phase) {
         case 'night':
           if (game.currentRound === 1 && prevPhase === 'role_reveal') {
@@ -164,10 +160,13 @@ export function GameBoard({
   }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, firestore]);
   
   useEffect(() => {
-    if (!game?.phaseEndsAt) {
+    if (!game?.phaseEndsAt || !firestore || !currentPlayer) {
       setTimeLeft(0);
       return;
     }
+
+    const phaseEndHandledForThisPhase = `${game.id}-${game.phase}-${game.currentRound}`;
+    let hasRun = false;
 
     const interval = setInterval(() => {
       const now = Date.now();
@@ -175,13 +174,14 @@ export function GameBoard({
       const remaining = Math.max(0, endTime - now);
       setTimeLeft(Math.round(remaining / 1000));
 
-      if (remaining <= 0 && !phaseEndHandled.current) {
-        handlePhaseEnd();
+      if (remaining <= 0 && !hasRun) {
+        hasRun = true; // Prevents multiple executions
+        handlePhaseEnd(firestore, game, currentPlayer);
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [game?.phaseEndsAt, game?.id, handlePhaseEnd]);
+  }, [game?.phaseEndsAt, game?.id, game?.phase, game?.currentRound, firestore, currentPlayer]);
 
   if (!game || !currentPlayer) {
       return null;
@@ -409,4 +409,4 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
-    
+  

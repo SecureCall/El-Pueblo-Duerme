@@ -1,4 +1,3 @@
-
 'use client';
 import { 
   doc,
@@ -482,23 +481,6 @@ function killPlayer(
         alreadyProcessed.add(playerIdToKill);
         const playerToKill = { ...gameData.players[playerIndex] };
         
-        // Shapeshifter Logic
-        const shapeshifterIndex = gameData.players.findIndex(p => p.role === 'shapeshifter' && p.shapeshifterTargetId === playerIdToKill);
-        if (shapeshifterIndex !== -1 && playerToKill.role) {
-            const newRole = playerToKill.role;
-            gameData.players[shapeshifterIndex].role = newRole;
-            gameData.players[shapeshifterIndex].shapeshifterTargetId = null; // Transformation complete
-            gameData.events.push({
-                id: `evt_transform_${Date.now()}_${gameData.players[shapeshifterIndex].userId}`,
-                gameId: gameData.id!,
-                round: gameData.currentRound,
-                type: 'player_transformed',
-                message: `¡Has cambiado de forma! Ahora eres: ${roleDetails[newRole]?.name || 'un rol desconocido'}.`,
-                data: { targetId: gameData.players[shapeshifterIndex].userId, newRole: newRole }, // Make it a targeted event
-                createdAt: Timestamp.now(),
-            });
-        }
-        
         gameData.players[playerIndex].isAlive = false;
         
         gameData.events.push({
@@ -772,12 +754,11 @@ export async function processNight(db: Firestore, gameId: string) {
             const savedByPriestId = actions.find(a => a.actionType === 'priest_bless')?.targetId || null;
             const allProtectedIds = new Set([savedByDoctorId, savedByHechiceraId, savedByGuardianId, savedByPriestId].filter(Boolean) as string[]);
             
-            actions.filter(a => ['cult_recruit', 'shapeshifter_select', 'virginia_woolf_link', 'river_siren_charm', 'silencer_silence', 'elder_leader_exile', 'witch_hunt', 'fairy_find', 'banshee_scream'].includes(a.actionType)).forEach(action => {
+            actions.filter(a => ['cult_recruit', 'virginia_woolf_link', 'river_siren_charm', 'silencer_silence', 'elder_leader_exile', 'witch_hunt', 'fairy_find', 'banshee_scream'].includes(a.actionType)).forEach(action => {
                  const playerIndex = game.players.findIndex(p => p.userId === action.playerId);
                 const targetIndex = game.players.findIndex(p => p.userId === action.targetId);
                 if (playerIndex > -1) {
                     if(action.actionType === 'cult_recruit' && targetIndex > -1) game.players[targetIndex].isCultMember = true;
-                    if(action.actionType === 'shapeshifter_select') game.players[playerIndex].shapeshifterTargetId = action.targetId;
                     if(action.actionType === 'virginia_woolf_link') game.players[playerIndex].virginiaWoolfTargetId = action.targetId;
                     if(action.actionType === 'river_siren_charm') game.players[playerIndex].riverSirenTargetId = action.targetId;
                     if(action.actionType === 'silencer_silence') game.silencedPlayerId = action.targetId;
@@ -869,6 +850,21 @@ export async function processNight(db: Firestore, gameId: string) {
                     game = updatedGame;
                     if (triggeredHunterId) game.pendingHunterShot = triggeredHunterId;
                  }
+            }
+
+            // Shapeshifter transform on night death
+            const shapeshifterAction = actions.find(a => a.actionType === 'shapeshifter_select');
+            if (shapeshifterAction) {
+                const targetPlayer = game.players.find(p => p.userId === shapeshifterAction.targetId);
+                const shifter = game.players.find(p => p.userId === shapeshifterAction.playerId);
+                if (targetPlayer && !targetPlayer.isAlive && shifter && shifter.isAlive && shifter.role === 'shapeshifter' && targetPlayer.role) {
+                     const shifterIndex = game.players.findIndex(p => p.userId === shifter.userId);
+                     if(shifterIndex > -1) {
+                        game.players[shifterIndex].role = targetPlayer.role;
+                        game.players[shifterIndex].shapeshifterTargetId = null;
+                        game.events.push({ id: `evt_transform_${Date.now()}_${shifter.userId}`, gameId, round: game.currentRound, type: 'player_transformed', message: `¡Has cambiado de forma! Ahora eres: ${roleDetails[targetPlayer.role]?.name || 'un rol desconocido'}.`, data: { targetId: shifter.userId, newRole: targetPlayer.role }, createdAt: Timestamp.now() });
+                     }
+                }
             }
             
             let gameOverInfo = checkGameOver(game);
@@ -998,6 +994,17 @@ export async function processVotes(db: Firestore, gameId: string) {
         const potentialLynchedId = mostVotedPlayerIds[0];
         lynchedPlayerObject = game.players.find(p => p.userId === potentialLynchedId);
         
+        // Handle shapeshifter transformation on lynch
+        const shapeshifterIndex = game.players.findIndex(p => p.role === 'shapeshifter' && p.isAlive && p.shapeshifterTargetId === potentialLynchedId);
+        if (shapeshifterIndex !== -1 && lynchedPlayerObject?.role) {
+            const shifter = game.players[shapeshifterIndex];
+            const newRole = lynchedPlayerObject.role;
+            game.players[shapeshifterIndex].role = newRole;
+            game.players[shapeshifterIndex].shapeshifterTargetId = null;
+             game.events.push({ id: `evt_transform_${Date.now()}_${shifter.userId}`, gameId, round: game.currentRound, type: 'player_transformed', message: `¡Has cambiado de forma! Ahora eres: ${roleDetails[newRole]?.name || 'un rol desconocido'}.`, data: { targetId: shifter.userId, newRole }, createdAt: Timestamp.now() });
+        }
+
+
         if (lynchedPlayerObject?.role === 'prince' && game.settings.prince && !lynchedPlayerObject.princeRevealed) {
             const playerIndex = game.players.findIndex(p => p.userId === potentialLynchedId);
             if (playerIndex > -1) game.players[playerIndex].princeRevealed = true;
@@ -1859,5 +1866,3 @@ export async function runAIActions(db: Firestore, gameId: string) {
     }
 }
   
-
-    

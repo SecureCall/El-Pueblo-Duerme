@@ -144,7 +144,7 @@ export interface Player {
   riverSirenTargetId?: string | null;
   ghostMessageSent?: boolean;
   resurrectorAngelUsed?: boolean;
-  bansheeScreams?: Record<number, string>; // round: targetId
+  bansheeScreams?: Record<string, string>; // round: targetId
   lookoutUsed?: boolean;
   executionerTargetId: string | null;
 }
@@ -216,5 +216,3 @@ export interface GenerateAIChatMessageOutput {
     message: string;
     shouldSend: boolean;
 };
-
-    
