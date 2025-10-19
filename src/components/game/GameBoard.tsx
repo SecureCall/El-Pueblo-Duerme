@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -89,7 +88,7 @@ export function GameBoard({
     const prevPhase = prevPhaseRef.current;
 
     if (prevPhase !== game.phase) {
-       phaseEndHandled.current = false;
+       phaseEndHandled.current = false; // Reset handler on phase change
       switch (game.phase) {
         case 'night':
           if (game.currentRound === 1 && prevPhase === 'role_reveal') {
@@ -176,8 +175,7 @@ export function GameBoard({
       const remaining = Math.max(0, endTime - now);
       setTimeLeft(Math.round(remaining / 1000));
 
-      if (remaining <= 0) {
-        clearInterval(interval);
+      if (remaining <= 0 && !phaseEndHandled.current) {
         handlePhaseEnd();
       }
     }, 1000);
@@ -411,3 +409,4 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
+    

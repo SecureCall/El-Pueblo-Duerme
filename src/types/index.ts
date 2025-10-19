@@ -216,3 +216,5 @@ export interface GenerateAIChatMessageOutput {
     message: string;
     shouldSend: boolean;
 };
+
+    

@@ -1,4 +1,3 @@
-
 'use client';
 import { 
   doc,
@@ -1207,16 +1206,6 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             
             transaction.update(gameRef, { players: game.players });
         });
-
-        // After the vote is successfully committed, check if the phase should end.
-        const finalGameSnap = await getDoc(gameRef);
-        if (finalGameSnap.exists()) {
-             const game = finalGameSnap.data() as Game;
-             const alivePlayers = game.players.filter(p => p.isAlive);
-             if (alivePlayers.every(p => p.votedFor)) {
-                 await processVotes(db, gameId);
-             }
-        }
         
         if (!isFromAI && voterName && targetName) {
             await triggerAIChat(db, gameId, `${voterName} ha votado por ${targetName}.`);
@@ -1820,11 +1809,13 @@ const getDeterministicAIAction = (
     }
 };
 
-export async function runAIActions(db: Firestore, gameId: string, phase: Game['phase']) {
+export async function runAIActions(db: Firestore, gameId: string) {
     try {
         const gameDoc = await getDoc(doc(db, 'games', gameId));
         if (!gameDoc.exists()) return;
         const game = gameDoc.data() as Game;
+
+        if(game.phase !== 'night') return;
 
         const aiPlayers = game.players.filter(p => p.isAI && p.isAlive);
         const alivePlayers = game.players.filter(p => p.isAlive);
@@ -1832,52 +1823,19 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
         const nightActions = game.nightActions?.filter(a => a.round === game.currentRound) || [];
 
         for (const ai of aiPlayers) {
-            const hasActed = phase === 'night' 
-                ? nightActions.some(a => a.playerId === ai.userId)
-                : ai.votedFor;
+            const hasActed = nightActions.some(a => a.playerId === ai.userId);
             
             if (hasActed) continue;
             
             const { actionType, targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
 
-            if (!actionType || actionType === 'NONE' || !targetId) continue;
+            if (!actionType || actionType === 'NONE' || !targetId || actionType === 'VOTE' || actionType === 'SHOOT') continue;
 
             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
-
-            switch(actionType) {
-                case 'werewolf_kill':
-                case 'seer_check':
-                case 'doctor_heal':
-                case 'guardian_protect':
-                case 'priest_bless':
-                case 'vampire_bite':
-                case 'cult_recruit':
-                case 'fisherman_catch':
-                case 'silencer_silence':
-                case 'elder_leader_exile':
-                case 'fairy_find':
-                case 'fairy_kill':
-                case 'witch_hunt':
-                case 'banshee_scream':
-                case 'resurrect':
-                case 'cupid_love':
-                case 'shapeshifter_select':
-                case 'virginia_woolf_link':
-                case 'river_siren_charm':
-                case 'hechicera_poison':
-                case 'hechicera_save':
-                    await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
-                    break;
-                case 'VOTE':
-                    // Voting is triggered by triggerAIVote
-                    break;
-
-                case 'SHOOT':
-                    if (phase === 'hunter_shot' && ai.userId === game.pendingHunterShot) await submitHunterShot(db, gameId, ai.userId, targetId);
-                    break;
-            }
+            await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
         }
     } catch(e) {
         console.error("Error in AI Actions:", e);
     }
 }
+    
