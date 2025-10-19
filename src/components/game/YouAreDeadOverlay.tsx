@@ -21,7 +21,7 @@ export function YouAreDeadOverlay({ angelInPlay }: YouAreDeadOverlayProps) {
 
     useEffect(() => {
         if(isVisible) {
-            const timer = setTimeout(() => setIsVisible(false), 8000); // Increased time
+            const timer = setTimeout(() => setIsVisible(false), 8000); 
             return () => clearTimeout(timer);
         }
     }, [isVisible]);

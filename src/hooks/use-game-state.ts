@@ -46,6 +46,7 @@ interface InitialState {
     initialWolfMessages: ChatMessage[];
     initialFairyMessages: ChatMessage[];
     initialTwinMessages: ChatMessage[];
+    initialLoversMessages: ChatMessage[];
 }
 
 export const useGameState = (gameId: string, initialState?: InitialState) => {
@@ -60,6 +61,7 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
   const [wolfMessages, setWolfMessages] = useState<ChatMessage[]>(initialState?.initialWolfMessages ?? []);
   const [fairyMessages, setFairyMessages] = useState<ChatMessage[]>(initialState?.initialFairyMessages ?? []);
   const [twinMessages, setTwinMessages] = useState<ChatMessage[]>(initialState?.initialTwinMessages ?? []);
+  const [loversMessages, setLoversMessages] = useState<ChatMessage[]>(initialState?.initialLoversMessages ?? []);
   const [loading, setLoading] = useState(!initialState);
   const [error, setError] = useState<string | null>(null);
 
@@ -108,6 +110,10 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
           (gameData.twinChatMessages || [])
             .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
         );
+        setLoversMessages(
+          (gameData.loversChatMessages || [])
+            .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
+        );
 
         setError(null);
       } else {
@@ -120,6 +126,7 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
         setWolfMessages([]);
         setFairyMessages([]);
         setTwinMessages([]);
+        setLoversMessages([]);
       }
       setLoading(false);
     }, (err: FirestoreError) => {
@@ -137,5 +144,7 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
     };
   }, [gameId, firestore, gameRef, userId]);
 
-  return { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loading, error };
+  return { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, loading, error };
 };
+
+    

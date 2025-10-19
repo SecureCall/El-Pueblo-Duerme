@@ -11,7 +11,7 @@ import { NightActions } from "./NightActions";
 import { processNight, processVotes, runAIActions, advanceToNightPhase } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
-import { Moon, Sun, Users2, Wand2 } from "lucide-react";
+import { Heart, Moon, Sun, Users2, Wand2 } from "lucide-react";
 import { HunterShot } from "./HunterShot";
 import { GameChronicle } from "./GameChronicle";
 import { PhaseTimer } from "./PhaseTimer";
@@ -26,6 +26,7 @@ import { TwinChat } from "./TwinChat";
 import { FairyChat } from "./FairyChat";
 import { VampireKillOverlay } from "./VampireKillOverlay";
 import { useGameState } from "@/hooks/use-game-state";
+import { LoversChat } from "./LoversChat";
 
 interface GameBoardProps {
   game: Game;
@@ -36,11 +37,22 @@ interface GameBoardProps {
   wolfMessages: ChatMessage[];
   fairyMessages: ChatMessage[];
   twinMessages: ChatMessage[];
+  loversMessages: ChatMessage[];
 }
 
-export function GameBoard({ game: initialGame, players: initialPlayers, currentPlayer: initialCurrentPlayer, events: initialEvents, messages: initialMessages, wolfMessages: initialWolfMessages, fairyMessages: initialFairyMessages, twinMessages: initialTwinMessages }: GameBoardProps) {
+export function GameBoard({ 
+    game: initialGame, 
+    players: initialPlayers, 
+    currentPlayer: initialCurrentPlayer, 
+    events: initialEvents, 
+    messages: initialMessages, 
+    wolfMessages: initialWolfMessages, 
+    fairyMessages: initialFairyMessages, 
+    twinMessages: initialTwinMessages,
+    loversMessages: initialLoversMessages
+}: GameBoardProps) {
   const { firestore } = useFirebase();
-  const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages } = useGameState(initialGame.id, {
+  const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages } = useGameState(initialGame.id, {
     initialGame,
     initialPlayers,
     initialCurrentPlayer,
@@ -49,6 +61,7 @@ export function GameBoard({ game: initialGame, players: initialPlayers, currentP
     initialWolfMessages,
     initialFairyMessages,
     initialTwinMessages,
+    initialLoversMessages,
   });
   
   const prevPhaseRef = useRef<Game['phase']>();
@@ -66,32 +79,23 @@ export function GameBoard({ game: initialGame, players: initialPlayers, currentP
         case 'night':
           if (game.currentRound === 1 && prevPhase === 'role_reveal') {
              playNarration('intro_epica.mp3');
-             playNarration('noche_pueblo_duerme.mp3');
+             setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 4000);
           } else {
             playNarration('noche_pueblo_duerme.mp3');
           }
           break;
         case 'day':
           playNarration('dia_pueblo_despierta.mp3');
-          playNarration('inicio_debate.mp3');
+          setTimeout(() => playNarration('inicio_debate.mp3'), 2000);
           break;
-        case 'voting':
-           playNarration('inicio_votacion.mp3');
-           break;
       }
     }
     
     prevPhaseRef.current = game.phase;
 
-    // Specific useEffect for night result sounds based on new events
     const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
     if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
-        const newlyKilledPlayers = game.players.filter((p) => {
-            const oldPlayerState = players.find(op => op.userId === p.userId);
-            return !p.isAlive && (oldPlayerState?.isAlive ?? true);
-        });
-
-        const hasDeaths = newlyKilledPlayers.length > 0;
+        const hasDeaths = (nightEvent.data?.killedPlayerIds?.length || 0) > 0;
         const wasSaved = !hasDeaths && ((nightEvent.data?.savedPlayerIds?.length || 0) > 0);
         
         setTimeout(() => {
@@ -100,13 +104,12 @@ export function GameBoard({ game: initialGame, players: initialPlayers, currentP
             } else if (wasSaved) {
                 playNarration('¡Milagro!.mp3');
             }
-        }, 2500); // Delay to allow 'despierta' to finish
-        nightSoundsPlayedForRound.current = game.currentRound; // Mark as played for this round
+        }, 3000); 
+        nightSoundsPlayedForRound.current = game.currentRound; 
     }
 
-  }, [game?.phase, game?.currentRound, events, game?.players, players]);
+  }, [game?.phase, game?.currentRound, events, players]);
 
-     // Effect to check if the current player has died and by what cause
     useEffect(() => {
         if (!currentPlayer || currentPlayer.isAlive) {
             setDeathCause(null);
@@ -115,7 +118,7 @@ export function GameBoard({ game: initialGame, players: initialPlayers, currentP
 
         const deathEvent = [...events]
             .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
-            .find(e => (e.data?.killedPlayerIds || []).includes(currentPlayer.userId));
+            .find(e => e.data?.killedPlayerIds?.includes(currentPlayer.userId));
 
         setDeathCause(deathEvent?.type || 'other');
 
@@ -124,7 +127,6 @@ export function GameBoard({ game: initialGame, players: initialPlayers, currentP
   // Handle AI actions when phase changes
   useEffect(() => {
     if (!game || !currentPlayer) return;
-    // Only the creator should trigger AI actions to avoid multiple executions
     if (game.creator === currentPlayer.userId && firestore) {
       if ((game.phase === 'night' || game.phase === 'day' || game.phase === 'hunter_shot') && game.settings.fillWithAI) {
          runAIActions(firestore, game.id, game.phase);
@@ -138,7 +140,7 @@ export function GameBoard({ game: initialGame, players: initialPlayers, currentP
     if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore) {
       const timer = setTimeout(() => {
         advanceToNightPhase(firestore, game.id);
-      }, 15000); // 15 seconds to view role
+      }, 15000); 
 
       return () => clearTimeout(timer);
     }
@@ -148,16 +150,10 @@ export function GameBoard({ game: initialGame, players: initialPlayers, currentP
     if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId) return; 
     
     if (game.phase === 'day' && game.status === 'in_progress') {
-        console.log("Creator fallback timer ended for day, processing votes.");
         await processVotes(firestore, game.id);
     } else if (game.phase === 'night' && game.status === 'in_progress') {
-        console.log("Creator fallback timer ended for night, processing night.");
         await processNight(firestore, game.id);
     }
-  };
-
-  const handleAcknowledgeRole = async () => {
-      setShowRole(false);
   };
 
   if (!game || !currentPlayer) {
@@ -172,23 +168,18 @@ export function GameBoard({ game: initialGame, players: initialPlayers, currentP
   }
 
   if (currentPlayer && currentPlayer.role && game.phase === 'role_reveal' && showRole) {
-      return <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />;
+      return <RoleReveal player={currentPlayer} onAcknowledge={() => setShowRole(false)} />;
   }
 
-  // Show a non-blocking "You are dead" overlay if the current player is not alive
   if (!currentPlayer.isAlive && game.status === 'in_progress') {
      const isAngelInPlay = !!(game.settings.resurrector_angel && players.some(p => p.role === 'resurrector_angel' && p.isAlive && !p.resurrectorAngelUsed));
      
      const renderDeathOverlay = () => {
         switch (deathCause) {
-            case 'vote_result':
-                return <BanishedOverlay angelInPlay={isAngelInPlay} />;
-            case 'hunter_shot':
-                return <HunterKillOverlay angelInPlay={isAngelInPlay} />;
-            case 'vampire_kill':
-                return <VampireKillOverlay angelInPlay={isAngelInPlay} />;
-            case 'werewolf_kill':
-                return <YouAreDeadOverlay angelInPlay={isAngelInPlay} />;
+            case 'vote_result': return <BanishedOverlay angelInPlay={isAngelInPlay} />;
+            case 'hunter_shot': return <HunterKillOverlay angelInPlay={isAngelInPlay} />;
+            case 'vampire_kill': return <VampireKillOverlay angelInPlay={isAngelInPlay} />;
+            case 'werewolf_kill': return <YouAreDeadOverlay angelInPlay={isAngelInPlay} />;
             case 'troublemaker_duel':
             case 'special':
             case 'other':
@@ -199,24 +190,20 @@ export function GameBoard({ game: initialGame, players: initialPlayers, currentP
     return (
         <>
             {renderDeathOverlay()}
-            <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
-                <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} currentPlayer={currentPlayer} />
-            </div>
+            <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} currentPlayer={currentPlayer} />
         </>
     );
   }
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
-       <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} currentPlayer={currentPlayer} />
-    </div>
+    <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} currentPlayer={currentPlayer} />
   );
 }
 
 
-// A simplified version of the board for spectating, without interactive elements.
-function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, currentPlayer }: GameBoardProps) {
+function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, currentPlayer }: GameBoardProps) {
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
+  const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
   const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
   const behaviorClueEvent = events.find(e => e.type === 'behavior_clue' && e.round === game.currentRound -1);
   const { firestore } = useFirebase();
@@ -243,12 +230,9 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
   const handleTimerEnd = async () => {
     if (!firestore) return;
 
-    // Any player can trigger phase end. Backend functions prevent race conditions.
     if (game.phase === 'day' && game.status === 'in_progress') {
-        console.log("Fallback timer ended for day, processing votes.");
         await processVotes(firestore, game.id);
     } else if (game.phase === 'night' && game.status === 'in_progress') {
-        console.log("Fallback timer ended for night, processing night.");
         await processNight(firestore, game.id);
     }
   };
@@ -258,16 +242,18 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
   const otherTwin = otherTwinId ? players.find(p => p.userId === otherTwinId) : null;
 
   const isFairy = ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer?.role || '');
+  const isLover = !!currentPlayer?.isLover;
+  const otherLover = isLover ? players.find(p => p.isLover && p.userId !== currentPlayer.userId) : null;
+
 
   const highlightedPlayers = [];
-  if (otherTwin) {
-    highlightedPlayers.push({ userId: otherTwin.userId, color: 'rgba(135, 206, 250, 0.7)' });
-  }
-
- const getCauseOfDeath = (playerId: string): GameEvent['type'] | 'other' => {
+  if (otherTwin) highlightedPlayers.push({ userId: otherTwin.userId, color: 'rgba(135, 206, 250, 0.7)' });
+  if (otherLover) highlightedPlayers.push({ userId: otherLover.userId, color: 'rgba(244, 114, 182, 0.7)' });
+  
+  const getCauseOfDeath = (playerId: string): GameEvent['type'] | 'other' => {
     const deathEvent = [...events]
         .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
-        .find(e => (e.data?.killedPlayerIds || []).includes(playerId));
+        .find(e => e.data?.killedPlayerIds?.includes(playerId));
     
     return deathEvent?.type || 'other';
   };
@@ -305,7 +291,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
 
 
    return (
-    <>
+    <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
        <Card className="text-center bg-card/80">
         <CardHeader className="flex flex-row items-center justify-between p-4 pb-8 relative">
           <div className="absolute left-4 top-1/2 -translate-y-1/2">
@@ -349,6 +335,17 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
                 </CardContent>
             </Card>
         )}
+      
+       {isLover && otherLover && (
+            <Card className="bg-pink-900/30 border-pink-400/50">
+                <CardContent className="pt-6">
+                    <div className="flex items-center justify-center gap-3 text-pink-300">
+                        <Heart className="h-5 w-5" />
+                        <p>Estás enamorado de {otherLover.isAlive ? otherLover.displayName : `${otherLover.displayName} (fallecido)`}. Vuestro objetivo es sobrevivir juntos.</p>
+                    </div>
+                </CardContent>
+            </Card>
+        )}
 
       {currentPlayer && game.phase === 'night' && currentPlayer.isAlive && (
         <NightActions game={game} players={players} currentPlayer={currentPlayer} wolfMessages={wolfMessages} fairyMessages={fairyMessages} />
@@ -366,16 +363,16 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
                     players={players}
                     currentPlayer={currentPlayer}
                     nightEvent={nightEvent}
+                    loverDeathEvents={loverDeathEvents}
                     voteEvent={voteEvent}
                     behaviorClueEvent={behaviorClueEvent}
                     chatMessages={messages}
                 />
-                 {isTwin && (
-                    <TwinChat gameId={game.id} currentPlayer={currentPlayer} messages={twinMessages} />
-                 )}
-                 {game.fairiesFound && isFairy && (
-                    <FairyChat gameId={game.id} currentPlayer={currentPlayer} messages={fairyMessages} />
-                 )}
+                <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
+                    {isTwin && <TwinChat gameId={game.id} currentPlayer={currentPlayer} messages={twinMessages} />}
+                    {game.fairiesFound && isFairy && <FairyChat gameId={game.id} currentPlayer={currentPlayer} messages={fairyMessages} />}
+                    {isLover && <LoversChat gameId={game.id} currentPlayer={currentPlayer} messages={loversMessages} />}
+                </div>
             </div>
              <div className="w-full md:w-96">
                 <GameChat 
@@ -402,7 +399,8 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
        {currentPlayer && currentPlayer.isAlive && game.status === 'in_progress' && game.phase !== 'role_reveal' && (
         <CurrentPlayerRole player={currentPlayer} />
        )}
-    </>
+    </div>
   );
 }
 
+    

@@ -1,4 +1,3 @@
-
 'use client';
 import { 
   doc,
@@ -12,11 +11,8 @@ import {
   type Firestore,
   type Transaction,
   DocumentReference,
-  collection,
-  addDoc,
-  writeBatch,
 } from "firebase/firestore";
-import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage, AIPlayerPerspective, GameStatus, GamePhase } from "@/types";
+import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage, AIPlayerPerspective } from "@/types";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
@@ -41,10 +37,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     joinedAt: Timestamp.now(),
     isAI,
     lastHealedRound: 0,
-    potions: {
-        poison: null,
-        save: null,
-    },
+    potions: { poison: null, save: null },
     priestSelfHealUsed: false,
     princeRevealed: false,
     guardianSelfProtects: 0,
@@ -57,6 +50,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     resurrectorAngelUsed: false,
     lookoutUsed: false,
     bansheeScreams: {},
+    isLover: false,
 });
 
 
@@ -91,6 +85,7 @@ export async function createGame(
       wolfChatMessages: [],
       fairyChatMessages: [],
       twinChatMessages: [],
+      loversChatMessages: [],
       maxPlayers: maxPlayers,
       createdAt: Timestamp.now(),
       currentRound: 0,
@@ -100,6 +95,7 @@ export async function createGame(
       },
       pendingHunterShot: null,
       twins: null,
+      lovers: null,
       wolfCubRevengeRound: 0,
       nightActions: [],
       vampireKills: 0,
@@ -117,7 +113,6 @@ export async function createGame(
   try {
     await setDoc(gameRef, gameData);
     
-    // Unirse a la partida después de crearla
     const joinResult = await joinGame(db, gameId, userId, displayName);
     if (joinResult.error) {
       console.error(`Game created (${gameId}), but creator failed to join:`, joinResult.error);
@@ -210,12 +205,16 @@ const generateRoles = (playerCount: number, settings: Game['settings']): (Player
     const specialRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf' | 'cupid'>[] = Object.keys(settings)
         .filter(key => key !== 'werewolves' && key !== 'fillWithAI' && key !== 'isPublic' && key !== 'cupid' && settings[key as keyof typeof settings] === true) as any;
 
+    // Handle Cupid separately to ensure it's always included if toggled on
+    if (settings.cupid && roles.length < playerCount) {
+        roles.push('cupid');
+    }
+
     const numWerewolves = Math.max(1, Math.floor(playerCount / 5));
     for (let i = 0; i < numWerewolves; i++) {
         if(roles.length < playerCount) roles.push('werewolf');
     }
 
-    // Shuffle roles before assigning to avoid predictable role groups
     const shuffledSpecialRoles = specialRoles.sort(() => Math.random() - 0.5);
 
     for (const role of shuffledSpecialRoles) {
@@ -244,10 +243,8 @@ const generateRoles = (playerCount: number, settings: Game['settings']): (Player
         if (villagerIndex !== -1) {
             roles[villagerIndex] = 'werewolf';
         } else if (roles.length > 0) {
-            // If no villagers, replace the last special role
             roles[roles.length - 1] = 'werewolf';
         } else { 
-            // Should not happen if playerCount > 0, but as a fallback
             roles.push('werewolf');
         }
     }
@@ -488,19 +485,18 @@ function killPlayer(
 
         if (playerToKill.role === 'drunk_man' && gameData.settings.drunk_man) {
             gameData.players[playerIndex].isAlive = false;
-            gameOver = true; // Drunk man win condition takes precedence
+            gameOver = true;
             return { updatedGame: gameData, triggeredHunterId: null, gameOver: true };
         }
         
         gameData.players[playerIndex].isAlive = false;
         
-        // This event is crucial for the UI to show the correct death overlay
         gameData.events.push({
             id: `evt_kill_${cause}_${Date.now()}_${playerIdToKill}`,
             gameId: gameData.id!,
             round: gameData.currentRound,
             type: cause,
-            message: `${playerToKill.displayName} ha sido eliminado.`, // Generic message, specific message is in night_result or vote_result
+            message: `${playerToKill.displayName} ha sido eliminado.`,
             data: { killedPlayerIds: [playerIdToKill] },
             createdAt: Timestamp.now(),
         });
@@ -524,8 +520,6 @@ function killPlayer(
             
             if (otherPlayer && otherPlayer.isAlive && !alreadyProcessed.has(otherId) && !killQueue.includes(otherId)) {
                 killQueue.push(otherId);
-                // The actual killPlayer will generate the event, we just need to queue it.
-                // We add a special message event for the chronicle
                 gameData.events.push({
                     id: `evt_chain_death_${Date.now()}_${otherId}`,
                     gameId: gameData.id!,
@@ -539,6 +533,13 @@ function killPlayer(
         };
 
         checkAndQueueChainDeath(gameData.twins, playerToKill, 'Tras la muerte de {victimName}, su gemelo/a {otherName} muere de pena.');
+        
+        if (playerToKill.isLover) {
+            const otherLover = gameData.players.find(p => p.isLover && p.userId !== playerToKill.userId);
+            if (otherLover) {
+                 checkAndQueueChainDeath([playerToKill.userId, otherLover.userId], playerToKill, 'Por un amor eterno, {otherName} se quita la vida tras la muerte de {victimName}.');
+            }
+        }
         
         const virginiaLinker = gameData.players.find(p => p.role === 'virginia_woolf' && p.userId === playerToKill.userId);
         if (virginiaLinker && virginiaLinker.virginiaWoolfTargetId) {
@@ -558,12 +559,23 @@ function killPlayer(
 
 function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; winnerCode?: string; winners: string[] } {
     const alivePlayers = gameData.players.filter(p => p.isAlive);
-    const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy']; // Seeker fairy is wolf team
     
+    if (gameData.lovers) {
+        const aliveLovers = alivePlayers.filter(p => p.isLover);
+        if (aliveLovers.length === alivePlayers.length && alivePlayers.length > 0) {
+            return {
+                isGameOver: true,
+                winnerCode: 'lovers',
+                message: '¡El amor ha triunfado! Los enamorados son los únicos supervivientes y ganan la partida.',
+                winners: aliveLovers.map(l => l.userId),
+            };
+        }
+    }
+
+    const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy']; 
     const aliveWerewolves = alivePlayers.filter(p => wolfRoles.includes(p.role));
     const aliveCultMembers = alivePlayers.filter(p => p.isCultMember);
 
-    // Fairies win condition
     if (gameData.fairyKillUsed) {
         const fairies = gameData.players.filter(p => p.role === 'seeker_fairy' || p.role === 'sleeping_fairy');
         const fairiesAreAlive = fairies.every(f => f.isAlive);
@@ -640,10 +652,9 @@ function checkGameOver(gameData: Game): { isGameOver: boolean; message: string; 
         };
     }
     
-    // Villagers win if all threats are gone
     const threats = alivePlayers.filter(p => wolfRoles.includes(p.role) || p.role === 'vampire' || (p.role === 'sleeping_fairy' && gameData.fairiesFound));
     if (threats.length === 0 && alivePlayers.length > 0) {
-        const villageWinners = alivePlayers.filter(p => !p.isCultMember && p.role !== 'sleeping_fairy'); // Sleeping fairy is neutral if not found
+        const villageWinners = alivePlayers.filter(p => !p.isCultMember && p.role !== 'sleeping_fairy'); 
         return {
             isGameOver: true,
             winnerCode: 'villagers',
@@ -679,7 +690,6 @@ export async function processNight(db: Firestore, gameId: string) {
                 return;
             }
 
-            // Process Resurrection first to ensure player is alive before other actions
             const resurrectAction = game.nightActions?.find(a => a.round === game.currentRound && a.actionType === 'resurrect');
             let resurrectedPlayerName: string | null = null;
             if (resurrectAction) {
@@ -931,6 +941,7 @@ export async function processNight(db: Firestore, gameId: string) {
                 wolfChatMessages: [],
                 fairyChatMessages: [],
                 twinChatMessages: [],
+                loversChatMessages: [],
                 pendingHunterShot: null,
                 fairiesFound: game.fairiesFound,
                 fairyKillUsed: game.fairyKillUsed,
@@ -972,7 +983,6 @@ export async function processVotes(db: Firestore, gameId: string) {
       let game = gameSnap.data() as Game;
 
       if (game.phase !== 'day' || game.status !== 'in_progress') {
-        console.log("Omitiendo procesamiento de votos, la fase ya no es 'día' o la partida no está en curso.");
         return;
       }
 
@@ -1017,22 +1027,24 @@ export async function processVotes(db: Firestore, gameId: string) {
       }
       
       if (lynchedPlayerId) {
-          const { gameOver, updatedGame } = killPlayer(game, [lynchedPlayerId], 'vote_result');
-          game = updatedGame; 
+          const killResult = killPlayer(game, [lynchedPlayerId], 'vote_result');
+          game = killResult.updatedGame; 
           
-          const killedPlayer = game.players.find(p => !p.isAlive && p.userId === lynchedPlayerId)!;
-          game.events.push({
-              id: `evt_vote_result_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result',
-              message: `${killedPlayer.displayName} fue linchado por el pueblo. Su rol era: ${roleDetails[killedPlayer.role!]?.name || 'desconocido'}.`,
-              data: { lynchedPlayerId: lynchedPlayerId }, createdAt: Timestamp.now(),
-          });
-
-          if (gameOver) {
+          if (killResult.gameOver) {
             const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
             if (drunkPlayer) {
               handleDrunkManWin(transaction, gameRef, game, drunkPlayer);
               return;
             }
+          }
+          
+          const killedPlayer = game.players.find(p => !p.isAlive && p.userId === lynchedPlayerId);
+          if (killedPlayer) {
+            game.events.push({
+                id: `evt_vote_result_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result',
+                message: `${killedPlayer.displayName} fue linchado por el pueblo. Su rol era: ${roleDetails[killedPlayer.role!]?.name || 'desconocido'}.`,
+                data: { lynchedPlayerId: lynchedPlayerId }, createdAt: Timestamp.now(),
+            });
           }
       } else {
         const eventMessage = mostVotedPlayerIds.length > 1 ? "La votación resultó en un empate. Nadie fue linchado hoy." : "El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.";
@@ -1048,7 +1060,9 @@ export async function processVotes(db: Firestore, gameId: string) {
 
       if (game.phase === 'hunter_shot') {
         transaction.update(gameRef, {
-          players: game.players, events: game.events, phase: 'hunter_shot', 
+          players: game.players, 
+          events: game.events, 
+          phase: 'hunter_shot', 
           pendingHunterShot: game.pendingHunterShot, 
           wolfCubRevengeRound: game.wolfCubRevengeRound || 0,
         });
@@ -1145,13 +1159,12 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             }
             
             if (game.phase === 'hunter_shot' && game.pendingHunterShot !== hunterId) {
-                // Another hunter was triggered by this shot, keep the phase
                 transaction.update(gameRef, { 
                     players: game.players,
                     events: game.events,
                     phase: 'hunter_shot',
                     pendingHunterShot: game.pendingHunterShot,
-                    wolfCubRevengeRound: game.wolfCubRevengeRound,
+                    wolfCubRevengeRound: game.wolfCubRevengeRound || 0,
                 });
                 return;
             }
@@ -1245,7 +1258,7 @@ const getDeterministicAIAction = (
         case 'wolf_cub': {
             const nonWolves = potentialTargets.filter(p => {
                 if (wolfRoles.includes(p.role)) return false;
-                if (game.witchFoundSeer && p.role === 'witch') return false; // Don't attack allied witch
+                if (game.witchFoundSeer && p.role === 'witch') return false; 
                 return true;
             });
             const killCount = wolfCubRevengeActive ? 2 : 1;
@@ -1310,7 +1323,7 @@ const getDeterministicAIAction = (
             if (game.phase === 'day') return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
             if (!game.fairiesFound) {
                  const sleepingFairy = alivePlayers.find(p => p.role === 'sleeping_fairy');
-                 if (sleepingFairy && Math.random() < 0.25) { // 25% chance to find the fairy
+                 if (sleepingFairy && Math.random() < 0.25) {
                      return { actionType: 'fairy_find', targetId: sleepingFairy.userId };
                  }
                  return { actionType: 'fairy_find', targetId: randomTarget(potentialTargets) };
@@ -1482,7 +1495,6 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             const siren = game.players.find(p => p.role === 'river_siren');
             const charmedPlayerId = siren?.riverSirenTargetId;
 
-            // Check if voter is the charmed one
             if (voterId === charmedPlayerId && siren && siren.isAlive) {
                 if (siren.votedFor) {
                     game.players[playerIndex].votedFor = siren.votedFor;
@@ -1598,12 +1610,13 @@ export async function sendChatMessage(
     }
 }
 
-export async function sendWolfChatMessage(
+async function sendSpecialChatMessage(
     db: Firestore,
     gameId: string,
     senderId: string,
     senderName: string,
-    text: string
+    text: string,
+    chatType: 'wolf' | 'fairy' | 'lovers'
 ) {
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
@@ -1619,60 +1632,34 @@ export async function sendWolfChatMessage(
             
             const sender = game.players.find(p => p.userId === senderId);
             const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed'];
-            if (!sender || !wolfRoles.includes(sender.role)) {
-                throw new Error("Solo la manada puede usar este chat.");
-            }
-
-            const messageData: ChatMessage = {
-                id: `${Date.now()}_${senderId}`,
-                senderId,
-                senderName,
-                text: text.trim(),
-                round: game.currentRound,
-                createdAt: Timestamp.now(),
-            };
-
-            transaction.update(gameRef, {
-                wolfChatMessages: arrayUnion(messageData)
-            });
-        });
-
-        return { success: true };
-
-    } catch (error: any) {
-        console.error("Error sending wolf chat message: ", error);
-        if (error.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update', requestResourceData: { wolfChatMessages: '...' } });
-            errorEmitter.emit('permission-error', permissionError);
-            return { error: 'Permiso denegado para enviar mensaje.' };
-        }
-        return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
-    }
-}
-
-export async function sendFairyChatMessage(
-    db: Firestore,
-    gameId: string,
-    senderId: string,
-    senderName: string,
-    text: string
-) {
-    if (!text?.trim()) {
-        return { success: false, error: 'El mensaje no puede estar vacío.' };
-    }
-
-    const gameRef = doc(db, 'games', gameId);
-
-    try {
-        await runTransaction(db, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error('Game not found');
-            const game = gameDoc.data() as Game;
-            
-            const sender = game.players.find(p => p.userId === senderId);
             const fairyRoles: PlayerRole[] = ['seeker_fairy', 'sleeping_fairy'];
-            if (!sender || !fairyRoles.includes(sender.role) || !game.fairiesFound) {
-                throw new Error("Solo las hadas unidas pueden usar este chat.");
+
+            let canSend = false;
+            let chatField: keyof Game = 'chatMessages';
+
+            switch (chatType) {
+                case 'wolf':
+                    if (sender && wolfRoles.includes(sender.role)) {
+                        canSend = true;
+                        chatField = 'wolfChatMessages';
+                    }
+                    break;
+                case 'fairy':
+                    if (sender && fairyRoles.includes(sender.role) && game.fairiesFound) {
+                        canSend = true;
+                        chatField = 'fairyChatMessages';
+                    }
+                    break;
+                case 'lovers':
+                    if (sender && sender.isLover) {
+                        canSend = true;
+                        chatField = 'loversChatMessages';
+                    }
+                    break;
+            }
+
+            if (!canSend) {
+                throw new Error("No tienes permiso para enviar mensajes en este chat.");
             }
 
             const messageData: ChatMessage = {
@@ -1685,73 +1672,26 @@ export async function sendFairyChatMessage(
             };
 
             transaction.update(gameRef, {
-                fairyChatMessages: arrayUnion(messageData)
+                [chatField]: arrayUnion(messageData)
             });
         });
 
         return { success: true };
 
     } catch (error: any) {
-        console.error("Error sending fairy chat message: ", error);
-        if ((error as any).code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update', requestResourceData: { fairyChatMessages: '...' } });
-            errorEmitter.emit('permission-error', permissionError);
-            return { error: 'Permiso denegado para enviar mensaje.' };
-        }
-        return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
-    }
-}
-
-export async function sendTwinChatMessage(
-    db: Firestore,
-    gameId: string,
-    senderId: string,
-    senderName: string,
-    text: string
-) {
-    if (!text?.trim()) {
-        return { success: false, error: 'El mensaje no puede estar vacío.' };
-    }
-
-    const gameRef = doc(db, 'games', gameId);
-
-    try {
-        await runTransaction(db, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error('Game not found');
-            const game = gameDoc.data() as Game;
-            
-            const sender = game.players.find(p => p.userId === senderId);
-            if (!sender || sender.role !== 'twin' || !game.twins?.includes(senderId)) {
-                throw new Error("Solo las gemelas pueden usar este chat.");
-            }
-
-            const messageData: ChatMessage = {
-                id: `${Date.now()}_${senderId}`,
-                senderId,
-                senderName,
-                text: text.trim(),
-                round: game.currentRound,
-                createdAt: Timestamp.now(),
-            };
-
-            transaction.update(gameRef, {
-                twinChatMessages: arrayUnion(messageData)
-            });
-        });
-
-        return { success: true };
-
-    } catch (error: any) {
-        console.error("Error sending twin chat message: ", error);
+        console.error(`Error sending ${chatType} chat message: `, error);
         if (error.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update', requestResourceData: { twinChatMessages: '...' } });
+            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
             errorEmitter.emit('permission-error', permissionError);
             return { error: 'Permiso denegado para enviar mensaje.' };
         }
         return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
     }
 }
+
+export const sendWolfChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'wolf');
+export const sendFairyChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'fairy');
+export const sendLoversChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'lovers');
 
 
 export async function resetGame(db: Firestore, gameId: string) {
@@ -1767,7 +1707,7 @@ export async function resetGame(db: Firestore, gameId: string) {
 
             const resetHumanPlayers = humanPlayers.map(player => ({
                 ...createPlayerObject(player.userId, game.id, player.displayName, player.isAI),
-                joinedAt: player.joinedAt, // Keep original join time
+                joinedAt: player.joinedAt, 
             }));
 
             transaction.update(gameRef, {
@@ -1779,8 +1719,10 @@ export async function resetGame(db: Firestore, gameId: string) {
                 wolfChatMessages: [],
                 fairyChatMessages: [],
                 twinChatMessages: [],
+                loversChatMessages: [],
                 nightActions: [],
                 twins: null,
+                lovers: null,
                 pendingHunterShot: null,
                 wolfCubRevengeRound: 0,
                 players: resetHumanPlayers, 
@@ -1817,9 +1759,23 @@ export async function advanceToNightPhase(db: Firestore, gameId: string) {
       const game = gameSnap.data() as Game;
 
       if (game.phase === 'role_reveal') {
-        transaction.update(gameRef, { 
-            phase: 'night',
-        });
+        let updateData: Partial<Game> = { phase: 'night' };
+        
+        if (game.settings.cupid) {
+            const cupidAction = game.nightActions?.find(a => a.round === 1 && a.actionType === 'cupid_love');
+            if (cupidAction) {
+                const loverIds = cupidAction.targetId.split('|') as [string, string];
+                const playerUpdates = game.players.map(p => {
+                    if (loverIds.includes(p.userId)) {
+                        return { ...p, isLover: true };
+                    }
+                    return p;
+                });
+                updateData.players = playerUpdates;
+                updateData.lovers = loverIds;
+            }
+        }
+        transaction.update(gameRef, updateData);
       }
     });
     return { success: true };
@@ -1922,7 +1878,7 @@ export async function submitTroublemakerAction(
       });
       
       const { gameOver, updatedGame } = killPlayer(game, [target1Id, target2Id], 'troublemaker_duel');
-      game = updatedGame; // Use updated state
+      game = updatedGame;
 
       if (gameOver) {
         const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);

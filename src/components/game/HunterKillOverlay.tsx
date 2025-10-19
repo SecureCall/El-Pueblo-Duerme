@@ -5,7 +5,11 @@ import { useEffect, useRef, useState } from 'react';
 import { playNarration } from '@/lib/sounds';
 import { Crosshair } from 'lucide-react';
 
-export function HunterKillOverlay() {
+interface HunterKillOverlayProps {
+    angelInPlay: boolean;
+}
+
+export function HunterKillOverlay({ angelInPlay }: HunterKillOverlayProps) {
     const hasPlayedSound = useRef(false);
     const [isVisible, setIsVisible] = useState(true);
 
@@ -18,7 +22,7 @@ export function HunterKillOverlay() {
 
     useEffect(() => {
         if(isVisible) {
-            const timer = setTimeout(() => setIsVisible(false), 5000);
+            const timer = setTimeout(() => setIsVisible(false), 8000);
             return () => clearTimeout(timer);
         }
     }, [isVisible]);
@@ -40,6 +44,11 @@ export function HunterKillOverlay() {
             <h1 className="font-headline text-5xl md:text-7xl font-bold text-destructive text-shadow-lg shadow-black/50 mt-8 text-center px-4">
                 Te ha matado el cazador con su última bala
             </h1>
+             {angelInPlay && (
+                 <p className="text-lg text-yellow-300 mt-4 animate-pulse">
+                    Pero no pierdas la esperanza... un Ángel Resucitador podría devolverte a la vida.
+                </p>
+            )}
             <p className="text-lg text-primary-foreground/70 mt-4">
                 Ahora eres un espectador. (Toca para continuar)
             </p>

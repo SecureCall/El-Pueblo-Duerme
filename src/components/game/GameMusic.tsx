@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { unlockAudio as unlockNarration } from "@/lib/sounds";
+import { unlockAudio } from "@/lib/sounds";
 
 interface GameMusicProps {
   src: string;
@@ -30,8 +30,7 @@ export function GameMusic({ src }: GameMusicProps) {
         }
         try {
             await audio.play();
-            // If play is successful, we know the user has interacted. Unlock narration.
-            unlockNarration(); 
+            unlockAudio(); 
         } catch (error) {
             console.warn("Audio playback failed. Waiting for another interaction.", error);
         }
@@ -40,8 +39,7 @@ export function GameMusic({ src }: GameMusicProps) {
     
     const handleInteraction = () => {
         tryPlay();
-        // Once interaction happens, also unlock the narration system globally.
-        unlockNarration();
+        unlockAudio();
         window.removeEventListener('click', handleInteraction);
         window.removeEventListener('keydown', handleInteraction);
         window.removeEventListener('touchstart', handleInteraction);
@@ -58,7 +56,7 @@ export function GameMusic({ src }: GameMusicProps) {
               audio.pause();
               audio.volume = 0.3; // Reset volume
               currentSrc = newSrcUrl;
-              audio.src = newSrcUrl; // Set new source before playing
+              audio.src = newSrcUrl; 
               tryPlay();
           }
         }, 50);
@@ -67,20 +65,17 @@ export function GameMusic({ src }: GameMusicProps) {
         audio.src = newSrcUrl;
         tryPlay();
       } else if (audio.paused) {
-        // If the source is the same but audio is paused (e.g. returning to tab)
         tryPlay();
       }
     };
 
     handlePlay();
     
-    // Always listen for the first interaction.
     window.addEventListener('click', handleInteraction, { once: true });
     window.addEventListener('keydown', handleInteraction, { once: true });
     window.addEventListener('touchstart', handleInteraction, { once: true });
 
     return () => {
-      // It's good practice to clean up, though `once: true` does it automatically.
       window.removeEventListener('click', handleInteraction);
       window.removeEventListener('keydown', handleInteraction);
       window.removeEventListener('touchstart', handleInteraction);

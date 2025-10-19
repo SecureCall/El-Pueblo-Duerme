@@ -5,7 +5,11 @@ import { useEffect, useRef, useState } from 'react';
 import { playNarration } from '@/lib/sounds';
 import { Gavel } from 'lucide-react';
 
-export function BanishedOverlay() {
+interface BanishedOverlayProps {
+    angelInPlay: boolean;
+}
+
+export function BanishedOverlay({ angelInPlay }: BanishedOverlayProps) {
     const hasPlayedSound = useRef(false);
     const [isVisible, setIsVisible] = useState(true);
 
@@ -18,7 +22,7 @@ export function BanishedOverlay() {
 
     useEffect(() => {
         if(isVisible) {
-            const timer = setTimeout(() => setIsVisible(false), 5000);
+            const timer = setTimeout(() => setIsVisible(false), 8000);
             return () => clearTimeout(timer);
         }
     }, [isVisible]);
@@ -40,6 +44,11 @@ export function BanishedOverlay() {
             <h1 className="font-headline text-5xl md:text-7xl font-bold text-amber-500 text-shadow-lg shadow-black/50 mt-8 text-center">
                 ¡Has sido desterrado por el pueblo!
             </h1>
+            {angelInPlay && (
+                 <p className="text-lg text-yellow-300 mt-4 animate-pulse">
+                    Pero no pierdas la esperanza... un Ángel Resucitador podría devolverte a la vida.
+                </p>
+            )}
             <p className="text-lg text-primary-foreground/70 mt-4">
                 Ahora eres un espectador. (Toca para continuar)
             </p>

@@ -57,6 +57,7 @@ export interface Game {
   wolfChatMessages: ChatMessage[];
   fairyChatMessages: ChatMessage[];
   twinChatMessages: ChatMessage[];
+  loversChatMessages: ChatMessage[];
   maxPlayers: number;
   createdAt: Timestamp;
   currentRound: number;
@@ -99,6 +100,7 @@ export interface Game {
   };
   phaseEndsAt?: Timestamp;
   twins: [string, string] | null;
+  lovers: [string, string] | null;
   pendingHunterShot: string | null; // userId of the hunter who needs to shoot
   wolfCubRevengeRound: number; // The round where werewolves get an extra kill
   nightActions?: NightAction[];
@@ -133,6 +135,7 @@ export interface Player {
   guardianSelfProtects?: number;
   biteCount: number;
   isCultMember: boolean;
+  isLover: boolean;
   // New role-specific fields
   shapeshifterTargetId?: string | null;
   virginiaWoolfTargetId?: string | null;
@@ -164,7 +167,8 @@ export type NightActionType =
   "lookout_spy" |
   "fairy_find" |
   "fairy_kill" |
-  "resurrect";
+  "resurrect" |
+  "cupid_love";
 
 
 export interface NightAction {

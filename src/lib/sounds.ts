@@ -7,7 +7,6 @@ let isPlayingNarration = false;
 let narrationQueue: string[] = [];
 let audioUnlocked = false;
 
-// This function needs to be accessible globally within the module.
 const playNextInQueue = () => {
     if (narrationQueue.length > 0) {
         const nextSrc = narrationQueue.shift();
@@ -27,18 +26,15 @@ const playNextInQueue = () => {
     }
 };
 
-// Function to be called by an external component (like GameMusic) once interaction has happened.
 export const unlockAudio = () => {
     if (audioUnlocked) return;
     console.log("Audio unlocked by user interaction.");
     audioUnlocked = true;
-    // Try to play the first item in the queue now that we are unlocked
     if (!isPlayingNarration && narrationQueue.length > 0) {
         playNextInQueue();
     }
 };
 
-// Initialize audio instances only on the client side
 if (typeof window !== 'undefined') {
     narrationAudio = new Audio();
     narrationAudio.volume = 1.0;
@@ -54,7 +50,7 @@ if (typeof window !== 'undefined') {
     narrationAudio.addEventListener('error', (e) => {
         console.error("Narration audio error:", narrationAudio?.error);
         isPlayingNarration = false;
-        playNextInQueue(); // Skip to the next sound on error
+        playNextInQueue(); 
     });
 }
 
@@ -66,12 +62,10 @@ export const playNarration = (narrationFile: string): void => {
     
     const fullPath = `/audio/voz/${narrationFile}`;
     
-    // Avoid adding duplicates to the queue if it's already there
     if (!narrationQueue.includes(fullPath)) {
         narrationQueue.push(fullPath);
     }
     
-    // Only try to play immediately if audio is unlocked and nothing is currently playing.
     if (audioUnlocked && !isPlayingNarration) {
         playNextInQueue();
     }

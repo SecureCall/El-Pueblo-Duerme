@@ -5,7 +5,11 @@ import { useEffect, useRef, useState } from 'react';
 import { playNarration } from '@/lib/sounds';
 import { VampireIcon } from '../icons';
 
-export function VampireKillOverlay() {
+interface VampireKillOverlayProps {
+    angelInPlay: boolean;
+}
+
+export function VampireKillOverlay({ angelInPlay }: VampireKillOverlayProps) {
     const hasPlayedSound = useRef(false);
     const [isVisible, setIsVisible] = useState(true);
 
@@ -18,7 +22,7 @@ export function VampireKillOverlay() {
 
     useEffect(() => {
         if(isVisible) {
-            const timer = setTimeout(() => setIsVisible(false), 5000);
+            const timer = setTimeout(() => setIsVisible(false), 8000);
             return () => clearTimeout(timer);
         }
     }, [isVisible]);
@@ -40,6 +44,11 @@ export function VampireKillOverlay() {
             <h1 className="font-headline text-5xl md:text-7xl font-bold text-red-700 text-shadow-lg shadow-black/50 mt-8 text-center">
                 El vampiro te ha desangrado
             </h1>
+            {angelInPlay && (
+                 <p className="text-lg text-yellow-300 mt-4 animate-pulse">
+                    Pero no pierdas la esperanza... un Ángel Resucitador podría devolverte a la vida.
+                </p>
+            )}
             <p className="text-lg text-primary-foreground/70 mt-4">
                 Ahora eres un espectador. (Toca para continuar)
             </p>
