@@ -95,6 +95,7 @@ export async function createGame(
           ...settings,
           werewolves: werewolfCount,
       },
+      phaseEndsAt: null,
       pendingHunterShot: null,
       twins: null,
       lovers: null,
@@ -490,9 +491,12 @@ function killPlayer(
         });
         
         if (playerToKill.role === 'seer') gameData.seerDied = true;
+        
         if (playerToKill.role === 'hunter' && gameData.settings.hunter && !triggeredHunterId) {
             triggeredHunterId = playerToKill.userId;
+            gameData.phase = 'hunter_shot'; // Set phase only when hunter dies
         }
+        
         if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) {
             gameData.wolfCubRevengeRound = gameData.currentRound + 1;
         }
@@ -538,7 +542,6 @@ function killPlayer(
     
     if (triggeredHunterId) {
         gameData.pendingHunterShot = triggeredHunterId;
-        gameData.phase = 'hunter_shot';
     }
 
     return { updatedGame: gameData, triggeredHunterId: triggeredHunterId };
@@ -1287,6 +1290,7 @@ export async function sendChatMessage(
             const triggerMessage = `${senderName} dijo: "${text.trim()}"`;
             for (const p of latestGame.players) {
                 if (p.isAI && p.isAlive && p.userId !== senderId && mentionedPlayerIds.includes(p.userId)) {
+                    // This function is not awaited, runs in the background.
                     triggerAIChat(db, gameId, triggerMessage, p.userId);
                 }
             }
@@ -1426,6 +1430,7 @@ export async function resetGame(db: Firestore, gameId: string) {
                 nightActions: [],
                 twins: null,
                 lovers: null,
+                phaseEndsAt: null,
                 pendingHunterShot: null,
                 wolfCubRevengeRound: 0,
                 players: resetHumanPlayers, 
