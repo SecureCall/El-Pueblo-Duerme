@@ -69,6 +69,19 @@ export function GameBoard({
   const [deathCause, setDeathCause] = useState<GameEvent['type'] | 'other' | null>(null);
   const nightSoundsPlayedForRound = useRef<number>(0);
   const [timeLeft, setTimeLeft] = useState(0);
+  const phaseEndHandled = useRef(false);
+
+  const handlePhaseEnd = useCallback(async () => {
+    if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId || phaseEndHandled.current) return;
+    phaseEndHandled.current = true;
+
+    if (game.phase === 'day') {
+        await processVotes(firestore, game.id);
+    } else if (game.phase === 'night') {
+        await processNight(firestore, game.id);
+    }
+  }, [firestore, game, currentPlayer]);
+
 
   // Sound effect logic
   useEffect(() => {
@@ -76,6 +89,7 @@ export function GameBoard({
     const prevPhase = prevPhaseRef.current;
 
     if (prevPhase !== game.phase) {
+       phaseEndHandled.current = false;
       switch (game.phase) {
         case 'night':
           if (game.currentRound === 1 && prevPhase === 'role_reveal') {
@@ -120,9 +134,10 @@ export function GameBoard({
         const deathEvent = [...events]
             .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
             .find(e => {
-                if (e.data?.killedPlayerId === playerId) return true;
-                if (Array.isArray(e.data?.killedPlayerIds) && e.data.killedPlayerIds.includes(playerId)) return true;
-                if (e.data?.lynchedPlayerId === playerId) return true;
+                const data = e.data || {};
+                if (data.killedPlayerId === playerId) return true;
+                if (Array.isArray(data.killedPlayerIds) && data.killedPlayerIds.includes(playerId)) return true;
+                if (data.lynchedPlayerId === playerId) return true;
                 return false;
             });
         
@@ -135,12 +150,9 @@ export function GameBoard({
             setDeathCause(null);
             return;
         };
-
         setDeathCause(getCauseOfDeath(currentPlayer.userId));
-
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
   
-  // Effect for creator to automatically advance from role_reveal
   useEffect(() => {
     if (!game || !currentPlayer) return;
     if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore) {
@@ -152,6 +164,26 @@ export function GameBoard({
     }
   }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, firestore]);
   
+  useEffect(() => {
+    if (!game?.phaseEndsAt) {
+      setTimeLeft(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const endTime = game.phaseEndsAt!.toMillis();
+      const remaining = Math.max(0, endTime - now);
+      setTimeLeft(Math.round(remaining / 1000));
+
+      if (remaining <= 0) {
+        clearInterval(interval);
+        handlePhaseEnd();
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [game?.phaseEndsAt, game?.id, handlePhaseEnd]);
 
   if (!game || !currentPlayer) {
       return null;
@@ -283,7 +315,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
           </div>
            { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && game.phaseEndsAt && (
             <PhaseTimer 
-                phaseEndsAt={game.phaseEndsAt}
+                timeLeft={timeLeft}
             />
           )}
         </CardHeader>

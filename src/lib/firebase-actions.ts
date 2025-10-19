@@ -438,31 +438,6 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         });
     });
 
-    // Check if all night actions are submitted to process the night
-    const gameSnap = await getDoc(gameRef);
-    if(gameSnap.exists()) {
-        const game = gameSnap.data() as Game;
-        const alivePlayers = game.players.filter(p => p.isAlive);
-        const playersWithNightActions = alivePlayers.filter(p => {
-             const nightRoles: PlayerRole[] = [
-                'werewolf', 'wolf_cub', 'seer', 'seer_apprentice', 'doctor', 'guardian', 
-                'priest', 'hechicera', 'cupid', 'vampire', 'cult_leader', 'fisherman',
-                'shapeshifter', 'virginia_woolf', 'river_siren', 'silencer', 'elder_leader',
-                'witch', 'banshee', 'lookout', 'seeker_fairy', 'resurrector_angel'
-            ];
-            if (p.role === 'seer_apprentice' && !game.seerDied) return false;
-            if (p.role === 'cupid' && game.currentRound > 1) return false;
-            return p.role && nightRoles.includes(p.role);
-        });
-        
-        const submittedActions = game.nightActions?.filter(a => a.round === game.currentRound).length || 0;
-
-        if (submittedActions >= playersWithNightActions.length) {
-            await processNight(db, gameId);
-        }
-    }
-
-
     return { success: true };
 
   } catch (error: any) {
@@ -1193,6 +1168,9 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
 
 export async function submitVote(db: Firestore, gameId: string, voterId: string, targetId: string) {
     const gameRef = doc(db, 'games', gameId);
+    let isFromAI = false;
+    let voterName: string | undefined, targetName: string | undefined;
+
     try {
        await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
@@ -1206,6 +1184,14 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             
             if (game.players[playerIndex].votedFor) return;
 
+            const voter = game.players[playerIndex];
+            voterName = voter.displayName;
+            isFromAI = voter.isAI;
+
+            const targetPlayer = game.players.find(p => p.userId === targetId);
+            if (!targetPlayer) throw new Error("Target player not found");
+            targetName = targetPlayer.displayName;
+            
             const siren = game.players.find(p => p.role === 'river_siren');
             const charmedPlayerId = siren?.riverSirenTargetId;
 
@@ -1221,14 +1207,19 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             
             transaction.update(gameRef, { players: game.players });
         });
-        
+
+        // After the vote is successfully committed, check if the phase should end.
         const finalGameSnap = await getDoc(gameRef);
         if (finalGameSnap.exists()) {
              const game = finalGameSnap.data() as Game;
-            const alivePlayers = game.players.filter(p => p.isAlive);
-            if (alivePlayers.every(p => p.votedFor)) {
-                await processVotes(db, gameId);
-            }
+             const alivePlayers = game.players.filter(p => p.isAlive);
+             if (alivePlayers.every(p => p.votedFor)) {
+                 await processVotes(db, gameId);
+             }
+        }
+        
+        if (!isFromAI && voterName && targetName) {
+            await triggerAIChat(db, gameId, `${voterName} ha votado por ${targetName}.`);
         }
 
         return { success: true };
@@ -1256,11 +1247,14 @@ export async function sendChatMessage(
     }
 
     const gameRef = doc(db, 'games', gameId);
+    let latestGame: Game | null = null;
+
     try {
         await runTransaction(db, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error('Game not found');
             const game = gameDoc.data() as Game;
+            latestGame = game;
 
             if (game.silencedPlayerId === senderId) {
                 throw new Error("No puedes hablar, has sido silenciado esta ronda.");
@@ -1286,8 +1280,9 @@ export async function sendChatMessage(
             });
         });
 
-        if (!isFromAI) {
-            triggerAIChat(db, gameId, `${senderName} dijo: "${text.trim()}"`);
+        if (!isFromAI && latestGame) {
+            const triggerMessage = `${senderName} dijo: "${text.trim()}"`;
+            triggerAIChat(db, gameId, triggerMessage);
         }
 
         return { success: true };
@@ -1817,7 +1812,72 @@ const getDeterministicAIAction = (
                  return { actionType: 'hechicera_save', targetId: randomTarget(potentialTargets.filter(p => p.userId !== aiPlayer.userId)) };
              }
              return { actionType: 'NONE', targetId: '' };
+        case 'executioner':
+            // Executioner has no night action.
+            return { actionType: 'NONE', targetId: '' };
         default:
             return { actionType: 'NONE', targetId: '' };
     }
 };
+
+export async function runAIActions(db: Firestore, gameId: string, phase: Game['phase']) {
+    try {
+        const gameDoc = await getDoc(doc(db, 'games', gameId));
+        if (!gameDoc.exists()) return;
+        const game = gameDoc.data() as Game;
+
+        const aiPlayers = game.players.filter(p => p.isAI && p.isAlive);
+        const alivePlayers = game.players.filter(p => p.isAlive);
+        const deadPlayers = game.players.filter(p => !p.isAlive);
+        const nightActions = game.nightActions?.filter(a => a.round === game.currentRound) || [];
+
+        for (const ai of aiPlayers) {
+            const hasActed = phase === 'night' 
+                ? nightActions.some(a => a.playerId === ai.userId)
+                : ai.votedFor;
+            
+            if (hasActed) continue;
+            
+            const { actionType, targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
+
+            if (!actionType || actionType === 'NONE' || !targetId) continue;
+
+            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
+
+            switch(actionType) {
+                case 'werewolf_kill':
+                case 'seer_check':
+                case 'doctor_heal':
+                case 'guardian_protect':
+                case 'priest_bless':
+                case 'vampire_bite':
+                case 'cult_recruit':
+                case 'fisherman_catch':
+                case 'silencer_silence':
+                case 'elder_leader_exile':
+                case 'fairy_find':
+                case 'fairy_kill':
+                case 'witch_hunt':
+                case 'banshee_scream':
+                case 'resurrect':
+                case 'cupid_love':
+                case 'shapeshifter_select':
+                case 'virginia_woolf_link':
+                case 'river_siren_charm':
+                case 'hechicera_poison':
+                case 'hechicera_save':
+                    await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
+                    break;
+                case 'VOTE':
+                    // Voting is triggered by triggerAIVote
+                    break;
+
+                case 'SHOOT':
+                    if (phase === 'hunter_shot' && ai.userId === game.pendingHunterShot) await submitHunterShot(db, gameId, ai.userId, targetId);
+                    break;
+            }
+        }
+    } catch(e) {
+        console.error("Error in AI Actions:", e);
+    }
+}
