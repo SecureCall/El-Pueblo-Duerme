@@ -20,7 +20,7 @@ export const PlayerRoleSchema = z.enum([
   "hechicera", "ghost", "virginia_woolf", "leprosa", "river_siren", "lookout", "troublemaker",
   "silencer", "seer_apprentice", "elder_leader", "werewolf", "wolf_cub", "cursed", "seeker_fairy",
   "sleeping_fairy", "shapeshifter", "drunk_man", "cult_leader", "fisherman", "vampire", "witch", "banshee",
-  "resurrector_angel"
+  "resurrector_angel", "cupid"
 ]).nullable();
 
 export const PlayerSchema = z.object({
@@ -42,6 +42,7 @@ export const PlayerSchema = z.object({
   guardianSelfProtects: z.number().optional(),
   biteCount: z.number(),
   isCultMember: z.boolean(),
+  isLover: z.boolean(),
   shapeshifterTargetId: z.string().nullable().optional(),
   virginiaWoolfTargetId: z.string().nullable().optional(),
   riverSirenTargetId: z.string().nullable().optional(),
@@ -60,7 +61,7 @@ export const NightActionSchema = z.object({
     "hechicera_save", "guardian_protect", "priest_bless", "vampire_bite", "cult_recruit", 
     "fisherman_catch", "shapeshifter_select", "virginia_woolf_link", "river_siren_charm",
     "silencer_silence", "elder_leader_exile", "witch_hunt", "banshee_scream", "lookout_spy",
-    "fairy_find", "fairy_kill", "resurrect"
+    "fairy_find", "fairy_kill", "resurrect", "cupid_love"
   ]),
   targetId: z.string(),
   createdAt: TimestampSchema,
@@ -70,7 +71,7 @@ export const GameEventSchema = z.object({
     id: z.string(),
     gameId: z.string(),
     round: z.number(),
-    type: z.enum(['night_result', 'vote_result', 'game_start', 'role_reveal', 'game_over', 'lover_death', 'hunter_shot', 'player_transformed', 'behavior_clue', 'special', 'vampire_kill']),
+    type: z.enum(['night_result', 'vote_result', 'game_start', 'role_reveal', 'game_over', 'lover_death', 'hunter_shot', 'player_transformed', 'behavior_clue', 'special', 'vampire_kill', 'werewolf_kill', 'troublemaker_duel']),
     message: z.string(),
     data: z.any().optional(),
     createdAt: TimestampSchema,
@@ -120,6 +121,7 @@ export const GameSettingsSchema = z.object({
     banshee: z.boolean(),
     drunk_man: z.boolean(),
     resurrector_angel: z.boolean(),
+    cupid: z.boolean(),
 });
 
 export const GameSchema = z.object({
@@ -134,12 +136,14 @@ export const GameSchema = z.object({
   wolfChatMessages: z.array(ChatMessageSchema),
   fairyChatMessages: z.array(ChatMessageSchema),
   twinChatMessages: z.array(ChatMessageSchema),
+  loversChatMessages: z.array(ChatMessageSchema),
   maxPlayers: z.number(),
   createdAt: TimestampSchema,
   currentRound: z.number(),
   settings: GameSettingsSchema,
   phaseEndsAt: TimestampSchema.optional(),
   twins: z.tuple([z.string(), z.string()]).nullable(),
+  lovers: z.tuple([z.string(), z.string()]).nullable(),
   pendingHunterShot: z.string().nullable(),
   wolfCubRevengeRound: z.number(),
   nightActions: z.array(NightActionSchema).optional(),

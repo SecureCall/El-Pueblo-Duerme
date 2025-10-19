@@ -40,12 +40,13 @@ const getMillis = (timestamp: any): number => {
 interface InitialState {
     initialGame: Game;
     initialPlayers: Player[];
-    initialCurrentPlayer: Player;
+    initialCurrentPlayer: Player | null;
     initialEvents: GameEvent[];
     initialMessages: ChatMessage[];
     initialWolfMessages: ChatMessage[];
     initialFairyMessages: ChatMessage[];
     initialTwinMessages: ChatMessage[];
+    initialLoversMessages: ChatMessage[];
 }
 
 export const useGameState = (gameId: string, initialState?: InitialState) => {
@@ -60,6 +61,7 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
   const [wolfMessages, setWolfMessages] = useState<ChatMessage[]>(initialState?.initialWolfMessages ?? []);
   const [fairyMessages, setFairyMessages] = useState<ChatMessage[]>(initialState?.initialFairyMessages ?? []);
   const [twinMessages, setTwinMessages] = useState<ChatMessage[]>(initialState?.initialTwinMessages ?? []);
+  const [loversMessages, setLoversMessages] = useState<ChatMessage[]>(initialState?.initialLoversMessages ?? []);
   const [loading, setLoading] = useState(!initialState);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,7 +80,7 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
         return;
     };
 
-    if (!initialState) setLoading(true);
+    setLoading(true);
 
     const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
@@ -108,6 +110,10 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
           (gameData.twinChatMessages || [])
             .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
         );
+        setLoversMessages(
+          (gameData.loversChatMessages || [])
+            .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
+        );
 
         setError(null);
       } else {
@@ -120,6 +126,7 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
         setWolfMessages([]);
         setFairyMessages([]);
         setTwinMessages([]);
+        setLoversMessages([]);
       }
       setLoading(false);
     }, (err: FirestoreError) => {
@@ -135,7 +142,8 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
     return () => {
       unsubscribeGame();
     };
-  }, [gameId, firestore, gameRef, userId, initialState]);
+  }, [gameId, firestore, gameRef, userId]);
 
-  return { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loading, error };
+  return { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, loading, error };
 };
+

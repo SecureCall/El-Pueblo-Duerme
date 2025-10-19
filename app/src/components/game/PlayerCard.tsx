@@ -1,21 +1,20 @@
 
 "use client";
 
-import type { Player } from "@/types";
+import type { Player, GameEvent } from "@/types";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { Bot, Crown, Gavel, Skull, HeartCrack } from "lucide-react";
+import { Bot, Crown, Gavel, Skull, Heart } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { roleDetails, defaultRoleDetail } from "@/lib/roles";
 import Image from "next/image";
-import type { SVGProps } from "react";
 import { VampireIcon } from "../icons";
 
 interface PlayerCardProps {
-  player: Player & { causeOfDeath?: 'werewolf_kill' | 'vote_result' | 'lover_death' | 'vampire_kill' | 'other' };
+  player: Player & { causeOfDeath?: GameEvent['type'] | 'other' };
   onClick?: () => void;
   isClickable?: boolean;
   isSelected?: boolean;
@@ -60,16 +59,23 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
               <Gavel className={cn(iconClasses, "text-amber-800")} />
             </div>
           );
-        case 'lover_death':
-            return (
-            <div className={baseClasses}>
-                <HeartCrack className={cn(iconClasses, "text-pink-400")} />
-            </div>
-            );
         case 'vampire_kill':
              return (
             <div className={baseClasses}>
                 <VampireIcon className={cn(iconClasses, "text-red-900")} />
+            </div>
+            );
+        case 'hunter_shot':
+        case 'troublemaker_duel':
+             return (
+            <div className={baseClasses}>
+                <Skull className={cn(iconClasses, "text-destructive")} />
+            </div>
+            );
+        case 'special': // Includes lover_death, chain deaths etc.
+            return (
+            <div className={baseClasses}>
+                <Heart className={cn(iconClasses, "text-pink-400")} />
             </div>
             );
         default:
@@ -127,6 +133,9 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
               {player.princeRevealed && (
                  <Crown className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-10 h-5 w-5 text-yellow-400" />
               )}
+               {player.isLover && (
+                 <Heart className="absolute -top-2 -right-2 z-10 h-5 w-5 text-pink-400" />
+              )}
               <CardContent className="p-0">
                 <Avatar className="h-20 w-20 border-2 border-border">
                   <AvatarImage src={avatarImage?.imageUrl || '/avatar-default.png'} data-ai-hint={avatarImage?.imageHint} />
@@ -148,9 +157,12 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
                 <p>¡Príncipe revelado! Inmune al linchamiento.</p>
             </TooltipContent>
          )}
+         {player.isLover && (
+              <TooltipContent>
+                <p>Enamorado por la flecha de Cupido.</p>
+              </TooltipContent>
+         )}
       </Tooltip>
     </TooltipProvider>
   );
 }
-
-    

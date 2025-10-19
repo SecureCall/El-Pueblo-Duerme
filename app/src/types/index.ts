@@ -41,6 +41,7 @@ export type PlayerRole =
   "fisherman" |
   "vampire" |
   "banshee" |
+  "cupid" |
   null;
 
 
@@ -56,6 +57,7 @@ export interface Game {
   wolfChatMessages: ChatMessage[];
   fairyChatMessages: ChatMessage[];
   twinChatMessages: ChatMessage[];
+  loversChatMessages: ChatMessage[];
   maxPlayers: number;
   createdAt: Timestamp;
   currentRound: number;
@@ -94,9 +96,11 @@ export interface Game {
     banshee: boolean;
     drunk_man: boolean;
     resurrector_angel: boolean;
+    cupid: boolean;
   };
   phaseEndsAt?: Timestamp;
   twins: [string, string] | null;
+  lovers: [string, string] | null;
   pendingHunterShot: string | null; // userId of the hunter who needs to shoot
   wolfCubRevengeRound: number; // The round where werewolves get an extra kill
   nightActions?: NightAction[];
@@ -131,6 +135,7 @@ export interface Player {
   guardianSelfProtects?: number;
   biteCount: number;
   isCultMember: boolean;
+  isLover: boolean;
   // New role-specific fields
   shapeshifterTargetId?: string | null;
   virginiaWoolfTargetId?: string | null;
@@ -162,7 +167,8 @@ export type NightActionType =
   "lookout_spy" |
   "fairy_find" |
   "fairy_kill" |
-  "resurrect";
+  "resurrect" |
+  "cupid_love";
 
 
 export interface NightAction {
@@ -178,7 +184,7 @@ export interface GameEvent {
     id: string; // unique id for the event, can be generated on client
     gameId: string;
     round: number;
-    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot' | 'player_transformed' | 'behavior_clue' | 'special' | 'vampire_kill';
+    type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot' | 'player_transformed' | 'behavior_clue' | 'special' | 'vampire_kill' | 'werewolf_kill' | 'troublemaker_duel';
     message: string;
     data?: any;
     createdAt: Timestamp;
