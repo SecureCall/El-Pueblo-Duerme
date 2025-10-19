@@ -5,10 +5,10 @@ import type { Game, Player, GameEvent, ChatMessage } from "@/types";
 import { RoleReveal } from "./RoleReveal";
 import { PlayerGrid } from "./PlayerGrid";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
-import { processNight, processVotes, setPhaseToNight, triggerAIVote } from "@/lib/firebase-actions";
+import { processNight, processVotes, setPhaseToNight, triggerAIVote, runAIActions } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { Heart, Moon, Sun, Users2, Wand2 } from "lucide-react";
@@ -40,16 +40,6 @@ interface GameBoardProps {
   loversMessages: ChatMessage[];
 }
 
-const handlePhaseEnd = async (firestore: any, game: Game | null, currentPlayer: Player | null) => {
-    if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId) return;
-
-    if (game.phase === 'day') {
-        await processVotes(firestore, game.id);
-    } else if (game.phase === 'night') {
-        await processNight(firestore, game.id);
-    }
-};
-
 export function GameBoard({ 
     game: initialGame, 
     players: initialPlayers, 
@@ -80,6 +70,20 @@ export function GameBoard({
   const nightSoundsPlayedForRound = useRef<number>(0);
   const [timeLeft, setTimeLeft] = useState(0);
 
+  const handlePhaseEnd = useCallback(async () => {
+    if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId) return;
+
+    // Prevent repeated calls if already processing
+    if (game.phase === 'finished') return;
+    
+    if (game.phase === 'day') {
+        await processVotes(firestore, game.id);
+    } else if (game.phase === 'night') {
+        await processNight(firestore, game.id);
+    }
+  }, [firestore, game, currentPlayer]);
+
+
   // Sound effect logic
   useEffect(() => {
     if (!game || !currentPlayer) return;
@@ -94,6 +98,9 @@ export function GameBoard({
           } else {
             playNarration('noche_pueblo_duerme.mp3');
           }
+           if (firestore && game.creator === currentPlayer?.userId) {
+                runAIActions(firestore, game.id);
+            }
           break;
         case 'day':
           playNarration('dia_pueblo_despierta.mp3');
@@ -162,7 +169,7 @@ export function GameBoard({
   }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, firestore]);
   
   useEffect(() => {
-    if (!game?.phaseEndsAt || !firestore) {
+    if (!game?.phaseEndsAt || !firestore || !game) {
       setTimeLeft(0);
       return;
     }
@@ -173,14 +180,14 @@ export function GameBoard({
       const remaining = Math.max(0, endTime - now);
       setTimeLeft(Math.round(remaining / 1000));
 
-      if (remaining <= 0 && game.creator === currentPlayer?.userId) {
-        handlePhaseEnd(firestore, game, currentPlayer);
+      if (remaining <= 0 && currentPlayer && game.creator === currentPlayer.userId) {
+        handlePhaseEnd();
         clearInterval(interval); 
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [game?.phaseEndsAt, game?.id, firestore, game, currentPlayer]);
+  }, [game?.phaseEndsAt, game?.id, firestore, game, currentPlayer, handlePhaseEnd]);
 
   if (!game || !currentPlayer) {
       return null;
@@ -235,19 +242,34 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
 
   const getPhaseTitle = () => {
     switch(game.phase) {
-        case 'night': return `Noche ${game.currentRound}`;
-        case 'day': return `Día ${game.currentRound}`;
-        case 'role_reveal': return 'Comenzando...';
-        case 'finished': return 'Partida Terminada';
-        case 'hunter_shot': return '¡La venganza del Cazador!';
+        case 'night': return `NOCHE ${game.currentRound}`;
+        case 'day': return `DÍA ${game.currentRound}`;
+        case 'role_reveal': return 'REPARTIENDO ROLES';
+        case 'finished': return 'PARTIDA TERMINADA';
+        case 'hunter_shot': return '¡LA VENGANZA DEL CAZADOR!';
         default: return '';
+    }
+  }
+  
+  const getPhaseDescription = () => {
+    if(!currentPlayer || !currentPlayer.isAlive) return 'Observas desde el más allá...';
+
+     switch(game.phase) {
+        case 'night':
+             if (currentPlayer?.role && ['werewolf', 'seer', 'doctor', 'hechicera', 'guardian', 'priest', 'vampire', 'cult_leader', 'fisherman', 'shapeshifter', 'virginia_woolf', 'river_siren', 'silencer', 'elder_leader', 'witch', 'banshee', 'lookout', 'seeker_fairy', 'resurrector_angel', 'cupid'].includes(currentPlayer.role)) {
+                 return "Es tu turno de actuar.";
+             }
+             return 'Duermes profundamente...';
+        case 'day': return 'Debate y encuentra a los lobos.';
+        case 'role_reveal': return 'Tu destino está siendo sellado...';
+        default: return 'El pueblo espera...';
     }
   }
 
   const getPhaseIcon = () => {
       switch(game.phase) {
-          case 'night': return <Moon className="h-8 w-8" />;
-          case 'day': return <Sun className="h-8 w-8 text-yellow-300" />;
+          case 'night': return <Moon className="h-6 w-6" />;
+          case 'day': return <Sun className="h-6 w-6 text-yellow-300" />;
           default: return null;
       }
   }
@@ -273,16 +295,19 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
 
   if (game.phase === 'role_reveal') {
      return (
-       <Card className="text-center bg-card/80">
-          <CardHeader>
-            <CardTitle className="font-headline text-3xl">
-              Comenzando...
-            </CardTitle>
-          </CardHeader>
-           <CardContent>
-               <p className="text-lg text-muted-foreground">Se están repartiendo los roles. La primera noche caerá pronto.</p>
-           </CardContent>
-       </Card>
+       <div className="flex flex-col items-center justify-center h-screen w-screen">
+            <Card className="text-center bg-card/80 animate-in fade-in zoom-in-95">
+                <CardHeader>
+                    <CardTitle className="font-headline text-3xl">
+                    Comenzando...
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-lg text-muted-foreground">Se están repartiendo los roles. La primera noche caerá pronto.</p>
+                     <Loader2 className="h-12 w-12 animate-spin text-primary mt-4" />
+                </CardContent>
+            </Card>
+       </div>
      )
   }
 
@@ -298,23 +323,26 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
 
 
    return (
-    <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
-       <Card className="text-center bg-card/80">
-        <CardHeader className="flex flex-row items-center justify-between p-4 pb-8 relative">
-          <div className="absolute left-4 top-1/2 -translate-y-1/2">
-             <GameChronicle events={events} currentPlayerId={currentPlayer?.userId || ''} />
-          </div>
-          <div className="flex-1 flex justify-center items-center gap-4">
-             {getPhaseIcon()}
-            <CardTitle className="font-headline text-3xl">
-              {getPhaseTitle()}
-            </CardTitle>
-          </div>
-           { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && (
-            <PhaseTimer 
-                timeLeft={timeLeft}
-            />
-          )}
+    <div className="w-full max-w-7xl mx-auto p-4 space-y-4">
+       <Card className="text-center bg-card/80 sticky top-4 z-30 shadow-lg">
+        <CardHeader className="p-4">
+             <div className="flex justify-between items-start">
+                 <GameChronicle events={events} currentPlayerId={currentPlayer?.userId || ''} />
+                <div className="flex-1 text-center">
+                    <CardTitle className="font-headline text-3xl flex items-center justify-center gap-3">
+                      {getPhaseIcon()}
+                      {getPhaseTitle()}
+                    </CardTitle>
+                    <CardDescription className="text-base mt-1">{getPhaseDescription()}</CardDescription>
+                </div>
+                <div className="w-12 h-12"></div>
+             </div>
+             { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && (
+                <PhaseTimer 
+                    key={`${game.id}-${game.phase}-${game.currentRound}`}
+                    timeLeft={timeLeft}
+                />
+            )}
         </CardHeader>
       </Card>
       
@@ -372,7 +400,6 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
                     loverDeathEvents={loverDeathEvents}
                     voteEvent={voteEvent}
                     behaviorClueEvent={behaviorClueEvent}
-                    chatMessages={messages}
                 />
                 <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
                     {isTwin && <TwinChat gameId={game.id} currentPlayer={currentPlayer} messages={twinMessages} />}
@@ -408,3 +435,4 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
+
