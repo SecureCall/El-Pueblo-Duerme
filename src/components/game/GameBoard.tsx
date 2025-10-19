@@ -134,19 +134,20 @@ export function GameBoard({
 
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
 
-  // Handle AI actions and check for phase advancement
+  // Handle AI actions when phase changes
   useEffect(() => {
-    if (!game || !firestore) return;
-    
-    // Any client can trigger this, but the backend function will ensure it only runs once per phase.
-    runAIActions(firestore, game.id, game.phase);
-
-  }, [game?.phase, game?.id, game?.currentRound, firestore, game?.players, game?.nightActions]);
+    if (!game || !currentPlayer) return;
+    if (game.creator === currentPlayer.userId && firestore) {
+      if ((game.phase === 'night' || game.phase === 'day' || game.phase === 'hunter_shot') && game.settings.fillWithAI) {
+         runAIActions(firestore, game.id, game.phase);
+      }
+    }
+  }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, game?.currentRound, game?.settings.fillWithAI, firestore]);
   
   // Effect for creator to automatically advance from role_reveal
   useEffect(() => {
-    if (!game || !currentPlayer || !firestore) return;
-    if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId) {
+    if (!game || !currentPlayer) return;
+    if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore) {
       const timer = setTimeout(() => {
         advanceToNightPhase(firestore, game.id);
       }, 15000); 
@@ -157,9 +158,14 @@ export function GameBoard({
   
    const handleTimerEnd = async () => {
     if (!firestore || !game || game.status !== 'in_progress') return; 
-    // Simply call runAIActions. It will see the phase and if all players have acted
-    // (or if time is up), it will trigger the next phase.
-    await runAIActions(firestore, game.id, game.phase);
+    
+    // The server-side function will handle the idempotency.
+    // Any active client can trigger the phase end.
+    if (game.phase === 'day') {
+        await processVotes(firestore, game.id);
+    } else if (game.phase === 'night') {
+        await processNight(firestore, game.id);
+    }
   };
 
   if (!game || !currentPlayer) {
@@ -235,8 +241,14 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
   
   const handleTimerEnd = async () => {
     if (!firestore || !game || game.status !== 'in_progress') return; 
-    // This is now a backup call. runAIActions is the primary driver.
-    await runAIActions(firestore, game.id, game.phase);
+    
+    // The server-side function will handle the idempotency.
+    // Any active client can trigger the phase end.
+    if (game.phase === 'day') {
+        await processVotes(firestore, game.id);
+    } else if (game.phase === 'night') {
+        await processNight(firestore, game.id);
+    }
   };
   
   const isTwin = currentPlayer?.role === 'twin' && !!game.twins?.includes(currentPlayer.userId);

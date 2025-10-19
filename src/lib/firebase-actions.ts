@@ -50,8 +50,8 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     riverSirenTargetId: null,
     ghostMessageSent: false,
     resurrectorAngelUsed: false,
-    lookoutUsed: false,
     bansheeScreams: {},
+    lookoutUsed: false,
     executionerTargetId: null,
 });
 
@@ -490,9 +490,15 @@ function killPlayer(
         });
         
         if (playerToKill.role === 'seer') gameData.seerDied = true;
+        
+        // This is the critical change. We only set the pendingHunterShot and change the phase
+        // if the killed player is the hunter.
         if (playerToKill.role === 'hunter' && gameData.settings.hunter && !triggeredHunterId) {
             triggeredHunterId = playerToKill.userId;
+            gameData.pendingHunterShot = triggeredHunterId;
+            gameData.phase = 'hunter_shot'; // This line is now correctly placed.
         }
+        
         if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) {
             gameData.wolfCubRevengeRound = gameData.currentRound + 1;
         }
@@ -534,11 +540,6 @@ function killPlayer(
              const linkedPlayerId = virginiaLinker.virginiaWoolfTargetId;
              checkAndQueueChainDeath([virginiaLinker.userId, linkedPlayerId], playerToKill, 'Tras la muerte de {victimName}, {otherName} muere por un vínculo misterioso.', 'special');
         }
-    }
-    
-    if (triggeredHunterId) {
-        gameData.pendingHunterShot = triggeredHunterId;
-        gameData.phase = 'hunter_shot';
     }
 
     return { updatedGame: gameData, triggeredHunterId: triggeredHunterId };
@@ -1862,3 +1863,4 @@ export async function submitTroublemakerAction(
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
+
