@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { useEffect, useState, useRef } from "react";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
-import { processNight, processVotes, runAIActions, advanceToNightPhase } from "@/lib/firebase-actions";
+import { processNight, processVotes, runAIActions, setPhaseToNight } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { Heart, Moon, Sun, Users2, Wand2 } from "lucide-react";
@@ -134,22 +134,12 @@ export function GameBoard({
 
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
 
-  // Handle AI actions when phase changes
-  useEffect(() => {
-    if (!game || !currentPlayer) return;
-    if (game.creator === currentPlayer.userId && firestore) {
-      if ((game.phase === 'night' || game.phase === 'day' || game.phase === 'hunter_shot') && game.settings.fillWithAI) {
-         runAIActions(firestore, game.id, game.phase);
-      }
-    }
-  }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, game?.currentRound, game?.settings.fillWithAI, firestore]);
-  
   // Effect for creator to automatically advance from role_reveal
   useEffect(() => {
     if (!game || !currentPlayer) return;
     if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore) {
       const timer = setTimeout(() => {
-        advanceToNightPhase(firestore, game.id);
+        setPhaseToNight(firestore, game.id);
       }, 15000); 
 
       return () => clearTimeout(timer);
