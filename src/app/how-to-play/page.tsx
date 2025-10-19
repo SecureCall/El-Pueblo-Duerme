@@ -28,7 +28,7 @@ const loboRoleKeys: NonNullable<PlayerRole>[] = [
 ];
 
 const especialRoleKeys: NonNullable<PlayerRole>[] = [
-    'cupid', 'shapeshifter', 'drunk_man', 'cult_leader', 'fisherman', 'vampire', 'banshee'
+    'cupid', 'shapeshifter', 'drunk_man', 'cult_leader', 'fisherman', 'vampire', 'banshee', 'executioner'
 ];
 
 
@@ -87,12 +87,12 @@ export default function HowToPlayPage() {
                 )}
                 <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
 
-                <main className="relative z-10 w-full max-w-4xl mx-auto space-y-8 text-primary-foreground py-12">
+                <main className="relative z-10 w-full max-w-4xl mx-auto space-y-8 text-white py-12">
                     <div className="text-center space-y-2">
-                        <h1 className="font-headline text-5xl md:text-6xl font-bold tracking-tight">
+                        <h1 className="font-headline text-5xl md:text-6xl font-bold tracking-tight text-white">
                             Cómo Jugar
                         </h1>
-                        <p className="text-lg text-primary-foreground/80">
+                        <p className="text-lg text-white/80">
                             Las reglas y secretos de Pueblo Duerme.
                         </p>
                     </div>

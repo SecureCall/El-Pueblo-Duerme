@@ -42,6 +42,7 @@ export type PlayerRole =
   "vampire" |
   "banshee" |
   "cupid" |
+  "executioner" |
   null;
 
 
@@ -97,6 +98,7 @@ export interface Game {
     drunk_man: boolean;
     resurrector_angel: boolean;
     cupid: boolean;
+    executioner: boolean;
   };
   phaseEndsAt?: Timestamp;
   twins: [string, string] | null;
@@ -144,6 +146,7 @@ export interface Player {
   resurrectorAngelUsed?: boolean;
   bansheeScreams?: Record<number, string>; // round: targetId
   lookoutUsed?: boolean;
+  executionerTargetId?: string | null;
 }
 
 export type NightActionType = 

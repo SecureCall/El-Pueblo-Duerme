@@ -70,6 +70,7 @@ interface CreateGameFormValues {
   banshee: boolean;
   drunk_man: boolean;
   resurrector_angel: boolean;
+  executioner: boolean;
 }
 
 const implementedRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[] = [
@@ -77,7 +78,7 @@ const implementedRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'
     'hechicera', 'wolf_cub', 'cursed', 'cult_leader', 'fisherman', 'vampire', 'ghost', 'virginia_woolf',
     'leprosa', 'river_siren', 'lookout', 'troublemaker', 'silencer', 'seer_apprentice',
     'elder_leader', 'seeker_fairy', 'sleeping_fairy', 'shapeshifter', 'witch', 'banshee', 'drunk_man',
-    'resurrector_angel'
+    'resurrector_angel', 'executioner'
 ];
 
 export function CreateGameForm() {
@@ -124,6 +125,7 @@ export function CreateGameForm() {
       banshee: true,
       drunk_man: true,
       resurrector_angel: true,
+      executioner: true,
     },
   });
   
