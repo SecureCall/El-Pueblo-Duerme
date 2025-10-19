@@ -12,7 +12,7 @@ const TimestampSchema = z.union([
     message: "Invalid date string format",
   }), // ISO 8601 string
   z.date(), // Accept Date objects as well
-]).nullable();
+]);
 
 
 export const PlayerRoleSchema = z.enum([
@@ -30,7 +30,7 @@ export const PlayerSchema = z.object({
   isAlive: z.boolean(),
   votedFor: z.string().nullable(),
   displayName: z.string(),
-  joinedAt: TimestampSchema,
+  joinedAt: TimestampSchema.nullable(),
   lastHealedRound: z.number(),
   isAI: z.boolean(),
   potions: z.object({
@@ -65,7 +65,7 @@ export const NightActionSchema = z.object({
     "fairy_find", "fairy_kill", "resurrect", "cupid_love"
   ]),
   targetId: z.string(),
-  createdAt: TimestampSchema,
+  createdAt: TimestampSchema.nullable(),
 });
 
 export const GameEventSchema = z.object({
@@ -75,7 +75,7 @@ export const GameEventSchema = z.object({
     type: z.enum(['night_result', 'vote_result', 'game_start', 'role_reveal', 'game_over', 'lover_death', 'hunter_shot', 'player_transformed', 'behavior_clue', 'special', 'vampire_kill', 'werewolf_kill', 'troublemaker_duel']),
     message: z.string(),
     data: z.any().optional(),
-    createdAt: TimestampSchema,
+    createdAt: TimestampSchema.nullable(),
 });
 
 export const ChatMessageSchema = z.object({
@@ -84,7 +84,7 @@ export const ChatMessageSchema = z.object({
     senderName: z.string(),
     text: z.string(),
     round: z.number(),
-    createdAt: TimestampSchema,
+    createdAt: TimestampSchema.nullable(),
     mentionedPlayerIds: z.array(z.string()).optional(),
 });
 
@@ -140,10 +140,10 @@ export const GameSchema = z.object({
   twinChatMessages: z.array(ChatMessageSchema),
   loversChatMessages: z.array(ChatMessageSchema),
   maxPlayers: z.number(),
-  createdAt: TimestampSchema,
+  createdAt: TimestampSchema.nullable(),
   currentRound: z.number(),
   settings: GameSettingsSchema,
-  phaseEndsAt: TimestampSchema.nullable(),
+  phaseEndsAt: TimestampSchema,
   twins: z.tuple([z.string(), z.string()]).nullable(),
   lovers: z.tuple([z.string(), z.string()]).nullable(),
   pendingHunterShot: z.string().nullable(),
@@ -173,5 +173,4 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   shouldSend: z.boolean(),
 });
 
-  
     

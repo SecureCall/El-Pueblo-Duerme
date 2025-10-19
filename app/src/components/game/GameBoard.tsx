@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -7,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
-import { processNight, processVotes, setPhaseToNight, triggerAIVote } from "@/lib/firebase-actions";
+import { processNight, processVotes, setPhaseToNight, triggerAIVote, runAIActions } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { Heart, Moon, Sun, Users2, Wand2 } from "lucide-react";
@@ -38,6 +39,16 @@ interface GameBoardProps {
   twinMessages: ChatMessage[];
   loversMessages: ChatMessage[];
 }
+
+const handlePhaseEnd = async (firestore: any, game: Game, currentPlayer: Player) => {
+    if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId) return;
+
+    if (game.phase === 'day') {
+        await processVotes(firestore, game.id);
+    } else if (game.phase === 'night') {
+        await processNight(firestore, game.id);
+    }
+};
 
 export function GameBoard({ 
     game: initialGame, 
@@ -71,7 +82,7 @@ export function GameBoard({
 
   // Sound effect logic
   useEffect(() => {
-    if (!game) return;
+    if (!game || !currentPlayer) return;
     const prevPhase = prevPhaseRef.current;
 
     if (prevPhase !== game.phase) {
@@ -119,9 +130,10 @@ export function GameBoard({
         const deathEvent = [...events]
             .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
             .find(e => {
-                if (e.data?.killedPlayerId === playerId) return true;
-                if (Array.isArray(e.data?.killedPlayerIds) && e.data.killedPlayerIds.includes(playerId)) return true;
-                if (e.data?.lynchedPlayerId === playerId) return true;
+                const data = e.data || {};
+                if (data.killedPlayerId === playerId) return true;
+                if (Array.isArray(data.killedPlayerIds) && data.killedPlayerIds.includes(playerId)) return true;
+                if (data.lynchedPlayerId === playerId) return true;
                 return false;
             });
         
@@ -134,9 +146,7 @@ export function GameBoard({
             setDeathCause(null);
             return;
         };
-
         setDeathCause(getCauseOfDeath(currentPlayer.userId));
-
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
   
   // Effect for creator to automatically advance from role_reveal
@@ -151,6 +161,26 @@ export function GameBoard({
     }
   }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, firestore]);
   
+  useEffect(() => {
+    if (!game?.phaseEndsAt || !firestore || !currentPlayer) {
+      setTimeLeft(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const endTime = game.phaseEndsAt!.toMillis();
+      const remaining = Math.max(0, endTime - now);
+      setTimeLeft(Math.round(remaining / 1000));
+
+      if (remaining <= 0 && game.creator === currentPlayer.userId) {
+        handlePhaseEnd(firestore, game, currentPlayer);
+        clearInterval(interval); 
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [game?.phaseEndsAt, game?.id, firestore, game, currentPlayer]);
 
   if (!game || !currentPlayer) {
       return null;
@@ -280,9 +310,9 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
               {getPhaseTitle()}
             </CardTitle>
           </div>
-           { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && game.phaseEndsAt && (
+           { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && (
             <PhaseTimer 
-                phaseEndsAt={game.phaseEndsAt}
+                timeLeft={timeLeft}
             />
           )}
         </CardHeader>
@@ -378,3 +408,5 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
+
+    

@@ -37,6 +37,8 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     const { toast } = useToast();
     const { hasSubmitted } = useNightActions(game.id, game.currentRound, currentPlayer.userId);
 
+    const isExecutioner = currentPlayer.role === 'executioner';
+    const isCupidFirstNight = currentPlayer.role === 'cupid' && game.currentRound === 1;
     const isShapeshifterFirstNight = currentPlayer.role === 'shapeshifter' && game.currentRound === 1;
     const isVirginiaWoolfFirstNight = currentPlayer.role === 'virginia_woolf' && game.currentRound === 1;
     const isRiverSirenFirstNight = currentPlayer.role === 'river_siren' && game.currentRound === 1;
@@ -70,7 +72,11 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         }
     }, [isHechicera, hasPoison, hasSavePotion]);
     
-    const selectionLimit = isWerewolfTeam && wolfCubRevengeActive ? 2 : (isLookout ? 0 : 1);
+    let selectionLimit = 1;
+    if (isWerewolfTeam && wolfCubRevengeActive) selectionLimit = 2;
+    if (isCupidFirstNight) selectionLimit = 2;
+    if (isLookout) selectionLimit = 0;
+
 
     const handlePlayerSelect = (player: Player) => {
         if (hasSubmitted || isLookout) return;
@@ -82,6 +88,11 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
              }
         } else {
              if (!player.isAlive) return;
+        }
+
+        if (isCupidFirstNight && selectedPlayerIds.includes(player.userId)) {
+             setSelectedPlayerIds(prev => prev.filter(id => id !== player.userId));
+             return;
         }
 
 
@@ -126,7 +137,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             if (selectionLimit === 1) {
                 return [player.userId];
             }
-            // For selectionLimit > 1 (like wolf cub revenge)
+            // For multi-selection roles
             return [...prev.slice(1), player.userId];
         });
     };
@@ -136,6 +147,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         const apprenticeIsActive = currentPlayer.role === 'seer_apprentice' && game.seerDied;
         if (apprenticeIsActive) return 'seer_check';
         if (isShapeshifterFirstNight) return 'shapeshifter_select';
+        if (isCupidFirstNight) return 'cupid_love';
 
         switch (currentPlayer.role) {
             case 'werewolf':
@@ -268,6 +280,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             case 'guardian': return 'Elige a un jugador para proteger esta noche. Puedes protegerte a ti mismo una vez por partida.';
             case 'priest': return 'Elige a un jugador para otorgarle tu bendición y protegerlo de todo mal.';
             case 'hechicera': return (hasPoison || hasSavePotion) ? 'Elige una poción y un objetivo.' : 'Has usado todas tus pociones.';
+            case 'cupid': return game.currentRound === 1 ? 'Elige a dos jugadores para que se enamoren perdidamente.' : 'Tus flechas ya han sido lanzadas.';
             case 'vampire': return 'Elige un jugador para morder y acercarte a tu victoria.';
             case 'cult_leader': return 'Elige un nuevo miembro para unir a tu culto.';
             case 'fisherman': return 'Elige a un jugador para subir a tu barco. ¡Cuidado con los lobos!';
@@ -282,7 +295,10 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             case 'lookout': return 'Puedes arriesgarte a espiar a los lobos. Si tienes éxito, los conocerás. Si fallas, morirás.';
             case 'seeker_fairy': return game.fairiesFound ? '¡Has encontrado al Hada Durmiente!' : 'Elige a un jugador para saber si es el Hada Durmiente.';
             case 'sleeping_fairy': return game.fairiesFound ? '¡El Hada Buscadora te ha encontrado!' : 'Duermes, esperando una conexión mágica.';
-            case 'resurrector_angel': return 'Elige a un jugador muerto para devolverle la vida. Solo puedes usar este poder una vez.';
+            case 'resurrector_angel': return isResurrectorAngel ? 'Elige a un jugador muerto para devolverle la vida. Solo puedes usar este poder una vez.' : 'Ya has usado tu poder de resurrección.';
+            case 'executioner':
+                 const target = players.find(p => p.userId === currentPlayer.executionerTargetId);
+                 return target ? `Tu objetivo es que el pueblo linche a ${target.displayName}.` : 'Se te está asignando un objetivo...';
             default: return 'No tienes acciones esta noche. Espera al amanecer.';
         }
     }
@@ -358,6 +374,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             isCultLeader ||
             isFisherman ||
             (isHechicera && (hasPoison || hasSavePotion)) ||
+            isCupidFirstNight ||
             isShapeshifterFirstNight ||
             isVirginiaWoolfFirstNight ||
             isRiverSirenFirstNight ||
@@ -405,6 +422,10 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                      <div className="text-center py-8">
                         <p className="text-lg text-primary">Has realizado tu acción. Espera a que amanezca.</p>
                     </div>
+                ) : isExecutioner ? (
+                     <div className="text-center py-8">
+                        <p className="text-lg text-muted-foreground">No tienes acciones esta noche. Tu trabajo empieza durante el día.</p>
+                    </div>
                 ) : canPerformAction ? (
                     <>
                         {(!isLookout && currentPlayer.role !== 'sleeping_fairy') && (
@@ -416,6 +437,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                                         if (game.witchFoundSeer && p.role === 'witch') return false;
                                         return !['werewolf', 'wolf_cub'].includes(p.role || '');
                                     }
+                                    if (isCupidFirstNight) return true; // Cupid can target anyone
                                     if (canFairiesKill && ['seeker_fairy', 'sleeping_fairy'].includes(p.role || '')) return false;
                                     if (isVampire) return p.role !== 'vampire';
                                     if (isCultLeader) return p.userId !== currentPlayer.userId && !p.isCultMember;
@@ -436,13 +458,13 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                                 selectedPlayerIds={selectedPlayerIds}
                             />
                         )}
-                         {isWerewolfTeam && wolfCubRevengeActive && (
+                         { (isWerewolfTeam && wolfCubRevengeActive) || isCupidFirstNight ? (
                             <div className="flex justify-center items-center gap-4 mt-4">
                                 <span className='text-lg'>{players.find(p => p.userId === selectedPlayerIds[0])?.displayName || '?'}</span>
                                 <span className='text-destructive font-bold'>&</span>
                                 <span className='text-lg'>{players.find(p => p.userId === selectedPlayerIds[1])?.displayName || '?'}</span>
                             </div>
-                        )}
+                        ) : null}
                         <Button 
                             className="w-full mt-6 text-lg" 
                             onClick={handleSubmit} 
@@ -450,7 +472,9 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                         >
                             {isSubmitting 
                                 ? <Loader2 className="animate-spin" /> 
-                                : (isLookout ? <><Eye className="mr-2" /> Intentar Espiar</> : (canFairiesKill ? <><Wand2 className="mr-2" /> Lanzar Maldición</> : 'Confirmar Acción'))
+                                : (isLookout ? <><Eye className="mr-2" /> Intentar Espiar</> : 
+                                  (canFairiesKill ? <><Wand2 className="mr-2" /> Lanzar Maldición</> : 
+                                  (isCupidFirstNight ? <><Heart className="mr-2" /> Crear Pareja</> : 'Confirmar Acción')))
                             }
                         </Button>
                     </>
@@ -468,3 +492,5 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         </Card>
     );
 }
+
+    
