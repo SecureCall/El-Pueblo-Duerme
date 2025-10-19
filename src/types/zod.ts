@@ -1,5 +1,4 @@
 
-
 import { z } from 'zod';
 
 // Helper for Firebase Timestamps - now accepting string for client-server transfer
@@ -30,7 +29,7 @@ export const PlayerSchema = z.object({
   isAlive: z.boolean(),
   votedFor: z.string().nullable(),
   displayName: z.string(),
-  joinedAt: TimestampSchema.nullable(),
+  joinedAt: TimestampSchema,
   lastHealedRound: z.number(),
   isAI: z.boolean(),
   potions: z.object({
@@ -65,7 +64,7 @@ export const NightActionSchema = z.object({
     "fairy_find", "fairy_kill", "resurrect", "cupid_love"
   ]),
   targetId: z.string(),
-  createdAt: TimestampSchema.nullable(),
+  createdAt: TimestampSchema,
 });
 
 export const GameEventSchema = z.object({
@@ -75,7 +74,7 @@ export const GameEventSchema = z.object({
     type: z.enum(['night_result', 'vote_result', 'game_start', 'role_reveal', 'game_over', 'lover_death', 'hunter_shot', 'player_transformed', 'behavior_clue', 'special', 'vampire_kill', 'werewolf_kill', 'troublemaker_duel']),
     message: z.string(),
     data: z.any().optional(),
-    createdAt: TimestampSchema.nullable(),
+    createdAt: TimestampSchema,
 });
 
 export const ChatMessageSchema = z.object({
@@ -84,7 +83,7 @@ export const ChatMessageSchema = z.object({
     senderName: z.string(),
     text: z.string(),
     round: z.number(),
-    createdAt: TimestampSchema.nullable(),
+    createdAt: TimestampSchema,
     mentionedPlayerIds: z.array(z.string()).optional(),
 });
 
@@ -140,7 +139,7 @@ export const GameSchema = z.object({
   twinChatMessages: z.array(ChatMessageSchema),
   loversChatMessages: z.array(ChatMessageSchema),
   maxPlayers: z.number(),
-  createdAt: TimestampSchema.nullable(),
+  createdAt: TimestampSchema,
   currentRound: z.number(),
   settings: GameSettingsSchema,
   phaseEndsAt: TimestampSchema,
@@ -172,3 +171,5 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
+
+    
