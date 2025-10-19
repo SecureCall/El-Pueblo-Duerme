@@ -8,9 +8,9 @@ import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
 import { submitVote, submitTroublemakerAction } from '@/lib/firebase-actions';
-import { Loader2, Zap } from 'lucide-react';
+import { Loader2, Zap, Scale } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
-import { HeartCrack, SunIcon, Users, BrainCircuit, Scale } from 'lucide-react';
+import { HeartCrack, SunIcon, Users, BrainCircuit } from 'lucide-react';
 import { useFirebase } from '@/firebase';
 
 interface DayPhaseProps {
@@ -21,7 +21,6 @@ interface DayPhaseProps {
     loverDeathEvents?: GameEvent[];
     voteEvent?: GameEvent;
     behaviorClueEvent?: GameEvent;
-    chatMessages: ChatMessage[];
 }
 
 function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, currentPlayer: Player, players: Player[] }) {
@@ -114,14 +113,13 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
     const isTroublemaker = currentPlayer.role === 'troublemaker' && currentPlayer.isAlive && !game.troublemakerUsed;
 
     const tieData = voteEvent?.data?.tiedPlayerIds;
-    const isTiebreaker = Array.isArray(tieData) && tieData.length > 0;
+    const isTiebreaker = Array.isArray(tieData) && tieData.length > 0 && !voteEvent.data?.final;
     
-    const alivePlayers = isTiebreaker 
+    const votablePlayers = isTiebreaker 
       ? players.filter(p => p.isAlive && tieData.includes(p.userId))
       : players.filter(p => p.isAlive);
 
     useEffect(() => {
-        // Reset selection if the votable players change (e.g., entering/exiting a tiebreak)
         setSelectedPlayerId(null);
     }, [isTiebreaker]);
 
@@ -139,7 +137,6 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
 
         setIsSubmitting(true);
         const result = await submitVote(firestore, game.id, currentPlayer.userId, selectedPlayerId);
-        // Do not set isSubmitting to false here. The hasVoted state will rebuild the UI.
 
         if (result.error) {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
@@ -251,7 +248,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
 
                             <p className="text-center mb-4 text-muted-foreground">{isTiebreaker ? "Debes elegir a uno de los empatados." : "Selecciona al jugador que crees que es un Hombre Lobo."}</p>
                             <PlayerGrid 
-                                players={alivePlayers.filter(p => p.userId !== currentPlayer.userId)}
+                                players={votablePlayers.filter(p => p.userId !== currentPlayer.userId)}
                                 onPlayerClick={handlePlayerSelect}
                                 clickable={canPlayerVote}
                                 selectedPlayerIds={selectedPlayerId ? [selectedPlayerId] : []}
