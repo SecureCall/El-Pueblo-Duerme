@@ -1,6 +1,6 @@
 
 'use client';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -21,12 +21,14 @@ import { useToast } from '@/hooks/use-toast';
 function GameCard({ game }: { game: Game }) {
     const { displayName } = useGameSession();
     const router = useRouter();
+    const [isJoining, setIsJoining] = useState(false);
 
     const handleJoin = () => {
         if (!displayName) {
             // Logic to handle missing name is in the parent component
             return;
         }
+        setIsJoining(true);
         router.push(`/game/${game.id}`);
     }
 
@@ -41,8 +43,8 @@ function GameCard({ game }: { game: Game }) {
                     <Users className="h-5 w-5" />
                     <span className="font-bold">{game.players.length} / {game.maxPlayers}</span>
                 </div>
-                <Button onClick={handleJoin} disabled={!displayName || game.players.length >= game.maxPlayers}>
-                    Unirse
+                <Button onClick={handleJoin} disabled={isJoining || !displayName || game.players.length >= game.maxPlayers}>
+                     {isJoining ? <Loader2 className="animate-spin" /> : "Unirse"}
                 </Button>
             </CardContent>
         </Card>
@@ -55,6 +57,15 @@ export default function PublicGamesPage() {
     const { firestore } = useFirebase();
     const { displayName, setDisplayName } = useGameSession();
     const { toast } = useToast();
+    const [isNameModalOpen, setIsNameModalOpen] = useState(false);
+
+    useEffect(() => {
+        // Only open the modal if the display name is not set.
+        if (!displayName) {
+            setIsNameModalOpen(true);
+        }
+    }, [displayName]);
+
 
     const gamesQuery = useMemoFirebase(() => {
         if (!firestore) return null;
@@ -86,12 +97,13 @@ export default function PublicGamesPage() {
             return;
         }
         setDisplayName(name);
+        setIsNameModalOpen(false);
     }
 
     const renderContent = () => {
         if (isLoading) {
             return (
-                <div className="flex flex-col items-center gap-4 text-primary-foreground">
+                <div className="flex flex-col items-center gap-4 text-white">
                     <Loader2 className="h-12 w-12 animate-spin text-primary" />
                     <p>Buscando partidas públicas...</p>
                 </div>
@@ -100,9 +112,9 @@ export default function PublicGamesPage() {
 
         if (!sortedGames || sortedGames.length === 0) {
             return (
-                <div className="text-center text-primary-foreground">
+                <div className="text-center text-white">
                     <h2 className="text-2xl font-bold">No hay partidas públicas disponibles</h2>
-                    <p className="text-primary-foreground/80 mt-2">¿Por qué no creas tú una y la haces pública?</p>
+                    <p className="text-white/80 mt-2">¿Por qué no creas tú una y la haces pública?</p>
                 </div>
             );
         }
@@ -120,7 +132,7 @@ export default function PublicGamesPage() {
         <>
             <GameMusic src="/audio/lobby-theme.mp3" />
              <EnterNameModal
-                isOpen={!displayName}
+                isOpen={isNameModalOpen}
                 onNameSubmit={handleNameSubmit}
             />
             <div className="relative min-h-screen w-full flex flex-col items-center p-4 overflow-y-auto">
@@ -136,12 +148,12 @@ export default function PublicGamesPage() {
                 )}
                 <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
 
-                <main className="relative z-10 w-full max-w-6xl mx-auto space-y-8 text-primary-foreground py-12">
+                <main className="relative z-10 w-full max-w-6xl mx-auto space-y-8 text-white py-12">
                     <div className="text-center space-y-2">
                         <h1 className="font-headline text-5xl md:text-6xl font-bold tracking-tight">
                             Salas Públicas
                         </h1>
-                        <p className="text-lg text-primary-foreground/80">
+                        <p className="text-lg text-white/80">
                             Únete a una partida abierta y conoce a nuevos jugadores.
                         </p>
                     </div>

@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 
 const FormSchema = z.object({
   displayName: z.string().min(2, "El nombre debe tener al menos 2 caracteres.").max(20),
@@ -21,9 +22,10 @@ const FormSchema = z.object({
 type EnterNameModalProps = {
   isOpen: boolean;
   onNameSubmit: (name: string) => void;
+  error?: string | null;
 };
 
-export function EnterNameModal({ isOpen, onNameSubmit }: EnterNameModalProps) {
+export function EnterNameModal({ isOpen, onNameSubmit, error }: EnterNameModalProps) {
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
@@ -44,6 +46,12 @@ export function EnterNameModal({ isOpen, onNameSubmit }: EnterNameModalProps) {
             Para unirte a la partida, por favor dinos cómo te llamas.
           </DialogDescription>
         </DialogHeader>
+        {error && (
+            <Alert variant="destructive">
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+            </Alert>
+        )}
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
             <FormField
