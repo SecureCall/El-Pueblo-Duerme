@@ -42,6 +42,7 @@ export type PlayerRole =
   "vampire" |
   "banshee" |
   "cupid" |
+  "executioner" |
   null;
 
 
@@ -97,8 +98,9 @@ export interface Game {
     drunk_man: boolean;
     resurrector_angel: boolean;
     cupid: boolean;
+    executioner: boolean;
   };
-  phaseEndsAt?: Timestamp;
+  phaseEndsAt: Timestamp | null;
   twins: [string, string] | null;
   lovers: [string, string] | null;
   pendingHunterShot: string | null; // userId of the hunter who needs to shoot
@@ -142,8 +144,9 @@ export interface Player {
   riverSirenTargetId?: string | null;
   ghostMessageSent?: boolean;
   resurrectorAngelUsed?: boolean;
-  bansheeScreams?: Record<number, string>; // round: targetId
+  bansheeScreams?: Record<string, string>; // round: targetId
   lookoutUsed?: boolean;
+  executionerTargetId: string | null;
 }
 
 export type NightActionType = 
@@ -213,3 +216,5 @@ export interface GenerateAIChatMessageOutput {
     message: string;
     shouldSend: boolean;
 };
+
+    

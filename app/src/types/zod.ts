@@ -12,7 +12,7 @@ const TimestampSchema = z.union([
     message: "Invalid date string format",
   }), // ISO 8601 string
   z.date(), // Accept Date objects as well
-]);
+]).nullable();
 
 
 export const PlayerRoleSchema = z.enum([
@@ -20,7 +20,7 @@ export const PlayerRoleSchema = z.enum([
   "hechicera", "ghost", "virginia_woolf", "leprosa", "river_siren", "lookout", "troublemaker",
   "silencer", "seer_apprentice", "elder_leader", "werewolf", "wolf_cub", "cursed", "seeker_fairy",
   "sleeping_fairy", "shapeshifter", "drunk_man", "cult_leader", "fisherman", "vampire", "witch", "banshee",
-  "resurrector_angel", "cupid"
+  "resurrector_angel", "cupid", "executioner"
 ]).nullable();
 
 export const PlayerSchema = z.object({
@@ -50,6 +50,7 @@ export const PlayerSchema = z.object({
   resurrectorAngelUsed: z.boolean().optional(),
   bansheeScreams: z.record(z.string()).optional(),
   lookoutUsed: z.boolean().optional(),
+  executionerTargetId: z.string().nullable(),
 });
 
 export const NightActionSchema = z.object({
@@ -122,6 +123,7 @@ export const GameSettingsSchema = z.object({
     drunk_man: z.boolean(),
     resurrector_angel: z.boolean(),
     cupid: z.boolean(),
+    executioner: z.boolean(),
 });
 
 export const GameSchema = z.object({
@@ -141,7 +143,7 @@ export const GameSchema = z.object({
   createdAt: TimestampSchema,
   currentRound: z.number(),
   settings: GameSettingsSchema,
-  phaseEndsAt: TimestampSchema.optional(),
+  phaseEndsAt: TimestampSchema.nullable(),
   twins: z.tuple([z.string(), z.string()]).nullable(),
   lovers: z.tuple([z.string(), z.string()]).nullable(),
   pendingHunterShot: z.string().nullable(),
@@ -170,3 +172,6 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
+
+  
+    
