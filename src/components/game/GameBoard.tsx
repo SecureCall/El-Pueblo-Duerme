@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -8,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { useEffect, useState, useRef } from "react";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
-import { processNight, processVotes, runAIActions } from "@/lib/firebase-actions";
+import { processNight, processVotes, runAIActions, advanceToNightPhase } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { Heart, Moon, Sun, Users2, Wand2 } from "lucide-react";
@@ -149,7 +148,7 @@ export function GameBoard({
     if (!game || !currentPlayer) return;
     if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore) {
       const timer = setTimeout(() => {
-        processNight(firestore, game.id);
+        advanceToNightPhase(firestore, game.id);
       }, 15000); 
 
       return () => clearTimeout(timer);
@@ -157,11 +156,11 @@ export function GameBoard({
   }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, firestore]);
   
    const handleTimerEnd = async () => {
-    if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId) return; 
+    if (!firestore || !game || game.status !== 'in_progress') return; 
     
-    if (game.phase === 'day' && game.status === 'in_progress') {
+    if (game.phase === 'day') {
         await processVotes(firestore, game.id);
-    } else if (game.phase === 'night' && game.status === 'in_progress') {
+    } else if (game.phase === 'night') {
         await processNight(firestore, game.id);
     }
   };
@@ -238,11 +237,11 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
   }
   
   const handleTimerEnd = async () => {
-    if (!firestore) return;
+    if (!firestore || !game || game.status !== 'in_progress') return; 
 
-    if (game.phase === 'day' && game.status === 'in_progress') {
+    if (game.phase === 'day') {
         await processVotes(firestore, game.id);
-    } else if (game.phase === 'night' && game.status === 'in_progress') {
+    } else if (game.phase === 'night') {
         await processNight(firestore, game.id);
     }
   };
