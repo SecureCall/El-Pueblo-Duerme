@@ -143,7 +143,7 @@ export const GameSchema = z.object({
   createdAt: TimestampSchema,
   currentRound: z.number(),
   settings: GameSettingsSchema,
-  phaseEndsAt: TimestampSchema.optional(),
+  phaseEndsAt: TimestampSchema.nullable(),
   twins: z.tuple([z.string(), z.string()]).nullable(),
   lovers: z.tuple([z.string(), z.string()]).nullable(),
   pendingHunterShot: z.string().nullable(),
@@ -172,5 +172,3 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
-
-    

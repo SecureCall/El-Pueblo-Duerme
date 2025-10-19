@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
-import { processNight, processVotes, setPhaseToNight, runAIActions } from "@/lib/firebase-actions";
+import { processNight, processVotes, setPhaseToNight, triggerAIVote } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { Heart, Moon, Sun, Users2, Wand2 } from "lucide-react";
@@ -27,8 +27,6 @@ import { FairyChat } from "./FairyChat";
 import { VampireKillOverlay } from "./VampireKillOverlay";
 import { useGameState } from "@/hooks/use-game-state";
 import { LoversChat } from "./LoversChat";
-
-const PHASE_DURATION_SECONDS = 45;
 
 interface GameBoardProps {
   game: Game;
@@ -70,25 +68,11 @@ export function GameBoard({
   const [showRole, setShowRole] = useState(true);
   const [deathCause, setDeathCause] = useState<GameEvent['type'] | 'other' | null>(null);
   const nightSoundsPlayedForRound = useRef<number>(0);
-  const [timeLeft, setTimeLeft] = useState(PHASE_DURATION_SECONDS);
-  const phaseEndHandled = useRef(false);
-
-  const handlePhaseEnd = useCallback(async () => {
-    if (!firestore || !game || game.status !== 'in_progress' || phaseEndHandled.current) return;
-    
-    phaseEndHandled.current = true;
-
-    if (game.phase === 'day') {
-        await processVotes(firestore, game.id);
-    } else if (game.phase === 'night') {
-        await processNight(firestore, game.id);
-    }
-  }, [firestore, game]);
-
+  const [timeLeft, setTimeLeft] = useState(0);
 
   // Sound effect logic
   useEffect(() => {
-    if (!game) return;
+    if (!game || !currentPlayer) return;
     const prevPhase = prevPhaseRef.current;
 
     if (prevPhase !== game.phase) {
@@ -103,7 +87,12 @@ export function GameBoard({
           break;
         case 'day':
           playNarration('dia_pueblo_despierta.mp3');
-          setTimeout(() => playNarration('inicio_debate.mp3'), 2000);
+          setTimeout(() => {
+            playNarration('inicio_debate.mp3');
+            if (firestore && game.creator === currentPlayer?.userId) {
+                triggerAIVote(firestore, game.id);
+            }
+          }, 2000);
           break;
       }
     }
@@ -125,7 +114,7 @@ export function GameBoard({
         nightSoundsPlayedForRound.current = game.currentRound; 
     }
 
-  }, [game?.phase, game?.currentRound, events, players]);
+  }, [game?.phase, game?.currentRound, events, players, firestore, game, currentPlayer]);
 
     const getCauseOfDeath = (playerId: string): GameEvent['type'] | 'other' => {
         const deathEvent = [...events]
@@ -150,16 +139,6 @@ export function GameBoard({
         setDeathCause(getCauseOfDeath(currentPlayer.userId));
 
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
-
-  // Handle AI actions when phase changes
-  useEffect(() => {
-    if (!game || !currentPlayer) return;
-    if (game.creator === currentPlayer.userId && firestore) {
-      if ((game.phase === 'night' || game.phase === 'day' || game.phase === 'hunter_shot') && game.settings.fillWithAI) {
-         runAIActions(firestore, game.id, game.phase);
-      }
-    }
-  }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, game?.currentRound, game?.settings.fillWithAI, firestore]);
   
   // Effect for creator to automatically advance from role_reveal
   useEffect(() => {
@@ -173,34 +152,6 @@ export function GameBoard({
     }
   }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, firestore]);
   
-  useEffect(() => {
-    if(game?.phase) {
-        phaseEndHandled.current = false;
-    }
-  }, [game?.phase, game?.currentRound]);
-
-  useEffect(() => {
-      if (!game || !game.phaseEndsAt || game.status !== 'in_progress' || (game.phase !== 'day' && game.phase !== 'night')) {
-        setTimeLeft(PHASE_DURATION_SECONDS);
-        return;
-      }
-      
-      const interval = setInterval(() => {
-        if (game && game.phaseEndsAt) {
-            const endTime = game.phaseEndsAt.toMillis();
-            const now = Date.now();
-            const remaining = Math.max(0, Math.round((endTime - now) / 1000));
-            setTimeLeft(remaining);
-
-            if (remaining <= 0) {
-                handlePhaseEnd();
-            }
-        }
-      }, 1000);
-
-      return () => clearInterval(interval);
-  }, [game, handlePhaseEnd]);
-
 
   if (!game || !currentPlayer) {
       return null;
@@ -330,10 +281,9 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
               {getPhaseTitle()}
             </CardTitle>
           </div>
-           { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && (
+           { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && game.phaseEndsAt && (
             <PhaseTimer 
-                timeLeft={timeLeft}
-                phaseDuration={PHASE_DURATION_SECONDS}
+                phaseEndsAt={game.phaseEndsAt}
             />
           )}
         </CardHeader>

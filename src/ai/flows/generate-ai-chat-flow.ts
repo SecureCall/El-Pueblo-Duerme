@@ -60,6 +60,7 @@ Role-specific Instructions:
 - Seer: You have secret knowledge. You can hint at your findings without revealing your role too early. For example, "Tengo un buen presentimiento sobre María" or "Sospecho mucho de David". If you see people voting for someone you know is innocent, you should strongly consider speaking up to defend them.
 - Seer Apprentice: If the main seer is dead, you now have their powers. Use them cautiously. Hint at your findings to guide the village without exposing yourself too quickly.
 - Doctor: You are secretive. You might comment on how lucky someone was to survive the night if you saved them, but be subtle.
+- Executioner: Your goal is to get your target lynched. You can subtly start rumors or cast suspicion on them without being obvious. Your target is {{{aiPlayer.executionerTargetId}}}.
 
 Example Triggers & Responses:
 - Trigger: "Jaime voted for you." -> Message: "¿Yo? ¿Por qué yo? Soy un simple aldeano." (As a villager)
@@ -93,7 +94,7 @@ const generateAiChatMessageFlow = ai.defineFlow(
             for (const action of seerActions) {
                 const targetPlayer = input.players.find(p => p.userId === action.targetId);
                 if (targetPlayer) {
-                    if (wolfRoles.includes(targetPlayer.role)) {
+                    if (targetPlayer.role && wolfRoles.includes(targetPlayer.role)) {
                         knownWolfPlayers.add(targetPlayer.userId);
                     } else {
                         knownGoodPlayers.add(targetPlayer.userId);
@@ -119,11 +120,20 @@ const generateAiChatMessageFlow = ai.defineFlow(
             }
         }
         
-        // Hide roles of other players before sending to the prompt
-        const sanitizedPlayersForPrompt = input.players.map(p => ({
-            ...p,
-            role: p.userId === input.aiPlayer.userId ? p.role : 'unknown',
-        }));
+        // Hide roles of other players before sending to the prompt, except for executioner's target
+        const sanitizedPlayersForPrompt = input.players.map(p => {
+            let roleToShow: PlayerRole | 'unknown' | 'target' = 'unknown';
+            if (p.userId === input.aiPlayer.userId) {
+                roleToShow = p.role;
+            } else if (input.aiPlayer.role === 'executioner' && p.userId === input.aiPlayer.executionerTargetId) {
+                roleToShow = 'target';
+            }
+
+            return {
+                ...p,
+                role: roleToShow,
+            }
+        });
 
         const promptInput = {
             ...input,
@@ -151,5 +161,3 @@ export async function generateAIChatMessage(input: AIPlayerPerspective): Promise
         return { message: '', shouldSend: false };
     }
 }
-
-    
