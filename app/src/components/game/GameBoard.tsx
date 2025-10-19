@@ -169,7 +169,7 @@ export function GameBoard({
 
     const interval = setInterval(() => {
       const now = Date.now();
-      const endTime = game.phaseEndsAt.toMillis();
+      const endTime = game.phaseEndsAt!.toMillis();
       const remaining = Math.max(0, endTime - now);
       setTimeLeft(Math.round(remaining / 1000));
 
@@ -408,3 +408,5 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
+
+    
