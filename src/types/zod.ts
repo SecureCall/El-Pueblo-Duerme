@@ -140,7 +140,9 @@ export const GameSchema = z.object({
   twinChatMessages: z.array(ChatMessageSchema),
   loversChatMessages: z.array(ChatMessageSchema),
   maxPlayers: z.number(),
-  createdAt: TimestampSchema,
+  createdAt: TimestampSchema.refine((val): val is { seconds: number; nanoseconds: number } | Date | string => val !== null, {
+    message: "createdAt cannot be null",
+  }),
   currentRound: z.number(),
   settings: GameSettingsSchema,
   phaseEndsAt: TimestampSchema,
@@ -172,3 +174,5 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
+
+    

@@ -8,7 +8,7 @@ import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
 import { submitNightAction, getSeerResult } from '@/lib/firebase-actions';
-import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, BotIcon, Eye, Wand2, UserX } from 'lucide-react';
+import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, BotIcon, Eye, Wand2 } from 'lucide-react';
 import { SeerResult } from './SeerResult';
 import { useNightActions } from '@/hooks/use-night-actions';
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
@@ -196,7 +196,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             actionType: actionType,
             targetId: selectedPlayerIds.join('|'),
         });
-
+        
         setIsSubmitting(false);
 
         if (result.success) {
@@ -392,9 +392,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                                     if (p.userId === currentPlayer.userId) {
                                         if (currentPlayer.role === 'priest' && !currentPlayer.priestSelfHealUsed) return true;
                                         if (currentPlayer.role === 'guardian' && (currentPlayer.guardianSelfProtects || 0) < 1) return true;
-                                        // Hechicera cannot save self
                                         if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save') return false;
-                                        // By default, cannot target self unless specified above.
                                         return false; 
                                     }
                                     return true;
@@ -438,3 +436,5 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         </Card>
     );
 }
+
+    
