@@ -1,3 +1,4 @@
+
 'use client';
 import { 
   doc,
@@ -973,7 +974,7 @@ export async function processVotes(db: Firestore, gameId: string) {
           const { updatedGame } = killPlayer(game, [lynchedPlayerId], 'vote_result');
           game = updatedGame; 
           
-          const killedPlayer = game.players.find(p => p.userId === lynchedPlayerId);
+          const killedPlayer = game.players.find(p => !p.isAlive && p.userId === lynchedPlayerId);
           if (killedPlayer && !game.events.some(e => e.round === game.currentRound && e.type === 'vote_result' && e.data?.killedPlayerIds?.includes(lynchedPlayerId))) {
              game.events.push({
                 id: `evt_vote_result_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result',
@@ -1636,7 +1637,7 @@ export async function resetGame(db: Firestore, gameId: string) {
 
             const resetHumanPlayers = humanPlayers.map(player => {
                 const newPlayer = createPlayerObject(player.userId, game.id, player.displayName, player.isAI);
-                newPlayer.joinedAt = player.joinedAt;
+                newPlayer.joinedAt = player.joinedAt; // Preserve join order
                 return newPlayer;
             });
 
