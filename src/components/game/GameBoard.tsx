@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -133,20 +134,19 @@ export function GameBoard({
 
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
 
-  // Handle AI actions when phase changes
+  // Handle AI actions and check for phase advancement
   useEffect(() => {
-    if (!game || !currentPlayer) return;
-    if (game.creator === currentPlayer.userId && firestore) {
-      if ((game.phase === 'night' || game.phase === 'day' || game.phase === 'hunter_shot') && game.settings.fillWithAI) {
-         runAIActions(firestore, game.id, game.phase);
-      }
-    }
-  }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, game?.currentRound, game?.settings.fillWithAI, firestore]);
+    if (!game || !firestore) return;
+    
+    // Any client can trigger this, but the backend function will ensure it only runs once per phase.
+    runAIActions(firestore, game.id, game.phase);
+
+  }, [game?.phase, game?.id, game?.currentRound, firestore, game?.players, game?.nightActions]);
   
   // Effect for creator to automatically advance from role_reveal
   useEffect(() => {
-    if (!game || !currentPlayer) return;
-    if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore) {
+    if (!game || !currentPlayer || !firestore) return;
+    if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId) {
       const timer = setTimeout(() => {
         advanceToNightPhase(firestore, game.id);
       }, 15000); 
@@ -157,12 +157,9 @@ export function GameBoard({
   
    const handleTimerEnd = async () => {
     if (!firestore || !game || game.status !== 'in_progress') return; 
-    
-    if (game.phase === 'day') {
-        await processVotes(firestore, game.id);
-    } else if (game.phase === 'night') {
-        await processNight(firestore, game.id);
-    }
+    // Simply call runAIActions. It will see the phase and if all players have acted
+    // (or if time is up), it will trigger the next phase.
+    await runAIActions(firestore, game.id, game.phase);
   };
 
   if (!game || !currentPlayer) {
@@ -238,12 +235,8 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
   
   const handleTimerEnd = async () => {
     if (!firestore || !game || game.status !== 'in_progress') return; 
-
-    if (game.phase === 'day') {
-        await processVotes(firestore, game.id);
-    } else if (game.phase === 'night') {
-        await processNight(firestore, game.id);
-    }
+    // This is now a backup call. runAIActions is the primary driver.
+    await runAIActions(firestore, game.id, game.phase);
   };
   
   const isTwin = currentPlayer?.role === 'twin' && !!game.twins?.includes(currentPlayer.userId);

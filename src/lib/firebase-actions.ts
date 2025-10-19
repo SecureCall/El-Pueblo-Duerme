@@ -700,7 +700,7 @@ export async function processNight(db: Firestore, gameId: string) {
             if (!gameSnap.exists()) throw new Error("Game not found!");
             
             let game = gameSnap.data() as Game;
-            if ((game.phase !== 'night' && game.phase !== 'role_reveal') || game.status !== 'in_progress') {
+            if (game.phase !== 'night' || game.status !== 'in_progress') {
                 console.log(`Skipping night process, phase is '${game.phase}'.`);
                 return;
             }
@@ -712,36 +712,6 @@ export async function processNight(db: Firestore, gameId: string) {
                 p.potions = p.potions || { poison: null, save: null };
                 p.biteCount = p.biteCount || 0;
             });
-            
-            const isFirstNight = game.currentRound === 1 && game.phase === 'role_reveal';
-
-            // Cupid action on first night
-            if (isFirstNight && game.settings.cupid) {
-                const cupidAction = game.nightActions?.find(a => a.round === 1 && a.actionType === 'cupid_love');
-                if (cupidAction) {
-                    const loverIds = cupidAction.targetId.split('|');
-                    if (loverIds.length === 2) {
-                        game.lovers = [loverIds[0], loverIds[1]];
-                        game.players.forEach(p => {
-                            if (loverIds.includes(p.userId)) {
-                                p.isLover = true;
-                            }
-                        });
-                    }
-                }
-            }
-            
-            // If it's the role reveal phase, just transition to night and stop.
-            if (game.phase === 'role_reveal') {
-                transaction.update(gameRef, {
-                    phase: 'night',
-                    players: game.players,
-                    lovers: game.lovers,
-                    nightActions: game.nightActions,
-                });
-                return;
-            }
-
 
             const resurrectAction = game.nightActions?.find(a => a.round === game.currentRound && a.actionType === 'resurrect');
             let resurrectedPlayerName: string | null = null;
@@ -1300,8 +1270,31 @@ export async function runAIActions(db: Firestore, gameId: string, phase: Game['p
     try {
         const gameDoc = await getDoc(doc(db, 'games', gameId));
         if (!gameDoc.exists()) return;
-        const game = gameDoc.data() as Game;
+        let game = gameDoc.data() as Game;
 
+        if (game.status !== 'in_progress') return;
+
+        // Centralized check to advance phase if all human players have acted
+        if (phase === 'day') {
+            const aliveHumanPlayers = game.players.filter(p => p.isAlive && !p.isAI);
+            if (aliveHumanPlayers.every(p => p.votedFor)) {
+                await processVotes(db, gameId);
+                return; // Stop further execution as phase has changed
+            }
+        } else if (phase === 'night') {
+            const nightActions = game.nightActions?.filter(a => a.round === game.currentRound) || [];
+            const aliveHumanPlayersWithNightActions = game.players.filter(p => 
+                p.isAlive && 
+                !p.isAI && 
+                roleDetails[p.role!] // A role that exists
+            );
+            if (aliveHumanPlayersWithNightActions.every(p => nightActions.some(a => a.playerId === p.userId))) {
+                 await processNight(db, gameId);
+                 return; // Stop further execution
+            }
+        }
+
+        // AI actions logic remains
         const aiPlayers = game.players.filter(p => {
             if (!p.isAI) return false;
             if (phase === 'hunter_shot') return p.userId === game.pendingHunterShot;
@@ -1461,12 +1454,12 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             transaction.update(gameRef, { players: game.players });
         });
         
+        // After vote, immediately check if phase should end
         const finalGameSnap = await getDoc(gameRef);
         if (finalGameSnap.exists()) {
             const game = finalGameSnap.data() as Game;
-            const alivePlayers = game.players.filter(p => p.isAlive);
-            const allVotesIn = alivePlayers.every(p => p.votedFor);
-            if (allVotesIn) {
+            const aliveHumanPlayers = game.players.filter(p => p.isAlive && !p.isAI);
+            if (aliveHumanPlayers.every(p => p.votedFor)) {
                 await processVotes(db, gameId);
             }
         }
@@ -1709,6 +1702,44 @@ export async function resetGame(db: Firestore, gameId: string) {
         console.error("Error resetting game:", e);
         return { error: e.message || 'No se pudo reiniciar la partida.' };
     }
+}
+
+export async function advanceToNightPhase(db: Firestore, gameId: string) {
+  const gameRef = doc(db, "games", gameId);
+  try {
+    await runTransaction(db, async (transaction) => {
+      const gameSnap = await transaction.get(gameRef);
+      if (!gameSnap.exists()) throw new Error("Game not found");
+      const game = gameSnap.data() as Game;
+
+      if (game.phase === 'role_reveal') {
+        let updateData: Partial<Game> = { phase: 'night' };
+        
+        // Cupid action is now handled on the first night process
+        if (game.settings.cupid) {
+            const cupidAction = game.nightActions?.find(a => a.round === 1 && a.actionType === 'cupid_love');
+            if (cupidAction) {
+                const loverIds = cupidAction.targetId.split('|') as [string, string];
+                if (loverIds.length === 2) {
+                    const playerUpdates = game.players.map(p => {
+                        if (loverIds.includes(p.userId)) {
+                            return { ...p, isLover: true };
+                        }
+                        return p;
+                    });
+                    updateData.players = playerUpdates;
+                    updateData.lovers = loverIds;
+                }
+            }
+        }
+        transaction.update(gameRef, updateData);
+      }
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error advancing to night phase:", error);
+    return { success: false, error: (error as Error).message };
+  }
 }
 
 export async function sendGhostMessage(
