@@ -41,6 +41,7 @@ export type PlayerRole =
   "fisherman" |
   "vampire" |
   "banshee" |
+  "cupid" |
   null;
 
 
@@ -94,6 +95,7 @@ export interface Game {
     banshee: boolean;
     drunk_man: boolean;
     resurrector_angel: boolean;
+    cupid: boolean;
   };
   phaseEndsAt?: Timestamp;
   twins: [string, string] | null;
@@ -207,5 +209,3 @@ export interface GenerateAIChatMessageOutput {
     message: string;
     shouldSend: boolean;
 };
-
-    

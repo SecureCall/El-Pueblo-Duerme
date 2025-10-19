@@ -1022,7 +1022,7 @@ export async function processVotes(db: Firestore, gameId: string) {
           
           const killedPlayer = game.players.find(p => !p.isAlive && p.userId === lynchedPlayerId)!;
           game.events.push({
-              id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result',
+              id: `evt_vote_result_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result',
               message: `${killedPlayer.displayName} fue linchado por el pueblo. Su rol era: ${roleDetails[killedPlayer.role!]?.name || 'desconocido'}.`,
               data: { lynchedPlayerId: lynchedPlayerId }, createdAt: Timestamp.now(),
           });
@@ -1034,9 +1034,9 @@ export async function processVotes(db: Firestore, gameId: string) {
               return;
             }
           }
-      } else if (mostVotedPlayerIds.length !== 1) {
+      } else {
         const eventMessage = mostVotedPlayerIds.length > 1 ? "La votación resultó en un empate. Nadie fue linchado hoy." : "El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.";
-        game.events.push({ id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: eventMessage, data: { lynchedPlayerId: null }, createdAt: Timestamp.now() });
+        game.events.push({ id: `evt_vote_result_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: eventMessage, data: { lynchedPlayerId: null }, createdAt: Timestamp.now() });
       }
       
       const { isGameOver, message, winnerCode, winners } = checkGameOver(game);
@@ -1960,5 +1960,3 @@ export async function submitTroublemakerAction(
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
-
-    

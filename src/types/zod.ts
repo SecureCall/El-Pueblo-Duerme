@@ -20,7 +20,7 @@ export const PlayerRoleSchema = z.enum([
   "hechicera", "ghost", "virginia_woolf", "leprosa", "river_siren", "lookout", "troublemaker",
   "silencer", "seer_apprentice", "elder_leader", "werewolf", "wolf_cub", "cursed", "seeker_fairy",
   "sleeping_fairy", "shapeshifter", "drunk_man", "cult_leader", "fisherman", "vampire", "witch", "banshee",
-  "resurrector_angel"
+  "resurrector_angel", "cupid"
 ]).nullable();
 
 export const PlayerSchema = z.object({
@@ -120,6 +120,7 @@ export const GameSettingsSchema = z.object({
     banshee: z.boolean(),
     drunk_man: z.boolean(),
     resurrector_angel: z.boolean(),
+    cupid: z.boolean(),
 });
 
 export const GameSchema = z.object({
@@ -166,5 +167,3 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
-
-    

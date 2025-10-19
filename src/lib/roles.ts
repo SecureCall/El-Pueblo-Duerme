@@ -222,6 +222,14 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         bgImageId: "role-bg-werewolf"
     },
     // ==== Roles Especiales ====
+    cupid: {
+        name: "Cupido",
+        description: "Solo te despiertas la primera noche. Eliges a dos jugadores para que se enamoren. Si uno de ellos muere, el otro morirá también. El amor no entiende de bandos.",
+        atmosphere: "Una de tus flechas puede cambiar el destino del pueblo para siempre.",
+        image: "/roles/cupid.png",
+        color: "text-pink-400",
+        bgImageId: "role-bg-cupid"
+    },
     shapeshifter: {
         name: "Cambiaformas",
         description: "Te despiertas solo la primera noche para elegir a una persona. Si esa persona muere, adoptarás su rol y su equipo, transformándote completamente en ella.",
@@ -280,5 +288,3 @@ export const defaultRoleDetail: RoleDetail = {
     color: "text-gray-400",
     bgImageId: "role-bg-villager"
 };
-
-    

@@ -20,7 +20,7 @@ import { GameMusic } from '@/components/game/GameMusic';
 const aldeanoRoleKeys: NonNullable<PlayerRole>[] = [
     'villager', 'seer', 'doctor', 'hunter', 'guardian', 'priest', 'prince', 'lycanthrope',
     'twin', 'hechicera', 'ghost', 'virginia_woolf', 'leprosa', 'river_siren', 'lookout',
-    'troublemaker', 'silencer', 'seer_apprentice', 'elder_leader', 'sleeping_fairy'
+    'troublemaker', 'silencer', 'seer_apprentice', 'elder_leader', 'sleeping_fairy', 'resurrector_angel'
 ];
 
 const loboRoleKeys: NonNullable<PlayerRole>[] = [
