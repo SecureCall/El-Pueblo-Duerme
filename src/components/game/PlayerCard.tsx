@@ -72,9 +72,10 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
                 <Skull className={cn(iconClasses, "text-destructive")} />
             </div>
             );
+        case 'lover_death':
         case 'special':
             return (
-            <div className={cn(baseClasses)}>
+            <div className={baseClasses}>
                 <Heart className={cn(iconClasses, "text-pink-400")} />
             </div>
             );
