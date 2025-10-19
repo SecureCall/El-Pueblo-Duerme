@@ -172,6 +172,14 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         color: "text-emerald-400",
         bgImageId: "role-bg-villager"
     },
+    resurrector_angel: {
+        name: "Ángel Resucitador",
+        description: "Una vez por partida, durante la noche, puedes elegir a un jugador que haya muerto para devolverlo a la vida. El jugador resucitado volverá al juego con su rol original.",
+        atmosphere: "Un destello de esperanza en la oscuridad. La muerte no es el final.",
+        image: "/roles/angel resucitador.png",
+        color: "text-yellow-200",
+        bgImageId: "role-bg-seer"
+    },
     // ==== Equipo de los Lobos ====
     werewolf: {
         name: "Hombre Lobo",
@@ -232,8 +240,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     drunk_man: {
         name: "Hombre Ebrio",
-        description: "No tienes acciones nocturnas. Tu objetivo secreto es simple: morir. Debes lograr que te voten o que los lobos te asesinen. Ganas la partida si logras ser eliminado.",
-        atmosphere: "Un rol solitario, caótico y muy divertido que pone a prueba tu astucia.",
+        description: "No tienes acciones nocturnas. Tu objetivo secreto es lograr que te linchen con el voto de al menos un lobo y un aldeano. Si lo consigues, ganas la partida en solitario.",
+        atmosphere: "Un rol solitario y caótico que pone a prueba tu astucia para el engaño.",
         image: "/roles/Drunken Man.png",
         color: "text-amber-800",
         bgImageId: "role-bg-villager"
@@ -270,6 +278,14 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         color: "text-indigo-400",
         bgImageId: "role-bg-seer"
     },
+    executioner: {
+        name: "Verdugo",
+        description: "Al inicio de la partida se te asigna un objetivo secreto del pueblo. Tu único objetivo es convencer a los demás para que linchen a ese jugador. Si lo consigues, ganas la partida en solitario.",
+        atmosphere: "La justicia, por tus manos, es ciega y caprichosa.",
+        image: "/roles/verdugo.png",
+        color: "text-gray-400",
+        bgImageId: "role-bg-hunter"
+    },
 };
 
 export const defaultRoleDetail: RoleDetail = {
@@ -280,5 +296,3 @@ export const defaultRoleDetail: RoleDetail = {
     color: "text-gray-400",
     bgImageId: "role-bg-villager"
 };
-
-    
