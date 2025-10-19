@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -74,6 +73,11 @@ export function GameBoard({
   const handlePhaseEnd = useCallback(async () => {
     if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId) return;
 
+    // Prevent repeated calls if already processing
+    if (game.phase === 'finished') return;
+
+    console.log(`Timer ended for phase: ${game.phase}. Creator is processing.`);
+    
     if (game.phase === 'day') {
         await processVotes(firestore, game.id);
     } else if (game.phase === 'night') {
@@ -133,7 +137,7 @@ export function GameBoard({
 
     const getCauseOfDeath = (playerId: string): GameEvent['type'] | 'other' => {
         const deathEvent = [...events]
-            .sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0))
+            .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
             .find(e => {
                 const data = e.data || {};
                 if (data.killedPlayerId === playerId) return true;
@@ -413,5 +417,3 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
-
-    
