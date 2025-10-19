@@ -43,6 +43,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     guardianSelfProtects: 0,
     biteCount: 0,
     isCultMember: false,
+    isLover: false,
     shapeshifterTargetId: null,
     virginiaWoolfTargetId: null,
     riverSirenTargetId: null,
@@ -50,7 +51,6 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     resurrectorAngelUsed: false,
     lookoutUsed: false,
     bansheeScreams: {},
-    isLover: false,
 });
 
 
@@ -526,7 +526,7 @@ function killPlayer(
                     round: gameData.currentRound,
                     type: 'special',
                     message: messageTemplate.replace('{otherName}', otherPlayer.displayName).replace('{victimName}', deadPlayer.displayName),
-                    data: { originalVictimId: deadPlayer.userId },
+                    data: { originalVictimId: deadPlayer.userId, killedPlayerIds: [otherId] },
                     createdAt: Timestamp.now(),
                 });
             }
@@ -787,44 +787,32 @@ export async function processNight(db: Firestore, gameId: string) {
                     game.boat.push(targetPlayer.userId);
                 }
             }
+            
+            const poisonAction = actions.find(a => a.actionType === 'hechicera_poison');
+            if (poisonAction?.targetId && !allProtectedIds.has(poisonAction.targetId)) {
+                otherKilledPlayerIds.push(poisonAction.targetId);
+            }
 
             if (game.leprosaBlockedRound !== game.currentRound) {
                 const wolfKillActions = actions.filter(a => a.actionType === 'werewolf_kill' || a.actionType === 'fairy_kill');
                 if (wolfKillActions.length > 0) {
-                     const voteCounts = wolfKillActions.reduce((acc, vote) => {
+                    const allTargets = new Set<string>();
+                    wolfKillActions.forEach(vote => {
                         if (vote.targetId) {
                             const targets = vote.targetId.split('|');
-                            targets.forEach(targetId => { if(targetId) acc[targetId] = (acc[targetId] || 0) + 1; });
+                            targets.forEach(targetId => { if(targetId) allTargets.add(targetId); });
                         }
-                        return acc;
-                    }, {} as Record<string, number>);
+                    });
 
-                    let maxVotes = 0;
-                    let mostVotedPlayerIds: string[] = [];
-                     for (const targetId in voteCounts) {
-                        if(!targetId) continue;
-                        const targetPlayer = game.players.find(p => p.userId === targetId);
-                        if (game.witchFoundSeer && targetPlayer?.role === 'witch') continue;
-                        if (voteCounts[targetId] > maxVotes) {
-                            maxVotes = voteCounts[targetId];
-                            mostVotedPlayerIds = [targetId];
-                        } else if (voteCounts[targetId] === maxVotes) {
-                            mostVotedPlayerIds.push(targetId);
-                        }
-                    }
+                    const killCount = (game.wolfCubRevengeRound === game.currentRound) ? 2 : 1;
+                    const targetsToKill = Array.from(allTargets).slice(0, killCount);
 
                     const isFairyKill = actions.some(a => a.actionType === 'fairy_kill');
-                    const killCount = (game.wolfCubRevengeRound === game.currentRound) ? 2 : 1;
-                    
-                    let targetsToKill: string[] = [];
-                    if (mostVotedPlayerIds.length > 0 && maxVotes > 0) {
-                         targetsToKill = mostVotedPlayerIds.sort(() => 0.5 - Math.random()).slice(0, killCount);
-                    }
-                     if (isFairyKill) game.fairyKillUsed = true;
+                    if (isFairyKill) game.fairyKillUsed = true;
 
                     for (const targetId of targetsToKill) {
                         const targetPlayer = game.players.find(p => p.userId === targetId);
-                        if (!targetPlayer) continue;
+                        if (!targetPlayer || (game.witchFoundSeer && targetPlayer.role === 'witch')) continue;
 
                         if (allProtectedIds.has(targetId)) {
                            // Saved
@@ -839,11 +827,6 @@ export async function processNight(db: Firestore, gameId: string) {
                         }
                     }
                 }
-            }
-
-            const poisonAction = actions.find(a => a.actionType === 'hechicera_poison');
-            if (poisonAction?.targetId && !allProtectedIds.has(poisonAction.targetId)) {
-                otherKilledPlayerIds.push(poisonAction.targetId);
             }
 
             let killResults;
@@ -890,7 +873,7 @@ export async function processNight(db: Firestore, gameId: string) {
             if (newlyKilledPlayers.length > 0) {
                 nightEvent.message = `Anoche, el pueblo perdió a ${killedPlayerDetails.join(' y a ')}.`;
                 if (fishermanDied) nightEvent.message += ` El Pescador eligió a un lobo y murió.`;
-            } else if (game.leprosaBlockedRound === game.currentRound) {
+            } else if (game.leprosaBlockedRound === game.currentRound + 1) { // Corrected check
                 nightEvent.message = "Gracias a la Leprosa, los lobos no pudieron atacar esta noche. Nadie murió.";
             } else if (actions.some(a => ['werewolf_kill', 'hechicera_poison', 'vampire_bite', 'lookout_spy', 'fairy_kill'].includes(a.actionType))) {
                  nightEvent.message = "Se escuchó un grito en la noche, ¡pero alguien fue salvado en el último momento!";
@@ -985,10 +968,7 @@ export async function processVotes(db: Firestore, gameId: string) {
       if (game.phase !== 'day' || game.status !== 'in_progress') {
         return;
       }
-
-      game.events = game.events || [];
-      game.players.forEach(p => { p.bansheeScreams = p.bansheeScreams || {}; });
-
+      
       const alivePlayers = game.players.filter(p => p.isAlive);
       const voteCounts: Record<string, number> = {};
       alivePlayers.forEach(player => {
@@ -1038,15 +1018,15 @@ export async function processVotes(db: Firestore, gameId: string) {
             }
           }
           
-          const killedPlayer = game.players.find(p => !p.isAlive && p.userId === lynchedPlayerId);
+          const killedPlayer = game.players.find(p => p.userId === lynchedPlayerId);
           if (killedPlayer) {
-            game.events.push({
+             game.events.push({
                 id: `evt_vote_result_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result',
                 message: `${killedPlayer.displayName} fue linchado por el pueblo. Su rol era: ${roleDetails[killedPlayer.role!]?.name || 'desconocido'}.`,
-                data: { lynchedPlayerId: lynchedPlayerId }, createdAt: Timestamp.now(),
+                data: { killedPlayerIds: [lynchedPlayerId] }, createdAt: Timestamp.now(),
             });
           }
-      } else {
+      } else if (!game.events.some(e => e.round === game.currentRound && e.type === 'vote_result')) {
         const eventMessage = mostVotedPlayerIds.length > 1 ? "La votación resultó en un empate. Nadie fue linchado hoy." : "El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.";
         game.events.push({ id: `evt_vote_result_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: eventMessage, data: { lynchedPlayerId: null }, createdAt: Timestamp.now() });
       }
@@ -1137,6 +1117,9 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             const hunterPlayer = game.players.find(p => p.userId === hunterId)!;
             const targetPlayer = game.players.find(p => p.userId === targetId)!;
             
+            const { gameOver, updatedGame } = killPlayer(game, [targetId], 'hunter_shot');
+            game = updatedGame;
+            
             game.events.push({
                 id: `evt_huntershot_${Date.now()}`,
                 gameId,
@@ -1144,11 +1127,8 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 type: 'hunter_shot',
                 message: `En su último aliento, ${hunterPlayer.displayName} dispara y se lleva consigo a ${targetPlayer.displayName}.`,
                 createdAt: Timestamp.now(),
-                data: {killedPlayerId: targetId},
+                data: {killedPlayerIds: [targetId]},
             });
-            
-            const { gameOver, updatedGame } = killPlayer(game, [targetId], 'hunter_shot');
-            game = updatedGame;
 
             if (gameOver) {
                 const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
@@ -1186,7 +1166,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             }
             
             const hunterDeathEvent = [...game.events]
-                .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds)
+                .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
                 .find(e => {
                     const eventData = e.data || {};
                     return eventData.killedPlayerIds?.includes(hunterId);
@@ -1867,6 +1847,9 @@ export async function submitTroublemakerAction(
         throw new Error("Los objetivos seleccionados no son válidos.");
       }
       
+      const { gameOver, updatedGame } = killPlayer(game, [target1Id, target2Id], 'troublemaker_duel');
+      game = updatedGame;
+
       game.events.push({
         id: `evt_trouble_${Date.now()}`,
         gameId,
@@ -1874,11 +1857,8 @@ export async function submitTroublemakerAction(
         type: 'special',
         message: `${player.displayName} ha provocado una pelea mortal. ${target1.displayName} y ${target2.displayName} han sido eliminados.`,
         createdAt: Timestamp.now(),
-        data: { eliminated: [target1Id, target2Id] }
+        data: { killedPlayerIds: [target1Id, target2Id] }
       });
-      
-      const { gameOver, updatedGame } = killPlayer(game, [target1Id, target2Id], 'troublemaker_duel');
-      game = updatedGame;
 
       if (gameOver) {
         const drunkPlayer = game.players.find(p => p.role === 'drunk_man' && !p.isAlive);
