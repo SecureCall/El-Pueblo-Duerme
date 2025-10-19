@@ -1,3 +1,4 @@
+
 'use client';
 import { 
   doc,
@@ -96,7 +97,7 @@ export async function createGame(
           ...settings,
           werewolves: werewolfCount,
       },
-      phaseEndsAt: null,
+      phaseEndsAt: Timestamp.now(),
       pendingHunterShot: null,
       twins: null,
       lovers: null,
@@ -439,6 +440,25 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         });
     });
 
+    const finalGameSnap = await getDoc(gameRef);
+    if (finalGameSnap.exists()) {
+        const game = finalGameSnap.data() as Game;
+        const alivePlayersWithNightActions = new Set(
+            (game.nightActions || [])
+                .filter(a => a.round === game.currentRound)
+                .map(a => a.playerId)
+        );
+        const alivePlayers = game.players.filter(p => p.isAlive);
+        const allNightRoles = alivePlayers.filter(p => {
+             const nightRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'seer', 'doctor', 'hechicera', 'guardian', 'priest', 'vampire', 'cult_leader', 'fisherman', 'shapeshifter', 'virginia_woolf', 'river_siren', 'silencer', 'elder_leader', 'witch', 'banshee', 'lookout', 'seeker_fairy', 'resurrector_angel', 'cupid'];
+             return p.role && nightRoles.includes(p.role);
+        });
+
+        if (allNightRoles.every(p => alivePlayersWithNightActions.has(p.userId))) {
+            await processNight(db, gameId);
+        }
+    }
+
     return { success: true };
 
   } catch (error: any) {
@@ -506,6 +526,16 @@ function killPlayer(
         if (playerToKill.role === 'leprosa' && gameData.settings.leprosa) {
             gameData.leprosaBlockedRound = gameData.currentRound + 1;
         }
+         // Handle shapeshifter transformation on any death
+        const shapeshifterIndex = gameData.players.findIndex(p => p.role === 'shapeshifter' && p.isAlive && p.shapeshifterTargetId === playerToKill.userId);
+        if (shapeshifterIndex !== -1 && playerToKill.role) {
+            const shifter = gameData.players[shapeshifterIndex];
+            const newRole = playerToKill.role;
+            gameData.players[shapeshifterIndex].role = newRole;
+            gameData.players[shapeshifterIndex].shapeshifterTargetId = null;
+            gameData.events.push({ id: `evt_transform_${Date.now()}_${shifter.userId}`, gameId: gameData.id!, round: gameData.currentRound, type: 'player_transformed', message: `¡Has cambiado de forma! Ahora eres: ${roleDetails[newRole]?.name || 'un rol desconocido'}.`, data: { targetId: shifter.userId, newRole }, createdAt: Timestamp.now() });
+        }
+
 
         const checkAndQueueChainDeath = (linkedIds: (string[] | null | undefined), deadPlayer: Player, messageTemplate: string, eventType: GameEvent['type']) => {
             if (!linkedIds || !linkedIds.includes(deadPlayer.userId)) return;
@@ -851,21 +881,6 @@ export async function processNight(db: Firestore, gameId: string) {
                     if (triggeredHunterId) game.pendingHunterShot = triggeredHunterId;
                  }
             }
-
-            // Shapeshifter transform on night death
-            const shapeshifterAction = actions.find(a => a.actionType === 'shapeshifter_select');
-            if (shapeshifterAction) {
-                const targetPlayer = game.players.find(p => p.userId === shapeshifterAction.targetId);
-                const shifter = game.players.find(p => p.userId === shapeshifterAction.playerId);
-                if (targetPlayer && !targetPlayer.isAlive && shifter && shifter.isAlive && shifter.role === 'shapeshifter' && targetPlayer.role) {
-                     const shifterIndex = game.players.findIndex(p => p.userId === shifter.userId);
-                     if(shifterIndex > -1) {
-                        game.players[shifterIndex].role = targetPlayer.role;
-                        game.players[shifterIndex].shapeshifterTargetId = null;
-                        game.events.push({ id: `evt_transform_${Date.now()}_${shifter.userId}`, gameId, round: game.currentRound, type: 'player_transformed', message: `¡Has cambiado de forma! Ahora eres: ${roleDetails[targetPlayer.role]?.name || 'un rol desconocido'}.`, data: { targetId: shifter.userId, newRole: targetPlayer.role }, createdAt: Timestamp.now() });
-                     }
-                }
-            }
             
             let gameOverInfo = checkGameOver(game);
             if (gameOverInfo.isGameOver) {
@@ -994,17 +1009,6 @@ export async function processVotes(db: Firestore, gameId: string) {
         const potentialLynchedId = mostVotedPlayerIds[0];
         lynchedPlayerObject = game.players.find(p => p.userId === potentialLynchedId);
         
-        // Handle shapeshifter transformation on lynch
-        const shapeshifterIndex = game.players.findIndex(p => p.role === 'shapeshifter' && p.isAlive && p.shapeshifterTargetId === potentialLynchedId);
-        if (shapeshifterIndex !== -1 && lynchedPlayerObject?.role) {
-            const shifter = game.players[shapeshifterIndex];
-            const newRole = lynchedPlayerObject.role;
-            game.players[shapeshifterIndex].role = newRole;
-            game.players[shapeshifterIndex].shapeshifterTargetId = null;
-             game.events.push({ id: `evt_transform_${Date.now()}_${shifter.userId}`, gameId, round: game.currentRound, type: 'player_transformed', message: `¡Has cambiado de forma! Ahora eres: ${roleDetails[newRole]?.name || 'un rol desconocido'}.`, data: { targetId: shifter.userId, newRole }, createdAt: Timestamp.now() });
-        }
-
-
         if (lynchedPlayerObject?.role === 'prince' && game.settings.prince && !lynchedPlayerObject.princeRevealed) {
             const playerIndex = game.players.findIndex(p => p.userId === potentialLynchedId);
             if (playerIndex > -1) game.players[playerIndex].princeRevealed = true;
@@ -1234,6 +1238,15 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             transaction.update(gameRef, { players: game.players });
         });
         
+        const finalGameSnap = await getDoc(gameRef);
+        if (finalGameSnap.exists()) {
+             const game = finalGameSnap.data() as Game;
+             const alivePlayers = game.players.filter(p => p.isAlive);
+             if (alivePlayers.every(p => p.votedFor)) {
+                 await processVotes(db, gameId);
+             }
+        }
+        
         if (!isFromAI && voterName && targetName) {
             await triggerAIChat(db, gameId, `${voterName} ha votado por ${targetName}.`);
         }
@@ -1435,7 +1448,7 @@ export async function resetGame(db: Firestore, gameId: string) {
                 nightActions: [],
                 twins: null,
                 lovers: null,
-                phaseEndsAt: null,
+                phaseEndsAt: Timestamp.now(),
                 pendingHunterShot: null,
                 wolfCubRevengeRound: 0,
                 players: resetHumanPlayers, 
@@ -1680,9 +1693,10 @@ export async function triggerAIVote(db: Firestore, gameId: string) {
 
         const aiPlayersToVote = game.players.filter(p => p.isAI && p.isAlive && !p.votedFor);
         const alivePlayers = game.players.filter(p => p.isAlive);
+        const deadPlayers = game.players.filter(p => !p.isAlive);
 
         for (const ai of aiPlayersToVote) {
-            const targetId = getDeterministicAIAction(ai, game, alivePlayers, []).targetId;
+            const { targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
             if (targetId) {
                  await new Promise(resolve => setTimeout(resolve, Math.random() * 8000 + 2000));
                  await submitVote(db, gameId, ai.userId, targetId);
@@ -1865,4 +1879,3 @@ export async function runAIActions(db: Firestore, gameId: string) {
         console.error("Error in AI Actions:", e);
     }
 }
-  

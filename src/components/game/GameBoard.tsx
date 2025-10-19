@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -175,7 +176,7 @@ export function GameBoard({
       setTimeLeft(Math.round(remaining / 1000));
 
       if (remaining <= 0 && !hasRun) {
-        hasRun = true; // Prevents multiple executions
+        hasRun = true; 
         handlePhaseEnd(firestore, game, currentPlayer);
       }
     }, 1000);
@@ -311,7 +312,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
               {getPhaseTitle()}
             </CardTitle>
           </div>
-           { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && game.phaseEndsAt && (
+           { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && (
             <PhaseTimer 
                 timeLeft={timeLeft}
             />
@@ -409,4 +410,3 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
-  
