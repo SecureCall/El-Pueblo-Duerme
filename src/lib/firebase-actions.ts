@@ -1,3 +1,4 @@
+
 'use client';
 import { 
   doc,
@@ -427,6 +428,8 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
             players[playerIndex].riverSirenTargetId = action.targetId;
         } else if (action.actionType === 'resurrect' && playerIndex > -1) {
             players[playerIndex].resurrectorAngelUsed = true;
+        } else if (action.actionType === 'shapeshifter_select' && playerIndex > -1) {
+            players[playerIndex].shapeshifterTargetId = action.targetId;
         }
 
         nightActions.push(newAction);
@@ -477,7 +480,24 @@ function killPlayer(
         }
         
         alreadyProcessed.add(playerIdToKill);
-        const playerToKill = gameData.players[playerIndex];
+        const playerToKill = { ...gameData.players[playerIndex] };
+        
+        // Shapeshifter Logic
+        const shapeshifterIndex = gameData.players.findIndex(p => p.role === 'shapeshifter' && p.shapeshifterTargetId === playerIdToKill);
+        if (shapeshifterIndex !== -1 && playerToKill.role) {
+            const newRole = playerToKill.role;
+            gameData.players[shapeshifterIndex].role = newRole;
+            gameData.players[shapeshifterIndex].shapeshifterTargetId = null; // Transformation complete
+            gameData.events.push({
+                id: `evt_transform_${Date.now()}_${gameData.players[shapeshifterIndex].userId}`,
+                gameId: gameData.id!,
+                round: gameData.currentRound,
+                type: 'player_transformed',
+                message: `¡Has cambiado de forma! Ahora eres: ${roleDetails[newRole]?.name || 'un rol desconocido'}.`,
+                data: { targetId: gameData.players[shapeshifterIndex].userId, newRole: newRole }, // Make it a targeted event
+                createdAt: Timestamp.now(),
+            });
+        }
         
         gameData.players[playerIndex].isAlive = false;
         
@@ -495,7 +515,7 @@ function killPlayer(
         
         if (playerToKill.role === 'hunter' && gameData.settings.hunter && !triggeredHunterId) {
             triggeredHunterId = playerToKill.userId;
-            gameData.phase = 'hunter_shot'; // Set phase only when hunter dies
+            gameData.phase = 'hunter_shot';
         }
         
         if (playerToKill.role === 'wolf_cub' && gameData.settings.wolf_cub) {
@@ -1838,4 +1858,6 @@ export async function runAIActions(db: Firestore, gameId: string) {
         console.error("Error in AI Actions:", e);
     }
 }
+  
+
     
