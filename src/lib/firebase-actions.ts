@@ -700,8 +700,8 @@ export async function processNight(db: Firestore, gameId: string) {
             if (!gameSnap.exists()) throw new Error("Game not found!");
             
             let game = gameSnap.data() as Game;
-            if (game.phase !== 'night' || game.status !== 'in_progress') {
-                console.log("Skipping night process, phase is no longer 'night'.");
+            if ((game.phase !== 'night' && game.phase !== 'role_reveal') || game.status !== 'in_progress') {
+                console.log(`Skipping night process, phase is '${game.phase}'.`);
                 return;
             }
             
@@ -712,6 +712,36 @@ export async function processNight(db: Firestore, gameId: string) {
                 p.potions = p.potions || { poison: null, save: null };
                 p.biteCount = p.biteCount || 0;
             });
+            
+            const isFirstNight = game.currentRound === 1 && game.phase === 'role_reveal';
+
+            // Cupid action on first night
+            if (isFirstNight && game.settings.cupid) {
+                const cupidAction = game.nightActions?.find(a => a.round === 1 && a.actionType === 'cupid_love');
+                if (cupidAction) {
+                    const loverIds = cupidAction.targetId.split('|');
+                    if (loverIds.length === 2) {
+                        game.lovers = [loverIds[0], loverIds[1]];
+                        game.players.forEach(p => {
+                            if (loverIds.includes(p.userId)) {
+                                p.isLover = true;
+                            }
+                        });
+                    }
+                }
+            }
+            
+            // If it's the role reveal phase, just transition to night and stop.
+            if (game.phase === 'role_reveal') {
+                transaction.update(gameRef, {
+                    phase: 'night',
+                    players: game.players,
+                    lovers: game.lovers,
+                    nightActions: game.nightActions,
+                });
+                return;
+            }
+
 
             const resurrectAction = game.nightActions?.find(a => a.round === game.currentRound && a.actionType === 'resurrect');
             let resurrectedPlayerName: string | null = null;
@@ -1681,43 +1711,6 @@ export async function resetGame(db: Firestore, gameId: string) {
     }
 }
 
-export async function advanceToNightPhase(db: Firestore, gameId: string) {
-  const gameRef = doc(db, "games", gameId);
-  try {
-    await runTransaction(db, async (transaction) => {
-      const gameSnap = await transaction.get(gameRef);
-      if (!gameSnap.exists()) throw new Error("Game not found");
-      const game = gameSnap.data() as Game;
-
-      if (game.phase === 'role_reveal') {
-        let updateData: Partial<Game> = { phase: 'night' };
-        
-        if (game.settings.cupid) {
-            const cupidAction = game.nightActions?.find(a => a.round === 1 && a.actionType === 'cupid_love');
-            if (cupidAction) {
-                const loverIds = cupidAction.targetId.split('|') as [string, string];
-                if (loverIds.length === 2) {
-                    const playerUpdates = game.players.map(p => {
-                        if (loverIds.includes(p.userId)) {
-                            return { ...p, isLover: true };
-                        }
-                        return p;
-                    });
-                    updateData.players = playerUpdates;
-                    updateData.lovers = loverIds;
-                }
-            }
-        }
-        transaction.update(gameRef, updateData);
-      }
-    });
-    return { success: true };
-  } catch (error) {
-    console.error("Error advancing to night phase:", error);
-    return { success: false, error: (error as Error).message };
-  }
-}
-
 export async function sendGhostMessage(
     db: Firestore,
     gameId: string,
@@ -1838,5 +1831,3 @@ export async function submitTroublemakerAction(
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
-
-    

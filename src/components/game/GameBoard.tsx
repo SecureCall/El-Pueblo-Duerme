@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { useEffect, useState, useRef } from "react";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
-import { processNight, processVotes, runAIActions, advanceToNightPhase } from "@/lib/firebase-actions";
+import { processNight, processVotes, runAIActions } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { Heart, Moon, Sun, Users2, Wand2 } from "lucide-react";
@@ -110,17 +110,27 @@ export function GameBoard({
 
   }, [game?.phase, game?.currentRound, events, players]);
 
+    const getCauseOfDeath = (playerId: string): GameEvent['type'] | 'other' => {
+        const deathEvent = [...events]
+            .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
+            .find(e => {
+                if (e.data?.killedPlayerId === playerId) return true;
+                if (Array.isArray(e.data?.killedPlayerIds) && e.data.killedPlayerIds.includes(playerId)) return true;
+                if (e.data?.lynchedPlayerId === playerId) return true;
+                return false;
+            });
+        
+        return deathEvent?.type || 'other';
+    };
+
+
     useEffect(() => {
         if (!currentPlayer || currentPlayer.isAlive) {
             setDeathCause(null);
             return;
         };
 
-        const deathEvent = [...events]
-            .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
-            .find(e => e.data?.killedPlayerIds?.includes(currentPlayer.userId));
-
-        setDeathCause(deathEvent?.type || 'other');
+        setDeathCause(getCauseOfDeath(currentPlayer.userId));
 
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
 
@@ -139,7 +149,7 @@ export function GameBoard({
     if (!game || !currentPlayer) return;
     if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore) {
       const timer = setTimeout(() => {
-        advanceToNightPhase(firestore, game.id);
+        processNight(firestore, game.id);
       }, 15000); 
 
       return () => clearTimeout(timer);
@@ -182,7 +192,7 @@ export function GameBoard({
             case 'werewolf_kill': return <YouAreDeadOverlay angelInPlay={isAngelInPlay} />;
             case 'troublemaker_duel':
             case 'special':
-            case 'other':
+            case 'lover_death':
             default:
                 return <YouAreDeadOverlay angelInPlay={isAngelInPlay} />;
         }
@@ -190,18 +200,18 @@ export function GameBoard({
     return (
         <>
             {renderDeathOverlay()}
-            <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} currentPlayer={currentPlayer} />
+            <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} currentPlayer={currentPlayer} getCauseOfDeath={getCauseOfDeath} />
         </>
     );
   }
 
   return (
-    <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} currentPlayer={currentPlayer} />
+    <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} currentPlayer={currentPlayer} getCauseOfDeath={getCauseOfDeath} />
   );
 }
 
 
-function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, currentPlayer }: GameBoardProps) {
+function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, currentPlayer, getCauseOfDeath }: GameBoardProps & { getCauseOfDeath: (playerId: string) => GameEvent['type'] | 'other' }) {
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
   const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
@@ -250,14 +260,6 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
   if (otherTwin) highlightedPlayers.push({ userId: otherTwin.userId, color: 'rgba(135, 206, 250, 0.7)' });
   if (otherLover) highlightedPlayers.push({ userId: otherLover.userId, color: 'rgba(244, 114, 182, 0.7)' });
   
-  const getCauseOfDeath = (playerId: string): GameEvent['type'] | 'other' => {
-    const deathEvent = [...events]
-        .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
-        .find(e => e.data?.killedPlayerIds?.includes(playerId));
-    
-    return deathEvent?.type || 'other';
-  };
-
   const playersWithDeathCause = players.map(p => ({
     ...p,
     causeOfDeath: !p.isAlive ? getCauseOfDeath(p.userId) : undefined,
@@ -402,5 +404,3 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
-
-    
