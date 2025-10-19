@@ -37,10 +37,10 @@ export function GameRoom({ gameId }: { gameId: string }) {
     const result = await joinGame(firestore, gameId, userId, displayName);
     
     if (result.error) {
-      if (result.error.includes("nombre ya está en uso")) {
         setJoinError(result.error);
-        setDisplayName(null); // Force user to re-enter name
-      }
+        if (result.error.includes("nombre ya está en uso")) {
+            setDisplayName(null); // Force user to re-enter name
+        }
     }
     // On success, the useGameState hook will update the currentPlayer, and the component will re-render.
     setIsJoining(false);
