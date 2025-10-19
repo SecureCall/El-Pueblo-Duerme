@@ -28,7 +28,7 @@ const loboRoleKeys: NonNullable<PlayerRole>[] = [
 ];
 
 const especialRoleKeys: NonNullable<PlayerRole>[] = [
-    'shapeshifter', 'drunk_man', 'cult_leader', 'fisherman', 'vampire', 'banshee'
+    'cupid', 'shapeshifter', 'drunk_man', 'cult_leader', 'fisherman', 'vampire', 'banshee'
 ];
 
 

@@ -71,7 +71,7 @@ export const GameEventSchema = z.object({
     id: z.string(),
     gameId: z.string(),
     round: z.number(),
-    type: z.enum(['night_result', 'vote_result', 'game_start', 'role_reveal', 'game_over', 'hunter_shot', 'player_transformed', 'behavior_clue', 'special', 'vampire_kill', 'werewolf_kill', 'troublemaker_duel']),
+    type: z.enum(['night_result', 'vote_result', 'game_start', 'role_reveal', 'game_over', 'lover_death', 'hunter_shot', 'player_transformed', 'behavior_clue', 'special', 'vampire_kill', 'werewolf_kill', 'troublemaker_duel']),
     message: z.string(),
     data: z.any().optional(),
     createdAt: TimestampSchema,
