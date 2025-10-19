@@ -40,7 +40,7 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
   const cardStyle = highlightColor ? { boxShadow: `0 0 15px 4px ${highlightColor}` } : {};
 
  if (!player.isAlive) {
-    const roleInfo = roleDetails[player.role!] ?? defaultRoleDetail;
+    const roleInfo = player.role ? (roleDetails[player.role] ?? defaultRoleDetail) : defaultRoleDetail;
 
     const DeathOverlay = () => {
       const baseClasses = "absolute inset-0 z-20 flex items-center justify-center";
@@ -167,5 +167,6 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
     </TooltipProvider>
   );
 }
+
 
     

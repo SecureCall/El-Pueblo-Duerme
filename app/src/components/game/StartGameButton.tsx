@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState } from "react";
@@ -11,7 +10,6 @@ import { useGameSession } from "@/hooks/use-game-session";
 import { useFirebase } from "@/firebase";
 import type { Game } from "@/types";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
-
 
 interface StartGameButtonProps {
   game: Game;

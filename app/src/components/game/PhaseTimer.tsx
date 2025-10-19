@@ -14,9 +14,9 @@ export function PhaseTimer({ timeLeft }: PhaseTimerProps) {
     const progress = (timeLeft / PHASE_DURATION_SECONDS) * 100;
 
     return (
-        <div className="absolute bottom-[-20px] left-1/2 -translate-x-1/2 w-3/4">
-            <Progress value={progress} className="h-2" />
-            <p className="text-xs text-center text-muted-foreground mt-1">{timeLeft}s</p>
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[95%] px-4">
+            <Progress value={progress} className="h-2 bg-primary/20" />
+            <p className="text-xs text-center text-muted-foreground mt-1 font-mono">{timeLeft}s</p>
         </div>
     );
 }
