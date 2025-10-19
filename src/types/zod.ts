@@ -42,6 +42,7 @@ export const PlayerSchema = z.object({
   biteCount: z.number(),
   isCultMember: z.boolean(),
   isLover: z.boolean(),
+  usedNightAbility: z.boolean(),
   shapeshifterTargetId: z.string().nullable().optional(),
   virginiaWoolfTargetId: z.string().nullable().optional(),
   riverSirenTargetId: z.string().nullable().optional(),
@@ -171,5 +172,3 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
-
-    

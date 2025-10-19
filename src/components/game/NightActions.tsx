@@ -187,42 +187,6 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         const actionType = getActionType();
         if (!actionType) return;
         
-        if (game.exiledPlayerId === currentPlayer.userId) {
-            toast({ variant: 'destructive', title: '¡Exiliado!', description: 'La Anciana Líder te ha exiliado. No puedes usar tu habilidad esta noche.' });
-            return;
-        }
-        
-        if (actionType === 'hechicera_poison' && !hasPoison) {
-            toast({ variant: 'destructive', title: 'Poción usada', description: 'Ya has usado tu poción de veneno.' });
-            return;
-        }
-        if (actionType === 'hechicera_save' && !hasSavePotion) {
-            toast({ variant: 'destructive', title: 'Poción usada', description: 'Ya has usado tu poción de salvación.' });
-            return;
-        }
-        if (actionType === 'doctor_heal') {
-            const targetPlayer = players.find(p => p.userId === selectedPlayerIds[0]);
-            if (targetPlayer?.lastHealedRound === game.currentRound - 1) {
-                toast({ variant: 'destructive', title: 'Regla del Doctor', description: 'No puedes proteger a la misma persona dos noches seguidas.' });
-                return;
-            }
-        }
-        if (actionType === 'guardian_protect' && selectedPlayerIds[0] === currentPlayer.userId && (currentPlayer.guardianSelfProtects || 0) >= 1) {
-             toast({ variant: 'destructive', title: 'Regla del Guardián', description: 'Solo puedes protegerte a ti mismo una vez.' });
-             return;
-        }
-        if (actionType === 'priest_bless' && selectedPlayerIds[0] === currentPlayer.userId && currentPlayer.priestSelfHealUsed) {
-            toast({ variant: 'destructive', title: 'Regla del Sacerdote', description: 'Ya te has bendecido a ti mismo una vez.' });
-            return;
-        }
-        if (actionType === 'cult_recruit') {
-            const targetPlayer = players.find(p => p.userId === selectedPlayerIds[0]);
-            if (targetPlayer?.isCultMember) {
-                toast({ description: `${targetPlayer.displayName} ya es parte de tu culto.` });
-                return;
-            }
-        }
-
         setIsSubmitting(true);
 
         const result = await submitNightAction(firestore, {
@@ -233,15 +197,11 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             targetId: selectedPlayerIds.join('|'),
         });
 
-        if (result.success) {
-            if (actionType === 'lookout_spy') {
-                 toast({ title: 'Espionaje en curso...', description: 'El resultado de tu acción se revelará pronto.' });
-            } else if (actionType === 'fairy_find') {
-                toast({ title: 'Búsqueda mágica...', description: 'Has intentado contactar con la otra hada.' });
-            } else {
-                toast({ title: 'Acción registrada.', description: 'Tu decisión ha sido guardada.' });
-            }
+        setIsSubmitting(false);
 
+        if (result.success) {
+            toast({ title: 'Acción registrada.', description: 'Tu decisión ha sido guardada.' });
+            
             if (currentPlayer.role === 'seer' || (currentPlayer.role === 'seer_apprentice' && game.seerDied)) {
                 const seerResultData = await getSeerResult(firestore, game.id, currentPlayer.userId, selectedPlayerIds[0]);
                 if (seerResultData.success) {
@@ -255,7 +215,6 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             }
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
-            setIsSubmitting(false); // Only set to false on error, success hides the form
         }
     };
     
@@ -394,19 +353,6 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         return <SeerResult targetName={seerResult.targetName} isWerewolf={seerResult.isWerewolf} />;
     }
 
-    if (isLookout && hasSubmitted) {
-        return (
-            <Card className="mt-8 bg-card/80">
-                <CardHeader>
-                    <CardTitle className="font-headline text-2xl">Acción del Vigía</CardTitle>
-                </CardHeader>
-                <CardContent className="text-center py-8">
-                    <p className="text-lg text-primary">Has intentado espiar. El resultado se revelará al amanecer.</p>
-                </CardContent>
-            </Card>
-        )
-    }
-
     const playersForGrid = isResurrectorAngel ? game.players.filter(p => !p.isAlive) : players.filter(p=>p.isAlive);
 
     return (
@@ -492,5 +438,3 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         </Card>
     );
 }
-
-    
