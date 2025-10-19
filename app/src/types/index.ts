@@ -1,4 +1,5 @@
 
+
 import type { Timestamp } from 'firebase/firestore';
 import { z } from 'zod';
 import type { GameSchema, PlayerSchema } from './zod';
@@ -100,7 +101,7 @@ export interface Game {
     cupid: boolean;
     executioner: boolean;
   };
-  phaseEndsAt: Timestamp;
+  phaseEndsAt?: Timestamp;
   twins: [string, string] | null;
   lovers: [string, string] | null;
   pendingHunterShot: string | null; // userId of the hunter who needs to shoot
@@ -125,7 +126,7 @@ export interface Player {
   isAlive: boolean;
   votedFor: string | null; // userId
   displayName: string;
-  joinedAt: Timestamp;
+  joinedAt: Timestamp | null;
   lastHealedRound: number;
   isAI: boolean;
   potions?: {
@@ -218,4 +219,3 @@ export interface GenerateAIChatMessageOutput {
     shouldSend: boolean;
 };
 
-    

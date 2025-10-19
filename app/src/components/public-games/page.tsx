@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -80,7 +81,7 @@ export default function PublicGamesPage() {
 
     const sortedGames = useMemo(() => {
         if (!publicGames) return [];
-        return [...publicGames].sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+        return publicGames.sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0));
     }, [publicGames]);
 
     useEffect(() => {
@@ -174,4 +175,3 @@ export default function PublicGamesPage() {
     );
 }
 
-    

@@ -1,14 +1,15 @@
 
+
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
 import { RoleReveal } from "./RoleReveal";
 import { PlayerGrid } from "./PlayerGrid";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
-import { processNight, processVotes, setPhaseToNight, triggerAIVote } from "@/lib/firebase-actions";
+import { processNight, processVotes, setPhaseToNight, triggerAIVote, runAIActions } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { Heart, Moon, Sun, Users2, Wand2 } from "lucide-react";
@@ -40,16 +41,6 @@ interface GameBoardProps {
   loversMessages: ChatMessage[];
 }
 
-const handlePhaseEnd = async (firestore: any, game: Game | null, currentPlayer: Player | null) => {
-    if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId) return;
-
-    if (game.phase === 'day') {
-        await processVotes(firestore, game.id);
-    } else if (game.phase === 'night') {
-        await processNight(firestore, game.id);
-    }
-};
-
 export function GameBoard({ 
     game: initialGame, 
     players: initialPlayers, 
@@ -80,6 +71,17 @@ export function GameBoard({
   const nightSoundsPlayedForRound = useRef<number>(0);
   const [timeLeft, setTimeLeft] = useState(0);
 
+  const handlePhaseEnd = useCallback(async () => {
+    if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId) return;
+
+    if (game.phase === 'day') {
+        await processVotes(firestore, game.id);
+    } else if (game.phase === 'night') {
+        await processNight(firestore, game.id);
+    }
+  }, [firestore, game, currentPlayer]);
+
+
   // Sound effect logic
   useEffect(() => {
     if (!game || !currentPlayer) return;
@@ -94,6 +96,9 @@ export function GameBoard({
           } else {
             playNarration('noche_pueblo_duerme.mp3');
           }
+           if (firestore && game.creator === currentPlayer?.userId) {
+                runAIActions(firestore, game.id);
+            }
           break;
         case 'day':
           playNarration('dia_pueblo_despierta.mp3');
@@ -128,7 +133,7 @@ export function GameBoard({
 
     const getCauseOfDeath = (playerId: string): GameEvent['type'] | 'other' => {
         const deathEvent = [...events]
-            .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
+            .sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0))
             .find(e => {
                 const data = e.data || {};
                 if (data.killedPlayerId === playerId) return true;
@@ -162,7 +167,7 @@ export function GameBoard({
   }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, firestore]);
   
   useEffect(() => {
-    if (!game?.phaseEndsAt || !firestore) {
+    if (!game?.phaseEndsAt || !firestore || !game) {
       setTimeLeft(0);
       return;
     }
@@ -173,14 +178,14 @@ export function GameBoard({
       const remaining = Math.max(0, endTime - now);
       setTimeLeft(Math.round(remaining / 1000));
 
-      if (remaining <= 0 && game.creator === currentPlayer?.userId) {
-        handlePhaseEnd(firestore, game, currentPlayer);
+      if (remaining <= 0 && currentPlayer && game.creator === currentPlayer.userId) {
+        handlePhaseEnd();
         clearInterval(interval); 
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [game?.phaseEndsAt, game?.id, firestore, game, currentPlayer]);
+  }, [game?.phaseEndsAt, game?.id, firestore, game, currentPlayer, handlePhaseEnd]);
 
   if (!game || !currentPlayer) {
       return null;
