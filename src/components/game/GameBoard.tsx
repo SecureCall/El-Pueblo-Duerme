@@ -73,6 +73,19 @@ export function GameBoard({
   const [timeLeft, setTimeLeft] = useState(PHASE_DURATION_SECONDS);
   const phaseEndHandled = useRef(false);
 
+  const handlePhaseEnd = useCallback(async () => {
+    if (!firestore || !game || game.status !== 'in_progress' || phaseEndHandled.current) return;
+    
+    phaseEndHandled.current = true;
+
+    if (game.phase === 'day') {
+        await processVotes(firestore, game.id);
+    } else if (game.phase === 'night') {
+        await processNight(firestore, game.id);
+    }
+  }, [firestore, game]);
+
+
   // Sound effect logic
   useEffect(() => {
     if (!game) return;
@@ -143,7 +156,7 @@ export function GameBoard({
     if (!game || !currentPlayer) return;
     if (game.creator === currentPlayer.userId && firestore) {
       if ((game.phase === 'night' || game.phase === 'day' || game.phase === 'hunter_shot') && game.settings.fillWithAI) {
-         runAIActions(db, game.id, game.phase);
+         runAIActions(firestore, game.id, game.phase);
       }
     }
   }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, game?.currentRound, game?.settings.fillWithAI, firestore]);
@@ -160,19 +173,6 @@ export function GameBoard({
     }
   }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, firestore]);
   
-   const handlePhaseEnd = useCallback(async () => {
-    if (!firestore || !game || game.status !== 'in_progress' || phaseEndHandled.current) return;
-    
-    phaseEndHandled.current = true;
-
-    if (game.phase === 'day') {
-        await processVotes(firestore, game.id);
-    } else if (game.phase === 'night') {
-        await processNight(firestore, game.id);
-    }
-  }, [firestore, game]);
-
-
   useEffect(() => {
     if(game?.phase) {
         phaseEndHandled.current = false;
@@ -180,24 +180,25 @@ export function GameBoard({
   }, [game?.phase, game?.currentRound]);
 
   useEffect(() => {
-      const timer = setInterval(() => {
-          if (!game || !game.phaseEndsAt || game.status !== 'in_progress' || (game.phase !== 'day' && game.phase !== 'night')) {
-              setTimeLeft(PHASE_DURATION_SECONDS);
-              return;
-          }
+      if (!game || !game.phaseEndsAt || game.status !== 'in_progress' || (game.phase !== 'day' && game.phase !== 'night')) {
+        setTimeLeft(PHASE_DURATION_SECONDS);
+        return;
+      }
+      
+      const interval = setInterval(() => {
+        if (game && game.phaseEndsAt) {
+            const endTime = game.phaseEndsAt.toMillis();
+            const now = Date.now();
+            const remaining = Math.max(0, Math.round((endTime - now) / 1000));
+            setTimeLeft(remaining);
 
-          const endTime = game.phaseEndsAt.toMillis();
-          const now = Date.now();
-          const remaining = Math.max(0, Math.round((endTime - now) / 1000));
-          
-          setTimeLeft(remaining);
-
-          if (remaining <= 0) {
-              handlePhaseEnd();
-          }
+            if (remaining <= 0) {
+                handlePhaseEnd();
+            }
+        }
       }, 1000);
 
-      return () => clearInterval(timer);
+      return () => clearInterval(interval);
   }, [game, handlePhaseEnd]);
 
 
@@ -428,6 +429,3 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
-
-
-    
