@@ -48,11 +48,14 @@ export function GameOver({ game, event, players }: GameOverProps) {
                 case 'vampire':
                     playNarration('el vampiro ha ganado .mp3');
                     break;
-                case 'drunk':
+                case 'drunk_man':
                     playNarration('ganador el ebrio.mp3');
                     break;
                 case 'fisherman':
                     playNarration('pescador ganador.mp3');
+                    break;
+                case 'executioner':
+                    playNarration('victoria el berdugo.mp3');
                     break;
                 case 'banshee':
                     // No specific sound provided for banshee, can be added here
