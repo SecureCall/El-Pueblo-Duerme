@@ -9,11 +9,15 @@ import { useToast } from "@/hooks/use-toast";
 import { useGameSession } from "@/hooks/use-game-session";
 import { useFirebase } from "@/firebase";
 import type { Game } from "@/types";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
+
 
 interface StartGameButtonProps {
   game: Game;
   playerCount: number;
 }
+
+const MINIMUM_PLAYERS = 3;
 
 export function StartGameButton({ game, playerCount }: StartGameButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
@@ -21,10 +25,8 @@ export function StartGameButton({ game, playerCount }: StartGameButtonProps) {
   const { userId, isSessionLoaded } = useGameSession();
   const { firestore } = useFirebase();
 
-  // The total number of players will be the max players if filling with AI,
-  // otherwise it's the current number of human players.
   const totalPlayers = game.settings.fillWithAI ? game.maxPlayers : playerCount;
-  const canStart = totalPlayers >= 3;
+  const canStart = totalPlayers >= MINIMUM_PLAYERS;
 
   const handleStartGame = async () => {
     if (!isSessionLoaded || !userId || !firestore) {
@@ -36,7 +38,7 @@ export function StartGameButton({ game, playerCount }: StartGameButtonProps) {
       return;
     }
     setIsLoading(true);
-    const result = await startGame(firestore, game.id, userId); // creatorId check is on server
+    const result = await startGame(firestore, game.id, userId);
     if (result.error) {
       toast({
         variant: "destructive",
@@ -49,7 +51,7 @@ export function StartGameButton({ game, playerCount }: StartGameButtonProps) {
     // so no need to setIsLoading(false) on success.
   };
 
-  return (
+  const button = (
     <Button 
       onClick={handleStartGame} 
       disabled={isLoading || !canStart || !isSessionLoaded} 
@@ -58,6 +60,25 @@ export function StartGameButton({ game, playerCount }: StartGameButtonProps) {
     >
       {isLoading ? <Loader2 className="animate-spin" /> : "Comenzar Partida"}
     </Button>
+  );
+
+  if (canStart) {
+    return button;
+  }
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="inline-block" tabIndex={0}>
+            {button}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Se necesitan al menos {MINIMUM_PLAYERS} jugadores para empezar.</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 

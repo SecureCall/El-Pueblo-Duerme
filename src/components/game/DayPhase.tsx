@@ -1,14 +1,13 @@
-
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Game, Player, GameEvent, ChatMessage } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
 import { submitVote, submitTroublemakerAction } from '@/lib/firebase-actions';
-import { Loader2, Zap } from 'lucide-react';
+import { Loader2, Zap, Scale } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { HeartCrack, SunIcon, Users, BrainCircuit } from 'lucide-react';
 import { useFirebase } from '@/firebase';
@@ -111,8 +110,19 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
 
     const canPlayerVote = !isCharmed || (isCharmed && isSirenAlive && hasSirenVoted);
     const hasVoted = !!currentPlayer.votedFor;
-    const alivePlayers = players.filter(p => p.isAlive);
     const isTroublemaker = currentPlayer.role === 'troublemaker' && currentPlayer.isAlive && !game.troublemakerUsed;
+
+    const tieData = voteEvent?.data?.tiedPlayerIds;
+    const isTiebreaker = Array.isArray(tieData) && tieData.length > 0 && !voteEvent.data?.final;
+    
+    const votablePlayers = isTiebreaker 
+      ? players.filter(p => p.isAlive && tieData.includes(p.userId))
+      : players.filter(p => p.isAlive);
+
+    useEffect(() => {
+        setSelectedPlayerId(null);
+    }, [isTiebreaker]);
+
 
     const handlePlayerSelect = (player: Player) => {
         if (hasVoted || !currentPlayer.isAlive || !player.isAlive || player.userId === currentPlayer.userId) return;
@@ -127,19 +137,19 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
 
         setIsSubmitting(true);
         const result = await submitVote(firestore, game.id, currentPlayer.userId, selectedPlayerId);
-        setIsSubmitting(false);
 
-        if (result.success) {
-            toast({ title: 'Voto registrado.' });
-        } else {
+        if (result.error) {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
+            setIsSubmitting(false); // Only re-enable on error
+        } else {
+             toast({ title: 'Voto registrado.' });
         }
     };
     
     const sirenVote = isCharmed && isSirenAlive && siren?.votedFor ? players.find(p => p.userId === siren.votedFor) : null;
     const votedForPlayer = players.find(p => p.userId === currentPlayer.votedFor);
     
-    const votesByPlayer = alivePlayers.reduce((acc, player) => {
+    const votesByPlayer = players.filter(p => p.isAlive).reduce((acc, player) => {
         if (player.votedFor) {
             if (!acc[player.votedFor]) {
                 acc[player.votedFor] = [];
@@ -155,11 +165,13 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
     return (
         <Card className="bg-card/80 w-full h-full">
             <CardHeader>
-                <CardTitle className="font-headline text-2xl">Debate y Votación</CardTitle>
-                <CardDescription>El pueblo se reúne. Discutid y votad para linchar a un sospechoso.</CardDescription>
+                <CardTitle className="font-headline text-2xl">{isTiebreaker ? "Votación de Desempate" : "Debate y Votación"}</CardTitle>
+                <CardDescription>
+                    {isTiebreaker ? "El pueblo debe decidir entre los empatados." : "El pueblo se reúne. Discutid y votad para linchar a un sospechoso."}
+                </CardDescription>
             </CardHeader>
             <CardContent>
-                {nightEvent && (
+                {nightEvent && !isTiebreaker && (
                     <Alert className='mb-4 bg-background/50'>
                         <SunIcon className="h-4 w-4" />
                         <AlertTitle>Al Amanecer...</AlertTitle>
@@ -170,7 +182,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                 )}
 
                 {loverDeathEvents.map(event => (
-                    <Alert key={event.createdAt.toMillis()} variant="destructive" className='mb-4 bg-destructive/20 border-destructive/50'>
+                    <Alert key={event.id} variant="destructive" className='mb-4 bg-destructive/20 border-destructive/50'>
                         <HeartCrack className="h-4 w-4" />
                         <AlertTitle>¡Una tragedia de amor!</AlertTitle>
                         <AlertDescription>
@@ -181,8 +193,8 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
 
                 {voteEvent && (
                     <Alert className='mb-4 bg-background/50 border-blue-400/30'>
-                        <Users className="h-4 w-4" />
-                        <AlertTitle>Resultado de la Votación Anterior</AlertTitle>
+                         {isTiebreaker ? <Scale className="h-4 w-4" /> : <Users className="h-4 w-4" />}
+                        <AlertTitle>{isTiebreaker ? "¡Empate!" : "Resultado de la Votación Anterior"}</AlertTitle>
                         <AlertDescription>
                             {voteEvent.message}
                         </AlertDescription>
@@ -211,7 +223,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                                 Has votado por {votedForPlayer?.displayName || 'alguien'}. Esperando al resto de jugadores...
                             </p>
                             <PlayerGrid 
-                                players={alivePlayers}
+                                players={players.filter(p => p.isAlive)}
                                 votesByPlayer={votesByPlayer}
                             />
                         </div>
@@ -234,9 +246,9 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                                 </Alert>
                             )}
 
-                            <p className="text-center mb-4 text-muted-foreground">Selecciona al jugador que crees que es un Hombre Lobo.</p>
+                            <p className="text-center mb-4 text-muted-foreground">{isTiebreaker ? "Debes elegir a uno de los empatados." : "Selecciona al jugador que crees que es un Hombre Lobo."}</p>
                             <PlayerGrid 
-                                players={alivePlayers.filter(p => p.userId !== currentPlayer.userId)}
+                                players={votablePlayers.filter(p => p.userId !== currentPlayer.userId)}
                                 onPlayerClick={handlePlayerSelect}
                                 clickable={canPlayerVote}
                                 selectedPlayerIds={selectedPlayerId ? [selectedPlayerId] : []}
@@ -255,13 +267,13 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                     <div className="text-center py-4 space-y-4">
                         <p className="text-lg">Observas el debate desde el más allá...</p>
                         <PlayerGrid 
-                            players={players}
+                            players={players.filter(p => p.isAlive)}
                             votesByPlayer={votesByPlayer}
                         />
                     </div>
                 )}
                 
-                {isTroublemaker && <TroublemakerPanel game={game} currentPlayer={currentPlayer} players={players} />}
+                {isTroublemaker && !isTiebreaker && <TroublemakerPanel game={game} currentPlayer={currentPlayer} players={players} />}
 
             </CardContent>
         </Card>
