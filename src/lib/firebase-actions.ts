@@ -687,7 +687,7 @@ export async function processNight(db: Firestore, gameId: string, externalTransa
         if (!gameSnap.exists()) throw new Error("Game not found!");
         
         let game = gameSnap.data();
-        if (game.phase !== 'night' || game.status !== 'in_progress') {
+        if (game.phase !== 'night' || game.status === 'finished') {
             return;
         }
 
@@ -1031,10 +1031,10 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
 
 export async function submitVote(db: Firestore, gameId: string, voterId: string, targetId: string) {
     const gameRef = doc(db, 'games', gameId) as DocumentReference<Game>;
-
+    
     try {
-       await runTransaction(db, async (transaction) => {
-            const gameSnap = await transaction.get(gameRef);
+        await runTransaction(db, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef); // READ FIRST
             if (!gameSnap.exists()) throw new Error("Game not found");
             
             let game = gameSnap.data();
@@ -1058,29 +1058,32 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
                  game.players[playerIndex].votedFor = targetId;
             }
             
+            // NOW WRITE
             transaction.update(gameRef, { players: game.players });
-
-            // After update, check if all have voted
-            const updatedGame = { ...game, players: [...game.players]};
-            updatedGame.players[playerIndex].votedFor = targetId; // Manually update for check
-            const alivePlayers = updatedGame.players.filter(p => p.isAlive);
-            if (alivePlayers.every(p => !!p.votedFor)) {
-                await processVotes(db, gameId); // This needs to be called outside the transaction or as last step
-            }
         });
 
-        // Trigger AI chat after the transaction to avoid race conditions
-        const gameDoc = await getDoc(gameRef);
-        const gameData = gameDoc.data();
-        if (gameData) {
-            const voter = gameData.players.find(p => p.userId === voterId);
-            const target = gameData.players.find(p => p.userId === targetId);
+        // This part needs re-evaluation, as it performs a read after a write implicitly.
+        // A better pattern is to use a cloud function triggered by the vote write.
+        // For now, let's trigger it from the client side after a successful vote, based on a state change.
+        // OR, let's check if all votes are in *after* the transaction but before returning.
+        
+        const finalGameSnap = await getDoc(gameRef); // READ
+        if (finalGameSnap.exists()) {
+            const game = finalGameSnap.data();
+            const alivePlayers = game.players.filter(p => p.isAlive);
+            if (alivePlayers.every(p => p.votedFor)) {
+                await processVotes(db, gameId);
+            }
+
+            const voter = game.players.find(p => p.userId === voterId);
+            const target = game.players.find(p => p.userId === targetId);
             if (!voter?.isAI && voter?.displayName && target?.displayName) {
                 await triggerAIChat(db, gameId, `${voter.displayName} ha votado por ${target.displayName}.`);
             }
         }
 
         return { success: true };
+
     } catch (error: any) {
         if (error.code === 'permission-denied') {
             const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
@@ -1300,7 +1303,7 @@ export async function setPhaseToNight(db: Firestore, gameId: string) {
                     updateData.lovers = loverIds;
                 }
             }
-            transaction.update(gameRef, updateData);
+             transaction.update(gameRef, updateData);
         }
     });
     return { success: true };
