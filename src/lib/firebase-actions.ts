@@ -1,4 +1,3 @@
-
 'use client';
 import { 
   doc,
@@ -371,7 +370,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
 }
 
 export async function submitNightAction(db: Firestore, action: Omit<NightAction, 'createdAt' | 'round'> & { round: number }) {
-  const { gameId, playerId } = action;
+  const { gameId, playerId, actionType, targetId } = action;
   const gameRef = doc(db, 'games', gameId);
   try {
     await runTransaction(db, async (transaction) => {
@@ -384,14 +383,58 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         const player = game.players.find(p => p.userId === playerId);
         if (!player || !player.isAlive) throw new Error("Jugador no válido o muerto.");
         if (game.exiledPlayerId === playerId) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
+        if (player.usedNightAbility) return;
         
-        const hasAlreadyActed = game.nightActions?.some(a => a.round === game.currentRound && a.playerId === playerId);
-        if (hasAlreadyActed) return;
+        let players = [...game.players];
+        const playerIndex = players.findIndex(p => p.userId === action.playerId);
+        
+        switch (actionType) {
+            case 'doctor_heal':
+                const targetPlayer = players.find(p => p.userId === targetId);
+                if (targetPlayer?.lastHealedRound === game.currentRound - 1) throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
+                if (targetPlayer) players[players.findIndex(p => p.userId === targetId)].lastHealedRound = game.currentRound;
+                break;
+            case 'hechicera_poison':
+                if (player.potions?.poison) throw new Error("Ya has usado tu poción de veneno.");
+                if(players[playerIndex].potions) players[playerIndex].potions!.poison = game.currentRound;
+                break;
+            case 'hechicera_save':
+                if (player.potions?.save) throw new Error("Ya has usado tu poción de salvación.");
+                if(players[playerIndex].potions) players[playerIndex].potions!.save = game.currentRound;
+                break;
+             case 'guardian_protect':
+                if (targetId === playerId && (player.guardianSelfProtects || 0) >= 1) throw new Error("Solo puedes protegerte a ti mismo una vez.");
+                if (targetId === playerId) players[playerIndex].guardianSelfProtects = (players[playerIndex].guardianSelfProtects || 0) + 1;
+                break;
+             case 'priest_bless':
+                if (targetId === playerId && player.priestSelfHealUsed) throw new Error("Ya te has bendecido a ti mismo una vez.");
+                 if (targetId === playerId) players[playerIndex].priestSelfHealUsed = true;
+                break;
+            case 'lookout_spy':
+                if(player.lookoutUsed) throw new Error("Ya has usado tu habilidad de Vigía.");
+                players[playerIndex].lookoutUsed = true;
+                break;
+            case 'resurrect':
+                if(player.resurrectorAngelUsed) throw new Error("Ya has usado tu poder de resurrección.");
+                players[playerIndex].resurrectorAngelUsed = true;
+                break;
+            case 'shapeshifter_select':
+                 if(game.currentRound !== 1) throw new Error("Esta acción solo puede realizarse en la primera noche.");
+                 players[playerIndex].shapeshifterTargetId = targetId;
+                 break;
+            case 'virginia_woolf_link':
+            case 'river_siren_charm':
+            case 'cupid_love':
+                 if(game.currentRound !== 1) throw new Error("Esta acción solo puede realizarse en la primera noche.");
+                 break;
+        }
+
+        players[playerIndex].usedNightAbility = true;
         
         const newAction: NightAction = { ...action, createdAt: Timestamp.now() };
-        transaction.update(gameRef, { 
-            nightActions: arrayUnion(sanitizeForFirebase(newAction))
-        });
+        const updatedNightActions = [...(game.nightActions || []), newAction];
+        transaction.update(gameRef, { nightActions: updatedNightActions, players: sanitizeForFirebase(players) });
+
     });
 
     return { success: true };
@@ -835,7 +878,6 @@ export async function processVotes(db: Firestore, gameId: string) {
         }
       }
 
-      let triggeredHunterId: string | null = null;
       if (mostVotedPlayerIds.length > 1 && !isTiebreaker) {
           game.events.push({ id: `evt_vote_tie_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: "¡La votación resultó en un empate! Se requiere una segunda votación solo entre los empatados.", data: { tiedPlayerIds: mostVotedPlayerIds, final: false }, createdAt: Timestamp.now() });
           game.players.forEach(p => { p.votedFor = null; });
@@ -860,9 +902,8 @@ export async function processVotes(db: Firestore, gameId: string) {
             });
             lynchedPlayerId = null; 
         } else {
-            const { updatedGame, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, lynchedPlayerId, 'vote_result');
+            const { updatedGame } = await killPlayer(transaction, gameRef, game, lynchedPlayerId, 'vote_result');
             game = updatedGame;
-            if(newHunterId) triggeredHunterId = newHunterId;
         }
       } else {
         const message = isTiebreaker ? 'Tras un segundo empate, el pueblo decide perdonar una vida hoy.' : 'El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.';
@@ -878,7 +919,6 @@ export async function processVotes(db: Firestore, gameId: string) {
           return;
       }
 
-      game.pendingHunterShot = triggeredHunterId;
       if (game.pendingHunterShot) {
         transaction.update(gameRef, sanitizeForFirebase({
           players: game.players, events: game.events, phase: 'hunter_shot', 
@@ -1602,9 +1642,7 @@ export const getDeterministicAIAction = (
              }
              return { actionType: 'NONE', targetId: '' };
         case 'executioner':
-        case 'lookout':
-        case 'sleeping_fairy':
-        case 'banshee':
+            // Executioner has no night action.
             return { actionType: 'NONE', targetId: '' };
         default:
             return { actionType: 'NONE', targetId: '' };
