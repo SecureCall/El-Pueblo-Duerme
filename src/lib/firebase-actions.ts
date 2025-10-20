@@ -165,29 +165,29 @@ export async function joinGame(
       }
       
       const playerExists = game.players.some(p => p.userId === userId);
-      if (playerExists) {
-        const currentPlayers = game.players;
-        const playerIndex = currentPlayers.findIndex(p => p.userId === userId);
-        if (playerIndex !== -1 && currentPlayers[playerIndex].displayName !== displayName.trim()) {
-            currentPlayers[playerIndex].displayName = displayName.trim();
-            transaction.update(gameRef, { players: currentPlayers });
-        }
-        return;
-      }
-      
-      const nameExists = game.players.some(p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase());
+      const nameExists = game.players.some(p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase() && p.userId !== userId);
+
       if (nameExists) {
         throw new Error("Ese nombre ya está en uso en esta partida.");
       }
 
-      if (game.players.length >= game.maxPlayers) {
+      if (game.players.length >= game.maxPlayers && !playerExists) {
         throw new Error("Esta partida está llena.");
       }
       
-      const newPlayer = createPlayerObject(userId, gameId, displayName, false);
-      transaction.update(gameRef, {
-        players: arrayUnion(newPlayer),
-      });
+      if (!playerExists) {
+        const newPlayer = createPlayerObject(userId, gameId, displayName, false);
+        transaction.update(gameRef, {
+          players: arrayUnion(newPlayer),
+        });
+      } else {
+        const currentPlayers = game.players;
+        const playerIndex = currentPlayers.findIndex(p => p.userId === userId);
+        if (playerIndex !== -1 && currentPlayers[playerIndex].displayName !== displayName) {
+          currentPlayers[playerIndex].displayName = displayName.trim();
+          transaction.update(gameRef, { players: currentPlayers });
+        }
+      }
     });
 
     return { success: true };
@@ -208,46 +208,60 @@ export async function joinGame(
 }
 
 const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
-    let baseRoles: PlayerRole[] = [];
+    let roles: (PlayerRole)[] = [];
+    const specialRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf' | 'cupid'>[] = Object.keys(settings)
+        .filter(key => 
+            key !== 'werewolves' && 
+            key !== 'fillWithAI' && 
+            key !== 'isPublic' && 
+            key !== 'cupid' &&
+            settings[key as keyof typeof settings] === true
+        ) as any;
+    
+    if (settings.cupid && roles.length < playerCount) {
+        roles.push('cupid');
+    }
+
     const numWerewolves = Math.max(1, Math.floor(playerCount / 4));
-    
     for (let i = 0; i < numWerewolves; i++) {
-        baseRoles.push('werewolf');
-    }
-    
-    while (baseRoles.length < playerCount) {
-        baseRoles.push('villager');
+        if(roles.length < playerCount) roles.push('werewolf');
     }
 
-    const availableSpecialRoles: PlayerRole[] = (Object.keys(settings) as Array<keyof typeof settings>)
-        .filter(key => {
-            const roleKey = key as PlayerRole;
-            return settings[key] === true && roleKey !== 'werewolves' && roleKey !== 'fillWithAI' && roleKey !== 'isPublic';
-        })
-        .sort(() => Math.random() - 0.5) as PlayerRole[];
+    const shuffledSpecialRoles = specialRoles.sort(() => Math.random() - 0.5);
 
-    let finalRoles = [...baseRoles];
-    let villagerIndices = finalRoles.map((role, index) => role === 'villager' ? index : -1).filter(index => index !== -1);
-
-    for (const specialRole of availableSpecialRoles) {
-        if (!specialRole) continue;
-
-        if (specialRole === 'twin') {
-            if (villagerIndices.length >= 2) {
-                const idx1 = villagerIndices.pop()!;
-                const idx2 = villagerIndices.pop()!;
-                finalRoles[idx1] = 'twin';
-                finalRoles[idx2] = 'twin';
+    for (const role of shuffledSpecialRoles) {
+        if (role === 'twin') {
+            if (roles.length < playerCount - 1) {
+                roles.push('twin', 'twin');
             }
         } else {
-            if (villagerIndices.length > 0) {
-                const idx = villagerIndices.pop()!;
-                finalRoles[idx] = specialRole;
+            if (roles.length < playerCount) {
+                roles.push(role);
             }
         }
     }
     
-    return finalRoles.sort(() => Math.random() - 0.5);
+    while (roles.length < playerCount) {
+        roles.push('villager');
+    }
+
+    roles = roles.slice(0, playerCount);
+
+    const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
+    const hasWolfRole = roles.some(r => r && wolfRoles.includes(r));
+    
+    if (!hasWolfRole && playerCount > 0) {
+        const villagerIndex = roles.indexOf('villager');
+        if (villagerIndex !== -1) {
+            roles[villagerIndex] = 'werewolf';
+        } else if (roles.length > 0) {
+            roles[roles.length - 1] = 'werewolf';
+        } else { 
+            roles.push('werewolf');
+        }
+    }
+    
+    return roles.sort(() => Math.random() - 0.5);
 };
 
 
@@ -361,59 +375,13 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         if (!player || !player.isAlive) throw new Error("Jugador no válido o muerto.");
         if (game.exiledPlayerId === playerId) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
         
-        // A player can only submit one action per night
         const hasAlreadyActed = game.nightActions?.some(a => a.round === game.currentRound && a.playerId === playerId);
         if (hasAlreadyActed) return;
         
-        let players = [...game.players];
-        const playerIndex = players.findIndex(p => p.userId === action.playerId);
-        
-        // Validations before adding the action
-        switch (actionType) {
-            case 'doctor_heal':
-                const targetPlayer = players.find(p => p.userId === targetId);
-                if (targetPlayer?.lastHealedRound === game.currentRound - 1) throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
-                if (targetPlayer) players[players.findIndex(p => p.userId === targetId)].lastHealedRound = game.currentRound;
-                break;
-            case 'hechicera_poison':
-                if (player.potions?.poison) throw new Error("Ya has usado tu poción de veneno.");
-                if(players[playerIndex].potions) players[playerIndex].potions!.poison = game.currentRound;
-                break;
-            case 'hechicera_save':
-                if (player.potions?.save) throw new Error("Ya has usado tu poción de salvación.");
-                if(players[playerIndex].potions) players[playerIndex].potions!.save = game.currentRound;
-                break;
-             case 'guardian_protect':
-                if (targetId === playerId && (player.guardianSelfProtects || 0) >= 1) throw new Error("Solo puedes protegerte a ti mismo una vez.");
-                if (targetId === playerId) players[playerIndex].guardianSelfProtects = (players[playerIndex].guardianSelfProtects || 0) + 1;
-                break;
-             case 'priest_bless':
-                if (targetId === playerId && player.priestSelfHealUsed) throw new Error("Ya te has bendecido a ti mismo una vez.");
-                 if (targetId === playerId) players[playerIndex].priestSelfHealUsed = true;
-                break;
-            case 'lookout_spy':
-                if(player.lookoutUsed) throw new Error("Ya has usado tu habilidad de Vigía.");
-                players[playerIndex].lookoutUsed = true;
-                break;
-            case 'resurrect':
-                if(player.resurrectorAngelUsed) throw new Error("Ya has usado tu poder de resurrección.");
-                players[playerIndex].resurrectorAngelUsed = true;
-                break;
-            case 'shapeshifter_select':
-            case 'virginia_woolf_link':
-            case 'river_siren_charm':
-            case 'cupid_love':
-                 if(game.currentRound !== 1) throw new Error("Esta acción solo puede realizarse en la primera noche.");
-                 if(actionType === 'shapeshifter_select') players[playerIndex].shapeshifterTargetId = targetId;
-                 break;
-        }
-        
         const newAction: NightAction = { ...action, createdAt: Timestamp.now() };
         transaction.update(gameRef, { 
-            nightActions: arrayUnion(newAction), 
-            players 
+            nightActions: arrayUnion(newAction)
         });
-
     });
 
     return { success: true };
@@ -727,15 +695,13 @@ export async function processNight(db: Firestore, gameId: string) {
             if (game.leprosaBlockedRound !== game.currentRound) {
                 const wolfVotes = actions.filter(a => a.actionType === 'werewolf_kill').map(a => a.targetId);
 
-                const getConsensusTarget = (votes: string[]) => {
+                const getConsensusTarget = (votes: string[]): string | null => {
                     if (votes.length === 0) return null;
-                    const voteCounts: Record<string, number> = {};
-                    votes.forEach(vote => {
-                        vote.split('|').forEach(target => {
-                            if(target) voteCounts[target] = (voteCounts[target] || 0) + 1;
-                        });
-                    });
-                    
+                    const voteCounts = votes.reduce((acc, targetId) => {
+                        acc[targetId] = (acc[targetId] || 0) + 1;
+                        return acc;
+                    }, {} as Record<string, number>);
+
                     let maxVotes = 0;
                     let mainTarget: string | null = null;
                     let tie = false;
@@ -749,8 +715,12 @@ export async function processNight(db: Firestore, gameId: string) {
                             tie = true;
                         }
                     }
+
+                    if (tie) {
+                        const tiedTargets = Object.keys(voteCounts).filter(id => voteCounts[id] === maxVotes);
+                        return tiedTargets[Math.floor(Math.random() * tiedTargets.length)];
+                    }
                     
-                    if (tie) return null;
                     return mainTarget;
                 };
 
@@ -797,8 +767,9 @@ export async function processNight(db: Firestore, gameId: string) {
                 return;
             }
 
-            if (triggeredHunterId) {
-                transaction.update(gameRef, { players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: triggeredHunterId });
+            game.pendingHunterShot = triggeredHunterId;
+            if (game.pendingHunterShot) {
+                transaction.update(gameRef, { players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot });
                 return;
             }
             
@@ -847,7 +818,11 @@ export async function processVotes(db: Firestore, gameId: string) {
       const lastVoteEvent = game.events.find(e => e.type === 'vote_result' && e.round === game.currentRound);
       const isTiebreaker = lastVoteEvent?.data?.tiedPlayerIds;
 
-      const alivePlayers = game.players.filter(p => p.isAlive);
+      const alivePlayers = game.players.filter(p => p.isAlive && p.votedFor); // Only consider players who have voted
+      if (alivePlayers.length === 0) { // No one voted
+         game.events.push({ id: `evt_vote_result_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: "El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.", data: { lynchedPlayerId: null, final: true }, createdAt: Timestamp.now() });
+      }
+
       const voteCounts: Record<string, number> = {};
       
       alivePlayers.forEach(player => {
@@ -1532,8 +1507,7 @@ export const getDeterministicAIAction = (
         case 'werewolf':
         case 'wolf_cub': {
              const wolfActions = nightActions.filter(a => a.round === currentRound && a.actionType === 'werewolf_kill');
-             if (wolfActions.length > 0) {
-                 // Follow the first wolf's vote to build consensus
+             if (wolfActions.length > 0 && Math.random() < 0.8) { // 80% chance to follow
                  return { actionType: 'werewolf_kill', targetId: wolfActions[0].targetId };
              }
 
@@ -1548,15 +1522,18 @@ export const getDeterministicAIAction = (
         case 'seer':
         case 'seer_apprentice':
             if (role === 'seer' || apprenticeIsActive) {
-                // Prioritize investigating the most voted player from the previous day
-                const previousDayEvents = game.events.filter(e => e.round === currentRound - 1 && e.type === 'vote_result');
-                if (previousDayEvents.length > 0) {
-                    const voteData = previousDayEvents[0].data;
-                    const mostVoted = voteData?.tiedPlayerIds?.[0] || voteData?.lynchedPlayerId;
-                    if(mostVoted && Math.random() < 0.7) { // High chance to investigate the most suspicious person
-                         return { actionType: 'seer_check', targetId: mostVoted };
+                const previousDayVotes: Record<string, number> = {};
+                game.players.forEach(p => {
+                    if(p.votedFor) {
+                        previousDayVotes[p.votedFor] = (previousDayVotes[p.votedFor] || 0) + 1;
                     }
+                });
+                const mostVotedId = Object.keys(previousDayVotes).reduce((a, b) => previousDayVotes[a] > previousDayVotes[b] ? a : b, '');
+                
+                if (mostVotedId && Math.random() < 0.7) {
+                    return { actionType: 'seer_check', targetId: mostVotedId };
                 }
+
                 return { actionType: 'seer_check', targetId: randomTarget(potentialTargets) };
             }
             return { actionType: 'NONE', targetId: '' };

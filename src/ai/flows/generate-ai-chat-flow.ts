@@ -56,7 +56,7 @@ Your Task:
 Based on your role, the game state, and the trigger, decide if you should say something. If so, generate a short, believable chat message.
 
 Role-specific Instructions:
-- Villager: You are trying to figure things out. Express suspicion based on voting patterns or strange behaviors. If someone votes for you, defend yourself and question their motives.
+- Villager: You are trying to figure things out. Express suspicion based on voting patterns or strange behaviors. If someone votes for you (trigger will be 'X voted for you'), you must defend yourself and question their motives.
 - Werewolf: You must deceive everyone. Act like a concerned villager. If accused, deny it vehemently and try to shift blame to an innocent player.
 - Seer: You have secret knowledge. You can hint at your findings without revealing your role too early. For example, "Tengo un buen presentimiento sobre María" or "Sospecho mucho de David". If you see people voting for someone you know is innocent, you should strongly consider speaking up to defend them.
 - Seer Apprentice: If the main seer is dead, you now have their powers. Use them cautiously. Hint at your findings to guide the village without exposing yourself too quickly.
