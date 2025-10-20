@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import type { Game, Player, GameEvent, ChatMessage } from '@/types';
+import type { Game, Player, GameEvent } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
@@ -20,7 +20,6 @@ interface DayPhaseProps {
     loverDeathEvents?: GameEvent[];
     voteEvent?: GameEvent;
     behaviorClueEvent?: GameEvent;
-    chatMessages: ChatMessage[];
 }
 
 function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, currentPlayer: Player, players: Player[] }) {
@@ -97,7 +96,7 @@ function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, curre
     );
 }
 
-export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathEvents = [], voteEvent, behaviorClueEvent, chatMessages }: DayPhaseProps) {
+export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathEvents = [], voteEvent, behaviorClueEvent }: DayPhaseProps) {
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
@@ -143,6 +142,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
             setIsSubmitting(false); // Only re-enable on error
         } else {
              toast({ title: 'Voto registrado.' });
+             // On success, isSubmitting remains true and UI is locked until next phase
         }
     };
     

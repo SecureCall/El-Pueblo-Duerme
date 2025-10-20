@@ -69,6 +69,18 @@ export function GameBoard({
   const nightSoundsPlayedForRound = useRef<number>(0);
   const [timeLeft, setTimeLeft] = useState(0);
 
+  const handlePhaseEnd = useCallback(async () => {
+    if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId) return;
+    if (game.status === 'finished') return;
+    
+    if (game.phase === 'day') {
+        await processVotes(firestore, game.id);
+    } else if (game.phase === 'night') {
+        await processNight(firestore, game.id);
+    }
+  }, [firestore, game, currentPlayer]);
+
+
   // Sound and action trigger logic
   useEffect(() => {
     if (!game || !currentPlayer || game.status === 'finished') return;
@@ -156,19 +168,25 @@ export function GameBoard({
   
   // Phase timer logic
   useEffect(() => {
-    if (!game?.phaseEndsAt) {
+    if (!game?.phaseEndsAt || !firestore || !game || game.status === 'finished') {
       setTimeLeft(0);
       return;
     }
+
     const interval = setInterval(() => {
       const now = Date.now();
-      const endTime = game.phaseEndsAt.toMillis();
+      const endTime = game.phaseEndsAt!.toMillis();
       const remaining = Math.max(0, endTime - now);
       setTimeLeft(Math.round(remaining / 1000));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [game?.phaseEndsAt]);
 
+      if (remaining <= 0 && currentPlayer && game.creator === currentPlayer.userId) {
+        handlePhaseEnd();
+        clearInterval(interval); 
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [game?.phaseEndsAt, game?.id, firestore, game, currentPlayer, handlePhaseEnd]);
 
   if (!game || !currentPlayer) {
       return null;
@@ -380,7 +398,6 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
                     loverDeathEvents={loverDeathEvents}
                     voteEvent={voteEvent}
                     behaviorClueEvent={behaviorClueEvent}
-                    chatMessages={messages}
                 />
                 <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
                     {isTwin && <TwinChat gameId={game.id} currentPlayer={currentPlayer} messages={twinMessages} />}
