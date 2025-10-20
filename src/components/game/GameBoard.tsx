@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -276,12 +277,12 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
   }
   
   const isTwin = currentPlayer?.role === 'twin' && !!game.twins?.includes(currentPlayer.userId);
-  const otherTwinId = isTwin && game.twins ? game.twins.find(id => id !== currentPlayer!.userId) : null;
+  const otherTwinId = isTwin ? game.twins!.find(id => id !== currentPlayer!.userId) : null;
   const otherTwin = otherTwinId ? players.find(p => p.userId === otherTwinId) : null;
 
   const isFairy = ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer?.role || '');
   const isLover = !!currentPlayer?.isLover;
-  const otherLover = isLover && game.lovers ? players.find(p => p.isLover && p.userId !== currentPlayer.userId) : null;
+  const otherLover = isLover ? players.find(p => p.isLover && p.userId !== currentPlayer.userId) : null;
 
 
   const highlightedPlayers = [];
@@ -326,7 +327,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
    return (
     <div className="w-full max-w-7xl mx-auto p-4 space-y-4">
        <Card className="text-center bg-card/80 sticky top-4 z-30 shadow-lg">
-        <CardHeader className="p-4">
+        <CardHeader className="p-4 relative">
              <div className="flex justify-between items-start">
                  <GameChronicle events={events} currentPlayerId={currentPlayer?.userId || ''} />
                 <div className="flex-1 text-center">

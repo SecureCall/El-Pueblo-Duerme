@@ -1,3 +1,5 @@
+
+
 'use client';
 import { 
   doc,
@@ -358,11 +360,15 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         const player = game.players.find(p => p.userId === playerId);
         if (!player || !player.isAlive) throw new Error("Jugador no válido o muerto.");
         if (game.exiledPlayerId === playerId) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
-        if (player.usedNightAbility) return;
+        
+        // A player can only submit one action per night
+        const hasAlreadyActed = game.nightActions?.some(a => a.round === game.currentRound && a.playerId === playerId);
+        if (hasAlreadyActed) return;
         
         let players = [...game.players];
         const playerIndex = players.findIndex(p => p.userId === action.playerId);
         
+        // Validations before adding the action
         switch (actionType) {
             case 'doctor_heal':
                 const targetPlayer = players.find(p => p.userId === targetId);
@@ -394,21 +400,19 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
                 players[playerIndex].resurrectorAngelUsed = true;
                 break;
             case 'shapeshifter_select':
-                 if(game.currentRound !== 1) throw new Error("Esta acción solo puede realizarse en la primera noche.");
-                 players[playerIndex].shapeshifterTargetId = targetId;
-                 break;
             case 'virginia_woolf_link':
             case 'river_siren_charm':
             case 'cupid_love':
                  if(game.currentRound !== 1) throw new Error("Esta acción solo puede realizarse en la primera noche.");
+                 if(actionType === 'shapeshifter_select') players[playerIndex].shapeshifterTargetId = targetId;
                  break;
         }
-
-        players[playerIndex].usedNightAbility = true;
         
         const newAction: NightAction = { ...action, createdAt: Timestamp.now() };
-        const updatedNightActions = [...(game.nightActions || []), newAction];
-        transaction.update(gameRef, { nightActions: updatedNightActions, players });
+        transaction.update(gameRef, { 
+            nightActions: arrayUnion(newAction), 
+            players 
+        });
 
     });
 
@@ -731,13 +735,23 @@ export async function processNight(db: Firestore, gameId: string) {
                             if(target) voteCounts[target] = (voteCounts[target] || 0) + 1;
                         });
                     });
-                    const maxVotes = Math.max(...Object.values(voteCounts), 0);
-                     if (maxVotes === 0) return null;
-                    const mostVotedTargets = Object.keys(voteCounts).filter(id => voteCounts[id] === maxVotes);
                     
-                    if (mostVotedTargets.length === 1) return mostVotedTargets[0];
-                    if (mostVotedTargets.length > 1) return null; // Tie, no attack
-                    return null;
+                    let maxVotes = 0;
+                    let mainTarget: string | null = null;
+                    let tie = false;
+
+                    for (const targetId in voteCounts) {
+                        if (voteCounts[targetId] > maxVotes) {
+                            maxVotes = voteCounts[targetId];
+                            mainTarget = targetId;
+                            tie = false;
+                        } else if (voteCounts[targetId] === maxVotes) {
+                            tie = true;
+                        }
+                    }
+                    
+                    if (tie) return null;
+                    return mainTarget;
                 };
 
                 const wolfTarget = getConsensusTarget(wolfVotes);
@@ -1519,6 +1533,7 @@ export const getDeterministicAIAction = (
         case 'wolf_cub': {
              const wolfActions = nightActions.filter(a => a.round === currentRound && a.actionType === 'werewolf_kill');
              if (wolfActions.length > 0) {
+                 // Follow the first wolf's vote to build consensus
                  return { actionType: 'werewolf_kill', targetId: wolfActions[0].targetId };
              }
 
@@ -1533,18 +1548,15 @@ export const getDeterministicAIAction = (
         case 'seer':
         case 'seer_apprentice':
             if (role === 'seer' || apprenticeIsActive) {
-                const votesToday = game.players.reduce((acc, p) => {
-                    if (p.votedFor) {
-                        acc[p.votedFor] = (acc[p.votedFor] || 0) + 1;
+                // Prioritize investigating the most voted player from the previous day
+                const previousDayEvents = game.events.filter(e => e.round === currentRound - 1 && e.type === 'vote_result');
+                if (previousDayEvents.length > 0) {
+                    const voteData = previousDayEvents[0].data;
+                    const mostVoted = voteData?.tiedPlayerIds?.[0] || voteData?.lynchedPlayerId;
+                    if(mostVoted && Math.random() < 0.7) { // High chance to investigate the most suspicious person
+                         return { actionType: 'seer_check', targetId: mostVoted };
                     }
-                    return acc;
-                }, {} as Record<string, number>);
-
-                const mostVotedPlayerId = Object.keys(votesToday).sort((a,b) => votesToday[b] - votesToday[a])[0];
-                if(mostVotedPlayerId && Math.random() < 0.6) {
-                    return { actionType: 'seer_check', targetId: mostVotedPlayerId };
                 }
-
                 return { actionType: 'seer_check', targetId: randomTarget(potentialTargets) };
             }
             return { actionType: 'NONE', targetId: '' };

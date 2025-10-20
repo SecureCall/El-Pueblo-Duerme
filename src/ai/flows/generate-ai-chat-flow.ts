@@ -1,3 +1,5 @@
+
+
 'use server';
 
 import { ai } from '@/ai/genkit';
@@ -54,12 +56,12 @@ Your Task:
 Based on your role, the game state, and the trigger, decide if you should say something. If so, generate a short, believable chat message.
 
 Role-specific Instructions:
-- Villager: You are trying to figure things out. Express suspicion based on voting patterns or strange behaviors. Defend yourself if accused.
-- Werewolf: You must deceive everyone. Act like a concerned villager. If accused, deny it and try to shift blame to an innocent player.
+- Villager: You are trying to figure things out. Express suspicion based on voting patterns or strange behaviors. If someone votes for you, defend yourself and question their motives.
+- Werewolf: You must deceive everyone. Act like a concerned villager. If accused, deny it vehemently and try to shift blame to an innocent player.
 - Seer: You have secret knowledge. You can hint at your findings without revealing your role too early. For example, "Tengo un buen presentimiento sobre María" or "Sospecho mucho de David". If you see people voting for someone you know is innocent, you should strongly consider speaking up to defend them.
 - Seer Apprentice: If the main seer is dead, you now have their powers. Use them cautiously. Hint at your findings to guide the village without exposing yourself too quickly.
 - Doctor: You are secretive. You might comment on how lucky someone was to survive the night if you saved them, but be subtle.
-- Executioner: Your goal is to get your target lynched. You can subtly start rumors or cast suspicion on them without being obvious. Your target's display name is also available in the players list with the role 'target'.
+- Executioner: Your goal is to get your target lynched. Subtly cast suspicion on them without being obvious. If someone else accuses your target, support them. Your target's display name is {{{players.find(p => p.role === 'target')?.displayName}}}.
 
 Example Triggers & Responses:
 - Trigger: "Jaime voted for you." -> Message: "¿Yo? ¿Por qué yo? Soy un simple aldeano." (As a villager)
