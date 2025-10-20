@@ -33,6 +33,9 @@ export const unlockAudio = () => {
     if (!isPlayingNarration && narrationQueue.length > 0) {
         playNextInQueue();
     }
+    // Also try to play the other audio instances to unlock them
+    soundEffectAudio?.play().catch(()=>{});
+    soundEffectAudio?.pause();
 };
 
 if (typeof window !== 'undefined') {
@@ -40,7 +43,7 @@ if (typeof window !== 'undefined') {
     narrationAudio.volume = 1.0;
 
     soundEffectAudio = new Audio();
-    soundEffectAudio.volume = 0.5; // Adjusted volume for sound effects
+    soundEffectAudio.volume = 0.5;
     
     narrationAudio.addEventListener('ended', () => {
         isPlayingNarration = false;
@@ -73,25 +76,13 @@ export const playNarration = (narrationFile: string): void => {
 
 export const playSoundEffect = (soundFile: string): void => {
     if (!audioUnlocked) {
-        // We can queue sound effects if needed, but for now, let's just play if unlocked
         return;
     }
     if (!soundEffectAudio) {
-        // This should not happen in a browser context after initialization
         return;
     }
     
-    // Determine path based on file type
-    const isNarration = soundFile.startsWith('voz/');
-    const path = isNarration ? `/audio/${soundFile}` : `/audio/effects/${soundFile}`;
-    
-    // For rooster sound, use the main audio path
-    if (soundFile === 'rooster-crowing-364473.mp3') {
-        soundEffectAudio.src = `/audio/${soundFile}`;
-    } else {
-        soundEffectAudio.src = path;
-    }
-
+    soundEffectAudio.src = soundFile;
     soundEffectAudio.play().catch(e => {
         console.warn(`Sound effect play was prevented for ${soundFile}:`, e);
     });

@@ -27,6 +27,7 @@ import { FairyChat } from "./FairyChat";
 import { VampireKillOverlay } from "./VampireKillOverlay";
 import { useGameState } from "@/hooks/use-game-state";
 import { LoversChat } from "./LoversChat";
+import { cn } from "@/lib/utils";
 
 interface GameBoardProps {
   game: Game;
@@ -69,10 +70,11 @@ export function GameBoard({
   const [deathCause, setDeathCause] = useState<GameEvent['type'] | 'other' | null>(null);
   const nightSoundsPlayedForRound = useRef<number>(0);
   const [timeLeft, setTimeLeft] = useState(0);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
 
   const handlePhaseEnd = useCallback(async () => {
-    if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId) return;
-    if (game.phase === 'finished') return;
+    if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId || game.status === 'finished') return;
     
     if (game.phase === 'day') {
         await processVotes(firestore, game.id);
@@ -84,7 +86,7 @@ export function GameBoard({
 
   // Sound and action trigger logic
   useEffect(() => {
-    if (!game || !currentPlayer) return;
+    if (!game || !currentPlayer || game.status === 'finished') return;
     const prevPhase = prevPhaseRef.current;
 
     if (prevPhase !== game.phase) {
@@ -101,7 +103,7 @@ export function GameBoard({
             }
           break;
         case 'day':
-          playSoundEffect('rooster-crowing-364473.mp3');
+          playSoundEffect('/audio/rooster-crowing-364473.mp3');
           playNarration('dia_pueblo_despierta.mp3');
           setTimeout(() => {
             playNarration('inicio_debate.mp3');
@@ -158,23 +160,27 @@ export function GameBoard({
   // Auto-advance from role reveal
   useEffect(() => {
     if (!game || !currentPlayer) return;
-    if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore) {
+    if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore && game.status === 'in_progress') {
       const timer = setTimeout(() => {
         setPhaseToNight(firestore, game.id);
       }, 15000); 
 
       return () => clearTimeout(timer);
     }
-  }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, firestore]);
+  }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, firestore, game?.status]);
   
   // Phase timer logic
   useEffect(() => {
-    if (!game?.phaseEndsAt || !firestore || !game) {
+    if (timerRef.current) {
+        clearInterval(timerRef.current);
+    }
+    
+    if (!game?.phaseEndsAt || !firestore || !game || game.status === 'finished') {
       setTimeLeft(0);
       return;
     }
 
-    const interval = setInterval(() => {
+    timerRef.current = setInterval(() => {
       const now = Date.now();
       const endTime = game.phaseEndsAt!.toMillis();
       const remaining = Math.max(0, endTime - now);
@@ -182,11 +188,13 @@ export function GameBoard({
 
       if (remaining <= 0 && currentPlayer && game.creator === currentPlayer.userId) {
         handlePhaseEnd();
-        clearInterval(interval); 
+        if(timerRef.current) clearInterval(timerRef.current); 
       }
     }, 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+        if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, [game?.phaseEndsAt, game?.id, firestore, game, currentPlayer, handlePhaseEnd]);
 
   if (!game || !currentPlayer) {
@@ -399,6 +407,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
                     loverDeathEvents={loverDeathEvents}
                     voteEvent={voteEvent}
                     behaviorClueEvent={behaviorClueEvent}
+                    chatMessages={messages}
                 />
                 <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
                     {isTwin && <TwinChat gameId={game.id} currentPlayer={currentPlayer} messages={twinMessages} />}
