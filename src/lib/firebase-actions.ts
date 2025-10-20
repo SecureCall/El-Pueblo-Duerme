@@ -371,7 +371,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
 }
 
 export async function submitNightAction(db: Firestore, action: Omit<NightAction, 'createdAt' | 'round'> & { round: number }) {
-  const { gameId, playerId, actionType, targetId } = action;
+  const { gameId, playerId } = action;
   const gameRef = doc(db, 'games', gameId);
   try {
     await runTransaction(db, async (transaction) => {
@@ -791,7 +791,6 @@ export async function processNight(db: Firestore, gameId: string) {
         
         return { success: true };
     } catch (error: any) {
-        console.error("Error processing night:", error);
         if (error.code === 'permission-denied' || (error.message && error.message.includes('invalid data'))) {
             const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
             errorEmitter.emit('permission-error', permissionError);
@@ -1483,7 +1482,7 @@ export const getDeterministicAIAction = (
     switch (role) {
         case 'werewolf':
         case 'wolf_cub': {
-             const wolfActions = nightActions.filter(a => a.round === currentRound && a.actionType === 'werewolf_kill' && a.playerId !== userId);
+             const wolfActions = nightActions.filter(a => a.round === currentRound && a.actionType === 'werewolf_kill' && a.playerId !== userId && wolfRoles.includes(game.players.find(p=>p.userId === a.playerId)?.role || null));
              if (wolfActions.length > 0 && Math.random() < 0.8) { 
                  const leaderAction = wolfActions[0];
                  if (leaderAction && leaderAction.targetId) {
@@ -1503,24 +1502,24 @@ export const getDeterministicAIAction = (
         case 'seer_apprentice':
             if (role === 'seer' || apprenticeIsActive) {
                 const lastVoteEvent = game.events.find(e => e.type === 'vote_result' && e.round === currentRound - 1);
-                const tiedPlayerIds = lastVoteEvent?.data?.tiedPlayerIds || [];
-                const lynchedPlayerId = lastVoteEvent?.data?.lynchedPlayerId;
-
+                
                 const suspicionMap: Record<string, number> = {};
-                game.players.forEach(p => {
-                    if (p.isAlive && p.userId !== aiPlayer.userId) suspicionMap[p.userId] = 1;
+                alivePlayers.forEach(p => {
+                    if (p.userId !== aiPlayer.userId) suspicionMap[p.userId] = 1;
                 });
-
-                if(lynchedPlayerId && game.players.find(p => p.userId === lynchedPlayerId)?.role === 'villager') {
-                     game.players.filter(p => p.votedFor === lynchedPlayerId).forEach(voter => {
-                        if (suspicionMap[voter.userId]) suspicionMap[voter.userId] += 10;
-                     });
+                
+                if(lastVoteEvent) {
+                    const lynchedPlayerId = lastVoteEvent.data?.lynchedPlayerId;
+                    if(lynchedPlayerId && game.players.find(p => p.userId === lynchedPlayerId)?.role === 'villager') {
+                         game.players.filter(p => p.votedFor === lynchedPlayerId).forEach(voter => {
+                            if (suspicionMap[voter.userId]) suspicionMap[voter.userId] += 10;
+                         });
+                    }
+                    (lastVoteEvent.data?.tiedPlayerIds || []).forEach((id: string) => {
+                         if (suspicionMap[id]) suspicionMap[id] += 5;
+                    });
                 }
                 
-                tiedPlayerIds.forEach((id: string) => {
-                     if (suspicionMap[id]) suspicionMap[id] += 5;
-                });
-
                 const sortedSuspects = Object.keys(suspicionMap).sort((a,b) => suspicionMap[b] - suspicionMap[a]);
                 if (sortedSuspects.length > 0 && Math.random() < 0.6) {
                     return { actionType: 'seer_check', targetId: sortedSuspects[0] };

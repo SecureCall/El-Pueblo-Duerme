@@ -30,7 +30,7 @@ export const PlayerSchema = z.object({
   isAlive: z.boolean(),
   votedFor: z.string().nullable(),
   displayName: z.string(),
-  joinedAt: TimestampSchema.nullable(),
+  joinedAt: TimestampSchema,
   lastHealedRound: z.number(),
   isAI: z.boolean(),
   potions: z.object({
@@ -141,12 +141,10 @@ export const GameSchema = z.object({
   twinChatMessages: z.array(ChatMessageSchema),
   loversChatMessages: z.array(ChatMessageSchema),
   maxPlayers: z.number(),
-  createdAt: TimestampSchema.refine((val): val is { seconds: number; nanoseconds: number } | Date | string => val !== null, {
-    message: "createdAt cannot be null",
-  }),
+  createdAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null),
   currentRound: z.number(),
   settings: GameSettingsSchema,
-  phaseEndsAt: TimestampSchema,
+  phaseEndsAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null),
   twins: z.tuple([z.string(), z.string()]).nullable(),
   lovers: z.tuple([z.string(), z.string()]).nullable(),
   pendingHunterShot: z.string().nullable(),
@@ -175,4 +173,3 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
-
