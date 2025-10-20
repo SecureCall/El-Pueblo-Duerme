@@ -4,19 +4,19 @@
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
 import { RoleReveal } from "./RoleReveal";
 import { PlayerGrid } from "./PlayerGrid";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
 import { processNight, processVotes, setPhaseToNight, triggerAIVote, runAIActions } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
-import { Heart, Moon, Sun, Users2, Wand2 } from "lucide-react";
+import { Heart, Moon, Sun, Users2, Wand2, Loader2 } from "lucide-react";
 import { HunterShot } from "./HunterShot";
 import { GameChronicle } from "./GameChronicle";
 import { PhaseTimer } from "./PhaseTimer";
 import { CurrentPlayerRole } from "./CurrentPlayerRole";
-import { playNarration } from "@/lib/sounds";
+import { playNarration, playSoundEffect } from "@/lib/sounds";
 import { YouAreDeadOverlay } from "./YouAreDeadOverlay";
 import { BanishedOverlay } from "./BanishedOverlay";
 import { HunterKillOverlay } from "./HunterKillOverlay";
@@ -72,8 +72,6 @@ export function GameBoard({
 
   const handlePhaseEnd = useCallback(async () => {
     if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId) return;
-
-    // Prevent repeated calls if already processing
     if (game.phase === 'finished') return;
     
     if (game.phase === 'day') {
@@ -84,7 +82,7 @@ export function GameBoard({
   }, [firestore, game, currentPlayer]);
 
 
-  // Sound effect logic
+  // Sound and action trigger logic
   useEffect(() => {
     if (!game || !currentPlayer) return;
     const prevPhase = prevPhaseRef.current;
@@ -103,6 +101,7 @@ export function GameBoard({
             }
           break;
         case 'day':
+          playSoundEffect('rooster-crowing-364473.mp3');
           playNarration('dia_pueblo_despierta.mp3');
           setTimeout(() => {
             playNarration('inicio_debate.mp3');
@@ -156,7 +155,7 @@ export function GameBoard({
         setDeathCause(getCauseOfDeath(currentPlayer.userId));
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
   
-  // Effect for creator to automatically advance from role_reveal
+  // Auto-advance from role reveal
   useEffect(() => {
     if (!game || !currentPlayer) return;
     if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore) {
@@ -168,6 +167,7 @@ export function GameBoard({
     }
   }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, firestore]);
   
+  // Phase timer logic
   useEffect(() => {
     if (!game?.phaseEndsAt || !firestore || !game) {
       setTimeLeft(0);
@@ -195,12 +195,10 @@ export function GameBoard({
   
   if (game.status === 'finished') {
     const gameOverEvent = events.find(e => e.type === 'game_over');
-    return (
-        <GameOver game={game} event={gameOverEvent} players={players} />
-    );
+    return <GameOver game={game} event={gameOverEvent} players={players} />;
   }
 
-  if (currentPlayer && currentPlayer.role && game.phase === 'role_reveal' && showRole) {
+  if (currentPlayer.role && game.phase === 'role_reveal' && showRole) {
       return <RoleReveal player={currentPlayer} onAcknowledge={() => setShowRole(false)} />;
   }
 
@@ -256,6 +254,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
 
      switch(game.phase) {
         case 'night':
+             if (currentPlayer?.usedNightAbility) return 'Has actuado. Espera al amanecer.';
              if (currentPlayer?.role && ['werewolf', 'seer', 'doctor', 'hechicera', 'guardian', 'priest', 'vampire', 'cult_leader', 'fisherman', 'shapeshifter', 'virginia_woolf', 'river_siren', 'silencer', 'elder_leader', 'witch', 'banshee', 'lookout', 'seeker_fairy', 'resurrector_angel', 'cupid'].includes(currentPlayer.role)) {
                  return "Es tu turno de actuar.";
              }
@@ -435,4 +434,3 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
-
