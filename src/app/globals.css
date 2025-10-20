@@ -75,3 +75,12 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom styles for button variants */
+.text-shadow-lg {
+  text-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+.filter-destructive {
+  filter: brightness(0) saturate(100%) invert(26%) sepia(80%) saturate(3501%) hue-rotate(345deg) brightness(91%) contrast(92%);
+}
