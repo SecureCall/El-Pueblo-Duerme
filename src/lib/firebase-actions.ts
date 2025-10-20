@@ -1,3 +1,5 @@
+
+
 'use client';
 import { 
   doc,
@@ -403,8 +405,11 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
                 if(players[playerIndex].potions) players[playerIndex].potions!.save = game.currentRound;
                 break;
              case 'guardian_protect':
+                const targetProtected = players.find(p => p.userId === targetId);
+                if (targetProtected?.lastHealedRound === game.currentRound - 1) throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
                 if (targetId === playerId && (player.guardianSelfProtects || 0) >= 1) throw new Error("Solo puedes protegerte a ti mismo una vez.");
                 if (targetId === playerId) players[playerIndex].guardianSelfProtects = (players[playerIndex].guardianSelfProtects || 0) + 1;
+                if (targetProtected) players[players.findIndex(p => p.userId === targetId)].lastHealedRound = game.currentRound;
                 break;
              case 'priest_bless':
                 if (targetId === playerId && player.priestSelfHealUsed) throw new Error("Ya te has bendecido a ti mismo una vez.");
@@ -728,6 +733,7 @@ export async function processNight(db: Firestore, gameId: string) {
                     if(action.actionType === 'river_siren_charm') game.players[playerIndex].riverSirenTargetId = action.targetId;
                     if(action.actionType === 'silencer_silence') game.silencedPlayerId = action.targetId;
                     if(action.actionType === 'elder_leader_exile') game.exiledPlayerId = action.targetId;
+                    if(action.actionType === 'fisherman_catch' && targetIndex > -1) game.boat.push(action.targetId);
                     if(action.actionType === 'witch_hunt' && targetIndex > -1 && game.players[targetIndex].role === 'seer') game.witchFoundSeer = true;
                     if(action.actionType === 'fairy_find' && targetIndex > -1 && game.players[targetIndex].role === 'sleeping_fairy') {
                          game.fairiesFound = true;
@@ -742,8 +748,18 @@ export async function processNight(db: Firestore, gameId: string) {
             const allProtectedIds = new Set<string>();
             actions.filter(a => ['doctor_heal', 'guardian_protect', 'priest_bless'].includes(a.actionType))
                    .forEach(a => allProtectedIds.add(a.targetId));
+            
+            const fishermanAction = actions.find(a => a.actionType === 'fisherman_catch');
 
             let pendingDeaths: { targetId: string, cause: GameEvent['type'] }[] = [];
+            
+            if (fishermanAction) {
+                const targetPlayer = game.players.find(p => p.userId === fishermanAction.targetId);
+                const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed'];
+                if (targetPlayer && targetPlayer.role && wolfRoles.includes(targetPlayer.role)) {
+                    pendingDeaths.push({ targetId: fishermanAction.playerId, cause: 'special' });
+                }
+            }
             
             if (game.leprosaBlockedRound !== game.currentRound) {
                 const wolfVotes = actions.filter(a => a.actionType === 'werewolf_kill').map(a => a.targetId);
@@ -804,13 +820,30 @@ export async function processNight(db: Firestore, gameId: string) {
                 game.status = "finished";
                 game.phase = "finished";
                 game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
-                transaction.update(gameRef, sanitizeForFirebase({ status: 'finished', phase: 'finished', players: game.players, events: game.events }));
+                transaction.update(gameRef, sanitizeForFirebase({ status: 'finished', phase: 'finished', players: game.players, events: game.events, boat: game.boat }));
+                return;
+            }
+
+            // Check for wolf cub revenge
+            if (game.wolfCubRevengeRound === game.currentRound) {
+                game.events.push({ id: `evt_revenge_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: "¡La cría de lobo ha muerto! La manada, enfurecida, puede atacar de nuevo.", data: {}, createdAt: Timestamp.now() });
+                game.wolfCubRevengeRound = 0; // Use the ability
+                // The game stays in the night phase for the second attack. We don't transition to day.
+                // We must reset the 'usedNightAbility' for wolves so they can act again.
+                game.players = game.players.map(p => {
+                    if (p.role === 'werewolf' || p.role === 'wolf_cub') {
+                        p.usedNightAbility = false;
+                    }
+                    return p;
+                });
+                transaction.update(gameRef, sanitizeForFirebase({ players: game.players, events: game.events, wolfCubRevengeRound: 0 }));
+                // We stop here to let wolves make their second move. The next `processNight` call will handle it.
                 return;
             }
 
             game.pendingHunterShot = triggeredHunterId;
             if (game.pendingHunterShot) {
-                transaction.update(gameRef, sanitizeForFirebase({ players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot }));
+                transaction.update(gameRef, sanitizeForFirebase({ players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot, boat: game.boat }));
                 return;
             }
             
@@ -827,18 +860,19 @@ export async function processNight(db: Firestore, gameId: string) {
             const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
             
             transaction.update(gameRef, sanitizeForFirebase({
-                players: game.players, events: game.events, phase: 'day', phaseEndsAt,
+                players: game.players, events: game.events, phase: 'day', phaseEndsAt, boat: game.boat,
                 pendingHunterShot: null, silencedPlayerId: null, exiledPlayerId: null,
             }));
         });
         
         return { success: true };
     } catch (error: any) {
-        if (error.code === 'permission-denied' || (error.message && error.message.includes('invalid data'))) {
+        if (error.code === 'permission-denied') {
             const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
             errorEmitter.emit('permission-error', permissionError);
-            return { error: `Permiso denegado o datos inválidos al procesar la noche: ${error.message}` };
+            return { error: "Permiso denegado al procesar la noche." };
         }
+        console.error("Error processing night:", error);
         return { error: `Hubo un problema al procesar la noche: ${error.message}` };
     }
 }
@@ -1635,10 +1669,9 @@ export const getDeterministicAIAction = (
         case 'hechicera':
              const hasPoison = !aiPlayer.potions?.poison;
              const hasSave = !aiPlayer.potions?.save;
-             if (hasPoison && (!hasSave || Math.random() < 0.7)) {
+             // AI witch logic is now reactive, not proactive, so we don't decide to save here.
+             if (hasPoison) {
                  return { actionType: 'hechicera_poison', targetId: randomTarget(potentialTargets) };
-             } else if (hasSave) {
-                 return { actionType: 'hechicera_save', targetId: randomTarget(potentialTargets.filter(p => p.userId !== aiPlayer.userId)) };
              }
              return { actionType: 'NONE', targetId: '' };
         case 'executioner':
@@ -1673,3 +1706,5 @@ export async function runAIActions(db: Firestore, gameId: string) {
         console.error("Error in AI Actions:", e);
     }
 }
+
+

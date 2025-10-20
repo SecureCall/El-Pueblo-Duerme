@@ -1,4 +1,5 @@
 
+
 import type { Timestamp } from 'firebase/firestore';
 import { z } from 'zod';
 import type { GameSchema, PlayerSchema } from './zod';
@@ -125,7 +126,7 @@ export interface Player {
   isAlive: boolean;
   votedFor: string | null; // userId
   displayName: string;
-  joinedAt: Timestamp;
+  joinedAt: Timestamp | null;
   lastHealedRound: number;
   isAI: boolean;
   potions?: {
