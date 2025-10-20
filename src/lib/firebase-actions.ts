@@ -358,7 +358,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         const player = game.players.find(p => p.userId === playerId);
         if (!player || !player.isAlive) throw new Error("Jugador no válido o muerto.");
         if (game.exiledPlayerId === playerId) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
-        if (player.usedNightAbility) return; // Action already submitted, ignore quietly.
+        if (player.usedNightAbility) return;
         
         let players = [...game.players];
         const playerIndex = players.findIndex(p => p.userId === action.playerId);
@@ -410,7 +410,6 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         const updatedNightActions = [...(game.nightActions || []), newAction];
         transaction.update(gameRef, { nightActions: updatedNightActions, players });
 
-        // Check if all night roles have acted
         const freshGameData = { ...game, nightActions: updatedNightActions, players };
         const alivePlayers = freshGameData.players.filter(p => p.isAlive);
         const nightRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'seer', 'seer_apprentice', 'doctor', 'hechicera', 'guardian', 'priest', 'vampire', 'cult_leader', 'fisherman', 'shapeshifter', 'virginia_woolf', 'river_siren', 'silencer', 'elder_leader', 'witch', 'banshee', 'lookout', 'seeker_fairy', 'resurrector_angel', 'cupid'];
@@ -511,10 +510,12 @@ async function killPlayer(transaction: Transaction, gameRef: DocumentReference<G
             }
         };
 
-        checkAndQueueChainDeath(newGameData.twins, playerToKill, 'Tras la muerte de {victimName}, su gemelo/a {otherName} muere de pena.', 'special');
+        if (newGameData.twins) {
+            checkAndQueueChainDeath(newGameData.twins, playerToKill, 'Tras la muerte de {victimName}, su gemelo/a {otherName} muere de pena.', 'special');
+        }
         
-        if (playerToKill.isLover) {
-            const otherLoverId = newGameData.lovers?.find(id => id !== playerToKill.userId);
+        if (playerToKill.isLover && newGameData.lovers) {
+            const otherLoverId = newGameData.lovers.find(id => id !== playerToKill.userId);
             if(otherLoverId) {
                  checkAndQueueChainDeath([playerToKill.userId, otherLoverId], playerToKill, 'Por un amor eterno, {otherName} se quita la vida tras la muerte de {victimName}.', 'lover_death');
             }
@@ -598,9 +599,9 @@ function checkGameOver(gameData: Game, lynchedPlayer?: Player): { isGameOver: bo
     }
 
     const fisherman = gameData.players.find(p => p.role === 'fisherman');
-    if (gameData.settings.fisherman && fisherman && fisherman.isAlive) {
+    if (gameData.settings.fisherman && fisherman && fisherman.isAlive && gameData.boat) {
         const aliveVillagers = alivePlayers.filter(p => p.role && !wolfRoles.includes(p.role) && p.role !== 'vampire');
-        const aliveVillagersOnBoat = aliveVillagers.every(v => gameData.boat?.includes(v.userId));
+        const aliveVillagersOnBoat = aliveVillagers.every(v => gameData.boat.includes(v.userId));
         if (aliveVillagers.length > 0 && aliveVillagersOnBoat) {
             return {
                 isGameOver: true,
@@ -1033,6 +1034,7 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
     const gameRef = doc(db, 'games', gameId) as DocumentReference<Game>;
     
     try {
+        let shouldProcessVotes = false;
         await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef); // READ FIRST
             if (!gameSnap.exists()) throw new Error("Game not found");
@@ -1058,25 +1060,23 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
                  game.players[playerIndex].votedFor = targetId;
             }
             
-            // NOW WRITE
+            const alivePlayers = game.players.filter(p => p.isAlive);
+            if (alivePlayers.every(p => p.votedFor || p.userId === voterId)) {
+                shouldProcessVotes = true;
+            }
+            
             transaction.update(gameRef, { players: game.players });
         });
-
-        // This part needs re-evaluation, as it performs a read after a write implicitly.
-        // A better pattern is to use a cloud function triggered by the vote write.
-        // For now, let's trigger it from the client side after a successful vote, based on a state change.
-        // OR, let's check if all votes are in *after* the transaction but before returning.
         
-        const finalGameSnap = await getDoc(gameRef); // READ
-        if (finalGameSnap.exists()) {
-            const game = finalGameSnap.data();
-            const alivePlayers = game.players.filter(p => p.isAlive);
-            if (alivePlayers.every(p => p.votedFor)) {
-                await processVotes(db, gameId);
-            }
+        if (shouldProcessVotes) {
+            await processVotes(db, gameId);
+        }
 
-            const voter = game.players.find(p => p.userId === voterId);
-            const target = game.players.find(p => p.userId === targetId);
+        const gameDoc = await getDoc(gameRef); // READ AFTER
+        if(gameDoc.exists()){
+            const gameData = gameDoc.data();
+            const voter = gameData.players.find(p => p.userId === voterId);
+            const target = gameData.players.find(p => p.userId === targetId);
             if (!voter?.isAI && voter?.displayName && target?.displayName) {
                 await triggerAIChat(db, gameId, `${voter.displayName} ha votado por ${target.displayName}.`);
             }
