@@ -1,3 +1,5 @@
+
+
 'use client';
 import { 
   doc,
@@ -490,7 +492,7 @@ async function killPlayer(transaction: Transaction, gameRef: DocumentReference<G
         }
         
         if (playerToKill.role === 'wolf_cub' && newGameData.settings.wolf_cub) {
-            newGameData.wolfCubRevengeRound = newGameData.currentRound + 1;
+            newGameData.wolfCubRevengeRound = newGameData.currentRound;
         }
 
         if (playerToKill.role === 'leprosa' && newGameData.settings.leprosa) {
@@ -567,23 +569,20 @@ function checkGameOver(gameData: Game, lynchedPlayer?: Player): { isGameOver: bo
         }
     }
 
+    let sharedWinners: string[] = [];
     if (lynchedPlayer?.role === 'drunk_man' && gameData.settings.drunk_man) {
-        return {
-            isGameOver: true,
-            winnerCode: 'drunk_man',
-            message: '¡El Hombre Ebrio ha ganado! Ha conseguido que el pueblo lo linche, cumpliendo su caótico objetivo.',
-            winners: [lynchedPlayer.userId],
-        };
+        sharedWinners.push(lynchedPlayer.userId);
     }
     
     if (lynchedPlayer && gameData.settings.executioner) {
         const executioner = gameData.players.find(p => p.role === 'executioner' && p.isAlive);
         if (executioner && executioner.executionerTargetId === lynchedPlayer.userId) {
+             sharedWinners.push(executioner.userId);
              return {
                 isGameOver: true,
                 winnerCode: 'executioner',
                 message: `¡El Verdugo ha ganado! Ha logrado su objetivo de que el pueblo linche a ${lynchedPlayer.displayName}.`,
-                winners: [executioner.userId],
+                winners: sharedWinners,
             };
         }
     }
@@ -594,7 +593,7 @@ function checkGameOver(gameData: Game, lynchedPlayer?: Player): { isGameOver: bo
             isGameOver: true,
             winnerCode: 'cult',
             message: '¡El Culto ha ganado! Todos los supervivientes se han unido a la sombra del Líder.',
-            winners: cultLeader ? [cultLeader.userId] : aliveCultMembers.map(p => p.userId)
+            winners: cultLeader ? [cultLeader.userId, ...sharedWinners] : [...aliveCultMembers.map(p => p.userId), ...sharedWinners]
         };
     }
     
@@ -603,7 +602,7 @@ function checkGameOver(gameData: Game, lynchedPlayer?: Player): { isGameOver: bo
             isGameOver: true,
             winnerCode: 'vampire',
             message: '¡El Vampiro ha ganado! Ha reclamado sus tres víctimas y ahora reina en la oscuridad.',
-            winners: gameData.players.filter(p => p.role === 'vampire').map(p => p.userId)
+            winners: [...gameData.players.filter(p => p.role === 'vampire').map(p => p.userId), ...sharedWinners]
         };
     }
 
@@ -616,7 +615,7 @@ function checkGameOver(gameData: Game, lynchedPlayer?: Player): { isGameOver: bo
                 isGameOver: true,
                 winnerCode: 'fisherman',
                 message: `¡El Pescador ha ganado! Ha conseguido salvar a todos los aldeanos en su barco.`,
-                winners: [fisherman.userId],
+                winners: [fisherman.userId, ...sharedWinners],
             };
         }
     }
@@ -635,7 +634,7 @@ function checkGameOver(gameData: Game, lynchedPlayer?: Player): { isGameOver: bo
                     isGameOver: true,
                     winnerCode: 'banshee',
                     message: `¡La Banshee ha ganado! Sus dos gritos han sentenciado a muerte y ha cumplido su objetivo.`,
-                    winners: [banshee.userId],
+                    winners: [banshee.userId, ...sharedWinners],
                 };
              }
         }
@@ -649,7 +648,7 @@ function checkGameOver(gameData: Game, lynchedPlayer?: Player): { isGameOver: bo
                 isGameOver: true,
                 winnerCode: 'fairies',
                 message: '¡Las Hadas han ganado! Han lanzado su maldición y cumplido su misterioso objetivo.',
-                winners: fairies.map(f => f.userId)
+                winners: [...fairies.map(f => f.userId), ...sharedWinners]
             };
         }
     }
@@ -661,7 +660,7 @@ function checkGameOver(gameData: Game, lynchedPlayer?: Player): { isGameOver: bo
             isGameOver: true,
             winnerCode: 'wolves',
             message: "¡Los hombres lobo han ganado! Superan en número a los aldeanos y la oscuridad consume el pueblo.",
-            winners: aliveWerewolves.map(p => p.userId)
+            winners: [...aliveWerewolves.map(p => p.userId), ...sharedWinners]
         };
     }
     
@@ -672,7 +671,7 @@ function checkGameOver(gameData: Game, lynchedPlayer?: Player): { isGameOver: bo
             isGameOver: true,
             winnerCode: 'villagers',
             message: "¡El pueblo ha ganado! Todas las amenazas han sido eliminadas.",
-            winners: villageWinners.map(p => p.userId)
+            winners: [...villageWinners.map(p => p.userId), ...sharedWinners]
         };
     }
     
@@ -681,9 +680,14 @@ function checkGameOver(gameData: Game, lynchedPlayer?: Player): { isGameOver: bo
             isGameOver: true,
             winnerCode: 'draw',
             message: "¡Nadie ha sobrevivido a la masacre!",
-            winners: []
+            winners: sharedWinners
         };
     }
+
+    if (sharedWinners.length > 0) {
+        return { isGameOver: true, message: "La partida ha terminado, pero alguien tenía sus propios planes...", winners: sharedWinners, winnerCode: 'special' }
+    }
+
 
     return { isGameOver: false, message: "", winners: [] };
 }
@@ -704,17 +708,6 @@ export async function processNight(db: Firestore, gameId: string) {
 
             const initialPlayerState = JSON.parse(JSON.stringify(game.players));
             const actions = game.nightActions?.filter(a => a.round === game.currentRound) || [];
-            
-            if (game.currentRound === 1 && game.settings.cupid) {
-                const cupidAction = actions.find(a => a.actionType === 'cupid_love');
-                if (cupidAction) {
-                    const loverIds = cupidAction.targetId.split('|') as [string, string];
-                    if (loverIds.length === 2) {
-                        game.players.forEach(p => { if (loverIds.includes(p.userId)) p.isLover = true; });
-                        game.lovers = loverIds;
-                    }
-                }
-            }
             
             actions.forEach(action => {
                  const playerIndex = game.players.findIndex(p => p.userId === action.playerId);
@@ -1315,7 +1308,10 @@ export async function setPhaseToNight(db: Firestore, gameId: string) {
                 const loverIds = cupidAction.targetId.split('|') as [string, string];
                 if (loverIds.length === 2) {
                     const playerUpdates = game.players.map(p => {
-                        if (loverIds.includes(p.userId)) return { ...p, isLover: true };
+                        // Secretly mark players as lovers
+                        if (loverIds.includes(p.userId)) {
+                            return { ...p, isLover: true };
+                        }
                         return p;
                     });
                     updateData.players = playerUpdates;
@@ -1711,3 +1707,7 @@ export async function runAIActions(db: Firestore, gameId: string) {
         console.error("Error in AI Actions:", e);
     }
 }
+
+
+
+    

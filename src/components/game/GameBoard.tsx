@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -240,9 +241,15 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
   const behaviorClueEvent = events.find(e => e.type === 'behavior_clue' && e.round === game.currentRound -1);
 
   const getPhaseTitle = () => {
+    if (!game) return '';
+    // This handles the case where currentRound might be a Firestore increment object
+    const roundNumber = typeof game.currentRound === 'number' 
+        ? game.currentRound 
+        : (game.currentRound as any)?.operand || game.currentRound;
+
     switch(game.phase) {
-        case 'night': return `NOCHE ${game.currentRound}`;
-        case 'day': return `DÍA ${game.currentRound}`;
+        case 'night': return `NOCHE ${roundNumber}`;
+        case 'day': return `DÍA ${roundNumber}`;
         case 'role_reveal': return 'REPARTIENDO ROLES';
         case 'finished': return 'PARTIDA TERMINADA';
         case 'hunter_shot': return '¡LA VENGANZA DEL CAZADOR!';
@@ -279,7 +286,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
   const otherTwin = otherTwinId ? players.find(p => p.userId === otherTwinId) : null;
 
   const isFairy = ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer?.role || '');
-  const isLover = !!currentPlayer?.isLover;
+  const isLover = currentPlayer?.isLover;
   const otherLover = isLover ? players.find(p => p.isLover && p.userId !== currentPlayer.userId) : null;
 
 
@@ -436,3 +443,4 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
+
