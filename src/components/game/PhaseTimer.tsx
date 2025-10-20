@@ -4,10 +4,6 @@
 import * as React from "react"
 import { Progress } from '../ui/progress';
 
-interface PhaseTimerProps {
-    timeLeft: number;
-}
-
 const getPhaseDuration = (phase: string) => {
     switch(phase) {
         case 'day': return 60;
@@ -16,7 +12,7 @@ const getPhaseDuration = (phase: string) => {
     }
 }
 
-export function PhaseTimer({ timeLeft, phase }: PhaseTimerProps & { phase: string }) {
+export function PhaseTimer({ timeLeft, phase }: { timeLeft: number, phase: string }) {
     const phaseDuration = getPhaseDuration(phase);
     const progress = (timeLeft / phaseDuration) * 100;
 
