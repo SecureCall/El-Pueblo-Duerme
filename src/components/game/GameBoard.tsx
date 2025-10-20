@@ -27,7 +27,6 @@ import { FairyChat } from "./FairyChat";
 import { VampireKillOverlay } from "./VampireKillOverlay";
 import { useGameState } from "@/hooks/use-game-state";
 import { LoversChat } from "./LoversChat";
-import { cn } from "@/lib/utils";
 
 interface GameBoardProps {
   game: Game;
@@ -263,7 +262,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
      switch(game.phase) {
         case 'night':
              if (currentPlayer?.usedNightAbility) return 'Has actuado. Espera al amanecer.';
-             if (currentPlayer?.role && ['werewolf', 'seer', 'doctor', 'hechicera', 'guardian', 'priest', 'vampire', 'cult_leader', 'fisherman', 'shapeshifter', 'virginia_woolf', 'river_siren', 'silencer', 'elder_leader', 'witch', 'banshee', 'lookout', 'seeker_fairy', 'resurrector_angel', 'cupid'].includes(currentPlayer.role)) {
+             if (currentPlayer?.role && ['werewolf', 'wolf_cub', 'seer', 'seer_apprentice', 'doctor', 'hechicera', 'guardian', 'priest', 'vampire', 'cult_leader', 'fisherman', 'shapeshifter', 'virginia_woolf', 'river_siren', 'silencer', 'elder_leader', 'witch', 'banshee', 'lookout', 'seeker_fairy', 'resurrector_angel', 'cupid'].includes(currentPlayer.role)) {
                  return "Es tu turno de actuar.";
              }
              return 'Duermes profundamente...';
