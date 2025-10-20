@@ -68,19 +68,6 @@ export function GameBoard({
   const [deathCause, setDeathCause] = useState<GameEvent['type'] | 'other' | null>(null);
   const nightSoundsPlayedForRound = useRef<number>(0);
   const [timeLeft, setTimeLeft] = useState(0);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-
-
-  const handlePhaseEnd = useCallback(async () => {
-    if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId || game.status === 'finished') return;
-    
-    if (game.phase === 'day') {
-        await processVotes(firestore, game.id);
-    } else if (game.phase === 'night') {
-        await processNight(firestore, game.id);
-    }
-  }, [firestore, game, currentPlayer]);
-
 
   // Sound and action trigger logic
   useEffect(() => {
@@ -169,31 +156,19 @@ export function GameBoard({
   
   // Phase timer logic
   useEffect(() => {
-    if (timerRef.current) {
-        clearInterval(timerRef.current);
-    }
-    
-    if (!game?.phaseEndsAt || !firestore || !game || game.status === 'finished') {
+    if (!game?.phaseEndsAt) {
       setTimeLeft(0);
       return;
     }
-
-    timerRef.current = setInterval(() => {
+    const interval = setInterval(() => {
       const now = Date.now();
-      const endTime = game.phaseEndsAt!.toMillis();
+      const endTime = game.phaseEndsAt.toMillis();
       const remaining = Math.max(0, endTime - now);
       setTimeLeft(Math.round(remaining / 1000));
-
-      if (remaining <= 0 && currentPlayer && game.creator === currentPlayer.userId) {
-        handlePhaseEnd();
-        if(timerRef.current) clearInterval(timerRef.current); 
-      }
     }, 1000);
+    return () => clearInterval(interval);
+  }, [game?.phaseEndsAt]);
 
-    return () => {
-        if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [game?.phaseEndsAt, game?.id, firestore, game, currentPlayer, handlePhaseEnd]);
 
   if (!game || !currentPlayer) {
       return null;
