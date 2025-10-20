@@ -73,13 +73,8 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
             </div>
             );
         case 'lover_death':
-             return (
-            <div className={baseClasses}>
-                <Heart className={cn(iconClasses, "text-pink-400")} />
-            </div>
-            );
         case 'special':
-             return (
+            return (
             <div className={baseClasses}>
                 <Heart className={cn(iconClasses, "text-pink-400")} />
             </div>
@@ -172,4 +167,3 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
     </TooltipProvider>
   );
 }
-

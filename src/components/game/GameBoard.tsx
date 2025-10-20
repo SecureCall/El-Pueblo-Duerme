@@ -71,11 +71,11 @@ export function GameBoard({
   const [timeLeft, setTimeLeft] = useState(0);
 
   const handlePhaseEnd = useCallback(async () => {
-    if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId) return;
+    if (!firestore || !game || !currentPlayer) return;
     if (game.status === 'finished') return;
     
-    // This function is now a failsafe, triggered by the creator's client if time runs out.
-    // The primary mechanism is now atomic operations within submitVote/submitNightAction.
+    // Any player can trigger the phase end as a failsafe.
+    // The backend functions are idempotent.
     if (game.phase === 'day') {
         await processVotes(firestore, game.id);
     } else if (game.phase === 'night') {
@@ -182,14 +182,14 @@ export function GameBoard({
       const remaining = Math.max(0, endTime - now);
       setTimeLeft(Math.round(remaining / 1000));
 
-      if (remaining <= 0 && currentPlayer && game.creator === currentPlayer.userId) {
-        handlePhaseEnd(); // Failsafe if actions don't trigger phase end
+      if (remaining <= 0) {
+        handlePhaseEnd(); // Any player can trigger this
         clearInterval(interval); 
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [game?.phaseEndsAt, game?.id, firestore, game, currentPlayer, handlePhaseEnd]);
+  }, [game?.phaseEndsAt, game?.id, firestore, game, handlePhaseEnd]);
 
   if (!game || !currentPlayer) {
       return null;
@@ -276,12 +276,12 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
   }
   
   const isTwin = currentPlayer?.role === 'twin' && !!game.twins?.includes(currentPlayer.userId);
-  const otherTwinId = isTwin ? game.twins!.find(id => id !== currentPlayer!.userId) : null;
+  const otherTwinId = isTwin && game.twins ? game.twins.find(id => id !== currentPlayer!.userId) : null;
   const otherTwin = otherTwinId ? players.find(p => p.userId === otherTwinId) : null;
 
   const isFairy = ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer?.role || '');
   const isLover = !!currentPlayer?.isLover;
-  const otherLover = isLover ? players.find(p => p.isLover && p.userId !== currentPlayer.userId) : null;
+  const otherLover = isLover && game.lovers ? players.find(p => p.isLover && p.userId !== currentPlayer.userId) : null;
 
 
   const highlightedPlayers = [];
@@ -401,6 +401,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
                     loverDeathEvents={loverDeathEvents}
                     voteEvent={voteEvent}
                     behaviorClueEvent={behaviorClueEvent}
+                    chatMessages={messages}
                 />
                 <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
                     {isTwin && <TwinChat gameId={game.id} currentPlayer={currentPlayer} messages={twinMessages} />}
