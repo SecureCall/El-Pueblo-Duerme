@@ -25,7 +25,7 @@ import { GameChat } from "./GameChat";
 import { TwinChat } from "./TwinChat";
 import { FairyChat } from "./FairyChat";
 import { VampireKillOverlay } from "./VampireKillOverlay";
-import { useGameState } from "@/hooks/use-game-state";
+import { useGameState, getMillis } from "@/hooks/use-game-state";
 import { LoversChat } from "./LoversChat";
 
 interface GameBoardProps {
@@ -136,7 +136,7 @@ export function GameBoard({
 
     const getCauseOfDeath = (playerId: string): GameEvent['type'] | 'other' => {
         const deathEvent = [...events]
-            .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
+            .sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt))
             .find(e => {
                 const data = e.data || {};
                 if (data.killedPlayerId === playerId) return true;
@@ -178,7 +178,7 @@ export function GameBoard({
 
     const interval = setInterval(() => {
       const now = Date.now();
-      const endTime = game.phaseEndsAt!.toMillis();
+      const endTime = getMillis(game.phaseEndsAt);
       const remaining = Math.max(0, endTime - now);
       setTimeLeft(Math.round(remaining / 1000));
 
@@ -242,10 +242,12 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
 
   const getPhaseTitle = () => {
     if (!game) return '';
-    // This handles the case where currentRound might be a Firestore increment object
-    const roundNumber = typeof game.currentRound === 'number' 
-        ? game.currentRound 
-        : (game.currentRound as any)?.operand || game.currentRound;
+    
+    let roundNumber = game.currentRound;
+    if (typeof roundNumber === 'object' && roundNumber !== null && 'operand' in roundNumber) {
+        // This is a Firestore increment object, show the base value for now
+        roundNumber = (roundNumber as any).operand; 
+    }
 
     switch(game.phase) {
         case 'night': return `NOCHE ${roundNumber}`;
@@ -285,7 +287,6 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
   const otherTwinId = isTwin ? game.twins!.find(id => id !== currentPlayer!.userId) : null;
   const otherTwin = otherTwinId ? players.find(p => p.userId === otherTwinId) : null;
 
-  const isFairy = ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer?.role || '');
   const isLover = !!game.lovers?.includes(currentPlayer?.userId ?? '');
   const otherLoverId = isLover ? game.lovers!.find(id => id !== currentPlayer!.userId) : null;
   const otherLover = otherLoverId ? players.find(p => p.userId === otherLoverId) : null;
@@ -366,7 +367,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
         </Card>
       )}
 
-       {isFairy && game.fairiesFound && (
+       {!!game.fairiesFound && ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer?.role || '') && (
             <Card className="bg-fuchsia-900/30 border-fuchsia-400/50">
                 <CardContent className="pt-6">
                     <div className="flex items-center justify-center gap-3 text-fuchsia-300">
@@ -411,7 +412,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
                 />
                 <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
                     {isTwin && <TwinChat gameId={game.id} currentPlayer={currentPlayer} messages={twinMessages} />}
-                    {game.fairiesFound && isFairy && <FairyChat gameId={game.id} currentPlayer={currentPlayer} messages={fairyMessages} />}
+                    {game.fairiesFound && ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer?.role || '') && <FairyChat gameId={game.id} currentPlayer={currentPlayer} messages={fairyMessages} />}
                     {isLover && <LoversChat gameId={game.id} currentPlayer={currentPlayer} messages={loversMessages} />}
                 </div>
             </div>

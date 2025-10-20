@@ -17,7 +17,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { useGameSession } from './use-game-session';
 
 
-const getMillis = (timestamp: any): number => {
+export const getMillis = (timestamp: any): number => {
   if (!timestamp) return 0;
   if (timestamp instanceof Timestamp) {
     return timestamp.toMillis();
@@ -99,7 +99,6 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
         );
          setWolfMessages(
           (gameData.wolfChatMessages || [])
-            .filter(m => m.round === gameData.currentRound)
             .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
         );
         setFairyMessages(
@@ -146,4 +145,3 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
 
   return { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, loading, error };
 };
-
