@@ -134,9 +134,6 @@ export function PlayerCard({ player, onClick, isClickable, isSelected, highlight
               {player.princeRevealed && (
                  <Crown className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-10 h-5 w-5 text-yellow-400" />
               )}
-               {player.isLover && (
-                 <Heart className="absolute -top-2 -right-2 z-10 h-5 w-5 text-pink-400" />
-              )}
               <CardContent className="p-0">
                 <Avatar className="h-20 w-20 border-2 border-border">
                   <AvatarImage src={avatarImage?.imageUrl || '/avatar-default.png'} data-ai-hint={avatarImage?.imageHint} />

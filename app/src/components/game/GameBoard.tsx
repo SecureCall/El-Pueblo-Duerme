@@ -286,7 +286,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
   const otherTwin = otherTwinId ? players.find(p => p.userId === otherTwinId) : null;
 
   const isFairy = ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer?.role || '');
-  const isLover = !!game.lovers?.includes(currentPlayer.userId);
+  const isLover = !!game.lovers?.includes(currentPlayer?.userId ?? '');
   const otherLoverId = isLover ? game.lovers!.find(id => id !== currentPlayer!.userId) : null;
   const otherLover = otherLoverId ? players.find(p => p.userId === otherLoverId) : null;
 

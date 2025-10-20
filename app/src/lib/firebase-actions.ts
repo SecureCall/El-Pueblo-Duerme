@@ -1,4 +1,5 @@
 
+
 'use client';
 import { 
   doc,
@@ -404,8 +405,11 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
                 if(players[playerIndex].potions) players[playerIndex].potions!.save = game.currentRound;
                 break;
              case 'guardian_protect':
+                const targetProtected = players.find(p => p.userId === targetId);
+                if (targetProtected?.lastHealedRound === game.currentRound - 1) throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
                 if (targetId === playerId && (player.guardianSelfProtects || 0) >= 1) throw new Error("Solo puedes protegerte a ti mismo una vez.");
                 if (targetId === playerId) players[playerIndex].guardianSelfProtects = (players[playerIndex].guardianSelfProtects || 0) + 1;
+                if (targetProtected) players[players.findIndex(p => p.userId === targetId)].lastHealedRound = game.currentRound;
                 break;
              case 'priest_bless':
                 if (targetId === playerId && player.priestSelfHealUsed) throw new Error("Ya te has bendecido a ti mismo una vez.");
@@ -563,30 +567,35 @@ function checkGameOver(gameData: Game, lynchedPlayer?: Player): { isGameOver: bo
     }
 
     if (lynchedPlayer?.role === 'drunk_man' && gameData.settings.drunk_man) {
-        const voters = gameData.players.filter(p => p.votedFor === lynchedPlayer.userId);
-        const wolfVoter = voters.some(v => v.role && wolfRoles.includes(v.role));
-        const villagerVoter = voters.some(v => v.role && !wolfRoles.includes(v.role));
-
-        if (wolfVoter && villagerVoter) {
+         if (lynchedPlayer.role === 'drunk_man') {
             return {
                 isGameOver: true,
                 winnerCode: 'drunk_man',
-                message: '¡El Hombre Ebrio ha ganado! Ha conseguido que tanto lobos como aldeanos lo linchen, cumpliendo su caótico objetivo.',
+                message: '¡El Hombre Ebrio ha ganado! Ha conseguido que el pueblo lo linche, cumpliendo su caótico objetivo.',
                 winners: [lynchedPlayer.userId],
             };
-        }
+         }
     }
     
     if (lynchedPlayer && gameData.settings.executioner) {
-        const executioner = gameData.players.find(p => p.role === 'executioner' && p.isAlive);
-        if (executioner && executioner.executionerTargetId === lynchedPlayer.userId) {
-             return {
-                isGameOver: true,
-                winnerCode: 'executioner',
-                message: `¡El Verdugo ha ganado! Ha logrado su objetivo de que el pueblo linche a ${lynchedPlayer.displayName}.`,
-                winners: [executioner.userId],
-            };
-        }
+         const executioner = gameData.players.find(p => p.role === 'executioner' && p.isAlive);
+
+         if (lynchedPlayer && gameData.settings.executioner) {
+              const executioner = gameData.players.find(p => p.role === 'executioner' && p.isAlive);
+
+              if (executioner?.executionerTargetId === lynchedPlayer.userId) {
+                    const winners = [executioner.userId];
+                    if (lynchedPlayer.role === 'drunk_man' && gameData.settings.drunk_man) {
+                         winners.push(lynchedPlayer.userId);
+                    }
+                   return {
+                      isGameOver: true,
+                      winnerCode: 'executioner',
+                      message: `¡El Verdugo ha ganado! Ha logrado su objetivo de que el pueblo linche a ${lynchedPlayer.displayName}.`,
+                      winners: winners,
+                  };
+              }
+         }
     }
      const aliveCultMembers = alivePlayers.filter(p => p.isCultMember);
     if (gameData.settings.cult_leader && aliveCultMembers.length > 0 && aliveCultMembers.length === alivePlayers.length) {
@@ -712,11 +721,7 @@ export async function processNight(db: Firestore, gameId: string) {
                     const loverIds = cupidAction.targetId.split('|') as [string, string];
                     if (loverIds.length === 2) {
                         game.lovers = loverIds;
-                        game.players.forEach(p => {
-                            if (loverIds.includes(p.userId)) {
-                                p.isLover = true;
-                            }
-                        });
+                        // NO LONGER setting player.isLover here to keep it secret.
                     }
                 }
             }
@@ -747,9 +752,6 @@ export async function processNight(db: Firestore, gameId: string) {
                    .forEach(a => allProtectedIds.add(a.targetId));
             
             const fishermanAction = actions.find(a => a.actionType === 'fisherman_catch');
-            if (fishermanAction) {
-                // Fisherman's protection is handled by adding to protected IDs.
-            }
 
             let pendingDeaths: { targetId: string, cause: GameEvent['type'] }[] = [];
             
@@ -1222,7 +1224,7 @@ async function sendSpecialChatMessage(
                     }
                     break;
                 case 'lovers':
-                     if (game.lovers?.includes(senderId)) {
+                    if (game.lovers?.includes(senderId)) {
                         canSend = true;
                         chatField = 'loversChatMessages';
                     }
@@ -1323,11 +1325,6 @@ export async function setPhaseToNight(db: Firestore, gameId: string) {
             if (game.settings.cupid && game.currentRound === 1 && cupidAction) {
                 const loverIds = cupidAction.targetId.split('|') as [string, string];
                 if (loverIds.length === 2) {
-                    const playerUpdates = game.players.map(p => {
-                        if (loverIds.includes(p.userId)) return { ...p, isLover: true };
-                        return p;
-                    });
-                    updateData.players = playerUpdates;
                     updateData.lovers = loverIds;
                 }
             }
@@ -1665,10 +1662,9 @@ export const getDeterministicAIAction = (
         case 'hechicera':
              const hasPoison = !aiPlayer.potions?.poison;
              const hasSave = !aiPlayer.potions?.save;
-             if (hasPoison && (!hasSave || Math.random() < 0.7)) {
+             // AI witch logic is now reactive, not proactive, so we don't decide to save here.
+             if (hasPoison) {
                  return { actionType: 'hechicera_poison', targetId: randomTarget(potentialTargets) };
-             } else if (hasSave) {
-                 return { actionType: 'hechicera_save', targetId: randomTarget(potentialTargets.filter(p => p.userId !== aiPlayer.userId)) };
              }
              return { actionType: 'NONE', targetId: '' };
         case 'executioner':
@@ -1703,3 +1699,7 @@ export async function runAIActions(db: Firestore, gameId: string) {
         console.error("Error in AI Actions:", e);
     }
 }
+
+
+
+    
