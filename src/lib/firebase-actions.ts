@@ -1,3 +1,4 @@
+
 'use client';
 import { 
   doc,
@@ -162,30 +163,25 @@ export async function joinGame(
         throw new Error("La partida ya ha comenzado.");
       }
       
-      const playerExists = game.players.some(p => p.userId === userId);
-      const nameExists = game.players.some(p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase() && p.userId !== userId);
+      if (game.players.some(p => p.userId === userId)) {
+        console.log("Player already in game, skipping join.");
+        return;
+      }
 
+      const nameExists = game.players.some(p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase());
       if (nameExists) {
         throw new Error("Ese nombre ya está en uso en esta partida.");
       }
 
-      if (game.players.length >= game.maxPlayers && !playerExists) {
+      if (game.players.length >= game.maxPlayers) {
         throw new Error("Esta partida está llena.");
       }
       
-      if (!playerExists) {
-        const newPlayer = createPlayerObject(userId, gameId, displayName, false);
-        transaction.update(gameRef, {
-          players: arrayUnion(newPlayer),
-        });
-      } else {
-        const currentPlayers = game.players;
-        const playerIndex = currentPlayers.findIndex(p => p.userId === userId);
-        if (playerIndex !== -1 && currentPlayers[playerIndex].displayName !== displayName) {
-          currentPlayers[playerIndex].displayName = displayName.trim();
-          transaction.update(gameRef, { players: currentPlayers });
-        }
-      }
+      const newPlayer = createPlayerObject(userId, gameId, displayName, false);
+      transaction.update(gameRef, {
+        players: arrayUnion(newPlayer),
+      });
+
     });
 
     return { success: true };
@@ -306,17 +302,14 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
                 throw new Error(`Se necesitan al menos ${MINIMUM_PLAYERS} jugadores para comenzar.`);
             }
 
-            const wolfRolesForCount: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
-            const enabledRoles = (Object.keys(game.settings) as (keyof typeof game.settings)[]).filter(k => game.settings[k] === true);
-            const wolfCount = enabledRoles.reduce((acc, role) => {
-                if (role && wolfRolesForCount.includes(role)) {
-                    return acc + 1;
-                }
-                return acc;
-            }, game.settings.werewolves);
+            const werewolfCount = Math.max(1, Math.floor(totalPlayers / 4));
+            const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed'];
+            const enabledWolfRoles = Object.keys(game.settings).filter(key => 
+                (wolfRoles as (string | null)[]).includes(key) && game.settings[key as keyof typeof game.settings]
+            ).length;
 
-            if (wolfCount >= Math.floor(totalPlayers / 2)) {
-                throw new Error('Configuración de roles inválida: demasiados lobos para el número de jugadores.');
+            if (werewolfCount + enabledWolfRoles >= Math.floor(totalPlayers / 2)) {
+                 throw new Error('Configuración de roles inválida: demasiados lobos para el número de jugadores.');
             }
             
             const newRoles = generateRoles(finalPlayers.length, game.settings);
@@ -332,8 +325,8 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
             const executioner = assignedPlayers.find(p => p.role === 'executioner');
             if (executioner) {
                 const nonWolfPlayers = assignedPlayers.filter(p => {
-                    const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
-                    return p.role && !wolfRoles.includes(p.role) && p.userId !== executioner.userId;
+                    const wolfTeamRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
+                    return p.role && !wolfTeamRoles.includes(p.role) && p.userId !== executioner.userId;
                 });
                 if (nonWolfPlayers.length > 0) {
                     const target = nonWolfPlayers[Math.floor(Math.random() * nonWolfPlayers.length)];
@@ -375,7 +368,6 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
   const { gameId, playerId, actionType, targetId } = action;
   const gameRef = doc(db, 'games', gameId);
   try {
-    let shouldProcessNight = false;
     await runTransaction(db, async (transaction) => {
         const gameSnap = await transaction.get(gameRef);
         if (!gameSnap.exists()) throw new Error("Game not found");
@@ -395,6 +387,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
             case 'doctor_heal':
                 const targetPlayer = players.find(p => p.userId === targetId);
                 if (targetPlayer?.lastHealedRound === game.currentRound - 1) throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
+                if (targetPlayer) players[players.findIndex(p => p.userId === targetId)].lastHealedRound = game.currentRound;
                 break;
             case 'hechicera_poison':
                 if (player.potions?.poison) throw new Error("Ya has usado tu poción de veneno.");
@@ -437,26 +430,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         const updatedNightActions = [...(game.nightActions || []), newAction];
         transaction.update(gameRef, { nightActions: updatedNightActions, players });
 
-        const alivePlayers = players.filter(p => p.isAlive);
-        const nightRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'seer', 'seer_apprentice', 'doctor', 'hechicera', 'guardian', 'priest', 'vampire', 'cult_leader', 'fisherman', 'shapeshifter', 'virginia_woolf', 'river_siren', 'silencer', 'elder_leader', 'witch', 'banshee', 'lookout', 'seeker_fairy', 'resurrector_angel', 'cupid'];
-        const activeNightPlayers = alivePlayers.filter(p => {
-            if (!p.role || !nightRoles.includes(p.role)) return false;
-            if (p.role === 'seer_apprentice' && !game.seerDied) return false;
-            if ((p.role === 'cupid' || p.role === 'shapeshifter' || p.role === 'virginia_woolf' || p.role === 'river_siren') && game.currentRound > 1) return false;
-            if (p.role === 'executioner' || p.role === 'drunk_man' || p.role === 'sleeping_fairy') return false;
-            return true;
-        });
-        
-        const actedPlayerIds = new Set(updatedNightActions.map(a => a.playerId));
-        
-        if (activeNightPlayers.every(p => actedPlayerIds.has(p.userId))) {
-            shouldProcessNight = true;
-        }
     });
-
-    if (shouldProcessNight) {
-        await processNight(db, gameId);
-    }
 
     return { success: true };
 
@@ -764,7 +738,6 @@ export async function processNight(db: Firestore, gameId: string) {
             let pendingDeaths: { targetId: string, cause: GameEvent['type'] }[] = [];
             
             if (game.leprosaBlockedRound !== game.currentRound) {
-                const aliveWolves = game.players.filter(p => p.isAlive && (p.role === 'werewolf' || p.role === 'wolf_cub'));
                 const wolfVotes = actions.filter(a => a.actionType === 'werewolf_kill').map(a => a.targetId);
 
                 const getConsensusTarget = (votes: string[]) => {
@@ -776,6 +749,7 @@ export async function processNight(db: Firestore, gameId: string) {
                         });
                     });
                     const maxVotes = Math.max(...Object.values(voteCounts), 0);
+                     if (maxVotes === 0) return null;
                     const mostVotedTargets = Object.keys(voteCounts).filter(id => voteCounts[id] === maxVotes);
                     return mostVotedTargets.length === 1 ? mostVotedTargets[0] : null;
                 };
@@ -1683,3 +1657,5 @@ export async function runAIActions(db: Firestore, gameId: string) {
         console.error("Error in AI Actions:", e);
     }
 }
+
+    
