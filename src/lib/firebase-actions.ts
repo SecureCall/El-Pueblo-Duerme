@@ -410,20 +410,6 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         const updatedNightActions = [...(game.nightActions || []), newAction];
         transaction.update(gameRef, { nightActions: updatedNightActions, players });
 
-        const freshGameData = { ...game, nightActions: updatedNightActions, players };
-        const alivePlayers = freshGameData.players.filter(p => p.isAlive);
-        const nightRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'seer', 'seer_apprentice', 'doctor', 'hechicera', 'guardian', 'priest', 'vampire', 'cult_leader', 'fisherman', 'shapeshifter', 'virginia_woolf', 'river_siren', 'silencer', 'elder_leader', 'witch', 'banshee', 'lookout', 'seeker_fairy', 'resurrector_angel', 'cupid'];
-        const activeNightPlayers = alivePlayers.filter(p => {
-            if (!p.role || !nightRoles.includes(p.role)) return false;
-            if (p.role === 'seer_apprentice' && !freshGameData.seerDied) return false;
-            if ((p.role === 'cupid' || p.role === 'shapeshifter' || p.role === 'virginia_woolf' || p.role === 'river_siren') && freshGameData.currentRound > 1) return false;
-            if (p.role === 'executioner' || p.role === 'drunk_man' || p.role === 'sleeping_fairy') return false;
-            return true;
-        });
-        
-        if (activeNightPlayers.every(p => p.usedNightAbility)) {
-            await processNight(db, gameId, transaction);
-        }
     });
 
     return { success: true };
@@ -1034,7 +1020,6 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
     const gameRef = doc(db, 'games', gameId) as DocumentReference<Game>;
     
     try {
-        let shouldProcessVotes = false;
         await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef); // READ FIRST
             if (!gameSnap.exists()) throw new Error("Game not found");
@@ -1060,18 +1045,9 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
                  game.players[playerIndex].votedFor = targetId;
             }
             
-            const alivePlayers = game.players.filter(p => p.isAlive);
-            if (alivePlayers.every(p => p.votedFor || p.userId === voterId)) {
-                shouldProcessVotes = true;
-            }
-            
             transaction.update(gameRef, { players: game.players });
         });
         
-        if (shouldProcessVotes) {
-            await processVotes(db, gameId);
-        }
-
         const gameDoc = await getDoc(gameRef); // READ AFTER
         if(gameDoc.exists()){
             const gameData = gameDoc.data();
@@ -1467,7 +1443,7 @@ export async function triggerAIVote(db: Firestore, gameId: string) {
         const gameDoc = await getDoc(doc(db, 'games', gameId));
         if (!gameDoc.exists()) return;
         const game = gameDoc.data() as Game;
-        if (game.status === 'finished') return;
+        if (game.status === 'finished' || game.phase !== 'day') return;
 
         const aiPlayersToVote = game.players.filter(p => p.isAI && p.isAlive && !p.votedFor);
         const alivePlayers = game.players.filter(p => p.isAlive);
@@ -1627,8 +1603,6 @@ export const getDeterministicAIAction = (
              }
              return { actionType: 'NONE', targetId: '' };
         case 'executioner':
-            // Executioner has no night action.
-            return { actionType: 'NONE', targetId: '' };
         default:
             return { actionType: 'NONE', targetId: '' };
     }

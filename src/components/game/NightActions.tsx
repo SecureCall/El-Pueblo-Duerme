@@ -75,7 +75,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     let selectionLimit = 1;
     if (isWerewolfTeam && wolfCubRevengeActive) selectionLimit = 2;
     if (isCupidFirstNight) selectionLimit = 2;
-    if (isLookout) selectionLimit = 0;
+    if (isLookout || currentPlayer.role === 'sleeping_fairy') selectionLimit = 0;
 
 
     const handlePlayerSelect = (player: Player) => {
@@ -197,11 +197,11 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             targetId: selectedPlayerIds.join('|'),
         });
         
-        setIsSubmitting(false);
-
-        if (result.success) {
+        if (!result.success) {
+             toast({ variant: 'destructive', title: 'Error', description: result.error });
+             setIsSubmitting(false);
+        } else {
             toast({ title: 'Acción registrada.', description: 'Tu decisión ha sido guardada.' });
-            
             if (currentPlayer.role === 'seer' || (currentPlayer.role === 'seer_apprentice' && game.seerDied)) {
                 const seerResultData = await getSeerResult(firestore, game.id, currentPlayer.userId, selectedPlayerIds[0]);
                 if (seerResultData.success) {
@@ -213,8 +213,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                      toast({ variant: 'destructive', title: 'Error del Vidente', description: seerResultData.error });
                 }
             }
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
+            // Do not set isSubmitting to false here. The hasSubmitted state will take care of the UI.
         }
     };
     
@@ -392,7 +391,9 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                                     if (p.userId === currentPlayer.userId) {
                                         if (currentPlayer.role === 'priest' && !currentPlayer.priestSelfHealUsed) return true;
                                         if (currentPlayer.role === 'guardian' && (currentPlayer.guardianSelfProtects || 0) < 1) return true;
+                                        // Hechicera cannot save self
                                         if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save') return false;
+                                        // By default, cannot target self unless specified above.
                                         return false; 
                                     }
                                     return true;
@@ -412,7 +413,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                         <Button 
                             className="w-full mt-6 text-lg" 
                             onClick={handleSubmit} 
-                            disabled={(selectedPlayerIds.length !== selectionLimit && !isLookout && currentPlayer.role !== 'sleeping_fairy') || isSubmitting}
+                            disabled={(selectedPlayerIds.length !== selectionLimit) || isSubmitting}
                         >
                             {isSubmitting 
                                 ? <Loader2 className="animate-spin" /> 
@@ -436,5 +437,3 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         </Card>
     );
 }
-
-    
