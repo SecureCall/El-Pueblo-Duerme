@@ -242,10 +242,12 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
 
   const getPhaseTitle = () => {
     if (!game) return '';
-    // This handles the case where currentRound might be a Firestore increment object
-    const roundNumber = typeof game.currentRound === 'number' 
-        ? game.currentRound 
-        : (game.currentRound as any)?.operand || game.currentRound;
+    
+    let roundNumber = game.currentRound;
+    if (typeof roundNumber === 'object' && roundNumber !== null && 'operand' in roundNumber) {
+        // This is a Firestore increment object, show the base value for now
+        roundNumber = (roundNumber as any).operand; 
+    }
 
     switch(game.phase) {
         case 'night': return `NOCHE ${roundNumber}`;
@@ -443,4 +445,3 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
-

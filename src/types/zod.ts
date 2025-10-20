@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 
 // Helper for Firebase Timestamps - now accepting string for client-server transfer
@@ -140,10 +141,8 @@ export const GameSchema = z.object({
   twinChatMessages: z.array(ChatMessageSchema),
   loversChatMessages: z.array(ChatMessageSchema),
   maxPlayers: z.number(),
-  createdAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null, {
-    message: "createdAt cannot be null",
-  }),
-  currentRound: z.number(),
+  createdAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null),
+  currentRound: z.union([z.number(), z.object({operand: z.number()})]),
   settings: GameSettingsSchema,
   phaseEndsAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null),
   twins: z.tuple([z.string(), z.string()]).nullable(),

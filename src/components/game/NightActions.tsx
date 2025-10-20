@@ -101,8 +101,8 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             toast({ variant: 'destructive', title: 'Regla del Vampiro', description: 'Esta persona ya no tiene más sangre que dar.' });
             return;
         }
-        if (currentPlayer.role === 'doctor' && player.lastHealedRound === game.currentRound - 1) {
-            toast({ variant: 'destructive', title: 'Regla del Doctor', description: 'No puedes proteger a la misma persona dos noches seguidas.' });
+        if ((currentPlayer.role === 'doctor' || currentPlayer.role === 'guardian') && player.lastHealedRound === game.currentRound - 1) {
+            toast({ variant: 'destructive', title: 'Regla de Protección', description: 'No puedes proteger a la misma persona dos noches seguidas.' });
             return;
         }
         if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save' && player.userId === currentPlayer.userId) {

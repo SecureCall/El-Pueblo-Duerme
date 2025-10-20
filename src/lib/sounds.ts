@@ -1,3 +1,4 @@
+
 "use client";
 
 let narrationAudio: HTMLAudioElement | null = null;
@@ -29,16 +30,24 @@ export const unlockAudio = () => {
     if (audioUnlocked) return;
     console.log("Audio unlocked by user interaction.");
     audioUnlocked = true;
+    
+    // Function to safely play and pause to unlock
+    const unlock = (audio: HTMLAudioElement | null) => {
+        if (audio && audio.paused) {
+            const originalVolume = audio.volume;
+            audio.volume = 0;
+            audio.play().then(() => {
+                audio.pause();
+                audio.volume = originalVolume;
+            }).catch(() => {});
+        }
+    };
+    
+    unlock(narrationAudio);
+    unlock(soundEffectAudio);
+
     if (!isPlayingNarration && narrationQueue.length > 0) {
         playNextInQueue();
-    }
-    // Also try to play the other audio instances to unlock them
-    if (soundEffectAudio && soundEffectAudio.paused) {
-        soundEffectAudio.volume = 0;
-        soundEffectAudio.play().then(() => {
-            soundEffectAudio?.pause();
-            soundEffectAudio.volume = 0.5;
-        }).catch(() => {});
     }
 };
 
@@ -79,11 +88,20 @@ export const playNarration = (narrationFile: string): void => {
 };
 
 export const playSoundEffect = (soundFile: string): void => {
-    if (!audioUnlocked || !soundEffectAudio) {
+    if (!audioUnlocked) {
         return;
     }
+    if (!soundEffectAudio) {
+        soundEffectAudio = new Audio();
+        soundEffectAudio.volume = 0.5;
+    }
+
+    if (soundFile.startsWith('/')) {
+        soundEffectAudio.src = soundFile;
+    } else {
+        soundEffectAudio.src = `/audio/effects/${soundFile}`;
+    }
     
-    soundEffectAudio.src = soundFile;
     soundEffectAudio.play().catch(e => {
         console.warn(`Sound effect play was prevented for ${soundFile}:`, e);
     });
