@@ -163,11 +163,18 @@ export async function joinGame(
         throw new Error("La partida ya ha comenzado.");
       }
       
-      if (game.players.some(p => p.userId === userId)) {
-        console.log("Player already in game, skipping join.");
+      const playerExists = game.players.some(p => p.userId === userId);
+      if (playerExists) {
+        // Player is already in the game, perhaps just update their name if it's different
+        const currentPlayers = game.players;
+        const playerIndex = currentPlayers.findIndex(p => p.userId === userId);
+        if (playerIndex !== -1 && currentPlayers[playerIndex].displayName !== displayName.trim()) {
+            currentPlayers[playerIndex].displayName = displayName.trim();
+            transaction.update(gameRef, { players: currentPlayers });
+        }
         return;
       }
-
+      
       const nameExists = game.players.some(p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase());
       if (nameExists) {
         throw new Error("Ese nombre ya está en uso en esta partida.");
@@ -181,7 +188,6 @@ export async function joinGame(
       transaction.update(gameRef, {
         players: arrayUnion(newPlayer),
       });
-
     });
 
     return { success: true };
@@ -202,60 +208,46 @@ export async function joinGame(
 }
 
 const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
-    let roles: (PlayerRole)[] = [];
-    const specialRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf' | 'cupid'>[] = Object.keys(settings)
-        .filter(key => 
-            key !== 'werewolves' && 
-            key !== 'fillWithAI' && 
-            key !== 'isPublic' && 
-            key !== 'cupid' &&
-            settings[key as keyof typeof settings] === true
-        ) as any;
-    
-    if (settings.cupid && roles.length < playerCount) {
-        roles.push('cupid');
-    }
-
+    let baseRoles: PlayerRole[] = [];
     const numWerewolves = Math.max(1, Math.floor(playerCount / 4));
+    
     for (let i = 0; i < numWerewolves; i++) {
-        if(roles.length < playerCount) roles.push('werewolf');
+        baseRoles.push('werewolf');
+    }
+    
+    while (baseRoles.length < playerCount) {
+        baseRoles.push('villager');
     }
 
-    const shuffledSpecialRoles = specialRoles.sort(() => Math.random() - 0.5);
+    const availableSpecialRoles: PlayerRole[] = (Object.keys(settings) as Array<keyof typeof settings>)
+        .filter(key => {
+            const roleKey = key as PlayerRole;
+            return settings[key] === true && roleKey !== 'werewolves' && roleKey !== 'fillWithAI' && roleKey !== 'isPublic';
+        })
+        .sort(() => Math.random() - 0.5) as PlayerRole[];
 
-    for (const role of shuffledSpecialRoles) {
-        if (role === 'twin') {
-            if (roles.length < playerCount - 1) {
-                roles.push('twin', 'twin');
+    let finalRoles = [...baseRoles];
+    let villagerIndices = finalRoles.map((role, index) => role === 'villager' ? index : -1).filter(index => index !== -1);
+
+    for (const specialRole of availableSpecialRoles) {
+        if (!specialRole) continue;
+
+        if (specialRole === 'twin') {
+            if (villagerIndices.length >= 2) {
+                const idx1 = villagerIndices.pop()!;
+                const idx2 = villagerIndices.pop()!;
+                finalRoles[idx1] = 'twin';
+                finalRoles[idx2] = 'twin';
             }
         } else {
-            if (roles.length < playerCount) {
-                roles.push(role);
+            if (villagerIndices.length > 0) {
+                const idx = villagerIndices.pop()!;
+                finalRoles[idx] = specialRole;
             }
         }
     }
     
-    while (roles.length < playerCount) {
-        roles.push('villager');
-    }
-
-    roles = roles.slice(0, playerCount);
-
-    const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
-    const hasWolfRole = roles.some(r => r && wolfRoles.includes(r));
-    
-    if (!hasWolfRole && playerCount > 0) {
-        const villagerIndex = roles.indexOf('villager');
-        if (villagerIndex !== -1) {
-            roles[villagerIndex] = 'werewolf';
-        } else if (roles.length > 0) {
-            roles[roles.length - 1] = 'werewolf';
-        } else { 
-            roles.push('werewolf');
-        }
-    }
-    
-    return roles.sort(() => Math.random() - 0.5);
+    return finalRoles.sort(() => Math.random() - 0.5);
 };
 
 
@@ -301,16 +293,6 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
             if (totalPlayers < MINIMUM_PLAYERS) {
                 throw new Error(`Se necesitan al menos ${MINIMUM_PLAYERS} jugadores para comenzar.`);
             }
-
-            const werewolfCount = Math.max(1, Math.floor(totalPlayers / 4));
-            const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed'];
-            const enabledWolfRoles = Object.keys(game.settings).filter(key => 
-                (wolfRoles as (string | null)[]).includes(key) && game.settings[key as keyof typeof game.settings]
-            ).length;
-
-            if (werewolfCount + enabledWolfRoles >= Math.floor(totalPlayers / 2)) {
-                 throw new Error('Configuración de roles inválida: demasiados lobos para el número de jugadores.');
-            }
             
             const newRoles = generateRoles(finalPlayers.length, game.settings);
             
@@ -324,8 +306,8 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
 
             const executioner = assignedPlayers.find(p => p.role === 'executioner');
             if (executioner) {
+                const wolfTeamRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
                 const nonWolfPlayers = assignedPlayers.filter(p => {
-                    const wolfTeamRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
                     return p.role && !wolfTeamRoles.includes(p.role) && p.userId !== executioner.userId;
                 });
                 if (nonWolfPlayers.length > 0) {
@@ -378,11 +360,12 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         const player = game.players.find(p => p.userId === playerId);
         if (!player || !player.isAlive) throw new Error("Jugador no válido o muerto.");
         if (game.exiledPlayerId === playerId) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
-        if (player.usedNightAbility) throw new Error("Ya has usado tu habilidad esta noche.");
+        if (player.usedNightAbility) return; // Action already submitted, ignore quietly.
         
         let players = [...game.players];
         const playerIndex = players.findIndex(p => p.userId === action.playerId);
         
+        // Specific validations for each role before adding the action
         switch (actionType) {
             case 'doctor_heal':
                 const targetPlayer = players.find(p => p.userId === targetId);
@@ -992,6 +975,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             });
             
             if (game.pendingHunterShot && game.pendingHunterShot !== hunterId) {
+                // Another hunter was triggered by the shot, wait for them.
                 transaction.update(gameRef, { players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot });
                 return;
             }
@@ -1030,7 +1014,6 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
 
 export async function submitVote(db: Firestore, gameId: string, voterId: string, targetId: string) {
     const gameRef = doc(db, 'games', gameId);
-    let shouldProcessVotes = false;
 
     try {
        await runTransaction(db, async (transaction) => {
@@ -1059,21 +1042,20 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             }
             
             transaction.update(gameRef, { players: game.players });
-
-            const alivePlayers = game.players.filter(p => p.isAlive);
-            if (alivePlayers.every(p => p.votedFor)) {
-                shouldProcessVotes = true;
-            }
         });
-        
-        if (shouldProcessVotes) {
+
+        const gameDoc = await getDoc(gameRef);
+        const game = gameDoc.data() as Game;
+        if (!game) return { success: true };
+
+        const alivePlayers = game.players.filter(p => p.isAlive);
+        const allVotesIn = alivePlayers.every(p => !!p.votedFor);
+        if (allVotesIn && game.creator === voterId) { // Let creator process votes
             await processVotes(db, gameId);
         }
 
-        const gameDoc = await getDoc(gameRef);
-        const gameData = gameDoc.data() as Game;
-        const voter = gameData.players.find(p => p.userId === voterId);
-        const target = gameData.players.find(p => p.userId === targetId);
+        const voter = game.players.find(p => p.userId === voterId);
+        const target = game.players.find(p => p.userId === targetId);
         if (!voter?.isAI && voter?.displayName && target?.displayName) {
             await triggerAIChat(db, gameId, `${voter.displayName} ha votado por ${target.displayName}.`);
         }
@@ -1657,5 +1639,3 @@ export async function runAIActions(db: Firestore, gameId: string) {
         console.error("Error in AI Actions:", e);
     }
 }
-
-    

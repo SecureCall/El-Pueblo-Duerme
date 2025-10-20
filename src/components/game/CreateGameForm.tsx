@@ -170,7 +170,7 @@ export function CreateGameForm() {
     const gameSettings = {
         fillWithAI: settings.fillWithAI,
         isPublic: settings.isPublic,
-        werewolves: Math.max(1, Math.floor(data.maxPlayers / 4)), // Auto-calculate wolves
+        werewolves: 1, // Base value, will be auto-calculated on the server
         ...sanitizedRoles
     };
     
@@ -249,7 +249,7 @@ export function CreateGameForm() {
 
             <div>
               <Label className="text-base">Roles Especiales</Label>
-              <FormDescription>Selecciona los roles que quieres incluir en la partida. El número de lobos se ajustará automáticamente.</FormDescription>
+              <FormDescription>Selecciona los roles que quieres incluir. El juego equilibrará automáticamente el número de lobos y aldeanos.</FormDescription>
               <div className="flex gap-2 mt-2 mb-4">
                   <Button type="button" variant="outline" size="sm" onClick={() => selectAllRoles(true)}>
                       Seleccionar Todos
@@ -351,4 +351,3 @@ export function CreateGameForm() {
   );
 }
 
-    
