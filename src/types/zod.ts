@@ -1,7 +1,6 @@
 
 import { z } from 'zod';
 
-// Helper for Firebase Timestamps - now accepting string for client-server transfer
 const TimestampSchema = z.union([
   z.object({
     seconds: z.number(),
@@ -9,8 +8,8 @@ const TimestampSchema = z.union([
   }),
   z.string().refine(val => !isNaN(Date.parse(val)), {
     message: "Invalid date string format",
-  }), // ISO 8601 string
-  z.date(), // Accept Date objects as well
+  }),
+  z.date(),
 ]).nullable();
 
 
@@ -48,7 +47,7 @@ export const PlayerSchema = z.object({
   riverSirenTargetId: z.string().nullable().optional(),
   ghostMessageSent: z.boolean().optional(),
   resurrectorAngelUsed: z.boolean().optional(),
-  bansheeScreams: z.record(z.string()).optional(),
+  bansheePredictions: z.record(z.object({ targetId: z.string(), success: z.boolean() })).optional(),
   lookoutUsed: z.boolean().optional(),
   executionerTargetId: z.string().nullable(),
 });
@@ -62,7 +61,7 @@ export const NightActionSchema = z.object({
     "hechicera_save", "guardian_protect", "priest_bless", "vampire_bite", "cult_recruit", 
     "fisherman_catch", "shapeshifter_select", "virginia_woolf_link", "river_siren_charm",
     "silencer_silence", "elder_leader_exile", "witch_hunt", "banshee_scream", "lookout_spy",
-    "fairy_find", "fairy_kill", "resurrect", "cupid_love"
+    "fairy_find", "fairy_kill", "resurrect", "troublemaker_duel", "cupid_love"
   ]),
   targetId: z.string(),
   createdAt: TimestampSchema.refine((v): v is NonNullable<typeof v> => v !== null),
@@ -143,7 +142,7 @@ export const GameSchema = z.object({
   createdAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null),
   currentRound: z.union([z.number(), z.object({operand: z.number()})]),
   settings: GameSettingsSchema,
-  phaseEndsAt: TimestampSchema,
+  phaseEndsAt: TimestampSchema.refine((v): v is NonNullable<typeof v> => v !== null),
   twins: z.tuple([z.string(), z.string()]).nullable(),
   lovers: z.tuple([z.string(), z.string()]).nullable(),
   pendingHunterShot: z.string().nullable(),
@@ -172,3 +171,4 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
+

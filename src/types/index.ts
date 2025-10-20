@@ -26,14 +26,13 @@ export type PlayerRole =
   "silencer" |
   "seer_apprentice" |
   "elder_leader" |
-  "sleeping_fairy" |
   "resurrector_angel" |
   // Lobos
   "werewolf" |
   "wolf_cub" |
   "cursed" |
-  "seeker_fairy" |
   "witch" |
+  "seeker_fairy" |
   // Especiales
   "shapeshifter" |
   "drunk_man" |
@@ -43,6 +42,7 @@ export type PlayerRole =
   "banshee" |
   "cupid" |
   "executioner" |
+  "sleeping_fairy" | // Neutral/Caótico hasta que se encuentre
   null;
 
 
@@ -120,17 +120,17 @@ export interface Game {
 
 export interface Player {
   userId: string;
-  gameId: string; // Still useful for context, though not for querying
+  gameId: string;
   role: PlayerRole;
   isAlive: boolean;
-  votedFor: string | null; // userId
+  votedFor: string | null;
   displayName: string;
   joinedAt: Timestamp | null;
   lastHealedRound: number;
   isAI: boolean;
   potions?: {
-    poison?: number | null, // round it was used
-    save?: number | null, // round it was used
+    poison?: number | null;
+    save?: number | null;
   }
   priestSelfHealUsed?: boolean;
   princeRevealed?: boolean;
@@ -139,13 +139,12 @@ export interface Player {
   isCultMember: boolean;
   isLover: boolean;
   usedNightAbility: boolean;
-  // New role-specific fields
   shapeshifterTargetId?: string | null;
   virginiaWoolfTargetId?: string | null;
   riverSirenTargetId?: string | null;
   ghostMessageSent?: boolean;
   resurrectorAngelUsed?: boolean;
-  bansheeScreams?: Record<string, string>; // round: targetId
+  bansheePredictions?: Record<string, { targetId: string; success: boolean }>;
   lookoutUsed?: boolean;
   executionerTargetId: string | null;
 }
@@ -172,20 +171,21 @@ export type NightActionType =
   "fairy_find" |
   "fairy_kill" |
   "resurrect" |
+  "troublemaker_duel" |
   "cupid_love";
 
 
 export interface NightAction {
     gameId: string;
     round: number;
-    playerId: string; // The player performing the action
+    playerId: string;
     actionType: NightActionType;
-    targetId: string; // The player targeted by the action. Can be multiple for wolf cub revenge, separated by |
+    targetId: string;
     createdAt: Timestamp;
 }
 
 export interface GameEvent {
-    id: string; // unique id for the event, can be generated on client
+    id: string;
     gameId: string;
     round: number;
     type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot' | 'player_transformed' | 'behavior_clue' | 'special' | 'vampire_kill' | 'werewolf_kill' | 'troublemaker_duel';
