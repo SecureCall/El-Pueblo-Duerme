@@ -28,6 +28,7 @@ export const PlayerSchema = z.object({
   isAlive: z.boolean(),
   votedFor: z.string().nullable(),
   displayName: z.string(),
+  avatarUrl: z.string(),
   joinedAt: TimestampSchema,
   lastHealedRound: z.number(),
   isAI: z.boolean(),
@@ -47,7 +48,7 @@ export const PlayerSchema = z.object({
   riverSirenTargetId: z.string().nullable().optional(),
   ghostMessageSent: z.boolean().optional(),
   resurrectorAngelUsed: z.boolean().optional(),
-  bansheePredictions: z.record(z.object({ targetId: z.string(), success: z.boolean() })).optional(),
+  bansheeScreams: z.record(z.string()).optional(),
   lookoutUsed: z.boolean().optional(),
   executionerTargetId: z.string().nullable(),
 });
@@ -61,7 +62,7 @@ export const NightActionSchema = z.object({
     "hechicera_save", "guardian_protect", "priest_bless", "vampire_bite", "cult_recruit", 
     "fisherman_catch", "shapeshifter_select", "virginia_woolf_link", "river_siren_charm",
     "silencer_silence", "elder_leader_exile", "witch_hunt", "banshee_scream", "lookout_spy",
-    "fairy_find", "fairy_kill", "resurrect", "troublemaker_duel", "cupid_love"
+    "fairy_find", "fairy_kill", "resurrect", "cupid_love"
   ]),
   targetId: z.string(),
   createdAt: TimestampSchema.refine((v): v is NonNullable<typeof v> => v !== null),
@@ -171,4 +172,3 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
-

@@ -1,4 +1,5 @@
 
+
 import type { Timestamp } from 'firebase/firestore';
 import { z } from 'zod';
 import type { GameSchema, PlayerSchema } from './zod';
@@ -125,6 +126,7 @@ export interface Player {
   isAlive: boolean;
   votedFor: string | null;
   displayName: string;
+  avatarUrl: string;
   joinedAt: Timestamp | null;
   lastHealedRound: number;
   isAI: boolean;
@@ -144,7 +146,7 @@ export interface Player {
   riverSirenTargetId?: string | null;
   ghostMessageSent?: boolean;
   resurrectorAngelUsed?: boolean;
-  bansheePredictions?: Record<string, { targetId: string; success: boolean }>;
+  bansheeScreams?: Record<string, string>;
   lookoutUsed?: boolean;
   executionerTargetId: string | null;
 }
@@ -171,7 +173,6 @@ export type NightActionType =
   "fairy_find" |
   "fairy_kill" |
   "resurrect" |
-  "troublemaker_duel" |
   "cupid_love";
 
 
@@ -217,5 +218,3 @@ export interface GenerateAIChatMessageOutput {
     message: string;
     shouldSend: boolean;
 };
-
-    

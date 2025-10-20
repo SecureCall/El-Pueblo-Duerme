@@ -16,6 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { ScrollText, SunIcon, MoonIcon, Swords, Milestone, Repeat, BrainCircuit, Ghost } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { getMillis } from '@/lib/utils';
 import type { Timestamp } from 'firebase/firestore';
 
 interface GameChronicleProps {

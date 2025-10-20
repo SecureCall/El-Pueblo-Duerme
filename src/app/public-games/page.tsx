@@ -17,6 +17,7 @@ import { Users, Loader2, HomeIcon } from 'lucide-react';
 import { EnterNameModal } from '@/components/game/EnterNameModal';
 import { useGameSession } from '@/hooks/use-game-session';
 import { useToast } from '@/hooks/use-toast';
+import { getMillis } from '@/lib/utils';
 
 function GameCard({ game }: { game: Game }) {
     const { displayName } = useGameSession();
@@ -80,7 +81,7 @@ export default function PublicGamesPage() {
 
     const sortedGames = useMemo(() => {
         if (!publicGames) return [];
-        return publicGames.sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
+        return [...publicGames].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt));
     }, [publicGames]);
 
     useEffect(() => {

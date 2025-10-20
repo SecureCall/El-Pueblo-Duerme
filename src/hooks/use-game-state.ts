@@ -8,34 +8,14 @@ import {
   type DocumentData, 
   type DocumentSnapshot, 
   type FirestoreError,
-  Timestamp,
 } from 'firebase/firestore';
 import type { Game, Player, GameEvent, ChatMessage } from '@/types';
 import { useFirebase, useMemoFirebase } from '@/firebase';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useGameSession } from './use-game-session';
+import { getMillis } from '@/lib/utils';
 
-
-const getMillis = (timestamp: any): number => {
-  if (!timestamp) return 0;
-  if (timestamp instanceof Timestamp) {
-    return timestamp.toMillis();
-  }
-  if (typeof timestamp === 'object' && timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
-    return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
-  }
-  if (timestamp instanceof Date) {
-      return timestamp.getTime();
-  }
-  if (typeof timestamp === 'string') {
-      const date = new Date(timestamp);
-      if (!isNaN(date.getTime())) {
-          return date.getTime();
-      }
-  }
-  return 0;
-};
 
 interface InitialState {
     initialGame: Game;
@@ -99,7 +79,6 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
         );
          setWolfMessages(
           (gameData.wolfChatMessages || [])
-            .filter(m => m.round === gameData.currentRound)
             .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
         );
         setFairyMessages(
@@ -146,5 +125,3 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
 
   return { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, loading, error };
 };
-
-    
