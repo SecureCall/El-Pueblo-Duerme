@@ -74,6 +74,8 @@ export function GameBoard({
     if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId) return;
     if (game.status === 'finished') return;
     
+    // This function is now a failsafe, triggered by the creator's client if time runs out.
+    // The primary mechanism is now atomic operations within submitVote/submitNightAction.
     if (game.phase === 'day') {
         await processVotes(firestore, game.id);
     } else if (game.phase === 'night') {
@@ -181,7 +183,7 @@ export function GameBoard({
       setTimeLeft(Math.round(remaining / 1000));
 
       if (remaining <= 0 && currentPlayer && game.creator === currentPlayer.userId) {
-        handlePhaseEnd();
+        handlePhaseEnd(); // Failsafe if actions don't trigger phase end
         clearInterval(interval); 
       }
     }, 1000);

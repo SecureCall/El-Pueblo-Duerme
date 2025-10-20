@@ -8,7 +8,7 @@ import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
 import { submitNightAction, getSeerResult } from '@/lib/firebase-actions';
-import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, BotIcon, Eye, Wand2 } from 'lucide-react';
+import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, BotIcon, Eye, Wand2, UserX } from 'lucide-react';
 import { SeerResult } from './SeerResult';
 import { useNightActions } from '@/hooks/use-night-actions';
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
@@ -197,13 +197,9 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             targetId: selectedPlayerIds.join('|'),
         });
         
-        if (!result.success) {
-             toast({ variant: 'destructive', title: 'Error', description: result.error });
-             setIsSubmitting(false);
-        } else {
-            toast({ title: 'Acción registrada.', description: 'Tu decisión ha sido guardada.' });
-            if (currentPlayer.role === 'seer' || (currentPlayer.role === 'seer_apprentice' && game.seerDied)) {
-                const seerResultData = await getSeerResult(firestore, game.id, currentPlayer.userId, selectedPlayerIds[0]);
+        if (result.success) {
+            if (actionType === 'seer_check') {
+                 const seerResultData = await getSeerResult(firestore, game.id, currentPlayer.userId, selectedPlayerIds[0]);
                 if (seerResultData.success) {
                     setSeerResult({
                         targetName: seerResultData.targetName!,
@@ -212,8 +208,12 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                 } else {
                      toast({ variant: 'destructive', title: 'Error del Vidente', description: seerResultData.error });
                 }
+            } else {
+                toast({ title: 'Acción registrada.', description: 'Tu decisión ha sido guardada.' });
             }
-            // Do not set isSubmitting to false here. The hasSubmitted state will take care of the UI.
+        } else {
+             toast({ variant: 'destructive', title: 'Error', description: result.error });
+             setIsSubmitting(false); // Only re-enable on error
         }
     };
     
@@ -352,6 +352,26 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         return <SeerResult targetName={seerResult.targetName} isWerewolf={seerResult.isWerewolf} />;
     }
 
+    if (hasSubmitted) {
+        return (
+             <Card className="mt-8 bg-card/80">
+                <CardHeader>
+                    <CardTitle className="font-headline text-2xl">Acciones Nocturnas</CardTitle>
+                </CardHeader>
+                <CardContent className="text-center py-8">
+                    <p className="text-lg text-primary">Has realizado tu acción. Espera a que amanezca.</p>
+                      {(isWerewolfTeam || (game.fairiesFound && isFairyTeam)) && (
+                        <div className="mt-6">
+                           {isWerewolfTeam && <WolfChat gameId={game.id} currentPlayer={currentPlayer} messages={wolfMessages} />}
+                           {game.fairiesFound && isFairyTeam && <FairyChat gameId={game.id} currentPlayer={currentPlayer} messages={fairyMessages} />}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        )
+    }
+
+
     const playersForGrid = isResurrectorAngel ? game.players.filter(p => !p.isAlive) : players.filter(p=>p.isAlive);
 
     return (
@@ -363,11 +383,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             <CardContent>
                 {renderWerewolfInfo()}
                 {renderHechiceraInfo()}
-                {hasSubmitted ? (
-                     <div className="text-center py-8">
-                        <p className="text-lg text-primary">Has realizado tu acción. Espera a que amanezca.</p>
-                    </div>
-                ) : isExecutioner ? (
+                {isExecutioner ? (
                      <div className="text-center py-8">
                         <p className="text-lg text-muted-foreground">No tienes acciones esta noche. Tu trabajo empieza durante el día.</p>
                     </div>
@@ -413,7 +429,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                         <Button 
                             className="w-full mt-6 text-lg" 
                             onClick={handleSubmit} 
-                            disabled={(selectedPlayerIds.length !== selectionLimit) || isSubmitting}
+                            disabled={(selectedPlayerIds.length !== selectionLimit && !isLookout && currentPlayer.role !== 'sleeping_fairy') || isSubmitting}
                         >
                             {isSubmitting 
                                 ? <Loader2 className="animate-spin" /> 

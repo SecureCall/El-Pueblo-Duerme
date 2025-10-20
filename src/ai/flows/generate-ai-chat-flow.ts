@@ -8,10 +8,10 @@ import { AIPlayerPerspectiveSchema, GenerateAIChatMessageOutputSchema } from '@/
 
 // Helper function to sanitize any object and replace undefined with null recursively.
 const sanitizeObject = (obj: any): any => {
-    if (obj === undefined) {
+    if (obj === undefined || obj === null) {
         return null;
     }
-    if (obj === null || typeof obj !== 'object') {
+    if (typeof obj !== 'object') {
         return obj;
     }
 
