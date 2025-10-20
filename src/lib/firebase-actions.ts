@@ -1,5 +1,3 @@
-
-
 'use client';
 import { 
   doc,
@@ -570,18 +568,12 @@ function checkGameOver(gameData: Game, lynchedPlayer?: Player): { isGameOver: bo
     }
 
     if (lynchedPlayer?.role === 'drunk_man' && gameData.settings.drunk_man) {
-        const voters = gameData.players.filter(p => p.votedFor === lynchedPlayer.userId);
-        const wolfVoter = voters.some(v => v.role && wolfRoles.includes(v.role));
-        const villagerVoter = voters.some(v => v.role && !wolfRoles.includes(v.role));
-
-        if (wolfVoter && villagerVoter) {
-            return {
-                isGameOver: true,
-                winnerCode: 'drunk_man',
-                message: '¡El Hombre Ebrio ha ganado! Ha conseguido que tanto lobos como aldeanos lo linchen, cumpliendo su caótico objetivo.',
-                winners: [lynchedPlayer.userId],
-            };
-        }
+        return {
+            isGameOver: true,
+            winnerCode: 'drunk_man',
+            message: '¡El Hombre Ebrio ha ganado! Ha conseguido que el pueblo lo linche, cumpliendo su caótico objetivo.',
+            winners: [lynchedPlayer.userId],
+        };
     }
     
     if (lynchedPlayer && gameData.settings.executioner) {
@@ -776,7 +768,6 @@ export async function processNight(db: Firestore, gameId: string) {
                      if (maxVotes === 0) return null;
                     const mostVotedTargets = Object.keys(voteCounts).filter(id => voteCounts[id] === maxVotes);
                     
-                    // If tie, attack fails.
                     if (mostVotedTargets.length > 1) return null;
                     return mostVotedTargets[0];
                 };
@@ -815,21 +806,9 @@ export async function processNight(db: Firestore, gameId: string) {
                 }
             }
             
-            let gameOverInfo = checkGameOver(game);
-            if (gameOverInfo.isGameOver) {
-                game.status = "finished";
-                game.phase = "finished";
-                game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
-                transaction.update(gameRef, sanitizeForFirebase({ status: 'finished', phase: 'finished', players: game.players, events: game.events, boat: game.boat }));
-                return;
-            }
-
-            // Check for wolf cub revenge
             if (game.wolfCubRevengeRound === game.currentRound) {
-                game.events.push({ id: `evt_revenge_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: "¡La cría de lobo ha muerto! La manada, enfurecida, puede atacar de nuevo.", data: {}, createdAt: Timestamp.now() });
+                game.events.push({ id: `evt_revenge_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: "¡La cría de lobo ha muerto! La manada, enfurecida, atacará de nuevo.", data: {}, createdAt: Timestamp.now() });
                 game.wolfCubRevengeRound = 0; // Use the ability
-                // The game stays in the night phase for the second attack. We don't transition to day.
-                // We must reset the 'usedNightAbility' for wolves so they can act again.
                 game.players = game.players.map(p => {
                     if (p.role === 'werewolf' || p.role === 'wolf_cub') {
                         p.usedNightAbility = false;
@@ -837,7 +816,15 @@ export async function processNight(db: Firestore, gameId: string) {
                     return p;
                 });
                 transaction.update(gameRef, sanitizeForFirebase({ players: game.players, events: game.events, wolfCubRevengeRound: 0 }));
-                // We stop here to let wolves make their second move. The next `processNight` call will handle it.
+                return;
+            }
+
+            let gameOverInfo = checkGameOver(game);
+            if (gameOverInfo.isGameOver) {
+                game.status = "finished";
+                game.phase = "finished";
+                game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
+                transaction.update(gameRef, sanitizeForFirebase({ status: 'finished', phase: 'finished', players: game.players, events: game.events, boat: game.boat }));
                 return;
             }
 
@@ -1446,6 +1433,24 @@ export async function submitTroublemakerAction(db: Firestore, gameId: string, tr
 // AI LOGIC
 // ===============================================================================================
 
+// Helper to convert Firestore Timestamps to ISO strings for AI flow
+const convertTimestampsToISO = (obj: any): any => {
+    if (!obj) return obj;
+    if (obj instanceof Timestamp) return obj.toDate().toISOString();
+    if (obj instanceof Date) return obj.toISOString();
+    if (Array.isArray(obj)) return obj.map(convertTimestampsToISO);
+    if (typeof obj === 'object') {
+        const newObj: { [key: string]: any } = {};
+        for (const key in obj) {
+            if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                newObj[key] = convertTimestampsToISO(obj[key]);
+            }
+        }
+        return newObj;
+    }
+    return obj;
+};
+
 async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: string) {
     try {
         const gameDoc = await getDoc(doc(db, 'games', gameId));
@@ -1459,10 +1464,10 @@ async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: stri
         for (const aiPlayer of aiPlayersToTrigger) {
              if (Math.random() < 0.35) { // % chance to speak
                 const perspective: AIPlayerPerspective = {
-                    game: sanitizeForFirebase(game),
-                    aiPlayer: sanitizeForFirebase(aiPlayer),
+                    game: convertTimestampsToISO(game),
+                    aiPlayer: convertTimestampsToISO(aiPlayer),
                     trigger: triggerMessage,
-                    players: sanitizeForFirebase(game.players),
+                    players: convertTimestampsToISO(game.players),
                 };
 
                 generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
@@ -1706,5 +1711,3 @@ export async function runAIActions(db: Firestore, gameId: string) {
         console.error("Error in AI Actions:", e);
     }
 }
-
-

@@ -1,4 +1,3 @@
-
 "use client";
 
 let narrationAudio: HTMLAudioElement | null = null;
@@ -34,8 +33,13 @@ export const unlockAudio = () => {
         playNextInQueue();
     }
     // Also try to play the other audio instances to unlock them
-    soundEffectAudio?.play().catch(()=>{});
-    soundEffectAudio?.pause();
+    if (soundEffectAudio && soundEffectAudio.paused) {
+        soundEffectAudio.volume = 0;
+        soundEffectAudio.play().then(() => {
+            soundEffectAudio?.pause();
+            soundEffectAudio.volume = 0.5;
+        }).catch(() => {});
+    }
 };
 
 if (typeof window !== 'undefined') {

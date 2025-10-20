@@ -1,5 +1,3 @@
-
-
 import { z } from 'zod';
 
 // Helper for Firebase Timestamps - now accepting string for client-server transfer
@@ -12,7 +10,8 @@ const TimestampSchema = z.union([
     message: "Invalid date string format",
   }), // ISO 8601 string
   z.date(), // Accept Date objects as well
-]).nullable();
+  z.null(), // Explicitly allow null
+]);
 
 
 export const PlayerRoleSchema = z.enum([
@@ -141,10 +140,12 @@ export const GameSchema = z.object({
   twinChatMessages: z.array(ChatMessageSchema),
   loversChatMessages: z.array(ChatMessageSchema),
   maxPlayers: z.number(),
-  createdAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null),
+  createdAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null, {
+    message: "createdAt cannot be null",
+  }),
   currentRound: z.number(),
   settings: GameSettingsSchema,
-  phaseEndsAt: TimestampSchema,
+  phaseEndsAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null),
   twins: z.tuple([z.string(), z.string()]).nullable(),
   lovers: z.tuple([z.string(), z.string()]).nullable(),
   pendingHunterShot: z.string().nullable(),
@@ -173,4 +174,3 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
-
