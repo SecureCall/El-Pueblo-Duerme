@@ -1,5 +1,3 @@
-
-
 'use client';
 import { 
   doc,
@@ -208,60 +206,46 @@ export async function joinGame(
 }
 
 const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
-    let roles: (PlayerRole)[] = [];
-    const specialRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf' | 'cupid'>[] = Object.keys(settings)
-        .filter(key => 
-            key !== 'werewolves' && 
-            key !== 'fillWithAI' && 
-            key !== 'isPublic' && 
-            key !== 'cupid' &&
-            settings[key as keyof typeof settings] === true
-        ) as any;
-    
-    if (settings.cupid && roles.length < playerCount) {
-        roles.push('cupid');
-    }
-
+    let baseRoles: PlayerRole[] = [];
     const numWerewolves = Math.max(1, Math.floor(playerCount / 4));
+    
     for (let i = 0; i < numWerewolves; i++) {
-        if(roles.length < playerCount) roles.push('werewolf');
+        baseRoles.push('werewolf');
+    }
+    
+    while (baseRoles.length < playerCount) {
+        baseRoles.push('villager');
     }
 
-    const shuffledSpecialRoles = specialRoles.sort(() => Math.random() - 0.5);
+    const availableSpecialRoles: PlayerRole[] = (Object.keys(settings) as Array<keyof typeof settings>)
+        .filter(key => {
+            const roleKey = key as PlayerRole;
+            return settings[key] === true && roleKey !== 'werewolves' && roleKey !== 'fillWithAI' && roleKey !== 'isPublic';
+        })
+        .sort(() => Math.random() - 0.5) as PlayerRole[];
 
-    for (const role of shuffledSpecialRoles) {
-        if (role === 'twin') {
-            if (roles.length < playerCount - 1) {
-                roles.push('twin', 'twin');
+    let finalRoles = [...baseRoles];
+    let villagerIndices = finalRoles.map((role, index) => role === 'villager' ? index : -1).filter(index => index !== -1);
+
+    for (const specialRole of availableSpecialRoles) {
+        if (!specialRole) continue;
+
+        if (specialRole === 'twin') {
+            if (villagerIndices.length >= 2) {
+                const idx1 = villagerIndices.pop()!;
+                const idx2 = villagerIndices.pop()!;
+                finalRoles[idx1] = 'twin';
+                finalRoles[idx2] = 'twin';
             }
         } else {
-            if (roles.length < playerCount) {
-                roles.push(role);
+            if (villagerIndices.length > 0) {
+                const idx = villagerIndices.pop()!;
+                finalRoles[idx] = specialRole;
             }
         }
     }
     
-    while (roles.length < playerCount) {
-        roles.push('villager');
-    }
-
-    roles = roles.slice(0, playerCount);
-
-    const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
-    const hasWolfRole = roles.some(r => r && wolfRoles.includes(r));
-    
-    if (!hasWolfRole && playerCount > 0) {
-        const villagerIndex = roles.indexOf('villager');
-        if (villagerIndex !== -1) {
-            roles[villagerIndex] = 'werewolf';
-        } else if (roles.length > 0) {
-            roles[roles.length - 1] = 'werewolf';
-        } else { 
-            roles.push('werewolf');
-        }
-    }
-    
-    return roles.sort(() => Math.random() - 0.5);
+    return finalRoles.sort(() => Math.random() - 0.5);
 };
 
 
@@ -697,31 +681,29 @@ export async function processNight(db: Firestore, gameId: string) {
 
                 const getConsensusTarget = (votes: string[]): string | null => {
                     if (votes.length === 0) return null;
-                    const voteCounts = votes.reduce((acc, targetId) => {
-                        acc[targetId] = (acc[targetId] || 0) + 1;
-                        return acc;
-                    }, {} as Record<string, number>);
-
+                    const voteCounts: Record<string, number> = {};
+                    votes.forEach(vote => {
+                        vote.split('|').forEach(target => {
+                            if(target) voteCounts[target] = (voteCounts[target] || 0) + 1;
+                        });
+                    });
+                    
                     let maxVotes = 0;
-                    let mainTarget: string | null = null;
-                    let tie = false;
-
-                    for (const targetId in voteCounts) {
-                        if (voteCounts[targetId] > maxVotes) {
+                    let mostVotedTargets: string[] = [];
+                    for(const targetId in voteCounts) {
+                        if(voteCounts[targetId] > maxVotes) {
                             maxVotes = voteCounts[targetId];
-                            mainTarget = targetId;
-                            tie = false;
+                            mostVotedTargets = [targetId];
                         } else if (voteCounts[targetId] === maxVotes) {
-                            tie = true;
+                            mostVotedTargets.push(targetId);
                         }
                     }
 
-                    if (tie) {
-                        const tiedTargets = Object.keys(voteCounts).filter(id => voteCounts[id] === maxVotes);
-                        return tiedTargets[Math.floor(Math.random() * tiedTargets.length)];
-                    }
+                    if (mostVotedTargets.length === 0) return null;
+                    if (mostVotedTargets.length === 1) return mostVotedTargets[0];
                     
-                    return mainTarget;
+                    // Tie-break by random choice
+                    return mostVotedTargets[Math.floor(Math.random() * mostVotedTargets.length)];
                 };
 
                 const wolfTarget = getConsensusTarget(wolfVotes);
@@ -818,11 +800,7 @@ export async function processVotes(db: Firestore, gameId: string) {
       const lastVoteEvent = game.events.find(e => e.type === 'vote_result' && e.round === game.currentRound);
       const isTiebreaker = lastVoteEvent?.data?.tiedPlayerIds;
 
-      const alivePlayers = game.players.filter(p => p.isAlive && p.votedFor); // Only consider players who have voted
-      if (alivePlayers.length === 0) { // No one voted
-         game.events.push({ id: `evt_vote_result_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: "El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.", data: { lynchedPlayerId: null, final: true }, createdAt: Timestamp.now() });
-      }
-
+      const alivePlayers = game.players.filter(p => p.isAlive);
       const voteCounts: Record<string, number> = {};
       
       alivePlayers.forEach(player => {
@@ -1355,6 +1333,7 @@ export async function submitTroublemakerAction(db: Firestore, gameId: string, tr
       if (gameOverInfo.isGameOver) {
         game.status = "finished";
         game.phase = "finished";
+        game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
         transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: game.events, troublemakerUsed: true });
         return;
       }
@@ -1507,7 +1486,7 @@ export const getDeterministicAIAction = (
         case 'werewolf':
         case 'wolf_cub': {
              const wolfActions = nightActions.filter(a => a.round === currentRound && a.actionType === 'werewolf_kill');
-             if (wolfActions.length > 0 && Math.random() < 0.8) { // 80% chance to follow
+             if (wolfActions.length > 0 && Math.random() < 0.8) { 
                  return { actionType: 'werewolf_kill', targetId: wolfActions[0].targetId };
              }
 
@@ -1523,14 +1502,19 @@ export const getDeterministicAIAction = (
         case 'seer_apprentice':
             if (role === 'seer' || apprenticeIsActive) {
                 const previousDayVotes: Record<string, number> = {};
-                game.players.forEach(p => {
-                    if(p.votedFor) {
-                        previousDayVotes[p.votedFor] = (previousDayVotes[p.votedFor] || 0) + 1;
+                const lastDayEvents = game.events.filter(e => e.round === currentRound - 1 && e.type === 'vote_result');
+                lastDayEvents.forEach(e => {
+                    const votes = e.data?.votes;
+                    if(votes) {
+                        for(const targetId in votes) {
+                            previousDayVotes[targetId] = (previousDayVotes[targetId] || 0) + votes[targetId];
+                        }
                     }
                 });
+
                 const mostVotedId = Object.keys(previousDayVotes).reduce((a, b) => previousDayVotes[a] > previousDayVotes[b] ? a : b, '');
                 
-                if (mostVotedId && Math.random() < 0.7) {
+                if (mostVotedId && alivePlayers.some(p => p.userId === mostVotedId) && Math.random() < 0.7) {
                     return { actionType: 'seer_check', targetId: mostVotedId };
                 }
 
@@ -1613,6 +1597,7 @@ export const getDeterministicAIAction = (
         case 'executioner':
         case 'lookout':
         case 'sleeping_fairy':
+        case 'banshee':
             return { actionType: 'NONE', targetId: '' };
         default:
             return { actionType: 'NONE', targetId: '' };

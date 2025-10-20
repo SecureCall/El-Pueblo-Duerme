@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -326,7 +325,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
    return (
     <div className="w-full max-w-7xl mx-auto p-4 space-y-4">
        <Card className="text-center bg-card/80 sticky top-4 z-30 shadow-lg">
-        <CardHeader className="p-4 relative">
+        <CardHeader className="p-4">
              <div className="flex justify-between items-start">
                  <GameChronicle events={events} currentPlayerId={currentPlayer?.userId || ''} />
                 <div className="flex-1 text-center">
@@ -342,7 +341,6 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
                 <PhaseTimer 
                     key={`${game.id}-${game.phase}-${game.currentRound}`}
                     timeLeft={timeLeft}
-                    phase={game.phase}
                 />
             )}
         </CardHeader>

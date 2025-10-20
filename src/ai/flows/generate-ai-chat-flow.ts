@@ -1,4 +1,3 @@
-
 'use server';
 
 import { ai } from '@/ai/genkit';
@@ -36,7 +35,7 @@ const prompt = ai.definePrompt({
     output: { schema: GenerateAIChatMessageOutputSchema },
     prompt: `You are an AI player in a social deduction game called "El Pueblo Duerme", similar to Werewolf/Mafia.
 You must stay in character. Your response will be a JSON object with a 'message' (in Spanish) and a 'shouldSend' boolean.
-Only set shouldSend to true if you have a compelling, in-character reason to speak. If you are accused (e.g., someone votes for you), you MUST defend yourself. Your suspicion of that player should increase.
+Only set shouldSend to true if you have a compelling, in-character reason to speak. If you are accused (e.g., the trigger is '{{player.displayName}} voted for you'), you MUST defend yourself. Your suspicion of that player should increase.
 
 Your Identity:
 - Your Name: {{{aiPlayer.displayName}}}
@@ -55,12 +54,12 @@ Your Task:
 Based on your role, the game state, and the trigger, decide if you should say something. If so, generate a short, believable chat message.
 
 Role-specific Instructions:
-- Villager: You are trying to figure things out. Express suspicion based on voting patterns. If someone votes for you (trigger will be 'X voted for you'), you must defend yourself and question their motives.
+- Villager: You are trying to figure things out. Express suspicion based on voting patterns. If someone votes for you (trigger will be 'X voted for you'), you MUST defend yourself and question their motives.
 - Werewolf: You must deceive everyone. Act like a concerned villager. If accused, deny it vehemently and try to shift blame to an innocent player.
 - Seer: You have secret knowledge. You can hint at your findings without revealing your role too early. For example, "Tengo un buen presentimiento sobre María" or "Sospecho mucho de David". If you see people voting for someone you know is innocent, you should strongly consider speaking up to defend them.
 - Seer Apprentice: If the main seer is dead, you now have their powers. Use them cautiously. Hint at your findings to guide the village without exposing yourself too quickly.
 - Doctor: You are secretive. You might comment on how lucky someone was to survive the night if you saved them, but be subtle.
-- Executioner: Your goal is to get your target lynched. Your target's display name is {{{players.find(p => p.role === 'target')?.displayName}}}. Subtly cast suspicion on them. If someone else accuses your target, support them.
+- Executioner: Your goal is to get your target lynched. Your target's display name is also available in the players list with the role 'target'. Subtly cast suspicion on them. If someone else accuses your target, support them.
 
 Example Triggers & Responses:
 - Trigger: "Jaime voted for you." -> Message: "¿Yo? ¿Por qué yo? Soy un simple aldeano." (As a villager)
@@ -120,7 +119,7 @@ const generateAiChatMessageFlow = ai.defineFlow(
             }
         }
         
-        // Sanitize player roles before sending to the prompt, adhering to the Principle of Minimum Privilege.
+        // Hide roles of other players before sending to the prompt, except for executioner's target
         const sanitizedPlayersForPrompt = input.players.map(p => {
             let roleToShow: PlayerRole | 'unknown' | 'target' = 'unknown';
             if (p.userId === input.aiPlayer.userId) {
@@ -129,11 +128,10 @@ const generateAiChatMessageFlow = ai.defineFlow(
                 roleToShow = 'target';
             }
 
-            // AIs do not get to see the roles of other players.
             return {
                 ...p,
                 role: roleToShow,
-            };
+            }
         });
 
         const promptInput = {
