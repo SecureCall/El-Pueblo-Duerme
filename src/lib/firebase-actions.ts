@@ -1,4 +1,3 @@
-
 'use client';
 import { 
   doc,
@@ -307,11 +306,10 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
                 throw new Error(`Se necesitan al menos ${MINIMUM_PLAYERS} jugadores para comenzar.`);
             }
 
-            // Server-side validation of roles
             const wolfRolesForCount: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
             const enabledRoles = (Object.keys(game.settings) as (keyof typeof game.settings)[]).filter(k => game.settings[k] === true);
             const wolfCount = enabledRoles.reduce((acc, role) => {
-                if (wolfRolesForCount.includes(role)) {
+                if (role && wolfRolesForCount.includes(role)) {
                     return acc + 1;
                 }
                 return acc;
@@ -393,7 +391,6 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         let players = [...game.players];
         const playerIndex = players.findIndex(p => p.userId === action.playerId);
         
-        // Specific validations for each role before adding the action
         switch (actionType) {
             case 'doctor_heal':
                 const targetPlayer = players.find(p => p.userId === targetId);
@@ -401,11 +398,11 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
                 break;
             case 'hechicera_poison':
                 if (player.potions?.poison) throw new Error("Ya has usado tu poción de veneno.");
-                players[playerIndex].potions!.poison = game.currentRound;
+                if(players[playerIndex].potions) players[playerIndex].potions!.poison = game.currentRound;
                 break;
             case 'hechicera_save':
                 if (player.potions?.save) throw new Error("Ya has usado tu poción de salvación.");
-                players[playerIndex].potions!.save = game.currentRound;
+                if(players[playerIndex].potions) players[playerIndex].potions!.save = game.currentRound;
                 break;
              case 'guardian_protect':
                 if (targetId === playerId && (player.guardianSelfProtects || 0) >= 1) throw new Error("Solo puedes protegerte a ti mismo una vez.");
@@ -440,12 +437,19 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         const updatedNightActions = [...(game.nightActions || []), newAction];
         transaction.update(gameRef, { nightActions: updatedNightActions, players });
 
-        // Check if all night roles have acted
         const alivePlayers = players.filter(p => p.isAlive);
         const nightRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'seer', 'seer_apprentice', 'doctor', 'hechicera', 'guardian', 'priest', 'vampire', 'cult_leader', 'fisherman', 'shapeshifter', 'virginia_woolf', 'river_siren', 'silencer', 'elder_leader', 'witch', 'banshee', 'lookout', 'seeker_fairy', 'resurrector_angel', 'cupid'];
-        const activeNightPlayers = alivePlayers.filter(p => p.role && nightRoles.includes(p.role) && (p.role !== 'seer_apprentice' || game.seerDied));
+        const activeNightPlayers = alivePlayers.filter(p => {
+            if (!p.role || !nightRoles.includes(p.role)) return false;
+            if (p.role === 'seer_apprentice' && !game.seerDied) return false;
+            if ((p.role === 'cupid' || p.role === 'shapeshifter' || p.role === 'virginia_woolf' || p.role === 'river_siren') && game.currentRound > 1) return false;
+            if (p.role === 'executioner' || p.role === 'drunk_man' || p.role === 'sleeping_fairy') return false;
+            return true;
+        });
         
-        if (activeNightPlayers.every(p => p.usedNightAbility)) {
+        const actedPlayerIds = new Set(updatedNightActions.map(a => a.playerId));
+        
+        if (activeNightPlayers.every(p => actedPlayerIds.has(p.userId))) {
             shouldProcessNight = true;
         }
     });
@@ -734,7 +738,7 @@ export async function processNight(db: Firestore, gameId: string) {
             }
             
             actions.forEach(action => {
-                const playerIndex = game.players.findIndex(p => p.userId === action.playerId);
+                 const playerIndex = game.players.findIndex(p => p.userId === action.playerId);
                 const targetIndex = game.players.findIndex(p => p.userId === action.targetId);
                 if (playerIndex > -1) {
                     if(action.actionType === 'cult_recruit' && targetIndex > -1) game.players[targetIndex].isCultMember = true;
@@ -747,7 +751,7 @@ export async function processNight(db: Firestore, gameId: string) {
                          game.fairiesFound = true;
                          game.events.push({ id: `evt_fairy_found_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: `¡Las hadas se han encontrado! Un nuevo poder ha despertado.`, data: {}, createdAt: Timestamp.now() });
                     }
-                    if (action.actionType === 'banshee_scream' && game.players[playerIndex].bansheeScreams) {
+                     if (action.actionType === 'banshee_scream' && game.players[playerIndex].bansheeScreams) {
                         game.players[playerIndex].bansheeScreams![game.currentRound] = action.targetId;
                     }
                 }
@@ -767,7 +771,9 @@ export async function processNight(db: Firestore, gameId: string) {
                     if (votes.length === 0) return null;
                     const voteCounts: Record<string, number> = {};
                     votes.forEach(vote => {
-                        vote.split('|').forEach(target => { if(target) voteCounts[target] = (voteCounts[target] || 0) + 1; });
+                        vote.split('|').forEach(target => {
+                            if(target) voteCounts[target] = (voteCounts[target] || 0) + 1;
+                        });
                     });
                     const maxVotes = Math.max(...Object.values(voteCounts), 0);
                     const mostVotedTargets = Object.keys(voteCounts).filter(id => voteCounts[id] === maxVotes);
@@ -808,6 +814,7 @@ export async function processNight(db: Firestore, gameId: string) {
             
             let gameOverInfo = checkGameOver(game);
             if (gameOverInfo.isGameOver) {
+                game.status = "finished";
                 game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
                 transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: game.events });
                 return;
@@ -1011,13 +1018,13 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             });
             
             if (game.pendingHunterShot && game.pendingHunterShot !== hunterId) {
-                // Another hunter was triggered by the shot, wait for them.
                 transaction.update(gameRef, { players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot });
                 return;
             }
 
             const gameOverInfo = checkGameOver(game);
             if (gameOverInfo.isGameOver) {
+                game.status = "finished";
                 transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: game.events });
                 return;
             }
@@ -1407,7 +1414,6 @@ export async function submitTroublemakerAction(db: Firestore, gameId: string, tr
       const gameOverInfo = checkGameOver(game);
       if (gameOverInfo.isGameOver) {
         game.status = "finished";
-        game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
         transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: game.events, troublemakerUsed: true });
         return;
       }
