@@ -485,14 +485,21 @@ async function killPlayer(transaction: Transaction, gameRef: DocumentReference<G
             data: { killedPlayerIds: [currentIdToKill], revealedRole: playerToKill.role }, createdAt: Timestamp.now(),
         });
         
-        if (playerToKill.role === 'seer') newGameData.seerDied = true;
+        if (playerToKill.role === 'seer') {
+            newGameData.seerDied = true;
+            const apprenticeIndex = newGameData.players.findIndex(p => p.role === 'seer_apprentice' && p.isAlive);
+            if (apprenticeIndex !== -1) {
+                newGameData.players[apprenticeIndex].role = 'seer';
+                newGameData.events.push({ id: `evt_transform_apprentice_${Date.now()}`, gameId: newGameData.id!, round: newGameData.currentRound, type: 'player_transformed', message: `¡La Vidente ha muerto! ${newGameData.players[apprenticeIndex].displayName} hereda su don y se convierte en la nueva Vidente.`, data: { targetId: newGameData.players[apprenticeIndex].userId, newRole: 'seer' }, createdAt: Timestamp.now() });
+            }
+        }
         
         if (playerToKill.role === 'hunter' && newGameData.settings.hunter && !triggeredHunterId) {
             triggeredHunterId = playerToKill.userId;
         }
         
         if (playerToKill.role === 'wolf_cub' && newGameData.settings.wolf_cub) {
-            newGameData.wolfCubRevengeRound = newGameData.currentRound;
+            newGameData.wolfCubRevengeRound = newGameData.currentRound + 1;
         }
 
         if (playerToKill.role === 'leprosa' && newGameData.settings.leprosa) {
@@ -530,11 +537,8 @@ async function killPlayer(transaction: Transaction, gameRef: DocumentReference<G
             checkAndQueueChainDeath(newGameData.twins, playerToKill, 'Tras la muerte de {victimName}, su gemelo/a {otherName} muere de pena.', 'special');
         }
         
-        if (playerToKill.isLover && newGameData.lovers) {
-             const otherLoverId = newGameData.lovers.find(id => id !== playerToKill.userId);
-             if (otherLoverId) {
-                checkAndQueueChainDeath([playerToKill.userId, otherLoverId], playerToKill, 'Por un amor eterno, {otherName} se quita la vida tras la muerte de {victimName}.', 'lover_death');
-             }
+        if (newGameData.lovers && newGameData.lovers.includes(playerToKill.userId)) {
+             checkAndQueueChainDeath(newGameData.lovers, playerToKill, 'Por un amor eterno, {otherName} se quita la vida tras la muerte de {victimName}.', 'lover_death');
         }
         
         const virginiaLinker = newGameData.players.find(p => p.role === 'virginia_woolf' && p.userId === playerToKill.userId);
@@ -558,22 +562,38 @@ function checkGameOver(gameData: Game, lynchedPlayer?: Player): { isGameOver: bo
     const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy']; 
     
     let sharedWinners: string[] = [];
-    if (lynchedPlayer?.role === 'drunk_man' && gameData.settings.drunk_man) {
-        sharedWinners.push(lynchedPlayer.userId);
+
+    if (lynchedPlayer) {
+        if (lynchedPlayer.role === 'drunk_man' && gameData.settings.drunk_man) {
+            sharedWinners.push(lynchedPlayer.userId);
+        }
+        
+        if (gameData.settings.executioner) {
+            const executioner = gameData.players.find(p => p.role === 'executioner' && p.isAlive);
+            if (executioner && executioner.executionerTargetId === lynchedPlayer.userId) {
+                sharedWinners.push(executioner.userId);
+                return {
+                    isGameOver: true,
+                    winnerCode: 'executioner',
+                    message: `¡El Verdugo ha ganado! Ha logrado su objetivo de que el pueblo linche a ${lynchedPlayer.displayName}.`,
+                    winners: sharedWinners,
+                };
+            }
+        }
     }
-    
-    if (lynchedPlayer && gameData.settings.executioner) {
-        const executioner = gameData.players.find(p => p.role === 'executioner' && p.isAlive);
-        if (executioner && executioner.executionerTargetId === lynchedPlayer.userId) {
-             sharedWinners.push(executioner.userId);
-             return {
+
+    if (gameData.lovers) {
+        const aliveLovers = alivePlayers.filter(p => gameData.lovers!.includes(p.userId));
+        if (aliveLovers.length === alivePlayers.length && alivePlayers.length >= 2) {
+            return {
                 isGameOver: true,
-                winnerCode: 'executioner',
-                message: `¡El Verdugo ha ganado! Ha logrado su objetivo de que el pueblo linche a ${lynchedPlayer.displayName}.`,
-                winners: sharedWinners,
+                winnerCode: 'lovers',
+                message: '¡El amor ha triunfado! Los enamorados son los únicos supervivientes y ganan la partida.',
+                winners: aliveLovers.map(l => l.userId),
             };
         }
     }
+
      const aliveCultMembers = alivePlayers.filter(p => p.isCultMember);
     if (gameData.settings.cult_leader && aliveCultMembers.length > 0 && aliveCultMembers.length === alivePlayers.length) {
          const cultLeader = gameData.players.find(p => p.role === 'cult_leader');
@@ -594,11 +614,10 @@ function checkGameOver(gameData: Game, lynchedPlayer?: Player): { isGameOver: bo
         };
     }
 
-    const fisherman = gameData.players.find(p => p.role === 'fisherman');
-    if (gameData.settings.fisherman && fisherman && fisherman.isAlive && gameData.boat) {
+    const fisherman = gameData.players.find(p => p.role === 'fisherman' && p.isAlive);
+    if (gameData.settings.fisherman && fisherman && gameData.boat) {
         const aliveVillagers = alivePlayers.filter(p => p.role && !wolfRoles.includes(p.role) && p.role !== 'vampire' && p.role !== 'cult_leader' && p.role !== 'drunk_man' && p.role !== 'executioner');
-        const aliveVillagersOnBoat = aliveVillagers.every(v => gameData.boat.includes(v.userId));
-        if (aliveVillagers.length > 0 && aliveVillagersOnBoat) {
+        if (aliveVillagers.length > 0 && aliveVillagers.every(v => gameData.boat.includes(v.userId))) {
             return {
                 isGameOver: true,
                 winnerCode: 'fisherman',
@@ -722,11 +741,10 @@ export async function processNight(db: Firestore, gameId: string) {
             });
 
             const allProtectedIds = new Set<string>();
-            actions.filter(a => ['doctor_heal', 'guardian_protect', 'priest_bless'].includes(a.actionType))
+            actions.filter(a => ['doctor_heal', 'guardian_protect', 'priest_bless', 'hechicera_save'].includes(a.actionType))
                    .forEach(a => allProtectedIds.add(a.targetId));
             
             const fishermanAction = actions.find(a => a.actionType === 'fisherman_catch');
-
             let pendingDeaths: { targetId: string, cause: GameEvent['type'] }[] = [];
             
             if (fishermanAction) {
@@ -737,41 +755,46 @@ export async function processNight(db: Firestore, gameId: string) {
                 }
             }
             
+            let wolfTarget: string | null = null;
             if (game.leprosaBlockedRound !== game.currentRound) {
                 const wolfVotes = actions.filter(a => a.actionType === 'werewolf_kill').map(a => a.targetId);
-
                 const getConsensusTarget = (votes: string[]) => {
                     if (votes.length === 0) return null;
                     const voteCounts: Record<string, number> = {};
-                    votes.forEach(vote => {
-                        vote.split('|').forEach(target => {
-                            if(target) voteCounts[target] = (voteCounts[target] || 0) + 1;
-                        });
-                    });
+                    votes.forEach(vote => vote.split('|').forEach(target => {
+                        if(target) voteCounts[target] = (voteCounts[target] || 0) + 1;
+                    }));
                     const maxVotes = Math.max(...Object.values(voteCounts), 0);
-                     if (maxVotes === 0) return null;
+                    if (maxVotes === 0) return null;
                     const mostVotedTargets = Object.keys(voteCounts).filter(id => voteCounts[id] === maxVotes);
-                    
-                    if (mostVotedTargets.length > 1) return null;
-                    return mostVotedTargets[0];
+                    return mostVotedTargets.length === 1 ? mostVotedTargets[0] : null;
                 };
+                wolfTarget = getConsensusTarget(wolfVotes);
 
-                const wolfTarget = getConsensusTarget(wolfVotes);
+                if (wolfTarget) {
+                    const targetPlayer = game.players.find(p => p.userId === wolfTarget);
+                    if (targetPlayer?.role === 'cursed' && game.settings.cursed) {
+                        const cursedPlayerIndex = game.players.findIndex(p => p.userId === wolfTarget);
+                        if (cursedPlayerIndex !== -1) {
+                            game.players[cursedPlayerIndex].role = 'werewolf';
+                            game.events.push({ id: `evt_transform_cursed_${Date.now()}`, gameId, round: game.currentRound, type: 'player_transformed', message: `¡${targetPlayer.displayName} ha sido mordido y se ha transformado en Hombre Lobo!`, data: { targetId: targetPlayer.userId, newRole: 'werewolf' }, createdAt: Timestamp.now() });
+                        }
+                    } else if (!allProtectedIds.has(wolfTarget)) {
+                        pendingDeaths.push({ targetId: wolfTarget, cause: 'werewolf_kill' });
+                    }
+                }
+            }
 
-                if (wolfTarget && !allProtectedIds.has(wolfTarget)) {
-                    pendingDeaths.push({ targetId: wolfTarget, cause: 'werewolf_kill' });
+            const hechicera = game.players.find(p => p.role === 'hechicera' && p.isAlive);
+            if (hechicera && hechicera.isAI && hechicera.potions && !hechicera.potions.save && wolfTarget && Math.random() < 0.5) {
+                const wolfTargetPlayer = game.players.find(p => p.userId === wolfTarget);
+                if (wolfTargetPlayer && wolfTargetPlayer.role !== 'werewolf' && wolfTargetPlayer.role !== 'wolf_cub') {
+                    allProtectedIds.add(wolfTarget);
+                    const hechiceraIndex = game.players.findIndex(p => p.userId === hechicera.userId);
+                    game.players[hechiceraIndex].potions!.save = game.currentRound;
                 }
             }
             
-            const hechiceraSaveAction = actions.find(a => a.actionType === 'hechicera_save');
-            if (hechiceraSaveAction) {
-                const index = pendingDeaths.findIndex(d => d.targetId === hechiceraSaveAction.targetId);
-                if (index > -1) {
-                    allProtectedIds.add(hechiceraSaveAction.targetId); 
-                    pendingDeaths.splice(index, 1);
-                }
-            }
-
             const hechiceraPoisonAction = actions.find(a => a.actionType === 'hechicera_poison');
             if (hechiceraPoisonAction && !allProtectedIds.has(hechiceraPoisonAction.targetId)) {
                 pendingDeaths.push({ targetId: hechiceraPoisonAction.targetId, cause: 'special' });
@@ -790,17 +813,11 @@ export async function processNight(db: Firestore, gameId: string) {
                 }
             }
             
-            if (game.wolfCubRevengeRound === game.currentRound) {
-                game.wolfCubRevengeRound = 0; // Use the ability
-                game.players = game.players.map(p => {
-                    if (p.role === 'werewolf' || p.role === 'wolf_cub') {
-                        p.usedNightAbility = false;
-                    }
-                    return p;
-                });
-                game.events.push({ id: `evt_revenge_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: "¡La cría de lobo ha muerto! La manada, enfurecida, atacará de nuevo.", data: {}, createdAt: Timestamp.now() });
-                transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, wolfCubRevengeRound: 0 }));
-                return;
+            if (game.wolfCubRevengeRound === game.currentRound + 1) { // If revenge was set in killPlayer
+                game.events.push({ id: `evt_revenge_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: "¡La cría de lobo ha muerto! La manada, enfurecida, atacará de nuevo esta noche.", data: {}, createdAt: Timestamp.now() });
+                game.players.forEach(p => { if (p.role === 'werewolf' || p.role === 'wolf_cub') p.usedNightAbility = false; });
+                transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, wolfCubRevengeRound: game.wolfCubRevengeRound }));
+                return; 
             }
             
             let gameOverInfo = checkGameOver(game);
@@ -808,13 +825,13 @@ export async function processNight(db: Firestore, gameId: string) {
                 game.status = "finished";
                 game.phase = "finished";
                 game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
-                transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: game.players, events: game.events, boat: game.boat }));
+                transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: game.players, events: game.events }));
                 return;
             }
 
             game.pendingHunterShot = triggeredHunterId;
             if (game.pendingHunterShot) {
-                transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot, boat: game.boat }));
+                transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot }));
                 return;
             }
             
@@ -831,7 +848,7 @@ export async function processNight(db: Firestore, gameId: string) {
             const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
             
             transaction.update(gameRef, toPlainObject({
-                players: game.players, events: game.events, phase: 'day', phaseEndsAt, boat: game.boat,
+                players: game.players, events: game.events, phase: 'day', phaseEndsAt,
                 pendingHunterShot: null, silencedPlayerId: null, exiledPlayerId: null,
             }));
         });
@@ -1197,13 +1214,13 @@ async function sendSpecialChatMessage(
                     }
                     break;
                 case 'lovers':
-                    if (sender?.isLover) {
+                    if (game.lovers?.includes(senderId)) {
                         canSend = true;
                         chatField = 'loversChatMessages';
                     }
                     break;
                  case 'twin':
-                    if (sender?.role === 'twin') {
+                    if (game.twins?.includes(senderId)) {
                         canSend = true;
                         chatField = 'twinChatMessages';
                     }
@@ -1298,13 +1315,6 @@ export async function setPhaseToNight(db: Firestore, gameId: string) {
             if (game.settings.cupid && game.currentRound === 1 && cupidAction) {
                 const loverIds = cupidAction.targetId.split('|') as [string, string];
                 if (loverIds.length === 2) {
-                    const playerUpdates = game.players.map(p => {
-                        if (loverIds.includes(p.userId)) {
-                            return { ...p, isLover: true };
-                        }
-                        return p;
-                    });
-                    updateData.players = playerUpdates;
                     updateData.lovers = loverIds;
                 }
             }
@@ -1641,7 +1651,7 @@ export const getDeterministicAIAction = (
             return { actionType: 'NONE', targetId: '' };
         case 'hechicera':
              const hasPoison = !aiPlayer.potions?.poison;
-             // AI witch logic is now reactive, not proactive, so we don't decide to save here.
+             // AI witch logic is now reactive, not proactive.
              if (hasPoison) {
                  return { actionType: 'hechicera_poison', targetId: randomTarget(potentialTargets) };
              }
@@ -1678,3 +1688,5 @@ export async function runAIActions(db: Firestore, gameId: string) {
         console.error("Error in AI Actions:", e);
     }
 }
+
+    

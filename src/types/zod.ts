@@ -11,8 +11,7 @@ const TimestampSchema = z.union([
     message: "Invalid date string format",
   }), // ISO 8601 string
   z.date(), // Accept Date objects as well
-  z.null(), // Explicitly allow null
-]);
+]).nullable();
 
 
 export const PlayerRoleSchema = z.enum([
@@ -144,7 +143,7 @@ export const GameSchema = z.object({
   createdAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null),
   currentRound: z.union([z.number(), z.object({operand: z.number()})]),
   settings: GameSettingsSchema,
-  phaseEndsAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null),
+  phaseEndsAt: TimestampSchema,
   twins: z.tuple([z.string(), z.string()]).nullable(),
   lovers: z.tuple([z.string(), z.string()]).nullable(),
   pendingHunterShot: z.string().nullable(),
