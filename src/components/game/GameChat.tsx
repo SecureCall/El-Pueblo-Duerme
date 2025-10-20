@@ -55,8 +55,10 @@ export function GameChat({ gameId, currentPlayer, messages, players }: GameChatP
         
         if (messages.length > lastMessageCount.current) {
             const latestMessage = messages[messages.length - 1];
+            if (latestMessage.senderId !== currentPlayer.userId) {
+                playSoundEffect('/audio/effects/chat-pop.mp3');
+            }
             if (latestMessage.mentionedPlayerIds?.includes(currentPlayer.userId)) {
-                playSoundEffect('mention.mp3');
                 toast({
                     title: `¡Te han mencionado!`,
                     description: `${latestMessage.senderName}: "${latestMessage.text}"`,

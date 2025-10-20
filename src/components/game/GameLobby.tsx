@@ -5,10 +5,9 @@ import type { Game, Player } from "@/types";
 import { PlayerCard } from "./PlayerCard";
 import { StartGameButton } from "./StartGameButton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
-import { Copy, Share2 } from "lucide-react";
+import { Copy, Share2, Crown } from "lucide-react";
 import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { playNarration } from "@/lib/sounds";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 
@@ -23,7 +22,6 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
   const [canShare, setCanShare] = useState(false);
 
   useEffect(() => {
-    // navigator.share is only available in secure contexts (HTTPS)
     if (typeof navigator !== 'undefined' && navigator.share) {
       setCanShare(true);
     }
@@ -41,25 +39,16 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
   const shareText = `¡Únete a mi partida de El Pueblo Duerme! Entra a la sala "${game.name}" con el ID: ${game.id}`;
   const fullShareText = `${shareText}\nO usa este enlace: ${shareUrl}`;
 
-
   const handleShare = async () => {
     if (!canShare) return;
-
-    const shareData = {
-      title: `¡Únete a mi partida de El Pueblo Duerme!`,
-      text: shareText,
-      url: shareUrl,
-    };
-
     try {
-      await navigator.share(shareData);
-      toast({
-        title: "¡Enlace compartido!",
+      await navigator.share({
+        title: `¡Únete a mi partida de El Pueblo Duerme!`,
+        text: shareText,
+        url: shareUrl,
       });
+      toast({ title: "¡Enlace compartido!" });
     } catch (err) {
-      // The AbortError is thrown when the user cancels the share dialog.
-      // The NotAllowedError is thrown if the browser denies the request for other reasons.
-      // In both cases, we should not show an error message to the user.
       if (err instanceof Error && (err.name === 'AbortError' || err.name === 'NotAllowedError')) {
         console.log(`Share action was not completed: ${err.name}`);
       } else {
@@ -67,7 +56,7 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
         toast({
           variant: "destructive",
           title: "Error al compartir",
-          description: "No se pudo compartir el enlace. Puedes copiar el ID manualmente.",
+          description: "No se pudo compartir. Copia el ID manualmente.",
         });
       }
     }
@@ -113,7 +102,12 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
       
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {players.map((player) => (
-          <PlayerCard key={player.userId} player={player} />
+          <div key={player.userId} className="relative">
+            <PlayerCard player={player} />
+            {player.userId === game.creator && (
+              <Crown className="absolute -top-2 -left-2 h-6 w-6 text-yellow-400 rotate-[-15deg]" />
+            )}
+          </div>
         ))}
       </div>
 

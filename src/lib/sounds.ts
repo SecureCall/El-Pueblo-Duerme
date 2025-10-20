@@ -75,10 +75,7 @@ export const playNarration = (narrationFile: string): void => {
 };
 
 export const playSoundEffect = (soundFile: string): void => {
-    if (!audioUnlocked) {
-        return;
-    }
-    if (!soundEffectAudio) {
+    if (!audioUnlocked || !soundEffectAudio) {
         return;
     }
     
