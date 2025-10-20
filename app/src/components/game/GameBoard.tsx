@@ -16,7 +16,7 @@ import { HunterShot } from "./HunterShot";
 import { GameChronicle } from "./GameChronicle";
 import { PhaseTimer } from "./PhaseTimer";
 import { CurrentPlayerRole } from "./CurrentPlayerRole";
-import { playNarration } from "@/lib/sounds";
+import { playNarration, playSoundEffect } from "@/lib/sounds";
 import { YouAreDeadOverlay } from "./YouAreDeadOverlay";
 import { BanishedOverlay } from "./BanishedOverlay";
 import { HunterKillOverlay } from "./HunterKillOverlay";
@@ -27,7 +27,6 @@ import { FairyChat } from "./FairyChat";
 import { VampireKillOverlay } from "./VampireKillOverlay";
 import { useGameState } from "@/hooks/use-game-state";
 import { LoversChat } from "./LoversChat";
-import { cn } from "@/lib/utils";
 
 interface GameBoardProps {
   game: Game;
@@ -72,9 +71,11 @@ export function GameBoard({
   const [timeLeft, setTimeLeft] = useState(0);
 
   const handlePhaseEnd = useCallback(async () => {
-    if (!firestore || !game || !currentPlayer || game.creator !== currentPlayer.userId) return;
-    if (game.phase === 'finished') return;
+    if (!firestore || !game || !currentPlayer) return;
+    if (game.status === 'finished') return;
     
+    // Any player can trigger the phase end as a failsafe.
+    // The backend functions are idempotent.
     if (game.phase === 'day') {
         await processVotes(firestore, game.id);
     } else if (game.phase === 'night') {
@@ -85,7 +86,7 @@ export function GameBoard({
 
   // Sound and action trigger logic
   useEffect(() => {
-    if (!game || !currentPlayer) return;
+    if (!game || !currentPlayer || game.status === 'finished') return;
     const prevPhase = prevPhaseRef.current;
 
     if (prevPhase !== game.phase) {
@@ -102,6 +103,7 @@ export function GameBoard({
             }
           break;
         case 'day':
+          playSoundEffect('/audio/rooster-crowing-364473.mp3');
           playNarration('dia_pueblo_despierta.mp3');
           setTimeout(() => {
             playNarration('inicio_debate.mp3');
@@ -158,18 +160,18 @@ export function GameBoard({
   // Auto-advance from role reveal
   useEffect(() => {
     if (!game || !currentPlayer) return;
-    if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore) {
+    if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore && game.status === 'in_progress') {
       const timer = setTimeout(() => {
         setPhaseToNight(firestore, game.id);
       }, 15000); 
 
       return () => clearTimeout(timer);
     }
-  }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, firestore]);
+  }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, firestore, game?.status]);
   
   // Phase timer logic
   useEffect(() => {
-    if (!game?.phaseEndsAt || !firestore || !game) {
+    if (!game?.phaseEndsAt || !firestore || !game || game.status === 'finished') {
       setTimeLeft(0);
       return;
     }
@@ -180,14 +182,14 @@ export function GameBoard({
       const remaining = Math.max(0, endTime - now);
       setTimeLeft(Math.round(remaining / 1000));
 
-      if (remaining <= 0 && currentPlayer && game.creator === currentPlayer.userId) {
-        handlePhaseEnd();
+      if (remaining <= 0) {
+        handlePhaseEnd(); // Any player can trigger this
         clearInterval(interval); 
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [game?.phaseEndsAt, game?.id, firestore, game, currentPlayer, handlePhaseEnd]);
+  }, [game?.phaseEndsAt, game?.id, firestore, game, handlePhaseEnd]);
 
   if (!game || !currentPlayer) {
       return null;
@@ -239,9 +241,15 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
   const behaviorClueEvent = events.find(e => e.type === 'behavior_clue' && e.round === game.currentRound -1);
 
   const getPhaseTitle = () => {
+    if (!game) return '';
+    // This handles the case where currentRound might be a Firestore increment object
+    const roundNumber = typeof game.currentRound === 'number' 
+        ? game.currentRound 
+        : (game.currentRound as any)?.operand || game.currentRound;
+
     switch(game.phase) {
-        case 'night': return `NOCHE ${game.currentRound}`;
-        case 'day': return `DÍA ${game.currentRound}`;
+        case 'night': return `NOCHE ${roundNumber}`;
+        case 'day': return `DÍA ${roundNumber}`;
         case 'role_reveal': return 'REPARTIENDO ROLES';
         case 'finished': return 'PARTIDA TERMINADA';
         case 'hunter_shot': return '¡LA VENGANZA DEL CAZADOR!';
@@ -255,7 +263,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
      switch(game.phase) {
         case 'night':
              if (currentPlayer?.usedNightAbility) return 'Has actuado. Espera al amanecer.';
-             if (currentPlayer?.role && ['werewolf', 'seer', 'doctor', 'hechicera', 'guardian', 'priest', 'vampire', 'cult_leader', 'fisherman', 'shapeshifter', 'virginia_woolf', 'river_siren', 'silencer', 'elder_leader', 'witch', 'banshee', 'lookout', 'seeker_fairy', 'resurrector_angel', 'cupid'].includes(currentPlayer.role)) {
+             if (currentPlayer?.role && ['werewolf', 'wolf_cub', 'seer', 'seer_apprentice', 'doctor', 'hechicera', 'guardian', 'priest', 'vampire', 'cult_leader', 'fisherman', 'shapeshifter', 'virginia_woolf', 'river_siren', 'silencer', 'elder_leader', 'witch', 'banshee', 'lookout', 'seeker_fairy', 'resurrector_angel', 'cupid'].includes(currentPlayer.role)) {
                  return "Es tu turno de actuar.";
              }
              return 'Duermes profundamente...';
@@ -278,9 +286,9 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
   const otherTwin = otherTwinId ? players.find(p => p.userId === otherTwinId) : null;
 
   const isFairy = ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer?.role || '');
-  const isLover = !!currentPlayer?.isLover;
-  const otherLover = isLover ? players.find(p => p.isLover && p.userId !== currentPlayer.userId) : null;
-
+  const isLover = !!game.lovers?.includes(currentPlayer.userId);
+  const otherLoverId = isLover ? game.lovers!.find(id => id !== currentPlayer!.userId) : null;
+  const otherLover = otherLoverId ? players.find(p => p.userId === otherLoverId) : null;
 
   const highlightedPlayers = [];
   if (otherTwin) highlightedPlayers.push({ userId: otherTwin.userId, color: 'rgba(135, 206, 250, 0.7)' });
@@ -435,6 +443,3 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
-
-
-    
