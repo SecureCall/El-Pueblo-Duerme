@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -78,6 +77,7 @@ function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, curre
                 <p className="text-center mb-4 text-muted-foreground">Selecciona a dos jugadores para que se peleen.</p>
                 <PlayerGrid 
                     players={players.filter(p => p.isAlive && p.userId !== currentPlayer.userId)}
+                    currentPlayer={currentPlayer}
                     onPlayerClick={handlePlayerSelect}
                     clickable={true}
                     selectedPlayerIds={selectedPlayerIds}
@@ -225,6 +225,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                             </p>
                             <PlayerGrid 
                                 players={players.filter(p => p.isAlive)}
+                                currentPlayer={currentPlayer}
                                 votesByPlayer={votesByPlayer}
                             />
                         </div>
@@ -250,6 +251,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                             <p className="text-center mb-4 text-muted-foreground">{isTiebreaker ? "Debes elegir a uno de los empatados." : "Selecciona al jugador que crees que es un Hombre Lobo."}</p>
                             <PlayerGrid 
                                 players={votablePlayers.filter(p => p.userId !== currentPlayer.userId)}
+                                currentPlayer={currentPlayer}
                                 onPlayerClick={handlePlayerSelect}
                                 clickable={canPlayerVote}
                                 selectedPlayerIds={selectedPlayerId ? [selectedPlayerId] : []}
@@ -269,6 +271,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                         <p className="text-lg">Observas el debate desde el más allá...</p>
                         <PlayerGrid 
                             players={players.filter(p => p.isAlive)}
+                            currentPlayer={currentPlayer}
                             votesByPlayer={votesByPlayer}
                         />
                     </div>

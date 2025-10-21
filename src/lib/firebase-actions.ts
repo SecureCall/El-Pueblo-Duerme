@@ -97,6 +97,7 @@ export async function createGame(
       fairyChatMessages: [],
       twinChatMessages: [],
       loversChatMessages: [],
+      ghostChatMessages: [],
       maxPlayers: maxPlayers,
       createdAt: Timestamp.now(),
       currentRound: 0,
@@ -323,7 +324,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
                 for (let i = 0; i < aiPlayerCount; i++) {
                     const aiUserId = `ai_${Date.now()}_${i}`;
                     const aiName = availableAINames[i % availableAINames.length] || `Bot ${i + 1}`;
-                    const aiAvatar = `/logo.png`; // Default AI avatar
+                    const aiAvatar = `/logo.png`; // This will be replaced by PlayerCard logic
                     const aiPlayerData = createPlayerObject(aiUserId, gameId, aiName, aiAvatar, true);
                     finalPlayers.push(aiPlayerData);
                 }
@@ -593,7 +594,7 @@ function checkGameOver(gameData: Game, lynchedPlayer?: Player | null): { isGameO
     }
     
     const alivePlayers = gameData.players.filter(p => p.isAlive);
-    const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy']; 
+    const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy']; 
     
     let sharedWinners: string[] = [];
 
@@ -817,13 +818,13 @@ export async function processNight(db: Firestore, gameId: string) {
             };
             wolfTargetId = getConsensusTarget(wolfVotes);
         }
-
+        
         const hechiceraPoisonAction = actions.find(a => a.actionType === 'hechicera_poison');
         if (hechiceraPoisonAction) pendingDeaths.push({ targetId: hechiceraPoisonAction.targetId, cause: 'special' });
         
         const lookoutAction = actions.find(a => a.actionType === 'lookout_spy');
         if (lookoutAction) {
-            if (Math.random() < 0.4) { // 40% fail rate
+             if (Math.random() < 0.4) { // 40% fail rate
                 pendingDeaths.push({ targetId: lookoutAction.playerId, cause: 'special' });
                 game.events.push({ id: `evt_lookout_fail_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: `¡${game.players.find(p=>p.userId===lookoutAction.playerId)?.displayName} ha sido descubierto espiando y ha muerto!`, data: { targetId: lookoutAction.playerId }, createdAt: Timestamp.now() });
             } else {
@@ -849,7 +850,7 @@ export async function processNight(db: Firestore, gameId: string) {
         // --- PHASE 3: PROTECTION & REACTION ---
         const allProtectedIds = new Set<string>();
         actions.filter(a => ['doctor_heal', 'guardian_protect', 'priest_bless', 'hechicera_save'].includes(a.actionType)).forEach(a => allProtectedIds.add(a.targetId));
-        
+
         if (wolfTargetId) {
             const targetPlayer = game.players.find(p => p.userId === wolfTargetId);
             if (targetPlayer?.role === 'cursed' && game.settings.cursed && !allProtectedIds.has(wolfTargetId)) {
@@ -858,8 +859,10 @@ export async function processNight(db: Firestore, gameId: string) {
                     game.players[cursedPlayerIndex].role = 'werewolf';
                     game.events.push({ id: `evt_transform_cursed_${Date.now()}`, gameId, round: game.currentRound, type: 'player_transformed', message: `¡${targetPlayer.displayName} ha sido mordido y se ha transformado en Hombre Lobo!`, data: { targetId: targetPlayer.userId, newRole: 'werewolf' }, createdAt: Timestamp.now() });
                 }
-            } else if (!allProtectedIds.has(wolfTargetId)) {
-                 pendingDeaths.push({ targetId: wolfTargetId, cause: 'werewolf_kill' });
+            } else {
+                 if (!allProtectedIds.has(wolfTargetId)) {
+                    pendingDeaths.push({ targetId: wolfTargetId, cause: 'werewolf_kill' });
+                 }
             }
         }
         
@@ -938,15 +941,18 @@ export async function processVotes(db: Firestore, gameId: string) {
       let game = gameSnap.data();
       if (game.phase !== 'day' || game.status === 'finished') return;
       
-      const lastVoteEvent = game.events.find(e => e.type === 'vote_result' && e.round === game.currentRound);
-      const isTiebreaker = lastVoteEvent?.data?.tiedPlayerIds;
+      const lastVoteEvent = [...game.events].sort((a,b) => toPlainObject(b.createdAt) - toPlainObject(a.createdAt)).find(e => e.type === 'vote_result');
+      const isTiebreaker = lastVoteEvent?.data?.tiedPlayerIds && !lastVoteEvent?.data?.final;
 
       const alivePlayers = game.players.filter(p => p.isAlive);
       const voteCounts: Record<string, number> = {};
       
       alivePlayers.forEach(player => {
-        if (player.votedFor && (!isTiebreaker || isTiebreaker.includes(player.votedFor))) {
-          voteCounts[player.votedFor] = (voteCounts[player.votedFor] || 0) + 1;
+        if (player.votedFor) {
+            // In a tiebreaker, only votes for the tied players count
+            if (!isTiebreaker || lastVoteEvent.data.tiedPlayerIds.includes(player.votedFor)) {
+                 voteCounts[player.votedFor] = (voteCounts[player.votedFor] || 0) + 1;
+            }
         }
       });
       
@@ -961,8 +967,9 @@ export async function processVotes(db: Firestore, gameId: string) {
         }
       }
 
+      // First time tie
       if (mostVotedPlayerIds.length > 1 && !isTiebreaker) {
-          game.events.push({ id: `evt_vote_tie_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: "¡La votación resultó en un empate! Se requiere una segunda votación solo entre los empatados.", data: { tiedPlayerIds: mostVotedPlayerIds, final: false }, createdAt: Timestamp.now() });
+          game.events.push({ id: `evt_vote_tie_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: `¡La votación resultó en un empate! Se requiere una segunda votación solo entre los siguientes jugadores: ${mostVotedPlayerIds.map(id => game.players.find(p=>p.userId === id)?.displayName).join(', ')}.`, data: { tiedPlayerIds: mostVotedPlayerIds, final: false }, createdAt: Timestamp.now() });
           game.players.forEach(p => { p.votedFor = null; });
           const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
           transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, phaseEndsAt }));
@@ -971,6 +978,8 @@ export async function processVotes(db: Firestore, gameId: string) {
 
       let lynchedPlayerId: string | null = mostVotedPlayerIds[0] || null;
       let lynchedPlayerObject: Player | null = null;
+      
+      let triggeredHunterId: string | null = null;
 
       if (lynchedPlayerId) {
         lynchedPlayerObject = game.players.find(p => p.userId === lynchedPlayerId) || null;
@@ -985,8 +994,9 @@ export async function processVotes(db: Firestore, gameId: string) {
             });
             lynchedPlayerId = null; 
         } else {
-            const { updatedGame } = await killPlayer(transaction, gameRef, game, lynchedPlayerId, 'vote_result');
-            game = updatedGame;
+            const result = await killPlayer(transaction, gameRef, game, lynchedPlayerId, 'vote_result');
+            game = result.updatedGame;
+            triggeredHunterId = result.triggeredHunterId;
         }
       } else {
         const message = isTiebreaker ? 'Tras un segundo empate, el pueblo decide perdonar una vida hoy.' : 'El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.';
@@ -1001,7 +1011,8 @@ export async function processVotes(db: Firestore, gameId: string) {
           transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: game.players, events: game.events }));
           return;
       }
-
+      
+      game.pendingHunterShot = triggeredHunterId;
       if (game.pendingHunterShot) {
         transaction.update(gameRef, toPlainObject({
           players: game.players, events: game.events, phase: 'hunter_shot', 
@@ -1026,13 +1037,13 @@ export async function processVotes(db: Firestore, gameId: string) {
 
     return { success: true };
   } catch (error: any) {
-    console.error("CRITICAL ERROR in processVotes:", error);
     if (error.code === 'permission-denied') {
       const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
       errorEmitter.emit('permission-error', permissionError);
       return { error: "Permiso denegado al procesar la votación." };
     }
-    return { error: `Hubo un problema fatal al procesar la votación: ${error.message}` };
+    console.error("Error processing votes:", error);
+    return { error: `Hubo un problema al procesar la votación: ${error.message}` };
   }
 }
 
@@ -1081,7 +1092,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 return;
             }
             
-            const { updatedGame, triggeredHunterId } = await killPlayer(transaction, gameRef, game, targetId, 'hunter_shot');
+            let { updatedGame, triggeredHunterId } = await killPlayer(transaction, gameRef, game, targetId, 'hunter_shot');
             game = updatedGame;
             
             game.events.push({
@@ -1091,6 +1102,8 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             });
             
             if (triggeredHunterId) {
+                // Another hunter was triggered by the shot, wait for them.
+                game.pendingHunterShot = triggeredHunterId;
                 transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: triggeredHunterId }));
                 return;
             }
@@ -1107,8 +1120,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             const hunterDeathEvent = [...game.events].sort((a, b) => toPlainObject(b.createdAt) - toPlainObject(a.createdAt)).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
             
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
-            
-            const currentRound = game.currentRound || 0;
+            const currentRound = game.currentRound;
             const newRound = nextPhase === 'night' ? currentRound + 1 : currentRound;
 
             game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; });
@@ -1169,7 +1181,7 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             const voter = gameData.players.find(p => p.userId === voterId);
             const target = gameData.players.find(p => p.userId === targetId);
             if (voter && target && !voter.isAI) {
-                await triggerAIChat(db, gameId, `${voter.displayName} ha votado por ${target.displayName}.`);
+                await triggerAIChat(db, gameId, `${voter.displayName} ha votado por ${target.displayName}.`, 'public');
             }
         }
 
@@ -1227,7 +1239,7 @@ export async function sendChatMessage(
 
         if (!isFromAI && latestGame) {
             const triggerMessage = `${senderName} dijo: "${text.trim()}"`;
-            await triggerAIChat(db, gameId, triggerMessage);
+            await triggerAIChat(db, gameId, triggerMessage, 'public');
         }
 
         return { success: true };
@@ -1249,7 +1261,7 @@ async function sendSpecialChatMessage(
     senderId: string,
     senderName: string,
     text: string,
-    chatType: 'wolf' | 'fairy' | 'lovers' | 'twin'
+    chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost'
 ) {
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
@@ -1297,6 +1309,12 @@ async function sendSpecialChatMessage(
                         chatField = 'twinChatMessages';
                     }
                     break;
+                case 'ghost':
+                    if (!sender.isAlive) {
+                        canSend = true;
+                        chatField = 'ghostChatMessages';
+                    }
+                    break;
             }
 
             if (!canSend) {
@@ -1329,6 +1347,7 @@ export const sendWolfChatMessage = (db: Firestore, gameId: string, senderId: str
 export const sendFairyChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'fairy');
 export const sendLoversChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'lovers');
 export const sendTwinChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'twin');
+export const sendGhostChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'ghost');
 
 
 export async function resetGame(db: Firestore, gameId: string) {
@@ -1351,7 +1370,7 @@ export async function resetGame(db: Firestore, gameId: string) {
             transaction.update(gameRef, toPlainObject({
                 status: 'waiting', phase: 'waiting', currentRound: 0,
                 events: [], chatMessages: [], wolfChatMessages: [], fairyChatMessages: [],
-                twinChatMessages: [], loversChatMessages: [], nightActions: [],
+                twinChatMessages: [], loversChatMessages: [], ghostChatMessages: [], nightActions: [],
                 twins: null, lovers: null, phaseEndsAt: Timestamp.now(), pendingHunterShot: null,
                 wolfCubRevengeRound: 0, players: resetHumanPlayers, vampireKills: 0, boat: [],
                 leprosaBlockedRound: 0, witchFoundSeer: false, seerDied: false,
@@ -1370,6 +1389,7 @@ export async function resetGame(db: Firestore, gameId: string) {
         return { error: e.message || 'No se pudo reiniciar la partida.' };
     }
 }
+
 export async function setPhaseToNight(db: Firestore, gameId: string) {
   const gameRef = doc(db, "games", gameId) as DocumentReference<Game>;
   try {
@@ -1382,6 +1402,22 @@ export async function setPhaseToNight(db: Firestore, gameId: string) {
             const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
             let updateData: Partial<Game> = { phase: 'night', phaseEndsAt };
             
+            if (game.settings.cupid && game.currentRound === 1) {
+                const cupidAction = game.nightActions?.find(a => a.round === 1 && a.actionType === 'cupid_love');
+                if (cupidAction) {
+                    const loverIds = cupidAction.targetId.split('|') as [string, string];
+                    if (loverIds.length === 2) {
+                        const playerUpdates = game.players.map(p => {
+                            if (loverIds.includes(p.userId)) {
+                                return { ...p, isLover: true };
+                            }
+                            return p;
+                        });
+                        updateData.players = playerUpdates;
+                        updateData.lovers = loverIds;
+                    }
+                }
+            }
              transaction.update(gameRef, toPlainObject(updateData));
         }
     });
@@ -1493,7 +1529,7 @@ export async function submitTroublemakerAction(db: Firestore, gameId: string, tr
 // AI LOGIC
 // ===============================================================================================
 
-async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: string) {
+async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers') {
     try {
         const gameDoc = await getDoc(doc(db, 'games', gameId));
         if (!gameDoc.exists()) return;
@@ -1504,12 +1540,16 @@ async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: stri
         const aiPlayersToTrigger = game.players.filter(p => p.isAI && p.isAlive);
 
         for (const aiPlayer of aiPlayersToTrigger) {
-             if (Math.random() < 0.35) { // % chance to speak
+             const isAccused = triggerMessage.toLowerCase().includes(aiPlayer.displayName.toLowerCase());
+             const shouldTrigger = isAccused ? Math.random() < 0.95 : Math.random() < 0.35;
+
+             if (shouldTrigger) {
                 const perspective: AIPlayerPerspective = {
                     game: toPlainObject(game),
                     aiPlayer: toPlainObject(aiPlayer),
                     trigger: triggerMessage,
                     players: toPlainObject(game.players),
+                    chatType,
                 };
 
                 generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
@@ -1524,6 +1564,48 @@ async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: stri
         console.error("Error in triggerAIChat:", e);
     }
 }
+async function triggerPrivateAIChats(db: Firestore, gameId: string, triggerMessage: string) {
+     try {
+        const gameDoc = await getDoc(doc(db, 'games', gameId));
+        if (!gameDoc.exists()) return;
+
+        const game = gameDoc.data() as Game;
+        if (game.status === 'finished') return;
+
+        const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
+        const twinIds = game.twins || [];
+        const loverIds = game.lovers || [];
+
+        const wolves = game.players.filter(p => p.isAI && p.isAlive && p.role && wolfRoles.includes(p.role));
+        const twins = game.players.filter(p => p.isAI && p.isAlive && twinIds.includes(p.userId));
+        const lovers = game.players.filter(p => p.isAI && p.isAlive && loverIds.includes(p.userId));
+
+        const processChat = async (players: Player[], chatType: 'wolf' | 'twin' | 'lovers', sendMessageFn: Function) => {
+            for (const aiPlayer of players) {
+                if (Math.random() < 0.8) { // Higher chance to talk in private
+                    const perspective: AIPlayerPerspective = {
+                        game: toPlainObject(game), aiPlayer: toPlainObject(aiPlayer), trigger: triggerMessage,
+                        players: toPlainObject(game.players), chatType,
+                    };
+                    generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
+                        if (shouldSend && message) {
+                            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
+                            await sendMessageFn(db, gameId, aiPlayer.userId, aiPlayer.displayName, message);
+                        }
+                    }).catch(err => console.error(`Error in private AI chat for ${aiPlayer.displayName}:`, err));
+                }
+            }
+        };
+
+        if (wolves.length > 1) await processChat(wolves, 'wolf', sendWolfChatMessage);
+        if (twins.length > 1) await processChat(twins, 'twin', sendTwinChatMessage);
+        if (lovers.length > 1) await processChat(lovers, 'lovers', sendLoversChatMessage);
+
+    } catch (e) {
+        console.error("Error in triggerPrivateAIChats:", e);
+    }
+}
+
 
 
 export async function triggerAIVote(db: Firestore, gameId: string) {
@@ -1536,6 +1618,8 @@ export async function triggerAIVote(db: Firestore, gameId: string) {
         const aiPlayersToVote = game.players.filter(p => p.isAI && p.isAlive && !p.votedFor);
         const alivePlayers = game.players.filter(p => p.isAlive);
         const deadPlayers = game.players.filter(p => !p.isAlive);
+        
+        await triggerPrivateAIChats(db, gameId, "El día ha comenzado. ¿Por quién deberíamos votar?");
 
         for (const ai of aiPlayersToVote) {
             const { targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
@@ -1557,7 +1641,7 @@ export const getDeterministicAIAction = (
     alivePlayers: Player[],
     deadPlayers: Player[],
 ): { actionType: NightActionType | 'VOTE' | 'SHOOT' | 'NONE', targetId: string } => {
-    const { role, userId, lastHealedRound } = aiPlayer;
+    const { role, userId } = aiPlayer;
     const { currentRound, nightActions = [] } = game;
     const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed'];
     const wolfCubRevengeActive = game.wolfCubRevengeRound === game.currentRound;
