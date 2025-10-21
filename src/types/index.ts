@@ -1,5 +1,3 @@
-
-
 import type { Timestamp } from 'firebase/firestore';
 import { z } from 'zod';
 import type { GameSchema, PlayerSchema } from './zod';
@@ -60,6 +58,7 @@ export interface Game {
   fairyChatMessages: ChatMessage[];
   twinChatMessages: ChatMessage[];
   loversChatMessages: ChatMessage[];
+  ghostChatMessages: ChatMessage[];
   maxPlayers: number;
   createdAt: Timestamp;
   currentRound: number;
@@ -211,6 +210,7 @@ export interface AIPlayerPerspective {
   aiPlayer: z.infer<typeof PlayerSchema>;
   trigger: string;
   players: z.infer<typeof PlayerSchema>[];
+  chatType: 'public' | 'wolf' | 'twin' | 'lovers';
 };
 
 
