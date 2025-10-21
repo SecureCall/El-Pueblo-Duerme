@@ -142,13 +142,9 @@ export function CreateGameForm() {
   };
 
   async function onSubmit(data: CreateGameFormValues) {
+    // This check is now a safeguard; the button's disabled state is the primary gate.
     if (!isSessionLoaded || !userId || !firestore || !avatarUrl) {
-        toast({
-            variant: "destructive",
-            title: "Esperando sesión",
-            description: "Por favor, espera un momento mientras iniciamos tu sesión y avatar.",
-        });
-        return;
+      return;
     }
     
     const trimmedGameName = data.gameName.trim();
@@ -168,7 +164,6 @@ export function CreateGameForm() {
 
     const { maxPlayers, fillWithAI, isPublic, ...roles } = data;
 
-    // Filter for only the roles settings
     const roleSettings = implementedRoles.reduce((acc, roleId) => {
         acc[roleId] = !!roles[roleId];
         return acc;
