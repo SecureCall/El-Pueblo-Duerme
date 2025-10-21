@@ -1,5 +1,3 @@
-
-
 'use client';
 import { 
   doc,
@@ -822,10 +820,30 @@ export async function processNight(db: Firestore, gameId: string) {
 
         const hechiceraPoisonAction = actions.find(a => a.actionType === 'hechicera_poison');
         if (hechiceraPoisonAction) pendingDeaths.push({ targetId: hechiceraPoisonAction.targetId, cause: 'special' });
-
+        
         const lookoutAction = actions.find(a => a.actionType === 'lookout_spy');
-        if (lookoutAction && Math.random() >= 0.4) { // 60% success rate -> 40% fail
-             pendingDeaths.push({ targetId: lookoutAction.playerId, cause: 'special' });
+        if (lookoutAction) {
+            if (Math.random() < 0.4) { // 40% fail rate
+                pendingDeaths.push({ targetId: lookoutAction.playerId, cause: 'special' });
+                game.events.push({ id: `evt_lookout_fail_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: `¡${game.players.find(p=>p.userId===lookoutAction.playerId)?.displayName} ha sido descubierto espiando y ha muerto!`, data: { targetId: lookoutAction.playerId }, createdAt: Timestamp.now() });
+            } else {
+                const visits: Record<string, string[]> = {};
+                actions.forEach(act => {
+                    if(act.playerId !== lookoutAction.playerId && act.targetId){
+                        act.targetId.split('|').forEach(tid => {
+                            if(!visits[tid]) visits[tid] = [];
+                            const visitor = game.players.find(p => p.userId === act.playerId);
+                            if(visitor) visits[tid].push(visitor.displayName);
+                        });
+                    }
+                });
+                const visitorsToTarget = visits[lookoutAction.targetId] || [];
+                 if (visitorsToTarget.length > 0) {
+                    game.events.push({ id: `evt_lookout_success_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: `Mientras vigilabas, viste a ${[...new Set(visitorsToTarget)].join(', ')} visitar la casa.`, data: { targetId: lookoutAction.playerId }, createdAt: Timestamp.now() });
+                } else {
+                    game.events.push({ id: `evt_lookout_success_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: `La noche fue tranquila en la casa que vigilabas. No viste a nadie.`, data: { targetId: lookoutAction.playerId }, createdAt: Timestamp.now() });
+                }
+            }
         }
         
         // --- PHASE 3: PROTECTION & REACTION ---
@@ -840,10 +858,8 @@ export async function processNight(db: Firestore, gameId: string) {
                     game.players[cursedPlayerIndex].role = 'werewolf';
                     game.events.push({ id: `evt_transform_cursed_${Date.now()}`, gameId, round: game.currentRound, type: 'player_transformed', message: `¡${targetPlayer.displayName} ha sido mordido y se ha transformado en Hombre Lobo!`, data: { targetId: targetPlayer.userId, newRole: 'werewolf' }, createdAt: Timestamp.now() });
                 }
-            } else {
-                 if (!allProtectedIds.has(wolfTargetId)) {
-                    pendingDeaths.push({ targetId: wolfTargetId, cause: 'werewolf_kill' });
-                 }
+            } else if (!allProtectedIds.has(wolfTargetId)) {
+                 pendingDeaths.push({ targetId: wolfTargetId, cause: 'werewolf_kill' });
             }
         }
         
@@ -994,12 +1010,13 @@ export async function processVotes(db: Firestore, gameId: string) {
         return;
       }
 
-      game.players.forEach(p => { p.votedFor = null; });
+      const newRound = game.currentRound + 1;
+      game.players.forEach(p => { 
+        p.votedFor = null;
+        p.usedNightAbility = false; 
+      });
       const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
       
-      // Correctly increment the round number
-      const newRound = game.currentRound + 1;
-
       transaction.update(gameRef, toPlainObject({
         players: game.players, events: game.events, phase: 'night', phaseEndsAt,
         currentRound: newRound, pendingHunterShot: null, silencedPlayerId: null,
@@ -1090,7 +1107,9 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             const hunterDeathEvent = [...game.events].sort((a, b) => toPlainObject(b.createdAt) - toPlainObject(a.createdAt)).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
             
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
-            const newRound = nextPhase === 'night' ? game.currentRound + 1 : game.currentRound;
+            
+            const currentRound = game.currentRound || 0;
+            const newRound = nextPhase === 'night' ? currentRound + 1 : currentRound;
 
             game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; });
             const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
