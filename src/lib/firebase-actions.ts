@@ -1,3 +1,4 @@
+
 'use client';
 import { 
   doc,
@@ -69,7 +70,11 @@ export async function createGame(
   maxPlayers: number,
   settings: Game['settings']
 ) {
-  if (!userId || !displayName?.trim() || !gameName?.trim()) {
+  // Defensive type checking
+  if (typeof displayName !== 'string' || typeof gameName !== 'string') {
+      return { error: "El nombre del jugador y de la partida deben ser texto." };
+  }
+  if (!userId || !displayName.trim() || !gameName.trim()) {
     return { error: "Datos incompletos para crear la partida." };
   }
   if (maxPlayers < 3 || maxPlayers > 32) {
@@ -242,7 +247,6 @@ export async function updatePlayerAvatar(db: Firestore, gameId: string, userId: 
         return { success: false, error: error.message };
     }
 }
-//... (keep generateRoles, AI_NAMES, MINIMUM_PLAYERS as they are)
 const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
     let baseRoles: PlayerRole[] = [];
     const numWerewolves = Math.max(1, Math.floor(playerCount / 4));
@@ -384,8 +388,6 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
         return { error: e.message || 'Error al iniciar la partida.' };
     }
 }
-//... (keep submitNightAction, checkGameOver, etc. as they are)
-
 export async function submitNightAction(db: Firestore, action: Omit<NightAction, 'createdAt' | 'round'> & { round: number }) {
   const { gameId, playerId, actionType, targetId } = action;
   const gameRef = doc(db, 'games', gameId);
@@ -405,7 +407,6 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         let players = [...game.players];
         const playerIndex = players.findIndex(p => p.userId === action.playerId);
         
-        // Guard Clause for player index
         if (playerIndex === -1) {
             console.error(`Critical error: Player ${action.playerId} not found in game ${gameId} during night action.`);
             return;
@@ -828,11 +829,8 @@ export async function processNight(db: Firestore, gameId: string) {
         
         // --- PHASE 3: PROTECTION & REACTION ---
         const allProtectedIds = new Set<string>();
-        actions.filter(a => ['doctor_heal', 'guardian_protect', 'priest_bless'].includes(a.actionType)).forEach(a => allProtectedIds.add(a.targetId));
+        actions.filter(a => ['doctor_heal', 'guardian_protect', 'priest_bless', 'hechicera_save'].includes(a.actionType)).forEach(a => allProtectedIds.add(a.targetId));
         
-        const hechiceraSaveAction = actions.find(a => a.actionType === 'hechicera_save');
-        if (hechiceraSaveAction) allProtectedIds.add(hechiceraSaveAction.targetId);
-
         if (wolfTargetId) {
             const targetPlayer = game.players.find(p => p.userId === wolfTargetId);
             if (targetPlayer?.role === 'cursed' && game.settings.cursed && !allProtectedIds.has(wolfTargetId)) {
@@ -861,7 +859,6 @@ export async function processNight(db: Firestore, gameId: string) {
              game.players.forEach(p => { if (p.role === 'werewolf' || p.role === 'wolf_cub') p.usedNightAbility = false; });
              game.wolfCubRevengeRound = 0; // Mark as used
              transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, wolfCubRevengeRound: 0 }));
-             // Important: We return here to keep it in the night phase for the second attack.
              return; 
         }
 
@@ -1084,7 +1081,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 return;
             }
             
-            const hunterDeathEvent = [...game.events].sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis()).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
+            const hunterDeathEvent = [...game.events].sort((a, b) => toPlainObject(b.createdAt) - toPlainObject(a.createdAt)).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
             
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
             const nextRound = nextPhase === 'night' ? game.currentRound + 1 : game.currentRound;
@@ -1163,8 +1160,6 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
         return { error: "No se pudo registrar tu voto." };
     }
 }
-//... (keep sendChatMessage and special chat messages as they are)
-
 export async function sendChatMessage(
     db: Firestore,
     gameId: string,
@@ -1272,7 +1267,7 @@ async function sendSpecialChatMessage(
                     }
                     break;
                  case 'twin':
-                    if (sender.role === 'twin') {
+                    if (game.twins?.includes(senderId)) {
                         canSend = true;
                         chatField = 'twinChatMessages';
                     }
@@ -1350,8 +1345,6 @@ export async function resetGame(db: Firestore, gameId: string) {
         return { error: e.message || 'No se pudo reiniciar la partida.' };
     }
 }
-//... (keep setPhaseToNight, sendGhostMessage, etc. as they are)
-
 export async function setPhaseToNight(db: Firestore, gameId: string) {
   const gameRef = doc(db, "games", gameId) as DocumentReference<Game>;
   try {
@@ -1470,8 +1463,6 @@ export async function submitTroublemakerAction(db: Firestore, gameId: string, tr
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
-//... (keep AI logic as it is)
-
 async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: string) {
     try {
         const gameDoc = await getDoc(doc(db, 'games', gameId));
@@ -1733,3 +1724,5 @@ export async function runAIActions(db: Firestore, gameId: string) {
         console.error("Error in AI Actions:", e);
     }
 }
+
+    

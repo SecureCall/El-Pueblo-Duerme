@@ -83,7 +83,7 @@ const implementedRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'
 
 export function CreateGameForm() {
   const router = useRouter();
-  const { userId, displayName, setDisplayName, isSessionLoaded } = useGameSession();
+  const { userId, displayName, setDisplayName, avatarUrl, isSessionLoaded } = useGameSession();
   const { firestore } = useFirebase();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -142,42 +142,52 @@ export function CreateGameForm() {
   };
 
   async function onSubmit(data: CreateGameFormValues) {
-    if (!isSessionLoaded || !userId || !firestore) {
+    if (!isSessionLoaded || !userId || !firestore || !avatarUrl) {
         toast({
             variant: "destructive",
             title: "Esperando sesión",
-            description: "Por favor, espera un momento mientras iniciamos tu sesión.",
+            description: "Por favor, espera un momento mientras iniciamos tu sesión y avatar.",
         });
         return;
     }
     
-    if (!data.displayName.trim()) {
+    const trimmedGameName = data.gameName.trim();
+    const trimmedDisplayName = data.displayName.trim();
+
+    if (!trimmedDisplayName) {
         form.setError("displayName", { type: "manual", message: "Tu nombre no puede estar vacío." });
+        return;
+    }
+    if (!trimmedGameName) {
+        form.setError("gameName", { type: "manual", message: "El nombre de la partida no puede estar vacío." });
         return;
     }
 
     setIsSubmitting(true);
-    setDisplayName(data.displayName.trim());
+    setDisplayName(trimmedDisplayName);
 
-    const { gameName, displayName: pName, maxPlayers, ...settings } = data;
+    const { maxPlayers, fillWithAI, isPublic, ...roles } = data;
 
-    const sanitizedRoles = implementedRoles.reduce((acc, roleId) => {
-        acc[roleId as keyof typeof settings] = !!settings[roleId as keyof typeof settings];
+    // Filter for only the roles settings
+    const roleSettings = implementedRoles.reduce((acc, roleId) => {
+        acc[roleId] = !!roles[roleId];
         return acc;
     }, {} as Record<Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>, boolean>);
 
+
     const gameSettings = {
-        fillWithAI: settings.fillWithAI,
-        isPublic: settings.isPublic,
-        werewolves: 1, 
-        ...sanitizedRoles
+        fillWithAI,
+        isPublic,
+        werewolves: 1, // This can be adjusted later based on rules
+        ...roleSettings
     };
     
     const response = await createGame(
       firestore,
       userId,
-      pName.trim(),
-      gameName,
+      trimmedDisplayName,
+      avatarUrl,
+      trimmedGameName,
       maxPlayers,
       gameSettings
     );
