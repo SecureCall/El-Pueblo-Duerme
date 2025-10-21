@@ -1,3 +1,4 @@
+
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { Timestamp } from "firebase/firestore";
@@ -42,6 +43,11 @@ export function toPlainObject<T>(obj: T): T {
     if (Array.isArray(obj)) {
         return obj.map(item => toPlainObject(item)) as any;
     }
+    
+    // This handles Firestore's Increment object by getting its operand
+    if (typeof obj === 'object' && 'operand' in obj && typeof (obj as any)._methodName === 'string' && (obj as any)._methodName.includes('increment')) {
+        return (obj as any).operand;
+    }
 
     const newObj: { [key: string]: any } = {};
     for (const key in obj) {
@@ -54,4 +60,3 @@ export function toPlainObject<T>(obj: T): T {
     }
     return newObj as T;
 }
-

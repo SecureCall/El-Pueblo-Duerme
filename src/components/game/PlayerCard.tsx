@@ -14,12 +14,15 @@ import { VampireIcon } from "../icons";
 
 interface PlayerCardProps {
   player: Player & { causeOfDeath?: GameEvent['type'] | 'other' };
+  currentPlayer: Player;
+  onClick?: () => void;
   isClickable?: boolean;
   isSelected?: boolean;
-  onClick?: () => void;
+  highlightColor?: string;
+  votes?: string[];
 }
 
-export function PlayerCard({ player, onClick, isClickable, isSelected }: PlayerCardProps) {
+export function PlayerCard({ player, currentPlayer, onClick, isClickable, isSelected, highlightColor, votes }: PlayerCardProps) {
 
  if (!player.isAlive) {
     const roleInfo = player.role ? (roleDetails[player.role] ?? defaultRoleDetail) : defaultRoleDetail;
@@ -93,6 +96,8 @@ export function PlayerCard({ player, onClick, isClickable, isSelected }: PlayerC
     );
 }
 
+  const cardStyle = highlightColor ? { boxShadow: `0 0 15px 4px ${highlightColor}` } : {};
+
   return (
     <TooltipProvider>
       <Tooltip>
@@ -105,12 +110,19 @@ export function PlayerCard({ player, onClick, isClickable, isSelected }: PlayerC
                 isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
               )}
               onClick={onClick}
+              style={cardStyle}
             >
+              {votes && votes.length > 0 && (
+                <Badge variant="destructive" className="absolute -top-2 -right-2 z-10">{votes.length}</Badge>
+              )}
               {player.isAI && (
                 <Bot className="absolute -top-2 -left-2 z-10 h-5 w-5 text-muted-foreground" />
               )}
               {player.princeRevealed && (
                  <Crown className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-10 h-5 w-5 text-yellow-400" />
+              )}
+               {player.isLover && currentPlayer.isLover && player.userId !== currentPlayer.userId && (
+                 <Heart className="absolute -top-2 -right-2 z-10 h-5 w-5 text-pink-400" />
               )}
               <CardContent className="p-0">
                 <Avatar className="h-20 w-20 border-2 border-border">
@@ -123,13 +135,22 @@ export function PlayerCard({ player, onClick, isClickable, isSelected }: PlayerC
               </CardFooter>
             </Card>
         </TooltipTrigger>
+         {votes && votes.length > 0 && (
+            <TooltipContent>
+                <p>Votos de: {votes.join(', ')}</p>
+            </TooltipContent>
+        )}
          {player.princeRevealed && (
              <TooltipContent>
                 <p>¡Príncipe revelado! Inmune al linchamiento.</p>
             </TooltipContent>
          )}
+         {player.isLover && currentPlayer.isLover && player.userId !== currentPlayer.userId && (
+              <TooltipContent>
+                <p>Tu enamorado/a.</p>
+              </TooltipContent>
+         )}
       </Tooltip>
     </TooltipProvider>
   );
 }
-

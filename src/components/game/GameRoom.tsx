@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -6,7 +7,6 @@ import { useGameSession } from "@/hooks/use-game-session";
 import { useGameState } from "@/hooks/use-game-state";
 import { EnterNameModal } from "./EnterNameModal";
 import { joinGame } from "@/lib/firebase-actions";
-import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { GameLobby } from "./GameLobby";
 import { GameBoard } from "./GameBoard";
@@ -16,8 +16,8 @@ import { useFirebase } from "@/firebase";
 import { GameMusic } from "./GameMusic";
 
 export function GameRoom({ gameId }: { gameId: string }) {
-  const { userId, displayName, setDisplayName, isSessionLoaded } = useGameSession();
-  const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, loading, error: gameStateError } = useGameState(gameId);
+  const { userId, displayName, setDisplayName, isSessionLoaded, avatarUrl } = useGameSession();
+  const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, loading, error: gameStateError } = useGameState(gameId);
   const [isJoining, setIsJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
 
@@ -29,24 +29,22 @@ export function GameRoom({ gameId }: { gameId: string }) {
   }, [setDisplayName]);
   
   const handleJoinGame = useCallback(async () => {
-    if (!displayName || !firestore) return;
+    if (!displayName || !firestore || !avatarUrl || !userId) return;
     
     setIsJoining(true);
     setJoinError(null);
 
-    const result = await joinGame(firestore, gameId, userId, displayName);
+    const result = await joinGame(firestore, gameId, userId, displayName, avatarUrl);
     
     if (result.error) {
-      if (result.error.includes("nombre ya está en uso")) {
         setJoinError(result.error);
-        setDisplayName(null); // Force user to re-enter name
-      }
+        if (result.error.includes("nombre ya está en uso")) {
+            setDisplayName(null); // Force user to re-enter name
+        }
     }
-    // On success, the useGameState hook will update the currentPlayer, and the component will re-render.
     setIsJoining(false);
-  }, [displayName, firestore, gameId, userId, setDisplayName]);
+  }, [displayName, firestore, gameId, userId, setDisplayName, avatarUrl]);
   
-  // Automatically try to join if the user has a name and isn't in the game yet.
   useEffect(() => {
     if (game && displayName && !currentPlayer && game.status === 'waiting' && !isJoining) {
         handleJoinGame();
@@ -74,7 +72,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
   const bgImage = PlaceHolderImages.find((img) => img.id === bgImageId);
 
   const renderContent = () => {
-    if (loading || !isSessionLoaded) {
+    if (loading || !isSessionLoaded || !avatarUrl) {
       return (
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -87,12 +85,10 @@ export function GameRoom({ gameId }: { gameId: string }) {
       return <p className="text-destructive text-xl">{gameStateError || "Partida no encontrada."}</p>;
     }
     
-    // If the user needs to enter a name (either for the first time, or because of an error)
     if (!displayName) {
         return <EnterNameModal isOpen={!displayName} onNameSubmit={handleNameSubmit} error={joinError} />;
     }
 
-    // If the user has a name but is not yet in the player list
     if (!currentPlayer) {
       if (game.status !== 'waiting') {
         return <p className="text-destructive text-xl">Esta partida ya ha comenzado.</p>;
@@ -110,10 +106,10 @@ export function GameRoom({ gameId }: { gameId: string }) {
     
     switch (game.status) {
         case 'waiting':
-            return <GameLobby game={game} players={players} isCreator={game.creator === userId} />;
+            return <GameLobby game={game} players={players} isCreator={game.creator === userId} currentPlayer={currentPlayer} />;
         case 'in_progress':
         case 'finished':
-            return <GameBoard game={game} players={players} currentPlayer={currentPlayer} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} />;
+            return <GameBoard game={game} players={players} currentPlayer={currentPlayer} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} ghostMessages={ghostMessages} />;
         default:
             return <p>Estado de la partida desconocido.</p>;
     }
@@ -128,7 +124,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
           fill
           className="object-cover z-0 transition-opacity duration-1000"
           data-ai-hint={bgImage.imageHint}
-          key={bgImage.id} // This is crucial to force re-render on image change
+          key={bgImage.id}
           priority
         />
       )}
@@ -140,3 +136,5 @@ export function GameRoom({ gameId }: { gameId: string }) {
     </div>
   );
 }
+
+    
