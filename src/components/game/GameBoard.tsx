@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -11,7 +12,7 @@ import { NightActions } from "./NightActions";
 import { processNight, processVotes, setPhaseToNight, triggerAIVote, runAIActions } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
-import { Heart, Moon, Sun, Users2, Wand2, Loader2 } from "lucide-react";
+import { Heart, Moon, Sun, Users2, Wand2, Loader2, UserX } from "lucide-react";
 import { HunterShot } from "./HunterShot";
 import { GameChronicle } from "./GameChronicle";
 import { PhaseTimer } from "./PhaseTimer";
@@ -239,16 +240,13 @@ export function GameBoard({
 function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, currentPlayer, getCauseOfDeath, timeLeft }: GameBoardProps & { getCauseOfDeath: (playerId: string) => GameEvent['type'] | 'other', timeLeft: number }) {
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
-  const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
+  const voteEvent = events.find(e => e.type === 'vote_result' && e.round === (game.phase === 'day' ? game.currentRound : game.currentRound - 1));
   const behaviorClueEvent = events.find(e => e.type === 'behavior_clue' && e.round === game.currentRound -1);
 
   const getPhaseTitle = () => {
     if (!game) return '';
     
-    let roundNumber = game.currentRound;
-     if (typeof roundNumber === 'object' && roundNumber !== null && 'operand' in (roundNumber as any)) {
-        roundNumber = (roundNumber as any).operand; 
-    }
+    const roundNumber = game.currentRound || 0;
 
     switch(game.phase) {
         case 'night': return `NOCHE ${roundNumber}`;
@@ -266,6 +264,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
      switch(game.phase) {
         case 'night':
              if (currentPlayer?.usedNightAbility) return 'Has actuado. Espera al amanecer.';
+             if (game.exiledPlayerId === currentPlayer?.userId) return <> <UserX className="inline-block h-4 w-4" /> ¡Exiliado! No puedes actuar esta noche. </>;
              if (currentPlayer?.role && ['werewolf', 'wolf_cub', 'seer', 'seer_apprentice', 'doctor', 'hechicera', 'guardian', 'priest', 'vampire', 'cult_leader', 'fisherman', 'shapeshifter', 'virginia_woolf', 'river_siren', 'silencer', 'elder_leader', 'witch', 'banshee', 'lookout', 'seeker_fairy', 'resurrector_angel', 'cupid'].includes(currentPlayer.role)) {
                  return "Es tu turno de actuar.";
              }

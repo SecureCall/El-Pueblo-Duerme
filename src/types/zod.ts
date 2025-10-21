@@ -1,4 +1,5 @@
 
+
 import { z } from 'zod';
 
 const TimestampSchema = z.union([
@@ -143,7 +144,7 @@ export const GameSchema = z.object({
   createdAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null),
   currentRound: z.union([z.number(), z.object({operand: z.number()})]),
   settings: GameSettingsSchema,
-  phaseEndsAt: TimestampSchema.refine((v): v is NonNullable<typeof v> => v !== null),
+  phaseEndsAt: TimestampSchema,
   twins: z.tuple([z.string(), z.string()]).nullable(),
   lovers: z.tuple([z.string(), z.string()]).nullable(),
   pendingHunterShot: z.string().nullable(),

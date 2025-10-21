@@ -1,4 +1,5 @@
 
+
 'use client';
 import { 
   doc,
@@ -823,7 +824,7 @@ export async function processNight(db: Firestore, gameId: string) {
         if (hechiceraPoisonAction) pendingDeaths.push({ targetId: hechiceraPoisonAction.targetId, cause: 'special' });
 
         const lookoutAction = actions.find(a => a.actionType === 'lookout_spy');
-        if (lookoutAction && Math.random() >= 0.4) { // 60% fail rate
+        if (lookoutAction && Math.random() >= 0.4) { // 60% success rate -> 40% fail
              pendingDeaths.push({ targetId: lookoutAction.playerId, cause: 'special' });
         }
         
@@ -839,8 +840,10 @@ export async function processNight(db: Firestore, gameId: string) {
                     game.players[cursedPlayerIndex].role = 'werewolf';
                     game.events.push({ id: `evt_transform_cursed_${Date.now()}`, gameId, round: game.currentRound, type: 'player_transformed', message: `¡${targetPlayer.displayName} ha sido mordido y se ha transformado en Hombre Lobo!`, data: { targetId: targetPlayer.userId, newRole: 'werewolf' }, createdAt: Timestamp.now() });
                 }
-            } else if (!allProtectedIds.has(wolfTargetId)) {
-                pendingDeaths.push({ targetId: wolfTargetId, cause: 'werewolf_kill' });
+            } else {
+                 if (!allProtectedIds.has(wolfTargetId)) {
+                    pendingDeaths.push({ targetId: wolfTargetId, cause: 'werewolf_kill' });
+                 }
             }
         }
         
@@ -994,9 +997,12 @@ export async function processVotes(db: Firestore, gameId: string) {
       game.players.forEach(p => { p.votedFor = null; });
       const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
       
+      // Correctly increment the round number
+      const newRound = game.currentRound + 1;
+
       transaction.update(gameRef, toPlainObject({
         players: game.players, events: game.events, phase: 'night', phaseEndsAt,
-        currentRound: increment(1), pendingHunterShot: null, silencedPlayerId: null,
+        currentRound: newRound, pendingHunterShot: null, silencedPlayerId: null,
         exiledPlayerId: null,
       }));
     });
@@ -1084,14 +1090,14 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             const hunterDeathEvent = [...game.events].sort((a, b) => toPlainObject(b.createdAt) - toPlainObject(a.createdAt)).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
             
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
-            const nextRound = nextPhase === 'night' ? game.currentRound + 1 : game.currentRound;
+            const newRound = nextPhase === 'night' ? game.currentRound + 1 : game.currentRound;
 
             game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; });
             const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
             
             transaction.update(gameRef, toPlainObject({
                 players: game.players, events: game.events, phase: nextPhase, phaseEndsAt,
-                currentRound: nextRound, pendingHunterShot: null
+                currentRound: newRound, pendingHunterShot: null
             }));
         });
         return { success: true };
@@ -1463,6 +1469,11 @@ export async function submitTroublemakerAction(db: Firestore, gameId: string, tr
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
+
+// ===============================================================================================
+// AI LOGIC
+// ===============================================================================================
+
 async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: string) {
     try {
         const gameDoc = await getDoc(doc(db, 'games', gameId));
@@ -1527,7 +1538,7 @@ export const getDeterministicAIAction = (
     alivePlayers: Player[],
     deadPlayers: Player[],
 ): { actionType: NightActionType | 'VOTE' | 'SHOOT' | 'NONE', targetId: string } => {
-    const { role, userId } = aiPlayer;
+    const { role, userId, lastHealedRound } = aiPlayer;
     const { currentRound, nightActions = [] } = game;
     const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed'];
     const wolfCubRevengeActive = game.wolfCubRevengeRound === game.currentRound;
@@ -1623,13 +1634,14 @@ export const getDeterministicAIAction = (
                 return { actionType: 'seer_check', targetId: randomTarget(potentialTargets) };
             }
             return { actionType: 'NONE', targetId: '' };
-        case 'doctor': {
+        case 'doctor':
+        case 'guardian': {
             const healableTargets = potentialTargets.filter(p => p.lastHealedRound !== currentRound - 1);
-            return { actionType: 'doctor_heal', targetId: randomTarget(healableTargets.length > 0 ? healableTargets : potentialTargets) };
+            if (role === 'guardian' && (aiPlayer.guardianSelfProtects || 0) < 1 && Math.random() < 0.2) {
+                 return { actionType: 'guardian_protect', targetId: userId };
+            }
+            return { actionType: role === 'doctor' ? 'doctor_heal' : 'guardian_protect', targetId: randomTarget(healableTargets.length > 0 ? healableTargets : potentialTargets) };
         }
-        case 'guardian':
-             if ((aiPlayer.guardianSelfProtects || 0) < 1 && Math.random() < 0.2) return { actionType: 'guardian_protect', targetId: userId };
-            return { actionType: 'guardian_protect', targetId: randomTarget(potentialTargets) };
         case 'priest':
             if (!aiPlayer.priestSelfHealUsed && Math.random() < 0.2) return { actionType: 'priest_bless', targetId: userId };
             return { actionType: 'priest_bless', targetId: randomTarget(potentialTargets) };
@@ -1724,5 +1736,3 @@ export async function runAIActions(db: Firestore, gameId: string) {
         console.error("Error in AI Actions:", e);
     }
 }
-
-    
