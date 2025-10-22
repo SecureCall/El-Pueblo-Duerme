@@ -15,8 +15,7 @@ export default function Home() {
   const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
   
   useEffect(() => {
-    // This will only run on the client, and is safe here.
-    playNarration('Que comience el juego..mp3');
+    playNarration('inicio_juego.mp3');
   }, []);
 
   return (
@@ -34,7 +33,7 @@ export default function Home() {
           />
         )}
         <div className="absolute inset-0 bg-background/70 backdrop-blur-sm" />
-        <main className="relative z-10 flex flex-col items-center justify-center text-center text-primary-foreground space-y-8">
+        <main className="relative z-10 flex flex-col items-center justify-center text-center text-white space-y-8">
           <img
             src="/logo.png"
             alt="El Pueblo Duerme Logo"
@@ -45,7 +44,7 @@ export default function Home() {
           <h1 className="font-headline text-6xl md:text-8xl font-bold tracking-tight text-shadow-lg shadow-black/50">
             El Pueblo Duerme
           </h1>
-          <p className="max-w-2xl text-lg md:text-xl text-primary-foreground/80">
+          <p className="max-w-2xl text-lg md:text-xl text-white/80">
             Una noche más cae sobre el pueblo. Entre vosotros se esconden lobos. ¿Podréis descubrirlos antes de que sea tarde?
           </p>
 
@@ -53,16 +52,16 @@ export default function Home() {
             <Button asChild size="lg" className="w-full font-bold text-lg">
               <Link href="/create">Crear Partida</Link>
             </Button>
-             <Button asChild size="lg" variant="secondary" className="w-full font-bold text-lg text-foreground">
+             <Button asChild size="lg" variant="secondary" className="w-full font-bold text-lg">
               <Link href="/public-games"><Users className="mr-2 h-5 w-5"/> Salas Públicas</Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="w-full text-foreground">
+            <Button asChild size="lg" variant="outline" className="w-full">
                <Link href="/how-to-play"><BookOpen className="mr-2 h-5 w-5"/> Cómo Jugar</Link>
             </Button>
           </div>
           
           <div className="w-full max-w-md pt-8">
-            <p className="mb-4 text-lg font-semibold">O únete con un código:</p>
+            <p className="mb-4 text-lg font-semibold text-white">O únete con un código:</p>
             <JoinGameForm />
           </div>
         </main>
