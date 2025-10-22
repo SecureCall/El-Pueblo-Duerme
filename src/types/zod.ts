@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { SecretObjective } from '@/lib/objectives';
 
 const TimestampSchema = z.union([
   z.object({
@@ -20,12 +21,15 @@ export const PlayerRoleSchema = z.enum([
   "resurrector_angel", "cupid", "executioner"
 ]).nullable();
 
-const SecretObjectiveSchema = z.object({
+const SecretObjectiveZodSchema = z.object({
   id: z.string(),
+  name: z.string(),
   description: z.string(),
-  appliesTo: z.array(PlayerRoleSchema),
-  // The checkCompletion function can't be serialized, so we omit it from Zod validation
-}).passthrough();
+  appliesTo: z.array(z.union([PlayerRoleSchema, z.literal('any')])),
+  // The checkCompletion function can't be serialized, so we represent it as a function type but don't validate its content
+  checkCompletion: z.function(z.tuple([z.any(), z.any()]), z.boolean()),
+}).nullable();
+
 
 export const PlayerSchema = z.object({
   userId: z.string(),
@@ -62,7 +66,7 @@ export const PlayerSchema = z.object({
   defeats: z.number(),
   roleStats: z.record(z.object({ played: z.number(), won: z.number() })).optional(),
   achievements: z.array(z.string()),
-  secretObjective: SecretObjectiveSchema.nullable().optional(),
+  secretObjective: SecretObjectiveZodSchema.optional(),
 });
 
 export const NightActionSchema = z.object({
@@ -173,6 +177,7 @@ export const GameSchema = z.object({
   fairiesFound: z.boolean(),
   fairyKillUsed: z.boolean(),
   juryVotes: z.record(z.string()).optional(),
+  masterKillUsed: z.boolean().optional(),
 });
 
 export const AIPlayerPerspectiveSchema = z.object({

@@ -118,6 +118,7 @@ export interface Game {
   fairiesFound: boolean;
   fairyKillUsed: boolean;
   juryVotes?: Record<string, string>;
+  masterKillUsed?: boolean;
 }
 
 export interface Player {
@@ -186,14 +187,14 @@ export type NightActionType =
 export interface NightAction {
     gameId: string;
     round: number;
-    playerId: string;
+    playerId: string; // The player performing the action
     actionType: NightActionType;
-    targetId: string;
+    targetId: string; // The player targeted by the action. Can be multiple for wolf cub revenge, separated by |
     createdAt: Timestamp;
 }
 
 export interface GameEvent {
-    id: string;
+    id: string; // unique id for the event, can be generated on client
     gameId: string;
     round: number;
     type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot' | 'player_transformed' | 'behavior_clue' | 'special' | 'vampire_kill' | 'werewolf_kill' | 'troublemaker_duel';
