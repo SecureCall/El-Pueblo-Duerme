@@ -9,7 +9,6 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
 import { processNight, processVotes, setPhaseToNight, processJuryVotes } from "@/lib/firebase-actions";
-import { runAIActions, triggerAIVote } from "@/lib/ai-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { Heart, Moon, Sun, Users2, Wand2, Loader2, UserX, Scale } from "lucide-react";
@@ -29,7 +28,7 @@ import { VampireKillOverlay } from "./VampireKillOverlay";
 import { useGameState } from "@/hooks/use-game-state";
 import { LoversChat } from "./LoversChat";
 import { getMillis } from "@/lib/utils";
-import GhostChat from "@/components/game/GhostChat";
+import GhostSpectatorChat from "./GhostSpectatorChat";
 import { JuryVote } from "./JuryVote";
 import { MasterActionBar, type MasterActionState } from "./MasterActionBar";
 
@@ -403,6 +402,8 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
                         voteEvent={voteEvent}
                         behaviorClueEvent={behaviorClueEvent}
                         chatMessages={messages}
+                        masterActionState={masterActionState}
+                        setMasterActionState={setMasterActionState}
                     />
                 )}
                 
@@ -411,7 +412,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
                 )}
 
                 {showGhostChat && (
-                     <GhostChat gameId={game.id} currentPlayer={currentPlayer} messages={ghostMessages} />
+                     <GhostSpectatorChat gameId={game.id} currentPlayer={currentPlayer} messages={ghostMessages} />
                 )}
 
                 <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
