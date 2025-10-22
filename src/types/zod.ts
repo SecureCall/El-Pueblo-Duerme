@@ -139,6 +139,7 @@ export const GameSchema = z.object({
   fairyChatMessages: z.array(ChatMessageSchema),
   twinChatMessages: z.array(ChatMessageSchema),
   loversChatMessages: z.array(ChatMessageSchema),
+  ghostChatMessages: z.array(ChatMessageSchema),
   maxPlayers: z.number(),
   createdAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null),
   currentRound: z.number(),
@@ -166,7 +167,7 @@ export const AIPlayerPerspectiveSchema = z.object({
   aiPlayer: PlayerSchema,
   trigger: z.string(),
   players: z.array(PlayerSchema),
-  chatType: z.enum(['public', 'wolf', 'twin', 'lovers']),
+  chatType: z.enum(['public', 'wolf', 'twin', 'lovers', 'ghost']),
 });
 
 export const GenerateAIChatMessageOutputSchema = z.object({
