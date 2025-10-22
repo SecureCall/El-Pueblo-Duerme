@@ -1,4 +1,3 @@
-
 import { z } from 'zod';
 
 const TimestampSchema = z.union([
@@ -20,6 +19,13 @@ export const PlayerRoleSchema = z.enum([
   "sleeping_fairy", "shapeshifter", "drunk_man", "cult_leader", "fisherman", "vampire", "witch", "banshee",
   "resurrector_angel", "cupid", "executioner"
 ]).nullable();
+
+const SecretObjectiveSchema = z.object({
+  id: z.string(),
+  description: z.string(),
+  appliesTo: z.array(PlayerRoleSchema),
+  // The checkCompletion function can't be serialized, so we omit it from Zod validation
+}).passthrough();
 
 export const PlayerSchema = z.object({
   userId: z.string(),
@@ -56,6 +62,7 @@ export const PlayerSchema = z.object({
   defeats: z.number(),
   roleStats: z.record(z.object({ played: z.number(), won: z.number() })).optional(),
   achievements: z.array(z.string()),
+  secretObjective: SecretObjectiveSchema.nullable().optional(),
 });
 
 export const NightActionSchema = z.object({

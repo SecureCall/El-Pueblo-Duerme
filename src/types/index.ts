@@ -1,7 +1,7 @@
-
 import type { Timestamp } from 'firebase/firestore';
 import { z } from 'zod';
 import type { GameSchema, PlayerSchema } from './zod';
+import type { SecretObjective } from '@/lib/objectives';
 
 export type GameStatus = "waiting" | "in_progress" | "finished";
 export type GamePhase = "waiting" | "role_reveal" | "night" | "day" | "voting" | "hunter_shot" | "jury_voting" | "finished";
@@ -155,6 +155,7 @@ export interface Player {
   defeats: number;
   roleStats: Partial<Record<NonNullable<PlayerRole>, { played: number; won: number; }>>;
   achievements: string[];
+  secretObjective?: SecretObjective | null;
 }
 
 export type NightActionType = 
