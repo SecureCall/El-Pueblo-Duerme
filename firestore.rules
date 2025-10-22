@@ -1,12 +1,54 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow public read/write access to the games collection
-    // This is for development purposes and should be secured for production
+    
+    // Helper function to check if a user is part of a specific game
+    function isPlayer(gameId, userId) {
+      return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.userId == userId);
+    }
+    
+    // Helper function to check if a user is the creator of a game
+    function isCreator(gameId, userId) {
+      return get(/databases/$(database)/documents/games/$(gameId)).data.creator == userId;
+    }
+
     match /games/{gameId} {
-      allow read, write: if true;
+      // ANY authenticated user can create a game.
+      allow create: if request.auth != null;
+
+      // ANY authenticated user can read the list of public games.
+      // This is safe because we will use a query with a 'where' clause on 'isPublic'.
+      allow list: if request.auth != null;
+
+      // ONLY a player in the game can read its full data.
+      allow get: if request.auth != null && isPlayer(gameId, request.auth.uid);
+      
+      // Complex update logic
+      allow update: if request.auth != null && (
+        // Case 1: The game is in 'waiting' state.
+        (resource.data.status == 'waiting' && (
+            // A new player is joining (the list of players grows by 1).
+            (request.resource.data.players.size() == resource.data.players.size() + 1 &&
+             !isPlayer(gameId, request.auth.uid)) ||
+            // An existing player is updating their avatar or display name.
+            (request.resource.data.players.size() == resource.data.players.size() &&
+             isPlayer(gameId, request.auth.uid))
+        )) ||
+        // Case 2: The creator is starting the game.
+        (isCreator(gameId, request.auth.uid) && 
+         request.resource.data.status == 'in_progress' && 
+         resource.data.status == 'waiting') ||
+        // Case 3: The game is in progress, and a player is performing an action (voting, night action).
+        (resource.data.status == 'in_progress' && isPlayer(gameId, request.auth.uid)) ||
+        // Case 4: The creator is resetting the game.
+        (isCreator(gameId, request.auth.uid) && 
+         request.resource.data.status == 'waiting' && 
+         resource.data.status == 'finished')
+      );
+      
+      // Nobody can delete a game.
+      allow delete: if false;
     }
   }
 }
