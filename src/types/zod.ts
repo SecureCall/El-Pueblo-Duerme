@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 import type { SecretObjective } from '@/lib/objectives';
 
@@ -26,9 +27,8 @@ const SecretObjectiveZodSchema = z.object({
   name: z.string(),
   description: z.string(),
   appliesTo: z.array(z.union([PlayerRoleSchema, z.literal('any')])),
-  // The checkCompletion function can't be serialized, so we represent it as a function type but don't validate its content
   checkCompletion: z.function(z.tuple([z.any(), z.any()]), z.boolean()),
-}).nullable();
+}).nullable().optional();
 
 
 export const PlayerSchema = z.object({
@@ -61,12 +61,11 @@ export const PlayerSchema = z.object({
   bansheeScreams: z.record(z.string()).optional(),
   lookoutUsed: z.boolean().optional(),
   executionerTargetId: z.string().nullable(),
-  // Stats
   victories: z.number(),
   defeats: z.number(),
   roleStats: z.record(z.object({ played: z.number(), won: z.number() })).optional(),
   achievements: z.array(z.string()),
-  secretObjective: SecretObjectiveZodSchema.optional(),
+  secretObjective: SecretObjectiveZodSchema,
 });
 
 export const NightActionSchema = z.object({
