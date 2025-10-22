@@ -101,7 +101,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             toast({ variant: 'destructive', title: 'Regla del Vampiro', description: 'Esta persona ya no tiene más sangre que dar.' });
             return;
         }
-        if ((currentPlayer.role === 'doctor' || currentPlayer.role === 'guardian') && player.lastHealedRound === game.currentRound - 1) {
+        if ((currentPlayer.role === 'doctor' || currentPlayer.role === 'guardian') && player.lastHealedRound === game.currentRound - 1 && game.currentRound > 1) {
             toast({ variant: 'destructive', title: 'Regla de Protección', description: 'No puedes proteger a la misma persona dos noches seguidas.' });
             return;
         }
@@ -391,29 +391,8 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                     <>
                         {(!isLookout && currentPlayer.role !== 'sleeping_fairy') && (
                             <PlayerGrid 
-                                players={playersForGrid.filter(p => {
-                                    if (isResurrectorAngel) return true; // Show all dead players
-                                    if (isWerewolfTeam) {
-                                        // A witch who found the seer is an ally
-                                        if (game.witchFoundSeer && p.role === 'witch') return false;
-                                        return !['werewolf', 'wolf_cub'].includes(p.role || '');
-                                    }
-                                    if (isCupidFirstNight) return true; // Cupid can target anyone
-                                    if (canFairiesKill && ['seeker_fairy', 'sleeping_fairy'].includes(p.role || '')) return false;
-                                    if (isVampire) return p.role !== 'vampire';
-                                    if (isCultLeader) return p.userId !== currentPlayer.userId && !p.isCultMember;
-                                    if (isFisherman) return p.userId !== currentPlayer.userId && !game.boat?.includes(p.userId);
-                                    if (isSilencer || isElderLeader) return p.userId !== currentPlayer.userId;
-                                    if (p.userId === currentPlayer.userId) {
-                                        if (currentPlayer.role === 'priest' && !currentPlayer.priestSelfHealUsed) return true;
-                                        if (currentPlayer.role === 'guardian' && (currentPlayer.guardianSelfProtects || 0) < 1) return true;
-                                        // Hechicera cannot save self
-                                        if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save') return false;
-                                        // By default, cannot target self unless specified above.
-                                        return false; 
-                                    }
-                                    return true;
-                                })}
+                                players={playersForGrid}
+                                currentPlayer={currentPlayer}
                                 onPlayerClick={handlePlayerSelect}
                                 clickable={true}
                                 selectedPlayerIds={selectedPlayerIds}

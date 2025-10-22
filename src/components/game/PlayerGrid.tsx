@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import type { Player, GameEvent } from "@/types";
@@ -45,5 +44,3 @@ export function PlayerGrid({
     </div>
   );
 }
-
-    
