@@ -51,6 +51,11 @@ export const PlayerSchema = z.object({
   bansheeScreams: z.record(z.string()).optional(),
   lookoutUsed: z.boolean().optional(),
   executionerTargetId: z.string().nullable(),
+  // Stats
+  victories: z.number(),
+  defeats: z.number(),
+  roleStats: z.record(z.object({ played: z.number(), won: z.number() })).optional(),
+  achievements: z.array(z.string()),
 });
 
 export const NightActionSchema = z.object({
@@ -130,7 +135,7 @@ export const GameSchema = z.object({
   id: z.string(),
   name: z.string(),
   status: z.enum(["waiting", "in_progress", "finished"]),
-  phase: z.enum(["waiting", "role_reveal", "night", "day", "voting", "hunter_shot", "finished"]),
+  phase: z.enum(["waiting", "role_reveal", "night", "day", "voting", "hunter_shot", "jury_voting", "finished"]),
   creator: z.string(),
   players: z.array(PlayerSchema),
   events: z.array(GameEventSchema),
@@ -160,6 +165,7 @@ export const GameSchema = z.object({
   troublemakerUsed: z.boolean(),
   fairiesFound: z.boolean(),
   fairyKillUsed: z.boolean(),
+  juryVotes: z.record(z.string()).optional(),
 });
 
 export const AIPlayerPerspectiveSchema = z.object({

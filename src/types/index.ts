@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { GameSchema, PlayerSchema } from './zod';
 
 export type GameStatus = "waiting" | "in_progress" | "finished";
-export type GamePhase = "waiting" | "role_reveal" | "night" | "day" | "voting" | "hunter_shot" | "finished";
+export type GamePhase = "waiting" | "role_reveal" | "night" | "day" | "voting" | "hunter_shot" | "jury_voting" | "finished";
 export type PlayerRole = 
   // Aldeanos
   "villager" | 
@@ -117,6 +117,7 @@ export interface Game {
   troublemakerUsed: boolean;
   fairiesFound: boolean;
   fairyKillUsed: boolean;
+  juryVotes?: Record<string, string>;
 }
 
 export interface Player {
@@ -149,6 +150,11 @@ export interface Player {
   bansheeScreams?: Record<string, string>;
   lookoutUsed?: boolean;
   executionerTargetId: string | null;
+  // Stats
+  victories: number;
+  defeats: number;
+  roleStats: Partial<Record<NonNullable<PlayerRole>, { played: number; won: number; }>>;
+  achievements: string[];
 }
 
 export type NightActionType = 
@@ -219,3 +225,4 @@ export interface GenerateAIChatMessageOutput {
     message: string;
     shouldSend: boolean;
 };
+
