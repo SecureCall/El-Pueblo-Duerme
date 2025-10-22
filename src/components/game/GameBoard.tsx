@@ -28,7 +28,7 @@ import { VampireKillOverlay } from "./VampireKillOverlay";
 import { useGameState } from "@/hooks/use-game-state";
 import { LoversChat } from "./LoversChat";
 import { getMillis } from "@/lib/utils";
-import GhostSpectatorChat from "./GhostSpectatorChat";
+import GhostSpectatorChat from "@/components/game/GhostSpectatorChat";
 import { JuryVote } from "./JuryVote";
 import { MasterActionBar, type MasterActionState } from "./MasterActionBar";
 
