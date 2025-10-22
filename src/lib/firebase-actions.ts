@@ -1,3 +1,4 @@
+
 'use client';
 import { 
   doc,
@@ -97,7 +98,6 @@ export async function createGame(
       fairyChatMessages: [],
       twinChatMessages: [],
       loversChatMessages: [],
-      ghostChatMessages: [],
       maxPlayers: maxPlayers,
       createdAt: Timestamp.now(),
       currentRound: 0,
@@ -324,7 +324,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
                 for (let i = 0; i < aiPlayerCount; i++) {
                     const aiUserId = `ai_${Date.now()}_${i}`;
                     const aiName = availableAINames[i % availableAINames.length] || `Bot ${i + 1}`;
-                    const aiAvatar = `/logo.png`; // This will be replaced by PlayerCard logic
+                    const aiAvatar = `/logo.png`;
                     const aiPlayerData = createPlayerObject(aiUserId, gameId, aiName, aiAvatar, true);
                     finalPlayers.push(aiPlayerData);
                 }
@@ -941,7 +941,7 @@ export async function processVotes(db: Firestore, gameId: string) {
       let game = gameSnap.data();
       if (game.phase !== 'day' || game.status === 'finished') return;
       
-      const lastVoteEvent = [...game.events].sort((a,b) => toPlainObject(b.createdAt) - toPlainObject(a.createdAt)).find(e => e.type === 'vote_result');
+      const lastVoteEvent = [...game.events].sort((a, b) => toPlainObject(b.createdAt) - toPlainObject(a.createdAt)).find(e => e.type === 'vote_result');
       const isTiebreaker = lastVoteEvent?.data?.tiedPlayerIds && !lastVoteEvent?.data?.final;
 
       const alivePlayers = game.players.filter(p => p.isAlive);
@@ -949,7 +949,6 @@ export async function processVotes(db: Firestore, gameId: string) {
       
       alivePlayers.forEach(player => {
         if (player.votedFor) {
-            // In a tiebreaker, only votes for the tied players count
             if (!isTiebreaker || lastVoteEvent.data.tiedPlayerIds.includes(player.votedFor)) {
                  voteCounts[player.votedFor] = (voteCounts[player.votedFor] || 0) + 1;
             }
@@ -967,7 +966,6 @@ export async function processVotes(db: Firestore, gameId: string) {
         }
       }
 
-      // First time tie
       if (mostVotedPlayerIds.length > 1 && !isTiebreaker) {
           game.events.push({ id: `evt_vote_tie_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: `¡La votación resultó en un empate! Se requiere una segunda votación solo entre los siguientes jugadores: ${mostVotedPlayerIds.map(id => game.players.find(p=>p.userId === id)?.displayName).join(', ')}.`, data: { tiedPlayerIds: mostVotedPlayerIds, final: false }, createdAt: Timestamp.now() });
           game.players.forEach(p => { p.votedFor = null; });
@@ -1102,7 +1100,6 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             });
             
             if (triggeredHunterId) {
-                // Another hunter was triggered by the shot, wait for them.
                 game.pendingHunterShot = triggeredHunterId;
                 transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: triggeredHunterId }));
                 return;
@@ -1261,7 +1258,7 @@ async function sendSpecialChatMessage(
     senderId: string,
     senderName: string,
     text: string,
-    chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost'
+    chatType: 'wolf' | 'fairy' | 'lovers' | 'twin'
 ) {
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
@@ -1278,7 +1275,7 @@ async function sendSpecialChatMessage(
             const sender = game.players.find(p => p.userId === senderId);
             if (!sender) throw new Error("Sender not found.");
 
-            const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed'];
+            const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
             const fairyRoles: PlayerRole[] = ['seeker_fairy', 'sleeping_fairy'];
 
             let canSend = false;
@@ -1307,12 +1304,6 @@ async function sendSpecialChatMessage(
                     if (game.twins?.includes(senderId)) {
                         canSend = true;
                         chatField = 'twinChatMessages';
-                    }
-                    break;
-                case 'ghost':
-                    if (!sender.isAlive) {
-                        canSend = true;
-                        chatField = 'ghostChatMessages';
                     }
                     break;
             }
@@ -1347,7 +1338,6 @@ export const sendWolfChatMessage = (db: Firestore, gameId: string, senderId: str
 export const sendFairyChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'fairy');
 export const sendLoversChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'lovers');
 export const sendTwinChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'twin');
-export const sendGhostChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'ghost');
 
 
 export async function resetGame(db: Firestore, gameId: string) {
@@ -1370,7 +1360,7 @@ export async function resetGame(db: Firestore, gameId: string) {
             transaction.update(gameRef, toPlainObject({
                 status: 'waiting', phase: 'waiting', currentRound: 0,
                 events: [], chatMessages: [], wolfChatMessages: [], fairyChatMessages: [],
-                twinChatMessages: [], loversChatMessages: [], ghostChatMessages: [], nightActions: [],
+                twinChatMessages: [], loversChatMessages: [], nightActions: [],
                 twins: null, lovers: null, phaseEndsAt: Timestamp.now(), pendingHunterShot: null,
                 wolfCubRevengeRound: 0, players: resetHumanPlayers, vampireKills: 0, boat: [],
                 leprosaBlockedRound: 0, witchFoundSeer: false, seerDied: false,

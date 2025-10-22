@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -28,7 +27,6 @@ interface InitialState {
     initialFairyMessages: ChatMessage[];
     initialTwinMessages: ChatMessage[];
     initialLoversMessages: ChatMessage[];
-    initialGhostMessages: ChatMessage[];
 }
 
 export const useGameState = (gameId: string, initialState?: InitialState) => {
@@ -44,7 +42,6 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
   const [fairyMessages, setFairyMessages] = useState<ChatMessage[]>(initialState?.initialFairyMessages ?? []);
   const [twinMessages, setTwinMessages] = useState<ChatMessage[]>(initialState?.initialTwinMessages ?? []);
   const [loversMessages, setLoversMessages] = useState<ChatMessage[]>(initialState?.initialLoversMessages ?? []);
-  const [ghostMessages, setGhostMessages] = useState<ChatMessage[]>(initialState?.initialGhostMessages ?? []);
   const [loading, setLoading] = useState(!initialState);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,10 +93,6 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
           (gameData.loversChatMessages || [])
             .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
         );
-         setGhostMessages(
-          (gameData.ghostChatMessages || [])
-            .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
-        );
 
         setError(null);
       } else {
@@ -113,7 +106,6 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
         setFairyMessages([]);
         setTwinMessages([]);
         setLoversMessages([]);
-        setGhostMessages([]);
       }
       setLoading(false);
     }, (err: FirestoreError) => {
@@ -131,5 +123,5 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
     };
   }, [gameId, firestore, gameRef, userId]);
 
-  return { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, loading, error };
+  return { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, loading, error };
 };

@@ -52,14 +52,13 @@ export interface Game {
   status: GameStatus;
   phase: GamePhase;
   creator: string;
-  players: Player[]; // Array of Player objects
-  events: GameEvent[]; // Array of GameEvent objects
-  chatMessages: ChatMessage[]; // Array of ChatMessage objects
+  players: Player[];
+  events: GameEvent[];
+  chatMessages: ChatMessage[];
   wolfChatMessages: ChatMessage[];
   fairyChatMessages: ChatMessage[];
   twinChatMessages: ChatMessage[];
   loversChatMessages: ChatMessage[];
-  ghostChatMessages: ChatMessage[];
   maxPlayers: number;
   createdAt: Timestamp;
   currentRound: number;
@@ -104,16 +103,16 @@ export interface Game {
   phaseEndsAt: Timestamp;
   twins: [string, string] | null;
   lovers: [string, string] | null;
-  pendingHunterShot: string | null; // userId of the hunter who needs to shoot
-  wolfCubRevengeRound: number; // The round where werewolves get an extra kill
+  pendingHunterShot: string | null;
+  wolfCubRevengeRound: number;
   nightActions?: NightAction[];
   vampireKills: number;
   boat: string[];
-  leprosaBlockedRound: number; // Round where wolves are blocked by leper
+  leprosaBlockedRound: number;
   witchFoundSeer: boolean;
   seerDied: boolean;
-  silencedPlayerId: string | null; // Player silenced for the day
-  exiledPlayerId: string | null; // Player exiled for the night
+  silencedPlayerId: string | null;
+  exiledPlayerId: string | null;
   troublemakerUsed: boolean;
   fairiesFound: boolean;
   fairyKillUsed: boolean;
@@ -186,7 +185,7 @@ export interface NightAction {
 }
 
 export interface GameEvent {
-    id: string; // unique id for the event, can be generated on client
+    id: string;
     gameId: string;
     round: number;
     type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot' | 'player_transformed' | 'behavior_clue' | 'special' | 'vampire_kill' | 'werewolf_kill' | 'troublemaker_duel';
