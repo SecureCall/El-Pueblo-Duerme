@@ -2,10 +2,9 @@
 import type { Timestamp } from 'firebase/firestore';
 import { z } from 'zod';
 import type { GameSchema, PlayerSchema } from './zod';
-import type { SecretObjective } from '@/lib/objectives';
 
 export type GameStatus = "waiting" | "in_progress" | "finished";
-export type GamePhase = "waiting" | "role_reveal" | "night" | "day" | "voting" | "hunter_shot" | "jury_voting" | "finished";
+export type GamePhase = "waiting" | "role_reveal" | "night" | "day" | "voting" | "hunter_shot" | "finished";
 export type PlayerRole = 
   // Aldeanos
   "villager" | 
@@ -118,8 +117,6 @@ export interface Game {
   troublemakerUsed: boolean;
   fairiesFound: boolean;
   fairyKillUsed: boolean;
-  juryVotes?: Record<string, string>;
-  masterKillUsed?: boolean;
 }
 
 export interface Player {
@@ -152,12 +149,6 @@ export interface Player {
   bansheeScreams?: Record<string, string>;
   lookoutUsed?: boolean;
   executionerTargetId: string | null;
-  // Stats
-  victories: number;
-  defeats: number;
-  roleStats: Partial<Record<NonNullable<PlayerRole>, { played: number; won: number; }>>;
-  achievements: string[];
-  secretObjective?: SecretObjective | null;
 }
 
 export type NightActionType = 
@@ -188,14 +179,14 @@ export type NightActionType =
 export interface NightAction {
     gameId: string;
     round: number;
-    playerId: string; // The player performing the action
+    playerId: string;
     actionType: NightActionType;
-    targetId: string; // The player targeted by the action. Can be multiple for wolf cub revenge, separated by |
+    targetId: string;
     createdAt: Timestamp;
 }
 
 export interface GameEvent {
-    id: string; // unique id for the event, can be generated on client
+    id: string;
     gameId: string;
     round: number;
     type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot' | 'player_transformed' | 'behavior_clue' | 'special' | 'vampire_kill' | 'werewolf_kill' | 'troublemaker_duel';

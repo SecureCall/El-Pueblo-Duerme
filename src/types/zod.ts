@@ -1,6 +1,5 @@
 
 import { z } from 'zod';
-import type { SecretObjective } from '@/lib/objectives';
 
 const TimestampSchema = z.union([
   z.object({
@@ -21,15 +20,6 @@ export const PlayerRoleSchema = z.enum([
   "sleeping_fairy", "shapeshifter", "drunk_man", "cult_leader", "fisherman", "vampire", "witch", "banshee",
   "resurrector_angel", "cupid", "executioner"
 ]).nullable();
-
-const SecretObjectiveZodSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string(),
-  appliesTo: z.array(z.union([PlayerRoleSchema, z.literal('any')])),
-  checkCompletion: z.function(z.tuple([z.any(), z.any()]), z.boolean()),
-}).nullable().optional();
-
 
 export const PlayerSchema = z.object({
   userId: z.string(),
@@ -61,11 +51,6 @@ export const PlayerSchema = z.object({
   bansheeScreams: z.record(z.string()).optional(),
   lookoutUsed: z.boolean().optional(),
   executionerTargetId: z.string().nullable(),
-  victories: z.number(),
-  defeats: z.number(),
-  roleStats: z.record(z.object({ played: z.number(), won: z.number() })).optional(),
-  achievements: z.array(z.string()),
-  secretObjective: SecretObjectiveZodSchema,
 });
 
 export const NightActionSchema = z.object({
@@ -145,7 +130,7 @@ export const GameSchema = z.object({
   id: z.string(),
   name: z.string(),
   status: z.enum(["waiting", "in_progress", "finished"]),
-  phase: z.enum(["waiting", "role_reveal", "night", "day", "voting", "hunter_shot", "jury_voting", "finished"]),
+  phase: z.enum(["waiting", "role_reveal", "night", "day", "voting", "hunter_shot", "finished"]),
   creator: z.string(),
   players: z.array(PlayerSchema),
   events: z.array(GameEventSchema),
@@ -175,8 +160,6 @@ export const GameSchema = z.object({
   troublemakerUsed: z.boolean(),
   fairiesFound: z.boolean(),
   fairyKillUsed: z.boolean(),
-  juryVotes: z.record(z.string()).optional(),
-  masterKillUsed: z.boolean().optional(),
 });
 
 export const AIPlayerPerspectiveSchema = z.object({

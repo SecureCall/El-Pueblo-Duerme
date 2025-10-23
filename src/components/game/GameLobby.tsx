@@ -14,8 +14,6 @@ import { AvatarSelectionModal } from "./AvatarSelectionModal";
 import { useGameSession } from "@/hooks/use-game-session";
 import { useFirebase } from "@/firebase";
 import { updatePlayerAvatar } from "@/lib/firebase-actions";
-import { PlayerGrid } from "./PlayerGrid";
-import type { MasterActionState } from "./MasterActionBar";
 
 interface GameLobbyProps {
   game: Game;
@@ -30,7 +28,6 @@ export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobby
   const { userId } = useGameSession();
   const [canShare, setCanShare] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
-  const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
 
   useEffect(() => {
     if (typeof navigator !== 'undefined' && navigator.share) {
@@ -126,18 +123,25 @@ export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobby
         </Card>
       </div>
       
-      <PlayerGrid 
-        game={game}
-        players={players}
-        currentPlayer={currentPlayer}
-        masterActionState={masterActionState}
-        setMasterActionState={setMasterActionState}
-        onPlayerClick={(player) => {
-            if(player.userId === currentPlayer.userId) {
-                setIsAvatarModalOpen(true);
-            }
-        }}
-      />
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {players.map((player) => (
+          <div key={player.userId} className="relative">
+             <PlayerCard 
+                player={player} 
+                isClickable={player.userId === currentPlayer.userId}
+                onClick={player.userId === currentPlayer.userId ? () => setIsAvatarModalOpen(true) : undefined}
+            />
+            {player.userId === currentPlayer.userId && (
+              <div className="absolute top-1 right-1 bg-secondary/80 rounded-full p-1 cursor-pointer hover:bg-secondary">
+                <Edit className="h-4 w-4 text-secondary-foreground" />
+              </div>
+            )}
+            {player.userId === game.creator && (
+              <Crown className="absolute -top-2 -left-2 h-6 w-6 text-yellow-400 rotate-[-15deg]" />
+            )}
+          </div>
+        ))}
+      </div>
 
       {isCreator && (
         <div className="text-center pt-4">
@@ -147,3 +151,5 @@ export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobby
     </>
   );
 }
+
+

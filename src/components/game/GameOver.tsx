@@ -3,34 +3,29 @@
 
 import { useEffect, useState } from 'react';
 import type { GameEvent, Game, Player } from '@/types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import Link from 'next/link';
-import { Milestone, Crown, Skull, Loader2, Play, Star } from 'lucide-react';
+import { Milestone, User, BotIcon, Loader2, Play } from 'lucide-react';
 import { playNarration } from '@/lib/sounds';
+import { roleDetails } from '@/lib/roles';
 import { useGameSession } from '@/hooks/use-game-session';
 import { useFirebase } from '@/firebase';
 import { resetGame } from '@/lib/firebase-actions';
 import { useToast } from '@/hooks/use-toast';
-import { PlayerCard } from './PlayerCard';
-import { secretObjectives } from '@/lib/objectives';
-import type { MasterActionState } from './MasterActionBar';
 
 
 interface GameOverProps {
     game: Game;
     event?: GameEvent;
     players: Player[];
-    currentPlayer: Player | null;
 }
 
-export function GameOver({ game, event, players, currentPlayer }: GameOverProps) {
-    const { userId, updateStats, addGameEventToHistory } = useGameSession();
+export function GameOver({ game, event, players }: GameOverProps) {
+    const { userId } = useGameSession();
     const { firestore } = useFirebase();
     const { toast } = useToast();
     const [isResetting, setIsResetting] = useState(false);
-    const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
-
 
     const isCreator = game.creator === userId;
 
@@ -45,6 +40,7 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
                     playNarration('victoria_lobos.mp3');
                     break;
                 case 'lovers':
+                    // No specific sound provided for lovers, can be added here
                     break;
                 case 'cult':
                     playNarration('victoria culto.mp3');
@@ -62,24 +58,14 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
                     playNarration('victoria el berdugo.mp3');
                     break;
                 case 'banshee':
+                    // No specific sound provided for banshee, can be added here
                     break;
                 case 'draw':
+                    // No specific sound provided for a draw, can be added here
                     break;
             }
-
-            const winners = event.data.winners || [];
-            const losers = event.data.losers || [];
-            updateStats(winners, losers, players);
-            
-            if (winners.some((p: Player) => p.userId === userId)) {
-                addGameEventToHistory({
-                    type: 'victory',
-                    title: '¡Victoria Aplastante!',
-                    description: `Ganaste una partida como ${currentPlayer?.role || 'un rol desconocido'}.`
-                });
-            }
         }
-    }, [event, updateStats, addGameEventToHistory, userId, currentPlayer?.role, players]);
+    }, [event]);
 
     const handleResetGame = async () => {
         if (!firestore || !isCreator) return;
@@ -93,9 +79,10 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
             });
             setIsResetting(false);
         }
+        // On success, the game state will change and this component will unmount
     };
 
-    if (!event || !currentPlayer) {
+    if (!event) {
         return (
             <div className="text-center">
                 <h1 className="text-4xl font-bold">Partida Terminada</h1>
@@ -103,19 +90,17 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
             </div>
         );
     }
-    
-    const winners = (event.data?.winners as Player[] || []).map(p => ({
-        ...p,
-        objectiveMet: p.secretObjective ? secretObjectives.find(o => o.id === p.secretObjective?.id)?.checkCompletion(p, game) : false
-    }));
 
-    const losers = (event.data?.losers as Player[] || []).map(p => ({
-        ...p,
-        objectiveMet: p.secretObjective ? secretObjectives.find(o => o.id === p.secretObjective?.id)?.checkCompletion(p, game) : false
-    }));
-    
+    const werewolves = players.filter(p => p.role === 'werewolf' || p.role === 'wolf_cub' || p.role === 'cursed');
+    const villagers = players.filter(p => p.role !== 'werewolf' && p.role !== 'wolf_cub' && p.role !== 'cursed');
+
+    const getRoleName = (role: Player['role']) => {
+        if (!role) return 'Desconocido';
+        return roleDetails[role]?.name || role;
+    }
+
     return (
-        <Card className="w-full max-w-4xl mx-auto text-center bg-card/90 p-6">
+        <Card className="w-full max-w-2xl mx-auto text-center bg-card/90">
             <CardHeader>
                 <CardTitle className="font-headline text-5xl flex items-center justify-center gap-4">
                     <Milestone className="h-10 w-10 text-yellow-400" />
@@ -125,53 +110,39 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
                     {event.message}
                 </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-8">
+            <CardContent className="space-y-6">
                 <div>
-                    <h3 className="text-2xl font-bold font-headline mb-4 flex items-center justify-center gap-2 text-yellow-300">
-                        <Crown className="h-6 w-6"/>
-                        Ganadores
-                    </h3>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
-                        {winners.map(p => (
-                            <div key={p.userId} className="aspect-[3/4]">
-                                 <PlayerCard game={game} player={p} currentPlayer={currentPlayer} masterActionState={masterActionState} setMasterActionState={setMasterActionState} />
-                            </div>
+                    <h3 className="text-2xl font-bold flex items-center justify-center gap-2"><BotIcon /> Hombres Lobo</h3>
+                    <ul className="list-none p-0">
+                        {werewolves.map(p => (
+                            <li key={p.userId} className="text-lg text-muted-foreground">{p.displayName} ({getRoleName(p.role)})</li>
                         ))}
-                    </div>
+                    </ul>
                 </div>
-                
-                 {losers.length > 0 && (
-                    <div>
-                        <h3 className="text-2xl font-bold font-headline mb-4 flex items-center justify-center gap-2 text-muted-foreground">
-                            <Skull className="h-6 w-6"/>
-                            Perdedores
-                        </h3>
-                        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-3">
-                            {losers.map(p => (
-                                <div key={p.userId} className="aspect-[3/4] opacity-70">
-                                    <PlayerCard game={game} player={p} currentPlayer={currentPlayer} masterActionState={masterActionState} setMasterActionState={setMasterActionState} />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                 )}
-
+                 <div>
+                    <h3 className="text-2xl font-bold flex items-center justify-center gap-2"><User /> Pueblo</h3>
+                    <ul className="list-none p-0">
+                        {villagers.map(p => (
+                             <li key={p.userId} className="text-lg text-muted-foreground">{p.displayName} ({getRoleName(p.role)})</li>
+                        ))}
+                    </ul>
+                </div>
+                <div className='flex items-center justify-center gap-4 pt-6'>
+                    <Button asChild size="lg">
+                        <Link href="/">Volver al Inicio</Link>
+                    </Button>
+                    {isCreator ? (
+                        <Button onClick={handleResetGame} size="lg" variant="secondary" disabled={isResetting}>
+                            {isResetting ? <Loader2 className="animate-spin" /> : <Play className="mr-2 h-5 w-5" />}
+                            Reiniciar Sala
+                        </Button>
+                    ) : (
+                         <Button size="lg" variant="secondary" disabled={true}>
+                            Esperando al creador para reiniciar...
+                        </Button>
+                    )}
+                </div>
             </CardContent>
-             <CardFooter className='flex-col items-center justify-center gap-4 pt-6'>
-                <Button asChild size="lg">
-                    <Link href="/">Volver al Inicio</Link>
-                </Button>
-                {isCreator ? (
-                    <Button onClick={handleResetGame} size="lg" variant="secondary" disabled={isResetting}>
-                        {isResetting ? <Loader2 className="animate-spin" /> : <Play className="mr-2 h-5 w-5" />}
-                        Reiniciar Sala
-                    </Button>
-                ) : (
-                        <Button size="lg" variant="secondary" disabled={true}>
-                        Esperando al creador para reiniciar...
-                    </Button>
-                )}
-            </CardFooter>
         </Card>
     )
 }
