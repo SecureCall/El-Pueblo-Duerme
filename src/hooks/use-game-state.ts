@@ -1,7 +1,6 @@
+'use client';
 
-"use client";
-
-import { useEffect, useState } from 'react';
+import { useEffect, useReducer } from 'react';
 import { 
   doc, 
   onSnapshot, 
@@ -17,33 +16,80 @@ import { useGameSession } from './use-game-session';
 import { getMillis } from '@/lib/utils';
 
 
-interface InitialState {
-    initialGame: Game;
-    initialPlayers: Player[];
-    initialCurrentPlayer: Player | null;
-    initialEvents: GameEvent[];
-    initialMessages: ChatMessage[];
-    initialWolfMessages: ChatMessage[];
-    initialFairyMessages: ChatMessage[];
-    initialTwinMessages: ChatMessage[];
-    initialLoversMessages: ChatMessage[];
+interface GameState {
+    game: Game | null;
+    players: Player[];
+    currentPlayer: Player | null;
+    events: GameEvent[];
+    messages: ChatMessage[];
+    wolfMessages: ChatMessage[];
+    fairyMessages: ChatMessage[];
+    twinMessages: ChatMessage[];
+    loversMessages: ChatMessage[];
+    ghostMessages: ChatMessage[];
+    loading: boolean;
+    error: string | null;
 }
 
-export const useGameState = (gameId: string, initialState?: InitialState) => {
+type GameAction =
+  | { type: 'SET_GAME_DATA'; payload: { game: Game; userId: string; } }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string | null };
+
+const initialState: GameState = {
+    game: null,
+    players: [],
+    currentPlayer: null,
+    events: [],
+    messages: [],
+    wolfMessages: [],
+    fairyMessages: [],
+    twinMessages: [],
+    loversMessages: [],
+    ghostMessages: [],
+    loading: true,
+    error: null,
+};
+
+function gameReducer(state: GameState, action: GameAction): GameState {
+    switch (action.type) {
+        case 'SET_GAME_DATA':
+            const { game, userId } = action.payload;
+            const sortedPlayers = [...game.players].sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
+            return {
+                ...state,
+                game,
+                players: sortedPlayers,
+                currentPlayer: sortedPlayers.find(p => p.userId === userId) || null,
+                events: [...(game.events || [])].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)),
+                messages: (game.chatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                wolfMessages: (game.wolfChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                fairyMessages: (game.fairyChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                twinMessages: (game.twinChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                loversMessages: (game.loversChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                ghostMessages: (game.ghostChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                loading: false,
+                error: null,
+            };
+        case 'SET_LOADING':
+            return { ...state, loading: action.payload };
+        case 'SET_ERROR':
+             return { 
+                ...state, 
+                loading: false,
+                error: action.payload,
+                game: null, players: [], currentPlayer: null, events: [], messages: [], wolfMessages: [], fairyMessages: [], twinMessages: [], loversMessages: [], ghostMessages: []
+            };
+        default:
+            return state;
+    }
+}
+
+
+export const useGameState = (gameId: string) => {
+  const [state, dispatch] = useReducer(gameReducer, initialState);
   const { firestore } = useFirebase();
   const { userId } = useGameSession();
-
-  const [game, setGame] = useState<Game | null>(initialState?.initialGame ?? null);
-  const [players, setPlayers] = useState<Player[]>(initialState?.initialPlayers ?? []);
-  const [currentPlayer, setCurrentPlayer] = useState<Player | null>(initialState?.initialCurrentPlayer ?? null);
-  const [events, setEvents] = useState<GameEvent[]>(initialState?.initialEvents ?? []);
-  const [messages, setMessages] = useState<ChatMessage[]>(initialState?.initialMessages ?? []);
-  const [wolfMessages, setWolfMessages] = useState<ChatMessage[]>(initialState?.initialWolfMessages ?? []);
-  const [fairyMessages, setFairyMessages] = useState<ChatMessage[]>(initialState?.initialFairyMessages ?? []);
-  const [twinMessages, setTwinMessages] = useState<ChatMessage[]>(initialState?.initialTwinMessages ?? []);
-  const [loversMessages, setLoversMessages] = useState<ChatMessage[]>(initialState?.initialLoversMessages ?? []);
-  const [loading, setLoading] = useState(!initialState);
-  const [error, setError] = useState<string | null>(null);
 
   const gameRef = useMemoFirebase(() => {
     if (!gameId || !firestore) return null;
@@ -52,69 +98,29 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
 
   useEffect(() => {
     if (!gameRef) {
-        if (!initialState) {
-            setLoading(false);
-            if (!gameId) setError("No game ID provided.");
-            else setError("Cargando sesión de Firebase...");
-        }
+        if (!gameId) dispatch({ type: 'SET_ERROR', payload: "No game ID provided." });
+        else if (!firestore) dispatch({ type: 'SET_ERROR', payload: "Cargando sesión de Firebase..." });
+        else dispatch({ type: 'SET_LOADING', payload: true });
         return;
     };
 
-    setLoading(true);
+    dispatch({ type: 'SET_LOADING', payload: true });
 
     const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
         const gameData = { ...snapshot.data() as Game, id: snapshot.id };
-
-        setGame(gameData);
-        
-        const sortedPlayers = [...gameData.players].sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
-        setPlayers(sortedPlayers);
-        setCurrentPlayer(sortedPlayers.find(p => p.userId === userId) || null);
-
-        setEvents([...(gameData.events || [])].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)));
-        setMessages(
-          (gameData.chatMessages || [])
-            .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
-        );
-         setWolfMessages(
-          (gameData.wolfChatMessages || [])
-            .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
-        );
-        setFairyMessages(
-          (gameData.fairyChatMessages || [])
-            .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
-        );
-        setTwinMessages(
-          (gameData.twinChatMessages || [])
-            .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
-        );
-        setLoversMessages(
-          (gameData.loversChatMessages || [])
-            .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
-        );
-
-        setError(null);
+        if (userId) {
+          dispatch({ type: 'SET_GAME_DATA', payload: { game: gameData, userId } });
+        }
       } else {
-        setError('Partida no encontrada.');
-        setGame(null);
-        setPlayers([]);
-        setCurrentPlayer(null);
-        setEvents([]);
-        setMessages([]);
-        setWolfMessages([]);
-        setFairyMessages([]);
-        setTwinMessages([]);
-        setLoversMessages([]);
+        dispatch({ type: 'SET_ERROR', payload: 'Partida no encontrada.' });
       }
-      setLoading(false);
     }, (err: FirestoreError) => {
         const contextualError = new FirestorePermissionError({
             operation: 'get',
             path: gameRef.path,
         });
-        setError("Error al cargar la partida. Permisos insuficientes.");
-        setLoading(false);
+        dispatch({ type: 'SET_ERROR', payload: "Error al cargar la partida. Permisos insuficientes." });
         errorEmitter.emit('permission-error', contextualError);
     });
 
@@ -123,5 +129,5 @@ export const useGameState = (gameId: string, initialState?: InitialState) => {
     };
   }, [gameId, firestore, gameRef, userId]);
 
-  return { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, loading, error };
+  return { ...state };
 };

@@ -72,7 +72,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
   const bgImage = PlaceHolderImages.find((img) => img.id === bgImageId);
 
   const renderContent = () => {
-    if (loading || !isSessionLoaded || !avatarUrl) {
+    if (loading || !isSessionLoaded || !avatarUrl || (gameId && !game)) {
       return (
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -88,44 +88,19 @@ export function GameRoom({ gameId }: { gameId: string }) {
     if (!displayName) {
       return <EnterNameModal isOpen={!displayName} onNameSubmit={handleNameSubmit} error={joinError} />;
     }
-    
-    if (!game || (game.status !== 'waiting' && !currentPlayer)) {
-      if (isJoining) {
-         return (
-            <div className="flex flex-col items-center gap-4">
-                <Loader2 className="h-16 w-16 animate-spin text-primary" />
-                <p className="text-xl text-primary-foreground/80">Uniéndote como {displayName}...</p>
-            </div>
-         );
+
+    if (!game || !currentPlayer) {
+      if (game && game.status !== 'waiting') {
+        return <p className="text-destructive text-xl">Esta partida ya ha comenzado o está llena.</p>;
       }
-      if (game && game.status !== 'waiting' && !players.some(p => p.userId === userId)) {
-        return <p className="text-destructive text-xl">Esta partida ya ha comenzado.</p>;
-      }
-      if(game && game.players.length >= game.maxPlayers && !players.some(p => p.userId === userId)) {
-         return <p className="text-destructive text-xl">Esta partida está llena.</p>;
-      }
-      // General loading or joining state if game is not fully defined yet for this user
-       return (
+      return (
         <div className="flex flex-col items-center gap-4">
             <Loader2 className="h-16 w-16 animate-spin text-primary" />
-            <p className="text-xl text-primary-foreground/80">Verificando estado de la partida...</p>
+            <p className="text-xl text-primary-foreground/80">Uniéndote como {displayName}...</p>
         </div>
       );
     }
-
-    if (!currentPlayer && game.status === 'waiting') {
-        return (
-            <div className="flex flex-col items-center gap-4">
-                <Loader2 className="h-16 w-16 animate-spin text-primary" />
-                <p className="text-xl text-primary-foreground/80">Uniéndote como {displayName}...</p>
-            </div>
-        );
-    }
     
-    if (!currentPlayer) {
-        return <p>Error: No se pudo encontrar al jugador en la partida.</p>
-    }
-
     switch (game.status) {
         case 'waiting':
             return <GameLobby game={game} players={players} isCreator={game.creator === userId} currentPlayer={currentPlayer} />;
