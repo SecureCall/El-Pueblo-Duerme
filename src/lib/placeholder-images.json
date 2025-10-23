@@ -56,123 +56,123 @@
     },
     {
       "id": "avatar-1",
-      "description": "Avatar 1",
-      "imageUrl": "/avatares/avatar-1.png",
-      "imageHint": "character portrait"
+      "description": "Aldeano sabio con barba y un libro",
+      "imageUrl": "/avatares/Aldeano sabio con barba y un libro.png",
+      "imageHint": "wise villager"
     },
     {
       "id": "avatar-2",
-      "description": "Avatar 2",
-      "imageUrl": "/avatares/avatar-2.png",
-      "imageHint": "character portrait"
+      "description": "Bruja misteriosa con un sombrero puntiagudo y un caldero",
+      "imageUrl": "/avatares/Bruja misteriosa con un sombrero puntiagudo y un caldero.png",
+      "imageHint": "mysterious witch"
     },
     {
       "id": "avatar-3",
-      "description": "Avatar 3",
-      "imageUrl": "/avatares/avatar-3.png",
-      "imageHint": "character portrait"
+      "description": "Guardia valiente con armadura y una espada",
+      "imageUrl": "/avatares/Guardia valiente con armadura y una espada.png",
+      "imageHint": "brave guard"
     },
     {
       "id": "avatar-4",
-      "description": "Avatar 4",
-      "imageUrl": "/avatares/avatar-4.png",
-      "imageHint": "character portrait"
+      "description": "Panadero sonriente con un delantal y pan recién horneado",
+      "imageUrl": "/avatares/Panadero sonriente con un delantal y pan recién horneado.png",
+      "imageHint": "smiling baker"
     },
     {
       "id": "avatar-5",
-      "description": "Avatar 5",
-      "imageUrl": "/avatares/avatar-5.png",
-      "imageHint": "character portrait"
+      "description": "Panadero",
+      "imageUrl": "/avatares/panadero.png",
+      "imageHint": "baker"
     },
     {
       "id": "avatar-6",
-      "description": "Avatar 6",
-      "imageUrl": "/avatares/avatar-6.png",
-      "imageHint": "character portrait"
+      "description": "Un anciano herrero con martillo y yunque",
+      "imageUrl": "/avatares/Un anciano herrero con martillo y yunque.png",
+      "imageHint": "old blacksmith"
     },
     {
       "id": "avatar-7",
-      "description": "Avatar 7",
-      "imageUrl": "/avatares/avatar-7.png",
-      "imageHint": "character portrait"
+      "description": "Un boticario con frascos y pociones",
+      "imageUrl": "/avatares/Un boticario con frascos y pociones.png",
+      "imageHint": "apothecary potions"
     },
     {
       "id": "avatar-8",
-      "description": "Avatar 8",
-      "imageUrl": "/avatares/avatar-8.png",
-      "imageHint": "character portrait"
+      "description": "Un cazador con un arco y flechas",
+      "imageUrl": "/avatares/Un cazador con un arco y flechas.png",
+      "imageHint": "hunter bow"
     },
     {
       "id": "avatar-9",
-      "description": "Avatar 9",
-      "imageUrl": "/avatares/avatar-9.png",
-      "imageHint": "character portrait"
+      "description": "Un clérigo con un símbolo sagrado",
+      "imageUrl": "/avatares/Un clérigo con un símbolo sagrado.png",
+      "imageHint": "cleric symbol"
     },
     {
       "id": "avatar-10",
-      "description": "Avatar 10",
-      "imageUrl": "/avatares/avatar-10.png",
-      "imageHint": "character portrait"
+      "description": "Un granjero robusto con un rastrillo y un sombrero de paja",
+      "imageUrl": "/avatares/Un granjero robusto con un rastrillo y un sombrero de paja.png",
+      "imageHint": "sturdy farmer"
     },
     {
       "id": "avatar-11",
-      "description": "Avatar 11",
-      "imageUrl": "/avatares/avatar-11.png",
-      "imageHint": "character portrait"
+      "description": "Un lobo disfrazado de oveja, con una sonrisa astuta",
+      "imageUrl": "/avatares/Un lobo disfrazado de oveja, con una sonrisa astuta.png",
+      "imageHint": "wolf sheep"
     },
     {
       "id": "avatar-12",
-      "description": "Avatar 12",
-      "imageUrl": "/avatares/avatar-12.png",
-      "imageHint": "character portrait"
+      "description": "Un médico de la plaga con una máscara distintiva",
+      "imageUrl": "/avatares/Un médico de la plaga con una máscara distintiva.png",
+      "imageHint": "plague doctor"
     },
     {
       "id": "avatar-13",
-      "description": "Avatar 13",
-      "imageUrl": "/avatares/avatar-13.png",
-      "imageHint": "character portrait"
+      "description": "Un noble con ropas elegantes y una pluma",
+      "imageUrl": "/avatares/Un noble con ropas elegantes y una pluma.png",
+      "imageHint": "elegant noble"
     },
     {
       "id": "avatar-14",
-      "description": "Avatar 14",
-      "imageUrl": "/avatares/avatar-14.png",
-      "imageHint": "character portrait"
+      "description": "Un pescador con una caña y un pez",
+      "imageUrl": "/avatares/Un pescador con una caña y un pez.png",
+      "imageHint": "fisherman fish"
     },
     {
       "id": "avatar-15",
-      "description": "Avatar 15",
-      "imageUrl": "/avatares/avatar-15.png",
-      "imageHint": "character portrait"
+      "description": "Un pícaro con capucha y una daga",
+      "imageUrl": "/avatares/Un pícaro con capucha y una daga.png",
+      "imageHint": "rogue dagger"
     },
     {
       "id": "avatar-16",
-      "description": "Avatar 16",
-      "imageUrl": "/avatares/avatar-16.png",
-      "imageHint": "character portrait"
+      "description": "Un trovador con un laúd y una capa",
+      "imageUrl": "/avatares/Un trovador con un laúd y una capa.png",
+      "imageHint": "troubadour lute"
     },
     {
       "id": "avatar-17",
-      "description": "Avatar 17",
-      "imageUrl": "/avatares/avatar-17.png",
-      "imageHint": "character portrait"
+      "description": "Una joven doncella con flores en el cabello",
+      "imageUrl": "/avatares/Una joven doncella con flores en el cabello.png",
+      "imageHint": "young maiden"
     },
     {
       "id": "avatar-18",
-      "description": "Avatar 18",
-      "imageUrl": "/avatares/avatar-18.png",
-      "imageHint": "character portrait"
+      "description": "Una monja con un hábito y un rosario",
+      "imageUrl": "/avatares/Una monja con un hábito y un rosario.png",
+      "imageHint": "nun habit"
     },
     {
       "id": "avatar-19",
-      "description": "Avatar 19",
-      "imageUrl": "/avatares/avatar-19.png",
-      "imageHint": "character portrait"
+      "description": "Una niña pequeña con un osito de peluche",
+      "imageUrl": "/avatares/Una niña pequeña con un osito de peluche.png",
+      "imageHint": "girl teddy"
     },
     {
       "id": "avatar-20",
-      "description": "Avatar 20",
-      "imageUrl": "/avatares/avatar-20.png",
-      "imageHint": "character portrait"
+      "description": "Una tejedora con hilo y un telar",
+      "imageUrl": "/avatares/Una tejedora con hilo y un telar.png",
+      "imageHint": "weaver loom"
     }
   ]
 }
