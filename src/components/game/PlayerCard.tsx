@@ -16,7 +16,7 @@ import { useFirebase } from '@/firebase';
 import { masterKillPlayer, executeMasterAction } from '@/lib/firebase-actions';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
-import { MasterActionState } from './MasterActionBar';
+import type { MasterActionState } from './MasterActionBar';
 
 interface PlayerCardProps {
   game: Game;
@@ -32,8 +32,13 @@ interface PlayerCardProps {
 }
 
 export const PlayerCard = React.memo(function PlayerCard({ game, player, currentPlayer, onClick, isClickable, isSelected, highlightColor, votes, masterActionState, setMasterActionState }: PlayerCardProps) {
+  if (!game || !currentPlayer) {
+    return null; // Safeguard against rendering without essential props
+  }
+
   const { firestore } = useFirebase();
   const { toast } = useToast();
+  
   const isMaster = game.creator === currentPlayer.userId;
 
   const handleMasterKill = async () => {
@@ -45,6 +50,7 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
       toast({ title: '¡Zas!', description: `${player.displayName} ha sido fulminado.` });
     }
   };
+
 
   const handleMasterActionClick = async () => {
     if (!masterActionState.active || !masterActionState.actionId) {
@@ -122,7 +128,7 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
             );
         default:
           return (
-             <div className={cn(baseClasses)}>
+             <div className={baseClasses}>
                 <Skull className={cn(iconClasses, "text-gray-400")} />
             </div>
           );
@@ -162,11 +168,11 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
               className={cn(
                 "flex flex-col items-center justify-center p-4 transition-all duration-300 relative h-full",
                 "bg-card/80",
-                (isClickable || masterActionState.active) && "cursor-pointer hover:scale-105 hover:bg-card/100",
+                (isClickable || (masterActionState.active && isMaster)) && "cursor-pointer hover:scale-105 hover:bg-card/100",
                 isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
                 masterActionState.sourceId === player.userId && "ring-2 ring-blue-500",
               )}
-              onClick={() => handleMasterActionClick()}
+              onClick={() => (isMaster && masterActionState.active) ? handleMasterActionClick() : onClick?.(player)}
               style={cardStyle}
             >
                {isMaster && player.isAlive && game.phase === 'night' && !game.masterKillUsed && (
@@ -190,6 +196,14 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
                     </AlertDialogContent>
                  </AlertDialog>
                )}
+              {player.userId === currentPlayer.userId && (
+                <div className="absolute top-1 right-1 bg-secondary/80 rounded-full p-1 cursor-pointer hover:bg-secondary">
+                  <Edit className="h-4 w-4 text-secondary-foreground" />
+                </div>
+              )}
+              {player.userId === game.creator && (
+                 <Crown className="absolute -top-2 -left-2 h-6 w-6 text-yellow-400 rotate-[-15deg]" />
+              )}
               {votes && votes.length > 0 && (
                 <Badge variant="destructive" className="absolute -top-2 -right-2 z-10">{votes.length}</Badge>
               )}

@@ -35,6 +35,8 @@ export const PlayerGrid = React.memo(function PlayerGrid({
     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
       {players.map((player) => {
         const highlight = highlightedPlayers.find(hp => hp.userId === player.userId);
+        const playerIsClickable = (clickable && player.isAlive && player.userId !== currentPlayer.userId) || masterActionState.active;
+        
         return (
             <div key={player.userId} className="aspect-[3/4]">
                 <PlayerCard 
@@ -42,7 +44,7 @@ export const PlayerGrid = React.memo(function PlayerGrid({
                     player={player} 
                     currentPlayer={currentPlayer}
                     onClick={onPlayerClick ? () => onPlayerClick(player) : undefined}
-                    isClickable={clickable && player.isAlive && player.userId !== currentPlayer.userId}
+                    isClickable={playerIsClickable}
                     isSelected={selectedPlayerIds.includes(player.userId)}
                     highlightColor={highlight?.color}
                     votes={votesByPlayer[player.userId]}

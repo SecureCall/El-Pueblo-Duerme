@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { submitJuryVote } from '@/lib/firebase-actions';
 import { Loader2, Scale } from 'lucide-react';
 import { useFirebase } from '@/firebase';
+import type { MasterActionState } from './MasterActionBar';
 
 interface JuryVoteProps {
     game: Game;
@@ -25,6 +26,9 @@ export function JuryVote({ game, players, currentPlayer, tiedPlayerIds }: JuryVo
     const { firestore } = useFirebase();
 
     const hasVoted = game.juryVotes && game.juryVotes[currentPlayer.userId];
+
+    // Dummy state for PlayerGrid props that are not used here
+    const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
 
     const handlePlayerSelect = (player: Player) => {
         if (hasVoted) return;
@@ -71,11 +75,14 @@ export function JuryVote({ game, players, currentPlayer, tiedPlayerIds }: JuryVo
                     <>
                          <p className="text-center mb-4 text-muted-foreground">Elige a uno de los empatados para eliminarlo.</p>
                          <PlayerGrid 
+                            game={game}
                             players={tiedPlayers}
                             currentPlayer={currentPlayer}
                             onPlayerClick={handlePlayerSelect}
                             clickable={true}
                             selectedPlayerIds={selectedPlayerId ? [selectedPlayerId] : []}
+                            masterActionState={masterActionState}
+                            setMasterActionState={setMasterActionState}
                         />
                          <Button 
                             className="w-full mt-6 text-lg" 

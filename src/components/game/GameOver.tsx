@@ -14,6 +14,7 @@ import { resetGame } from '@/lib/firebase-actions';
 import { useToast } from '@/hooks/use-toast';
 import { PlayerCard } from './PlayerCard';
 import { secretObjectives } from '@/lib/objectives';
+import type { MasterActionState } from './MasterActionBar';
 
 
 interface GameOverProps {
@@ -24,10 +25,12 @@ interface GameOverProps {
 }
 
 export function GameOver({ game, event, players, currentPlayer }: GameOverProps) {
-    const { userId } = useGameSession();
+    const { userId, updateStats, addGameEventToHistory } = useGameSession();
     const { firestore } = useFirebase();
     const { toast } = useToast();
     const [isResetting, setIsResetting] = useState(false);
+    const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
+
 
     const isCreator = game.creator === userId;
 
@@ -63,8 +66,20 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
                 case 'draw':
                     break;
             }
+
+            const winners = event.data.winners || [];
+            const losers = event.data.losers || [];
+            updateStats(winners, losers, players);
+            
+            if (winners.some((p: Player) => p.userId === userId)) {
+                addGameEventToHistory({
+                    type: 'victory',
+                    title: '¡Victoria Aplastante!',
+                    description: `Ganaste una partida como ${currentPlayer?.role || 'un rol desconocido'}.`
+                });
+            }
         }
-    }, [event]);
+    }, [event, updateStats, addGameEventToHistory, userId, currentPlayer?.role, players]);
 
     const handleResetGame = async () => {
         if (!firestore || !isCreator) return;
@@ -80,7 +95,7 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
         }
     };
 
-    if (!event) {
+    if (!event || !currentPlayer) {
         return (
             <div className="text-center">
                 <h1 className="text-4xl font-bold">Partida Terminada</h1>
@@ -119,7 +134,7 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
                         {winners.map(p => (
                             <div key={p.userId} className="aspect-[3/4]">
-                                 <PlayerCard player={p} currentPlayer={currentPlayer} />
+                                 <PlayerCard game={game} player={p} currentPlayer={currentPlayer} masterActionState={masterActionState} setMasterActionState={setMasterActionState} />
                             </div>
                         ))}
                     </div>
@@ -134,7 +149,7 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
                         <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-3">
                             {losers.map(p => (
                                 <div key={p.userId} className="aspect-[3/4] opacity-70">
-                                    <PlayerCard player={p} currentPlayer={currentPlayer} />
+                                    <PlayerCard game={game} player={p} currentPlayer={currentPlayer} masterActionState={masterActionState} setMasterActionState={setMasterActionState} />
                                 </div>
                             ))}
                         </div>

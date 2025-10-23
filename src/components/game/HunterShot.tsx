@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { submitHunterShot } from '@/lib/firebase-actions';
 import { Loader2, Crosshair } from 'lucide-react';
 import { useFirebase } from '@/firebase';
+import type { MasterActionState } from './MasterActionBar';
 
 
 interface HunterShotProps {
@@ -23,6 +24,7 @@ export function HunterShot({ game, players, currentPlayer }: HunterShotProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
     const { firestore } = useFirebase();
+    const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
 
     const handlePlayerSelect = (player: Player) => {
         if (!player.isAlive || player.userId === currentPlayer.userId) return;
@@ -59,10 +61,14 @@ export function HunterShot({ game, players, currentPlayer }: HunterShotProps) {
             </CardHeader>
             <CardContent>
                 <PlayerGrid 
+                    game={game}
                     players={players}
+                    currentPlayer={currentPlayer}
                     onPlayerClick={handlePlayerSelect}
                     clickable={true}
                     selectedPlayerIds={selectedPlayerId ? [selectedPlayerId] : []}
+                    masterActionState={masterActionState}
+                    setMasterActionState={setMasterActionState}
                 />
                 <Button 
                     className="w-full mt-6 text-lg" 
