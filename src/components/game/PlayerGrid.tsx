@@ -1,10 +1,11 @@
-
 "use client";
 
-import type { Player, GameEvent } from "@/types";
+import React from 'react';
+import type { Game, Player, GameEvent } from "@/types";
 import { PlayerCard } from "./PlayerCard";
 
 interface PlayerGridProps {
+    game: Game;
     players: (Player & { causeOfDeath?: GameEvent['type'] | 'other' })[];
     currentPlayer: Player;
     onPlayerClick?: (player: Player) => void;
@@ -14,14 +15,15 @@ interface PlayerGridProps {
     votesByPlayer?: Record<string, string[]>;
 }
 
-export function PlayerGrid({ 
+export const PlayerGrid = React.memo(function PlayerGrid({ 
+    game,
     players, 
     currentPlayer,
     onPlayerClick, 
     clickable = false,
     selectedPlayerIds = [], 
     highlightedPlayers = [],
-    votesByPlayer = {}
+    votesByPlayer = {},
 }: PlayerGridProps) {
   return (
     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
@@ -30,10 +32,11 @@ export function PlayerGrid({
         return (
             <div key={player.userId} className="aspect-[3/4]">
                 <PlayerCard 
+                    game={game}
                     player={player} 
                     currentPlayer={currentPlayer}
                     onClick={onPlayerClick ? () => onPlayerClick(player) : undefined}
-                    isClickable={clickable && player.isAlive}
+                    isClickable={clickable && player.isAlive && player.userId !== currentPlayer.userId}
                     isSelected={selectedPlayerIds.includes(player.userId)}
                     highlightColor={highlight?.color}
                     votes={votesByPlayer[player.userId]}
@@ -43,4 +46,4 @@ export function PlayerGrid({
       })}
     </div>
   );
-}
+});
