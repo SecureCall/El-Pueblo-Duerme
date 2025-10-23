@@ -4,47 +4,46 @@ import { z } from 'zod';
 import type { GameSchema, PlayerSchema } from './zod';
 
 export type GameStatus = "waiting" | "in_progress" | "finished";
-export type GamePhase = "waiting" | "role_reveal" | "night" | "day" | "voting" | "hunter_shot" | "finished";
-export type PlayerRole = 
-  // Aldeanos
-  "villager" | 
-  "seer" | 
-  "doctor" | 
-  "hunter" | 
-  "guardian" |
-  "priest" |
-  "prince" |
-  "lycanthrope" |
-  "twin" |
-  "hechicera" |
-  "ghost" |
-  "virginia_woolf" |
-  "leprosa" |
-  "river_siren" |
-  "lookout" |
-  "troublemaker" |
-  "silencer" |
-  "seer_apprentice" |
-  "elder_leader" |
-  "resurrector_angel" |
-  // Lobos
-  "werewolf" |
-  "wolf_cub" |
-  "cursed" |
-  "witch" |
-  "seeker_fairy" |
-  // Especiales
-  "shapeshifter" |
-  "drunk_man" |
-  "cult_leader" |
-  "fisherman" |
-  "vampire" |
-  "banshee" |
-  "cupid" |
-  "executioner" |
-  "sleeping_fairy" | // Neutral/Caótico hasta que se encuentre
-  null;
+export type GamePhase = "waiting" | "role_reveal" | "night" | "day" | "voting" | "hunter_shot" | "jury_voting" | "finished";
 
+export enum PlayerRoleEnum {
+  VILLAGER = "villager",
+  SEER = "seer",
+  DOCTOR = "doctor",
+  HUNTER = "hunter",
+  GUARDIAN = "guardian",
+  PRIEST = "priest",
+  PRINCE = "prince",
+  LYCANTHROPE = "lycanthrope",
+  TWIN = "twin",
+  HECHICERA = "hechicera",
+  GHOST = "ghost",
+  VIRGINIA_WOOLF = "virginia_woolf",
+  LEPROSA = "leprosa",
+  RIVER_SIREN = "river_siren",
+  LOOKOUT = "lookout",
+  TROUBLEMAKER = "troublemaker",
+  SILENCER = "silencer",
+  SEER_APPRENTICE = "seer_apprentice",
+  ELDER_LEADER = "elder_leader",
+  RESURRECTOR_ANGEL = "resurrector_angel",
+  WEREWOLF = "werewolf",
+  WOLF_CUB = "wolf_cub",
+  CURSED = "cursed",
+  WITCH = "witch",
+  SEEKER_FAIRY = "seeker_fairy",
+  SHAPESHIFTER = "shapeshifter",
+  DRUNK_MAN = "drunk_man",
+  CULT_LEADER = "cult_leader",
+  FISHERMAN = "fisherman",
+  VAMPIRE = "vampire",
+  BANSHEE = "banshee",
+  CUPID = "cupid",
+  EXECUTIONER = "executioner",
+  SLEEPING_FAIRY = "sleeping_fairy",
+}
+
+export type PlayerRole = PlayerRoleEnum | null;
 
 export interface Game {
   id: string;
@@ -67,39 +66,8 @@ export interface Game {
     werewolves: number;
     fillWithAI: boolean;
     isPublic: boolean;
-    // Roles from user
-    seer: boolean;
-    doctor: boolean;
-    hunter: boolean;
-    guardian: boolean;
-    priest: boolean;
-    prince: boolean;
-    lycanthrope: boolean;
-    twin: boolean;
-    hechicera: boolean;
-    wolf_cub: boolean;
-    cursed: boolean;
-    cult_leader: boolean;
-    fisherman: boolean;
-    vampire: boolean;
-    ghost: boolean;
-    virginia_woolf: boolean;
-    leprosa: boolean;
-    river_siren: boolean;
-    lookout: boolean;
-    troublemaker: boolean;
-    silencer: boolean;
-    seer_apprentice: boolean;
-    elder_leader: boolean;
-    seeker_fairy: boolean;
-    sleeping_fairy: boolean;
-    shapeshifter: boolean;
-    witch: boolean;
-    banshee: boolean;
-    drunk_man: boolean;
-    resurrector_angel: boolean;
-    cupid: boolean;
-    executioner: boolean;
+    juryVoting: boolean;
+    [key: string]: boolean | number;
   };
   phaseEndsAt: Timestamp;
   twins: [string, string] | null;
@@ -117,6 +85,8 @@ export interface Game {
   troublemakerUsed: boolean;
   fairiesFound: boolean;
   fairyKillUsed: boolean;
+  juryVotes?: Record<string, string>;
+  masterKillUsed?: boolean;
 }
 
 export interface Player {
@@ -127,7 +97,7 @@ export interface Player {
   votedFor: string | null;
   displayName: string;
   avatarUrl: string;
-  joinedAt: Timestamp | null;
+  joinedAt: Timestamp | string | null;
   lastHealedRound: number;
   isAI: boolean;
   potions?: {
@@ -149,6 +119,11 @@ export interface Player {
   bansheeScreams?: Record<string, string>;
   lookoutUsed?: boolean;
   executionerTargetId: string | null;
+  victories: number;
+  defeats: number;
+  roleStats: Partial<Record<NonNullable<PlayerRole>, { played: number; won: number; }>>;
+  achievements: string[];
+  secretObjectiveId: string | null;
 }
 
 export type NightActionType = 
@@ -201,7 +176,7 @@ export interface ChatMessage {
   senderName: string;
   text: string;
   round: number;
-  createdAt: Timestamp;
+  createdAt: Timestamp | string;
   mentionedPlayerIds?: string[];
 }
 

@@ -5,7 +5,10 @@ export interface SecretObjective {
     name: string;
     description: string;
     appliesTo: (PlayerRole | 'any')[];
-    checkCompletion: (player: Player, game: Game) => boolean;
+}
+
+interface SecretObjectiveWithLogic extends SecretObjective {
+     checkCompletion: (player: Player, game: Game) => boolean;
 }
 
 // Dummy checkGameOver to satisfy TypeScript in this file. The real one is in firebase-actions.
@@ -20,8 +23,7 @@ const checkGameOver = (game: Game): { winnerCode?: string; winners: Player[] } =
     return { winners: [] };
 };
 
-
-export const secretObjectives: SecretObjective[] = [
+const allObjectives: SecretObjectiveWithLogic[] = [
     // === Objetivos para Aldeanos ===
     {
         id: 'survive_to_end_villager',
@@ -43,7 +45,7 @@ export const secretObjectives: SecretObjective[] = [
                 event.type === 'vote_result' && 
                 event.data?.lynchedPlayerId &&
                 game.players.some(p => p.userId === event.data.lynchedPlayerId && (p.role === 'werewolf' || p.role === 'wolf_cub')) &&
-                game.players.some(voter => voter.userId === player.userId && voter.votedFor === event.data.lynchedPlayerId && event.round === (voter as any).votedForRound) // Assumes votedForRound exists
+                game.players.some(voter => voter.userId === player.userId && voter.votedFor === event.data.lynchedPlayerId)
             );
         }
     },
@@ -53,7 +55,7 @@ export const secretObjectives: SecretObjective[] = [
         description: 'Como rol protector, salva con éxito a un jugador que iba a ser atacado por los lobos.',
         appliesTo: ['doctor', 'guardian', 'priest'],
         checkCompletion: (player, game) => {
-            return game.events.some(e => e.type === 'night_result' && e.data?.savedPlayerIds?.length > 0 && e.data.savedBy === player.userId);
+             return game.events.some(e => e.type === 'night_result' && e.data?.savedPlayerIds?.includes(player.userId) && e.data.savedBy === player.userId);
         }
     },
 
@@ -136,3 +138,11 @@ export const secretObjectives: SecretObjective[] = [
         }
     }
 ];
+
+// Export only the data, not the logic
+export const secretObjectives: SecretObjective[] = allObjectives.map(({ checkCompletion, ...data }) => data);
+
+// Export a way to get the logic by ID
+export const getObjectiveLogic = (id: string): ((player: Player, game: Game) => boolean) | undefined => {
+    return allObjectives.find(obj => obj.id === id)?.checkCompletion;
+};

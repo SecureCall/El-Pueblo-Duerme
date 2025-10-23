@@ -1,3 +1,4 @@
+
 'use client';
 import { 
   doc,
@@ -61,7 +62,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     defeats: 0,
     roleStats: {},
     achievements: [],
-    secretObjective: null,
+    secretObjectiveId: null,
 });
 
 
@@ -351,7 +352,8 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
                 }
                 const applicableObjectives = secretObjectives.filter(obj => obj.appliesTo.includes(p.role!) || obj.appliesTo.includes('any'));
                 if (applicableObjectives.length > 0) {
-                    p.secretObjective = applicableObjectives[Math.floor(Math.random() * applicableObjectives.length)];
+                    const chosenObjective = applicableObjectives[Math.floor(Math.random() * applicableObjectives.length)];
+                    p.secretObjectiveId = chosenObjective.id;
                 }
                 return p;
             });
@@ -581,7 +583,6 @@ async function killPlayer(transaction: Transaction, gameRef: DocumentReference<G
     return { updatedGame: newGameData, triggeredHunterId };
 }
 
-
 function checkGameOver(gameData: Game, lynchedPlayer?: Player | null): { isGameOver: boolean; message: string; winnerCode?: string; winners: Player[], losers: Player[] } {
     if (gameData.status === 'finished') {
         const lastEvent = gameData.events[gameData.events.length - 1];
@@ -607,7 +608,6 @@ function checkGameOver(gameData: Game, lynchedPlayer?: Player | null): { isGameO
             const executioner = gameData.players.find(p => p.role === 'executioner' && p.isAlive);
             if (executioner && executioner.executionerTargetId === lynchedPlayer.userId) {
                 soloWinners.push(executioner);
-                // The executioner win is a primary solo win condition
                 return {
                     isGameOver: true,
                     winnerCode: 'executioner',
@@ -908,8 +908,8 @@ export async function processNight(db: Firestore, gameId: string) {
             if (gameOverInfo.isGameOver) {
                 game.status = "finished";
                 game.phase = "finished";
-                const winners = game.players.filter(p => gameOverInfo.winners.includes(p.userId));
-                const losers = game.players.filter(p => !gameOverInfo.winners.includes(p.userId));
+                const winners = game.players.filter(p => gameOverInfo.winners.some(w => w.userId === p.userId));
+                const losers = game.players.filter(p => !gameOverInfo.winners.some(w => w.userId === p.userId));
                 game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners, losers }, createdAt: Timestamp.now() });
                 transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: game.players, events: game.events, boat: game.boat }));
                 return;
@@ -1638,25 +1638,37 @@ export async function submitTroublemakerAction(db: Firestore, gameId: string, tr
   }
 }
 
-export async function submitJuryVote(db: Firestore, gameId: string, jurorId: string, targetId: string) {
+export async function masterKillPlayer(db: Firestore, gameId: string, masterId: string, targetId: string) {
     const gameRef = doc(db, 'games', gameId) as DocumentReference<Game>;
     try {
-        await runTransaction(db, async (transaction) => {
+        await runTransaction(db, async(transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
-            const game = gameSnap.data();
+            let game = gameSnap.data();
 
-            if (game.phase !== 'jury_voting' || game.status === 'finished') return;
-            const juror = game.players.find(p => p.userId === jurorId);
-            if (!juror || juror.isAlive) throw new Error("Solo los jugadores muertos pueden ser jurado.");
-            if (game.juryVotes && game.juryVotes[jurorId]) throw new Error("Ya has emitido tu voto como jurado.");
-            
-            const newJuryVotes = { ...(game.juryVotes || {}), [jurorId]: targetId };
-            transaction.update(gameRef, { juryVotes: newJuryVotes });
+            if (game.creator !== masterId) throw new Error("Solo el Máster puede usar esta acción.");
+            if (game.masterKillUsed) throw new Error("El Zarpazo del Destino ya ha sido utilizado.");
+
+            const { updatedGame } = await killPlayer(transaction, gameRef, game, targetId, 'special');
+            game = updatedGame;
+
+            game.masterKillUsed = true;
+            game.events.push({ id: `evt_master_kill_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: `El Máster ha intervenido. ${game.players.find(p=>p.userId===targetId)?.displayName} ha sido eliminado por el Zarpazo del Destino.`, data: { killedPlayerIds: [targetId] }, createdAt: Timestamp.now() });
+
+            const gameOverInfo = checkGameOver(game);
+             if (gameOverInfo.isGameOver) {
+                game.status = "finished";
+                game.phase = "finished";
+                 const winners = game.players.filter(p => gameOverInfo.winners.some(w => w.userId === p.userId));
+                 const losers = game.players.filter(p => !gameOverInfo.winners.some(w => w.userId === p.userId));
+                game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners, losers }, createdAt: Timestamp.now() });
+            }
+
+            transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, masterKillUsed: true, status: game.status, phase: game.phase }));
         });
         return { success: true };
     } catch (error: any) {
-        console.error("Error submitting jury vote:", error);
-        return { error: error.message || "No se pudo registrar tu voto." };
+        console.error("Error in masterKillPlayer:", error);
+        return { error: error.message };
     }
 }
