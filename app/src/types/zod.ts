@@ -1,8 +1,7 @@
 
-
 import { z } from 'zod';
+import { PlayerRoleEnum } from '.';
 
-// Helper for Firebase Timestamps - now accepting string for client-server transfer
 const TimestampSchema = z.union([
   z.object({
     seconds: z.number(),
@@ -10,27 +9,25 @@ const TimestampSchema = z.union([
   }),
   z.string().refine(val => !isNaN(Date.parse(val)), {
     message: "Invalid date string format",
-  }), // ISO 8601 string
-  z.date(), // Accept Date objects as well
+  }),
+  z.date(),
 ]).nullable();
 
 
-export const PlayerRoleSchema = z.enum([
-  "villager", "seer", "doctor", "hunter", "guardian", "priest", "prince", "lycanthrope", "twin",
-  "hechicera", "ghost", "virginia_woolf", "leprosa", "river_siren", "lookout", "troublemaker",
-  "silencer", "seer_apprentice", "elder_leader", "werewolf", "wolf_cub", "cursed", "seeker_fairy",
-  "sleeping_fairy", "shapeshifter", "drunk_man", "cult_leader", "fisherman", "vampire", "witch", "banshee",
-  "resurrector_angel", "cupid", "executioner"
-]).nullable();
+export const PlayerRoleSchema = z.nativeEnum(PlayerRoleEnum).nullable();
+
 
 export const PlayerSchema = z.object({
   userId: z.string(),
   gameId: z.string(),
   role: PlayerRoleSchema,
   isAlive: z.boolean(),
+  isWolf: z.boolean().optional(),
   votedFor: z.string().nullable(),
   displayName: z.string(),
+  avatarUrl: z.string(),
   joinedAt: TimestampSchema,
+  lastActiveAt: TimestampSchema,
   lastHealedRound: z.number(),
   isAI: z.boolean(),
   potions: z.object({
@@ -52,6 +49,11 @@ export const PlayerSchema = z.object({
   bansheeScreams: z.record(z.string()).optional(),
   lookoutUsed: z.boolean().optional(),
   executionerTargetId: z.string().nullable(),
+  victories: z.number(),
+  defeats: z.number(),
+  roleStats: z.record(z.object({ played: z.number(), won: z.number() })).optional(),
+  achievements: z.array(z.string()),
+  secretObjectiveId: z.string().nullable(),
 });
 
 export const NightActionSchema = z.object({
@@ -93,6 +95,7 @@ export const GameSettingsSchema = z.object({
     werewolves: z.number(),
     fillWithAI: z.boolean(),
     isPublic: z.boolean(),
+    juryVoting: z.boolean(),
     seer: z.boolean(),
     doctor: z.boolean(),
     hunter: z.boolean(),
@@ -125,13 +128,13 @@ export const GameSettingsSchema = z.object({
     resurrector_angel: z.boolean(),
     cupid: z.boolean(),
     executioner: z.boolean(),
-});
+}).catchall(z.union([z.string(), z.number(), z.boolean()]));
 
 export const GameSchema = z.object({
   id: z.string(),
   name: z.string(),
   status: z.enum(["waiting", "in_progress", "finished"]),
-  phase: z.enum(["waiting", "role_reveal", "night", "day", "voting", "hunter_shot", "finished"]),
+  phase: z.enum(["waiting", "role_reveal", "night", "day", "voting", "hunter_shot", "jury_voting", "finished"]),
   creator: z.string(),
   players: z.array(PlayerSchema),
   events: z.array(GameEventSchema),
@@ -140,11 +143,13 @@ export const GameSchema = z.object({
   fairyChatMessages: z.array(ChatMessageSchema),
   twinChatMessages: z.array(ChatMessageSchema),
   loversChatMessages: z.array(ChatMessageSchema),
+  ghostChatMessages: z.array(ChatMessageSchema),
   maxPlayers: z.number(),
-  createdAt: TimestampSchema.refine((v): v is NonNullable<typeof v> => v !== null),
+  createdAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null),
+  lastActiveAt: TimestampSchema,
   currentRound: z.number(),
   settings: GameSettingsSchema,
-  phaseEndsAt: TimestampSchema.refine((v): v is NonNullable<typeof v> => v !== null),
+  phaseEndsAt: TimestampSchema,
   twins: z.tuple([z.string(), z.string()]).nullable(),
   lovers: z.tuple([z.string(), z.string()]).nullable(),
   pendingHunterShot: z.string().nullable(),
@@ -160,6 +165,8 @@ export const GameSchema = z.object({
   troublemakerUsed: z.boolean(),
   fairiesFound: z.boolean(),
   fairyKillUsed: z.boolean(),
+  juryVotes: z.record(z.string()).optional(),
+  masterKillUsed: z.boolean().optional(),
 });
 
 export const AIPlayerPerspectiveSchema = z.object({
@@ -167,6 +174,7 @@ export const AIPlayerPerspectiveSchema = z.object({
   aiPlayer: PlayerSchema,
   trigger: z.string(),
   players: z.array(PlayerSchema),
+  chatType: z.enum(['public', 'wolf', 'twin', 'lovers', 'ghost']),
 });
 
 export const GenerateAIChatMessageOutputSchema = z.object({
@@ -174,3 +182,4 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   shouldSend: z.boolean(),
 });
 
+    
