@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import type { Game, Player, GameEvent } from '@/types';
+import type { Game, Player, GameEvent, ChatMessage } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
@@ -21,16 +21,17 @@ interface DayPhaseProps {
     loverDeathEvents?: GameEvent[];
     voteEvent?: GameEvent;
     behaviorClueEvent?: GameEvent;
+    chatMessages: ChatMessage[];
 }
 
-function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, currentPlayer: Player, players: Player[] }) {
+function TroublemakerPanel({ game, currentPlayer, players }: { game: Game; currentPlayer: Player; players: Player[];}) {
     const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { firestore } = useFirebase();
     const { toast } = useToast();
 
     const handlePlayerSelect = (player: Player) => {
-        if (!player.isAlive || player.userId === currentPlayer.userId) return;
+        if (!player || !player.isAlive || player.userId === currentPlayer.userId) return;
         
         setSelectedPlayerIds(prev => {
             if (prev.includes(player.userId)) {
@@ -76,10 +77,12 @@ function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, curre
             <CardContent>
                 <p className="text-center mb-4 text-muted-foreground">Selecciona a dos jugadores para que se peleen.</p>
                 <PlayerGrid 
+                    game={game}
                     players={players.filter(p => p.isAlive && p.userId !== currentPlayer.userId)}
+                    currentPlayer={currentPlayer}
                     onPlayerClick={handlePlayerSelect}
-                    clickable={true}
-                    selectedPlayerIds={selectedPlayerIds}
+                    isClickable={true}
+                    isSelected={selectedPlayerIds}
                 />
                 <Button 
                     className="w-full mt-6 text-lg" 
@@ -97,7 +100,7 @@ function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, curre
     );
 }
 
-export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathEvents = [], voteEvent, behaviorClueEvent }: DayPhaseProps) {
+export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathEvents = [], voteEvent, behaviorClueEvent, chatMessages }: DayPhaseProps) {
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
@@ -125,7 +128,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
 
 
     const handlePlayerSelect = (player: Player) => {
-        if (hasVoted || !currentPlayer.isAlive || !player.isAlive || player.userId === currentPlayer.userId) return;
+        if (!player || hasVoted || !currentPlayer.isAlive || !player.isAlive || player.userId === currentPlayer.userId) return;
         setSelectedPlayerId(player.userId);
     };
 
@@ -149,19 +152,6 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
     const sirenVote = isCharmed && isSirenAlive && siren?.votedFor ? players.find(p => p.userId === siren.votedFor) : null;
     const votedForPlayer = players.find(p => p.userId === currentPlayer.votedFor);
     
-    const votesByPlayer = players.filter(p => p.isAlive).reduce((acc, player) => {
-        if (player.votedFor) {
-            if (!acc[player.votedFor]) {
-                acc[player.votedFor] = [];
-            }
-            const voter = players.find(p => p.userId === player.userId);
-            if (voter) {
-                acc[player.votedFor].push(voter.displayName);
-            }
-        }
-        return acc;
-    }, {} as Record<string, string[]>);
-
     return (
         <Card className="bg-card/80 w-full h-full">
             <CardHeader>
@@ -222,10 +212,6 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                             <p className="text-lg text-primary">
                                 Has votado por {votedForPlayer?.displayName || 'alguien'}. Esperando al resto de jugadores...
                             </p>
-                            <PlayerGrid 
-                                players={players.filter(p => p.isAlive)}
-                                votesByPlayer={votesByPlayer}
-                            />
                         </div>
                     ) : (
                         <>
@@ -248,11 +234,12 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
 
                             <p className="text-center mb-4 text-muted-foreground">{isTiebreaker ? "Debes elegir a uno de los empatados." : "Selecciona al jugador que crees que es un Hombre Lobo."}</p>
                             <PlayerGrid 
+                                game={game}
                                 players={votablePlayers.filter(p => p.userId !== currentPlayer.userId)}
+                                currentPlayer={currentPlayer}
                                 onPlayerClick={handlePlayerSelect}
-                                clickable={canPlayerVote}
-                                selectedPlayerIds={selectedPlayerId ? [selectedPlayerId] : []}
-                                votesByPlayer={votesByPlayer}
+                                isClickable={canPlayerVote}
+                                isSelected={selectedPlayerId ? [selectedPlayerId] : []}
                             />
                             <Button 
                                 className="w-full mt-6 text-lg" 
@@ -267,8 +254,9 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                     <div className="text-center py-4 space-y-4">
                         <p className="text-lg">Observas el debate desde el más allá...</p>
                         <PlayerGrid 
+                            game={game}
                             players={players.filter(p => p.isAlive)}
-                            votesByPlayer={votesByPlayer}
+                            currentPlayer={currentPlayer}
                         />
                     </div>
                 )}
@@ -279,4 +267,3 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
         </Card>
     );
 }
-
