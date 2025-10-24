@@ -5,11 +5,11 @@ import { useState } from 'react';
 import type { Game, Player } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Swords, Eye } from 'lucide-react';
-import { executeMasterAction, masterKillPlayer } from '@/lib/firebase-actions';
+import { masterKillPlayer } from '@/lib/firebase-actions';
 import { useFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../ui/alert-dialog';
 import { masterActions, type MasterActionId } from '@/lib/master-actions';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 
 export interface MasterActionState {
     active: boolean;
@@ -25,18 +25,14 @@ interface MasterActionBarProps {
 export function MasterActionBar({ game, setMasterActionState }: MasterActionBarProps) {
     const { firestore } = useFirebase();
     const { toast } = useToast();
-    const [killTarget, setKillTarget] = useState<Player | null>(null);
 
-    const handleMasterKill = async () => {
-        if (!firestore || !killTarget) return;
-
-        const result = await masterKillPlayer(firestore, game.id, game.creator, killTarget.userId);
-        if (result.error) {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        } else {
-            toast({ title: '¡Hecho!', description: `${killTarget.displayName} ha sido eliminado por el Máster.` });
+    const handleMasterKillClick = () => {
+         if (game.masterKillUsed) {
+            toast({ variant: 'destructive', title: 'Acción ya utilizada', description: 'El Zarpazo del Destino solo se puede usar una vez por partida.' });
+            return;
         }
-        setKillTarget(null);
+        setMasterActionState({ active: true, actionId: 'master_kill', sourceId: null });
+        toast({ title: masterActions.master_kill.name, description: 'Selecciona al jugador que quieres eliminar.' });
     };
     
     const handleActionClick = (actionId: MasterActionId) => {
@@ -46,42 +42,42 @@ export function MasterActionBar({ game, setMasterActionState }: MasterActionBarP
 
 
     return (
-        <div className="flex items-center gap-2">
-            <AlertDialog>
-                <AlertDialogTrigger asChild>
-                     <Button 
-                        variant="destructive" 
-                        size="icon" 
-                        className="h-8 w-8"
-                        disabled={game.masterKillUsed}
-                        onClick={() => setMasterActionState({ active: true, actionId: 'master_kill', sourceId: null })}
-                    >
-                        <Swords className="h-4 w-4" />
-                    </Button>
-                </AlertDialogTrigger>
-                 <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>¿Confirmar eliminación del Máster?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                           Esta acción es irreversible y solo se puede usar una vez. El jugador será eliminado ignorando cualquier protección. ¿Estás seguro?
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleMasterKill} disabled={!killTarget}>
-                            Confirmar
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-             <Button 
-                variant="outline" 
-                size="icon" 
-                className="h-8 w-8"
-                onClick={() => handleActionClick('reveal_role')}
-            >
-                <Eye className="h-4 w-4" />
-            </Button>
-        </div>
+        <TooltipProvider>
+            <div className="flex items-center gap-2">
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button 
+                            variant="destructive" 
+                            size="icon" 
+                            className="h-8 w-8"
+                            disabled={game.masterKillUsed}
+                            onClick={handleMasterKillClick}
+                        >
+                            <Swords className="h-4 w-4" />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p className='font-bold'>Zarpazo del Destino (Máster)</p>
+                        <p>Elimina a un jugador al instante. Un solo uso.</p>
+                    </TooltipContent>
+                </Tooltip>
+                 <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="h-8 w-8"
+                            onClick={() => handleActionClick('reveal_role')}
+                        >
+                            <Eye className="h-4 w-4" />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p className='font-bold'>Revelar Rol (Máster)</p>
+                        <p>Muestra el rol de un jugador a otro.</p>
+                    </TooltipContent>
+                </Tooltip>
+            </div>
+        </TooltipProvider>
     );
 }
