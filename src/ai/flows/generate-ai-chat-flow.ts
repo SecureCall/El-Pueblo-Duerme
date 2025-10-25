@@ -1,3 +1,4 @@
+
 'use server';
 
 import { ai } from '@/ai/genkit';
@@ -45,7 +46,7 @@ Your Identity:
 {{/if}}
 
 Game State:
-- Chat Type: {{{chatType}}} (public, wolf, twin, lovers, ghost)
+- Chat Type: {{{chatType}}} (public, wolf, twin, lovers)
 - Current Phase: {{{game.phase}}}
 - Current Round: {{{game.currentRound}}}
 - Your Status: {{{aiPlayer.isAlive}}}
@@ -74,7 +75,6 @@ Based on your role, the game state, and the trigger, decide if you should say so
   - **Twin Chat:** You have a secret ally. Coordinate everything. "Confío en ti. ¿Qué has visto? ¿Por quién votamos? Yo sospecho de {sospechoso}."
 - **Lover:**
   - **Lovers Chat:** You have one goal: survive together. Protect each other. Decide your votes together, regardless of your original teams. "Somos nosotros contra el mundo. No me importa si eres lobo o no. Votemos por {objetivo_comun} para salvarnos."
-- **Ghost:** You are dead. You can see everything but can only talk to other ghosts. Comment on the living players' foolishness or brilliance. "¡No puedo creer que no vean que {jugador} es el lobo! Es tan obvio."
 
 Now, generate your response for the current situation.
 `,
@@ -83,7 +83,7 @@ Now, generate your response for the current situation.
 const generateAiChatMessageFlow = ai.defineFlow(
     {
         name: 'generateAiChatMessageFlow',
-        inputSchema: z.object({ perspective: AIPlayerPerspectiveSchema, chatType: z.enum(['public', 'wolf', 'twin', 'lovers', 'ghost']) }),
+        inputSchema: z.object({ perspective: AIPlayerPerspectiveSchema, chatType: z.enum(['public', 'wolf', 'twin', 'lovers']) }),
         outputSchema: GenerateAIChatMessageOutputSchema,
     },
     async ({ perspective, chatType }) => {
@@ -138,7 +138,7 @@ const generateAiChatMessageFlow = ai.defineFlow(
              // Hide roles of other players before sending to the prompt, except for own role
             players: perspective.players.map(p => ({
                 ...p,
-                role: p.userId === perspective.aiPlayer.userId || !p.isAlive ? p.role : 'unknown',
+                role: p.userId === perspective.aiPlayer.userId ? p.role : 'unknown',
             })),
         };
 
@@ -150,7 +150,7 @@ const generateAiChatMessageFlow = ai.defineFlow(
 
 export async function generateAIChatMessage(
     perspective: AIPlayerPerspective, 
-    chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost'
+    chatType: 'public' | 'wolf' | 'twin' | 'lovers'
 ): Promise<GenerateAIChatMessageOutput> {
     try {
         const sanitizedPerspective = sanitizeObject(perspective);

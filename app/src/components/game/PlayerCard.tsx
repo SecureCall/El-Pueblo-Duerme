@@ -1,12 +1,12 @@
 
 "use client";
 
-import React from 'react';
-import type { Game, Player, GameEvent } from "@/types";
+import type { Player, GameEvent } from "@/types";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { Bot, Crown, Gavel, Skull, Heart, Swords, Edit, Eye } from "lucide-react";
+import { PlaceHolderImages } from "@/lib/placeholder-images";
+import { Bot, Crown, Gavel, Skull, Heart } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { roleDetails, defaultRoleDetail } from "@/lib/roles";
@@ -14,21 +14,31 @@ import Image from "next/image";
 import { VampireIcon } from "../icons";
 
 interface PlayerCardProps {
-  game: Game;
   player: Player & { causeOfDeath?: GameEvent['type'] | 'other' };
-  currentPlayer: Player;
-  onClick?: (player: Player) => void;
+  onClick?: () => void;
   isClickable?: boolean;
   isSelected?: boolean;
   highlightColor?: string;
   votes?: string[];
 }
 
-export const PlayerCard = React.memo(function PlayerCard({ game, player, currentPlayer, onClick, isClickable, isSelected, highlightColor, votes }: PlayerCardProps) {
-  if (!player) {
-    return null;
+export function PlayerCard({ player, onClick, isClickable, isSelected, highlightColor, votes }: PlayerCardProps) {
+  
+  const getAvatarId = (userId: string) => {
+    let hash = 0;
+    for (let i = 0; i < userId.length; i++) {
+        const char = userId.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    const totalAvatars = 16;
+    return (Math.abs(hash) % totalAvatars) + 1;
   }
   
+  const avatarImage = PlaceHolderImages.find((img) => img.id === `avatar-${getAvatarId(player.userId)}`);
+
+  const cardStyle = highlightColor ? { boxShadow: `0 0 15px 4px ${highlightColor}` } : {};
+
  if (!player.isAlive) {
     const roleInfo = player.role ? (roleDetails[player.role] ?? defaultRoleDetail) : defaultRoleDetail;
 
@@ -71,7 +81,7 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
             );
         default:
           return (
-             <div className={baseClasses}>
+             <div className={cn(baseClasses)}>
                 <Skull className={cn(iconClasses, "text-gray-400")} />
             </div>
           );
@@ -101,8 +111,6 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
     );
 }
 
-  const cardStyle = highlightColor ? { boxShadow: `0 0 15px 4px ${highlightColor}` } : {};
-
   return (
     <TooltipProvider>
       <Tooltip>
@@ -114,17 +122,9 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
                 isClickable && "cursor-pointer hover:scale-105 hover:bg-card/100",
                 isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
               )}
-              onClick={onClick ? () => onClick(player) : undefined}
+              onClick={onClick}
               style={cardStyle}
             >
-              {player.userId === currentPlayer.userId && (
-                <div className="absolute top-1 right-1 bg-secondary/80 rounded-full p-1 cursor-pointer hover:bg-secondary" onClick={() => onClick && onClick(player)}>
-                  <Edit className="h-4 w-4 text-secondary-foreground" />
-                </div>
-              )}
-              {player.userId === game.creator && (
-                 <Crown className="absolute -top-2 -left-2 h-6 w-6 text-yellow-400 rotate-[-15deg]" />
-              )}
               {votes && votes.length > 0 && (
                 <Badge variant="destructive" className="absolute -top-2 -right-2 z-10">{votes.length}</Badge>
               )}
@@ -134,12 +134,9 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
               {player.princeRevealed && (
                  <Crown className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-10 h-5 w-5 text-yellow-400" />
               )}
-               {player.isLover && currentPlayer.isLover && player.userId !== currentPlayer.userId && (
-                 <Heart className="absolute -top-2 -right-2 z-10 h-5 w-5 text-pink-400" />
-              )}
               <CardContent className="p-0">
                 <Avatar className="h-20 w-20 border-2 border-border">
-                  <AvatarImage src={player.avatarUrl} alt={player.displayName} />
+                  <AvatarImage src={avatarImage?.imageUrl || '/avatar-default.png'} data-ai-hint={avatarImage?.imageHint} />
                   <AvatarFallback>{player.displayName.substring(0, 2)}</AvatarFallback>
                 </Avatar>
               </CardContent>
@@ -158,12 +155,12 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
                 <p>¡Príncipe revelado! Inmune al linchamiento.</p>
             </TooltipContent>
          )}
-         {player.isLover && currentPlayer.isLover && player.userId !== currentPlayer.userId && (
+         {player.isLover && (
               <TooltipContent>
-                <p>Tu enamorado/a.</p>
+                <p>Enamorado por la flecha de Cupido.</p>
               </TooltipContent>
          )}
       </Tooltip>
     </TooltipProvider>
   );
-});
+}

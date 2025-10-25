@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -7,10 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
-import { processNight, processVotes, setPhaseToNight, processJuryVotes } from "@/lib/firebase-actions";
+import { processNight, processVotes, setPhaseToNight, triggerAIVote, runAIActions } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
-import { Heart, Moon, Sun, Users2, Wand2, Loader2, UserX, Scale } from "lucide-react";
+import { Heart, Moon, Sun, Users2, Wand2, Loader2, UserX } from "lucide-react";
 import { HunterShot } from "./HunterShot";
 import { GameChronicle } from "./GameChronicle";
 import { PhaseTimer } from "./PhaseTimer";
@@ -24,74 +25,71 @@ import { GameChat } from "./GameChat";
 import { TwinChat } from "./TwinChat";
 import { FairyChat } from "./FairyChat";
 import { VampireKillOverlay } from "./VampireKillOverlay";
+import { useGameState } from "@/hooks/use-game-state";
 import { LoversChat } from "./LoversChat";
 import { getMillis } from "@/lib/utils";
-import GhostSpectatorChat from "@/components/game/GhostSpectatorChat";
-import { JuryVote } from "./JuryVote";
-import { MasterActionBar, type MasterActionState } from "./MasterActionBar";
+
 
 interface GameBoardProps {
   game: Game;
   players: Player[];
-  currentPlayer: Player;
+  currentPlayer: Player | null;
   events: GameEvent[];
   messages: ChatMessage[];
   wolfMessages: ChatMessage[];
   fairyMessages: ChatMessage[];
   twinMessages: ChatMessage[];
   loversMessages: ChatMessage[];
-  ghostMessages: ChatMessage[];
 }
 
 export function GameBoard({ 
-    game, 
-    players, 
-    currentPlayer, 
-    events, 
-    messages, 
-    wolfMessages, 
-    fairyMessages, 
-    twinMessages,
-    loversMessages,
-    ghostMessages,
+    game: initialGame, 
+    players: initialPlayers, 
+    currentPlayer: initialCurrentPlayer, 
+    events: initialEvents, 
+    messages: initialMessages, 
+    wolfMessages: initialWolfMessages, 
+    fairyMessages: initialFairyMessages, 
+    twinMessages: initialTwinMessages,
+    loversMessages: initialLoversMessages,
 }: GameBoardProps) {
   const { firestore } = useFirebase();
+  const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages } = useGameState(initialGame.id, {
+    initialGame,
+    initialPlayers,
+    initialCurrentPlayer,
+    initialEvents,
+    initialMessages,
+    initialWolfMessages,
+    initialFairyMessages,
+    initialTwinMessages,
+    initialLoversMessages,
+  });
   
   const prevPhaseRef = useRef<Game['phase']>();
   const [showRole, setShowRole] = useState(true);
   const [deathCause, setDeathCause] = useState<GameEvent['type'] | 'other' | null>(null);
   const nightSoundsPlayedForRound = useRef<number>(0);
-  const voteTieSoundPlayedForRound = useRef<number>(0);
   const [timeLeft, setTimeLeft] = useState(0);
-  const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
 
   const handlePhaseEnd = useCallback(async () => {
     if (!firestore || !game || !currentPlayer) return;
     if (game.status === 'finished') return;
     
-    if (game.creator === currentPlayer.userId) {
-      if (game.phase === 'day') {
+    // Any player can trigger the phase end as a failsafe.
+    // The backend functions are idempotent.
+    if (game.phase === 'day' && game.creator === currentPlayer.userId) {
         await processVotes(firestore, game.id);
-      } else if (game.phase === 'night') {
+    } else if (game.phase === 'night' && game.creator === currentPlayer.userId) {
         await processNight(firestore, game.id);
-      } else if (game.phase === 'jury_voting') {
-        await processJuryVotes(firestore, game.id);
-      }
     }
   }, [firestore, game, currentPlayer]);
 
 
   // Sound and action trigger logic
   useEffect(() => {
-    if (!game || !currentPlayer) return;
+    if (!game || !currentPlayer || game.status === 'finished') return;
     const prevPhase = prevPhaseRef.current;
-    
-    if (game.status === 'finished' && prevPhaseRef.current !== 'finished') {
-        const gameOverEvent = events.find(e => e.type === 'game_over');
-        if (gameOverEvent?.data) {
-           // updateStats(gameOverEvent.data.winners, gameOverEvent.data.losers, players);
-        }
-    }
 
     if (prevPhase !== game.phase) {
       switch (game.phase) {
@@ -102,38 +100,41 @@ export function GameBoard({
           } else {
             playNarration('noche_pueblo_duerme.mp3');
           }
+           if (firestore && game.creator === currentPlayer?.userId) {
+                runAIActions(firestore, game.id);
+            }
           break;
         case 'day':
-          playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
-          playNarration('¡Pueblo... despierta!.mp3');
+          playSoundEffect('/audio/rooster-crowing-364473.mp3');
+          playNarration('dia_pueblo_despierta.mp3');
           setTimeout(() => {
-            const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
-            if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
-                const hasDeaths = (nightEvent.data?.killedPlayerIds?.length || 0) > 0;
-                if (hasDeaths) {
-                    playNarration('Descanse en paz.mp3');
-                } else {
-                    playNarration('¡Milagro!.mp3');
-                }
-                nightSoundsPlayedForRound.current = game.currentRound; 
+            playNarration('inicio_debate.mp3');
+            if (firestore && game.creator === currentPlayer?.userId) {
+                triggerAIVote(firestore, game.id);
             }
-            setTimeout(() => {
-                playNarration('inicio_debate.mp3');
-            }, 3000);
           }, 2000);
           break;
       }
     }
     
-    const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound);
-    if (voteEvent && voteEvent.data?.tiedPlayerIds && voteTieSoundPlayedForRound.current !== game.currentRound) {
-      playNarration('empate.mp3');
-      voteTieSoundPlayedForRound.current = game.currentRound;
-    }
-    
     prevPhaseRef.current = game.phase;
 
-  }, [game, events, players]);
+    const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
+    if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
+        const hasDeaths = (nightEvent.data?.killedPlayerIds?.length || 0) > 0;
+        const wasSaved = !hasDeaths && ((nightEvent.data?.savedPlayerIds?.length || 0) > 0);
+        
+        setTimeout(() => {
+            if (hasDeaths) {
+                playNarration('Descanse en paz.mp3');
+            } else if (wasSaved) {
+                playNarration('¡Milagro!.mp3');
+            }
+        }, 3000); 
+        nightSoundsPlayedForRound.current = game.currentRound; 
+    }
+
+  }, [game?.phase, game?.currentRound, events, players, firestore, game, currentPlayer]);
 
     const getCauseOfDeath = (playerId: string): GameEvent['type'] | 'other' => {
         const deathEvent = [...events]
@@ -160,6 +161,7 @@ export function GameBoard({
   
   // Auto-advance from role reveal
   useEffect(() => {
+    if (!game || !currentPlayer) return;
     if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore && game.status === 'in_progress') {
       const timer = setTimeout(() => {
         setPhaseToNight(firestore, game.id);
@@ -171,7 +173,7 @@ export function GameBoard({
   
   // Phase timer logic
   useEffect(() => {
-    if (!game?.phaseEndsAt || !firestore || game.status === 'finished') {
+    if (!game?.phaseEndsAt || !firestore || !game || game.status === 'finished') {
       setTimeLeft(0);
       return;
     }
@@ -190,10 +192,14 @@ export function GameBoard({
 
     return () => clearInterval(interval);
   }, [game?.phaseEndsAt, game?.id, firestore, game, handlePhaseEnd]);
+
+  if (!game || !currentPlayer) {
+      return null;
+  }
   
   if (game.status === 'finished') {
     const gameOverEvent = events.find(e => e.type === 'game_over');
-    return <GameOver game={game} event={gameOverEvent} players={players} currentPlayer={currentPlayer} />;
+    return <GameOver game={game} event={gameOverEvent} players={players} />;
   }
 
   if (currentPlayer.role && game.phase === 'role_reveal' && showRole) {
@@ -219,25 +225,25 @@ export function GameBoard({
     return (
         <>
             {renderDeathOverlay()}
-            <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} ghostMessages={ghostMessages} currentPlayer={currentPlayer} getCauseOfDeath={getCauseOfDeath} timeLeft={timeLeft} masterActionState={masterActionState} setMasterActionState={setMasterActionState} />
+            <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} currentPlayer={currentPlayer} getCauseOfDeath={getCauseOfDeath} timeLeft={timeLeft} />
         </>
     );
   }
 
   return (
-    <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} ghostMessages={ghostMessages} currentPlayer={currentPlayer} getCauseOfDeath={getCauseOfDeath} timeLeft={timeLeft} masterActionState={masterActionState} setMasterActionState={setMasterActionState} />
+    <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} currentPlayer={currentPlayer} getCauseOfDeath={getCauseOfDeath} timeLeft={timeLeft} />
   );
 }
 
 
-function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, currentPlayer, getCauseOfDeath, timeLeft, masterActionState, setMasterActionState }: { game: Game; players: Player[]; events: GameEvent[]; messages: ChatMessage[]; wolfMessages: ChatMessage[]; fairyMessages: ChatMessage[]; twinMessages: ChatMessage[]; loversMessages: ChatMessage[]; ghostMessages: ChatMessage[]; currentPlayer: Player; getCauseOfDeath: (playerId: string) => GameEvent['type'] | 'other', timeLeft: number; masterActionState: MasterActionState; setMasterActionState: React.Dispatch<React.SetStateAction<MasterActionState>> }) {
-
+function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, currentPlayer, getCauseOfDeath, timeLeft }: Omit<GameBoardProps, 'ghostMessages'> & { getCauseOfDeath: (playerId: string) => GameEvent['type'] | 'other', timeLeft: number }) {
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
   const voteEvent = events.find(e => e.type === 'vote_result' && e.round === (game.phase === 'day' ? game.currentRound : game.currentRound - 1));
   const behaviorClueEvent = events.find(e => e.type === 'behavior_clue' && e.round === game.currentRound -1);
 
   const getPhaseTitle = () => {
+    if (!game) return '';
     const roundNumber = game.currentRound || 0;
 
     switch(game.phase) {
@@ -246,12 +252,13 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
         case 'role_reveal': return 'REPARTIENDO ROLES';
         case 'finished': return 'PARTIDA TERMINADA';
         case 'hunter_shot': return '¡LA VENGANZA DEL CAZADOR!';
-        case 'jury_voting': return 'VOTO DEL JURADO';
         default: return '';
     }
   }
   
   const getPhaseDescription = () => {
+    if(!currentPlayer) return 'Observas desde el más allá...';
+
      switch(game.phase) {
         case 'night':
              if (!currentPlayer.isAlive) return 'Observas desde el más allá...';
@@ -263,7 +270,6 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
              return 'Duermes profundamente...';
         case 'day': return currentPlayer.isAlive ? 'Debate y encuentra a los lobos.' : 'Observas el debate desde el más allá...';
         case 'role_reveal': return 'Tu destino está siendo sellado...';
-        case 'jury_voting': return !currentPlayer.isAlive ? 'Los vivos esperan tu sentencia.' : 'El jurado de los muertos decide...';
         default: return 'El pueblo espera...';
     }
   }
@@ -272,17 +278,16 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
       switch(game.phase) {
           case 'night': return <Moon className="h-6 w-6" />;
           case 'day': return <Sun className="h-6 w-6 text-yellow-300" />;
-          case 'jury_voting': return <Scale className="h-6 w-6 text-yellow-400" />
           default: return null;
       }
   }
   
-  const isTwin = !!game.twins?.includes(currentPlayer.userId);
-  const otherTwinId = isTwin ? game.twins!.find(id => id !== currentPlayer.userId) : null;
+  const isTwin = !!game.twins?.includes(currentPlayer?.userId ?? '');
+  const otherTwinId = isTwin ? game.twins!.find(id => id !== currentPlayer!.userId) : null;
   const otherTwin = otherTwinId ? players.find(p => p.userId === otherTwinId) : null;
 
-  const isLover = currentPlayer.isLover;
-  const otherLoverId = isLover && game.lovers ? game.lovers.find(id => id !== currentPlayer.userId) : null;
+  const isLover = currentPlayer?.isLover;
+  const otherLoverId = isLover && game.lovers ? game.lovers.find(id => id !== currentPlayer!.userId) : null;
   const otherLover = otherLoverId ? players.find(p => p.userId === otherLoverId) : null;
   
   const highlightedPlayers = [];
@@ -313,25 +318,23 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
      )
   }
 
-  const isHunterWaitingToShoot = game.phase === 'hunter_shot' && game.pendingHunterShot === currentPlayer.userId;
-   if (isHunterWaitingToShoot) {
+  const isHunterWaitingToShoot = game.phase === 'hunter_shot' && game.pendingHunterShot === currentPlayer?.userId;
+   if (isHunterWaitingToShoot && currentPlayer) {
       const hunterAlivePlayers = players.filter(p => p.isAlive && p.userId !== currentPlayer.userId);
       return (
         <HunterShot game={game} currentPlayer={currentPlayer} players={hunterAlivePlayers} />
       );
   }
 
-  const showGhostAction = !!(currentPlayer.role === 'ghost' && !currentPlayer.isAlive && !currentPlayer.ghostMessageSent);
-  const showGhostChat = !currentPlayer.isAlive;
-  const showJuryVote = game.phase === 'jury_voting' && !currentPlayer.isAlive;
-  const isMaster = game.creator === currentPlayer.userId;
+  const showGhostAction = !!(currentPlayer && currentPlayer.role === 'ghost' && !currentPlayer.isAlive && !currentPlayer.ghostMessageSent);
+  const showGhostChat = !!(currentPlayer && !currentPlayer.isAlive);
 
    return (
     <div className="w-full max-w-7xl mx-auto p-4 space-y-4">
        <Card className="text-center bg-card/80 sticky top-4 z-30 shadow-lg">
         <CardHeader className="p-4">
              <div className="flex justify-between items-start">
-                 <GameChronicle events={events} currentPlayerId={currentPlayer.userId} />
+                 <GameChronicle events={events} currentPlayerId={currentPlayer?.userId || ''} />
                 <div className="flex-1 text-center">
                     <CardTitle className="font-headline text-3xl flex items-center justify-center gap-3">
                       {getPhaseIcon()}
@@ -339,11 +342,9 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
                     </CardTitle>
                     <CardDescription className="text-base mt-1">{getPhaseDescription()}</CardDescription>
                 </div>
-                 <div className="w-12 h-12 flex items-center justify-center">
-                    {isMaster && <MasterActionBar game={game} setMasterActionState={setMasterActionState} />}
-                </div>
+                <div className="w-12 h-12"></div>
              </div>
-             { (game.phase === 'day' || game.phase === 'night' || game.phase === 'jury_voting') && game.status === 'in_progress' && (
+             { (game.phase === 'day' || game.phase === 'night') && game.status === 'in_progress' && (
                 <PhaseTimer 
                     key={`${game.id}-${game.phase}-${game.currentRound}`}
                     timeLeft={timeLeft}
@@ -352,9 +353,9 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
         </CardHeader>
       </Card>
       
-      <PlayerGrid game={game} players={playersWithDeathCause} currentPlayer={currentPlayer} highlightedPlayers={highlightedPlayers} masterActionState={masterActionState} setMasterActionState={setMasterActionState} />
+      {currentPlayer && <PlayerGrid players={playersWithDeathCause} currentPlayer={currentPlayer} highlightedPlayers={highlightedPlayers} />}
 
-      {isTwin && otherTwin && currentPlayer.isAlive && (
+      {isTwin && otherTwin && currentPlayer?.isAlive && (
         <Card className="bg-blue-900/30 border-blue-400/50">
           <CardContent className="pt-6">
             <div className="flex items-center justify-center gap-3 text-blue-300">
@@ -365,7 +366,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
         </Card>
       )}
 
-       {!!game.fairiesFound && ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer.role || '') && (
+       {!!game.fairiesFound && ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer?.role || '') && (
             <Card className="bg-fuchsia-900/30 border-fuchsia-400/50">
                 <CardContent className="pt-6">
                     <div className="flex items-center justify-center gap-3 text-fuchsia-300">
@@ -387,45 +388,32 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
             </Card>
         )}
 
-      {game.phase === 'night' && currentPlayer.isAlive && (
+      {currentPlayer && game.phase === 'night' && currentPlayer.isAlive && (
         <NightActions game={game} players={players} currentPlayer={currentPlayer} wolfMessages={wolfMessages} fairyMessages={fairyMessages} />
       )}
 
-      {showGhostAction && (
+      {showGhostAction && currentPlayer && (
         <GhostAction game={game} currentPlayer={currentPlayer} players={players.filter(p => p.isAlive)} />
       )}
       
-      {(game.phase === 'day' || showGhostChat || game.phase === 'jury_voting') && (
+      {game.phase === 'day' && currentPlayer && (
         <div className="mt-8 w-full flex flex-col md:flex-row gap-4">
             <div className="flex-1 flex flex-col gap-4">
-                {game.phase === 'day' && (
-                    <DayPhase 
-                        game={game} 
-                        players={players}
-                        currentPlayer={currentPlayer}
-                        nightEvent={nightEvent}
-                        loverDeathEvents={loverDeathEvents}
-                        voteEvent={voteEvent}
-                        behaviorClueEvent={behaviorClueEvent}
-                        chatMessages={messages}
-                        masterActionState={masterActionState}
-                        setMasterActionState={setMasterActionState}
-                    />
-                )}
-                
-                {showJuryVote && voteEvent?.data?.tiedPlayerIds && (
-                    <JuryVote game={game} players={players} currentPlayer={currentPlayer} tiedPlayerIds={voteEvent.data.tiedPlayerIds} />
-                )}
-
-                {showGhostChat && (
-                     <GhostSpectatorChat gameId={game.id} currentPlayer={currentPlayer} messages={ghostMessages} />
-                )}
-
-                <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
-                    {isTwin && <TwinChat gameId={game.id} currentPlayer={currentPlayer} messages={twinMessages} />}
-                    {game.fairiesFound && ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer.role || '') && <FairyChat gameId={game.id} currentPlayer={currentPlayer} messages={fairyMessages} />}
-                    {isLover && <LoversChat gameId={game.id} currentPlayer={currentPlayer} messages={loversMessages} />}
-                </div>
+              <DayPhase 
+                  game={game} 
+                  players={players}
+                  currentPlayer={currentPlayer}
+                  nightEvent={nightEvent}
+                  loverDeathEvents={loverDeathEvents}
+                  voteEvent={voteEvent}
+                  behaviorClueEvent={behaviorClueEvent}
+                  chatMessages={messages}
+              />
+              <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
+                  {isTwin && <TwinChat gameId={game.id} currentPlayer={currentPlayer} messages={twinMessages} />}
+                  {game.fairiesFound && ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer?.role || '') && <FairyChat gameId={game.id} currentPlayer={currentPlayer} messages={fairyMessages} />}
+                  {isLover && <LoversChat gameId={game.id} currentPlayer={currentPlayer} messages={loversMessages} />}
+              </div>
             </div>
              <div className="w-full md:w-96">
                 <GameChat 
@@ -449,7 +437,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
          </Card>
       )}
        
-       {currentPlayer.isAlive && game.status === 'in_progress' && game.phase !== 'role_reveal' && (
+       {currentPlayer && currentPlayer.isAlive && game.status === 'in_progress' && game.phase !== 'role_reveal' && (
         <CurrentPlayerRole player={currentPlayer} />
        )}
     </div>
