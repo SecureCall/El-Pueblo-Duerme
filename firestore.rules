@@ -1,54 +1,67 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper function to check if a user is part of a specific game
-    function isPlayer(gameId, userId) {
-      return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.userId == userId);
-    }
-    
-    // Helper function to check if a user is the creator of a game
-    function isCreator(gameId, userId) {
-      return get(/databases/$(database)/documents/games/$(gameId)).data.creator == userId;
+  
+    // Default deny all reads and writes
+    match /{document=**} {
+      allow read, write: if false;
     }
 
+    // Rules for the 'games' collection
     match /games/{gameId} {
-      // ANY authenticated user can create a game.
+      // Anyone can read game data to stay in sync
+      allow read: if true;
+      
+      // Allow creating a new game if the user is authenticated
       allow create: if request.auth != null;
-
-      // ANY authenticated user can read the list of public games.
-      // This is safe because we will use a query with a 'where' clause on 'isPublic'.
-      allow list: if request.auth != null;
-
-      // ONLY a player in the game can read its full data.
-      allow get: if request.auth != null && isPlayer(gameId, request.auth.uid);
       
-      // Complex update logic
-      allow update: if request.auth != null && (
-        // Case 1: The game is in 'waiting' state.
-        (resource.data.status == 'waiting' && (
-            // A new player is joining (the list of players grows by 1).
-            (request.resource.data.players.size() == resource.data.players.size() + 1 &&
-             !isPlayer(gameId, request.auth.uid)) ||
-            // An existing player is updating their avatar or display name.
-            (request.resource.data.players.size() == resource.data.players.size() &&
-             isPlayer(gameId, request.auth.uid))
-        )) ||
-        // Case 2: The creator is starting the game.
-        (isCreator(gameId, request.auth.uid) && 
-         request.resource.data.status == 'in_progress' && 
-         resource.data.status == 'waiting') ||
-        // Case 3: The game is in progress, and a player is performing an action (voting, night action).
-        (resource.data.status == 'in_progress' && isPlayer(gameId, request.auth.uid)) ||
-        // Case 4: The creator is resetting the game.
-        (isCreator(gameId, request.auth.uid) && 
-         request.resource.data.status == 'waiting' && 
-         resource.data.status == 'finished')
-      );
-      
-      // Nobody can delete a game.
-      allow delete: if false;
+      // Allow updates under specific, strict conditions
+      allow update: if request.auth != null && resource.data.players.exists(p, p.userId == request.auth.uid);
+
+      // Detailed match rules for fields within a game document
+      match /games/{gameId} {
+        // No one can delete a game document directly, must be handled by server-side logic (e.g., Cloud Functions)
+        allow delete: if false;
+
+        // --- Granular Update Rules ---
+        // Players can join if the game is waiting and not full
+        allow update: if request.resource.data.players.size() == resource.data.players.size() + 1
+                      && resource.data.status == 'waiting'
+                      && resource.data.players.size() < resource.data.maxPlayers;
+                      
+        // The creator can start the game
+        allow update: if request.auth.uid == resource.data.creator
+                      && resource.data.status == 'waiting'
+                      && request.resource.data.status == 'in_progress';
+                      
+        // Players can vote during the day phase
+        allow update: if request.resource.data.phase == 'day'
+                      && resource.data.phase == 'day'
+                      && request.auth.uid in resource.data.players.filter(p, p.isAlive == true).map(p, p.userId);
+
+        // Players can perform night actions during the night phase
+        allow update: if request.resource.data.phase == 'night'
+                      && resource.data.phase == 'night'
+                      && request.auth.uid in resource.data.players.filter(p, p.isAlive == true).map(p, p.userId);
+
+        // Players can send chat messages
+        allow update: if request.resource.data.chatMessages.size() > resource.data.chatMessages.size() || 
+                       request.resource.data.wolfChatMessages.size() > resource.data.wolfChatMessages.size() ||
+                       request.resource.data.twinChatMessages.size() > resource.data.twinChatMessages.size() ||
+                       request.resource.data.loversChatMessages.size() > resource.data.loversChatMessages.size() ||
+                       request.resource.data.ghostChatMessages.size() > resource.data.ghostChatMessages.size();
+
+        // The creator can reset the game when it's finished
+        allow update: if request.auth.uid == resource.data.creator
+                      && resource.data.status == 'finished'
+                      && request.resource.data.status == 'waiting';
+                      
+        // --- Field-level Security ---
+        // Prevent critical fields from being changed by clients
+        allow update: if !request.resource.data.players.diff(resource.data.players).affectedKeys().hasAny(['role', 'isAlive', 'isAI', 'isLover']);
+      }
     }
   }
 }
