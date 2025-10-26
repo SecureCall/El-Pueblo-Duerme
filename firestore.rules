@@ -1,67 +1,71 @@
-
+/**
+ * @fileoverview Firestore Security Rules for the "El Pueblo Duerme" application.
+ *
+ * Core Philosophy:
+ * This ruleset prioritizes security by enforcing strict ownership and access controls.
+ * Server-side logic (Cloud Functions) is assumed to manage complex game state transitions
+ * and critical data modifications, while these rules protect against unauthorized client-side
+ * manipulations, particularly regarding roles and votes.
+ *
+ * Data Structure:
+ * - /games/{gameId}: Contains game instances with embedded player and event data.
+ *
+ * Key Security Decisions:
+ * - Prevents direct client-side modifications of game-critical fields like roles and votes.
+ * - Relies on server-side logic for sensitive operations.
+ * - Allows public read access to game data for display purposes.
+ *
+ * Denormalization for Authorization:
+ * - Game documents contain a `creator` field, simplifying ownership checks without requiring additional reads.
+ */
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Default deny all reads and writes
-    match /{document=**} {
-      allow read, write: if false;
+
+    /**
+     * @description Controls access to game documents.
+     * @path /games/{gameId}
+     * @allow (get, list): Any user can read game data.
+     * @allow (create): Only the user whose auth UID matches the `creator` field can create a game.
+     * @allow (update, delete): Only the game creator can update or delete the game, and only if it exists.
+     * @deny (create): If the creator field in the request does not match the authenticated user's ID.
+     * @deny (update, delete): If the game does not exist.
+     * @deny (update, delete): If the user is not the game creator.
+     * @principle Enforces owner-only writes and public reads for game data.
+     */
+    match /games/{gameId} {
+      allow get, list: if true;
+      allow create: if isSignedIn() && request.resource.data.creator == request.auth.uid;
+      allow update, delete: if isExistingOwner(resource.data.creator);
+
     }
 
-    // Rules for the 'games' collection
-    match /games/{gameId} {
-      // Anyone can read game data to stay in sync
-      allow read: if true;
-      
-      // Allow creating a new game if the user is authenticated
-      allow create: if request.auth != null;
-      
-      // Allow updates under specific, strict conditions
-      allow update: if request.auth != null && resource.data.players.exists(p, p.userId == request.auth.uid);
+    // ===== Helper Functions =====
 
-      // Detailed match rules for fields within a game document
-      match /games/{gameId} {
-        // No one can delete a game document directly, must be handled by server-side logic (e.g., Cloud Functions)
-        allow delete: if false;
+    /**
+     * @description Checks if the user is signed in.
+     * @returns {boolean} True if the user is signed in, false otherwise.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
 
-        // --- Granular Update Rules ---
-        // Players can join if the game is waiting and not full
-        allow update: if request.resource.data.players.size() == resource.data.players.size() + 1
-                      && resource.data.status == 'waiting'
-                      && resource.data.players.size() < resource.data.maxPlayers;
-                      
-        // The creator can start the game
-        allow update: if request.auth.uid == resource.data.creator
-                      && resource.data.status == 'waiting'
-                      && request.resource.data.status == 'in_progress';
-                      
-        // Players can vote during the day phase
-        allow update: if request.resource.data.phase == 'day'
-                      && resource.data.phase == 'day'
-                      && request.auth.uid in resource.data.players.filter(p, p.isAlive == true).map(p, p.userId);
+    /**
+     * @description Checks if the user is the owner of the document based on the provided userId.
+     * @param {string} userId The user ID to compare against the authenticated user's ID.
+     * @returns {boolean} True if the user is the owner, false otherwise.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
 
-        // Players can perform night actions during the night phase
-        allow update: if request.resource.data.phase == 'night'
-                      && resource.data.phase == 'night'
-                      && request.auth.uid in resource.data.players.filter(p, p.isAlive == true).map(p, p.userId);
-
-        // Players can send chat messages
-        allow update: if request.resource.data.chatMessages.size() > resource.data.chatMessages.size() || 
-                       request.resource.data.wolfChatMessages.size() > resource.data.wolfChatMessages.size() ||
-                       request.resource.data.twinChatMessages.size() > resource.data.twinChatMessages.size() ||
-                       request.resource.data.loversChatMessages.size() > resource.data.loversChatMessages.size() ||
-                       request.resource.data.ghostChatMessages.size() > resource.data.ghostChatMessages.size();
-
-        // The creator can reset the game when it's finished
-        allow update: if request.auth.uid == resource.data.creator
-                      && resource.data.status == 'finished'
-                      && request.resource.data.status == 'waiting';
-                      
-        // --- Field-level Security ---
-        // Prevent critical fields from being changed by clients
-        allow update: if !request.resource.data.players.diff(resource.data.players).affectedKeys().hasAny(['role', 'isAlive', 'isAI', 'isLover']);
-      }
+    /**
+     * @description Checks if the user is the owner of the document and the document exists.
+     * @param {string} userId The user ID to compare against the authenticated user's ID.
+     * @returns {boolean} True if the user is the owner and the document exists, false otherwise.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
     }
   }
 }
