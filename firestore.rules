@@ -1,54 +1,101 @@
-/**
- * @fileOverview Firestore Security Rules for "El Pueblo Duerme".
- *
- * Core Philosophy:
- * This ruleset prioritizes security by enforcing strict ownership and
- * access control. Data validation is relaxed to allow for rapid prototyping.
- *
- * Data Structure:
- * - /games/{gameId}: Contains game instances. Game creator has full control.
- *
- * Key Security Decisions:
- * - Users can only create, update, or delete games they own.
- * - Listing of games is publicly allowed.
- *
- * Denormalization for Authorization:
- *   - The `Game` entity contains a `creator` field, which stores the user ID of the game creator. This denormalization is crucial for efficiently checking ownership.
- */
+
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * @description Manages access to individual game documents.
-     * @path /games/{gameId}
-     * @allow (create) User with UID 'user_abc' can create a game if they are the creator.
-     * @allow (update) User with UID 'user_abc' can update a game if they are the creator.
-     * @allow (delete) User with UID 'user_abc' can delete a game if they are the creator.
-     * @allow (get, list) Any user can read the game data.
-     * @deny (create) User with UID 'user_xyz' cannot create a game if 'user_abc' is the creator.
-     * @deny (update) User with UID 'user_xyz' cannot update a game if 'user_abc' is the creator.
-     * @deny (delete) User with UID 'user_xyz' cannot delete a game if 'user_abc' is the creator.
-     * @principle Enforces game ownership for write operations and allows public read access.
-     */
+    // Helper function to check if the user is a player in the game
+    function isPlayer(gameId, userId) {
+      return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.userId == userId);
+    }
+    
+    // Helper function to get the player's data from a game
+    function getPlayerData(gameId, userId) {
+        return get(/databases/$(database)/documents/games/$(gameId)).data.players.filter(p, p.userId == userId)[0];
+    }
+    
+    // Helper function to get game data
+    function getGame(gameId) {
+        return get(/databases/$(database)/documents/games/$(gameId)).data;
+    }
+
     match /games/{gameId} {
-      allow get, list: if true;
-      allow create: if request.auth != null && request.resource.data.creator == request.auth.uid;
-      allow update: if isSignedIn() && isExistingOwner(resource.data.creator);
-      allow delete: if isSignedIn() && isExistingOwner(resource.data.creator);
-    }
+      // Anyone can read game data to stay in sync
+      allow read;
 
+      // Only authenticated users can create a game
+      allow create: if request.auth != null;
 
-    function isSignedIn() {
-      return request.auth != null;
-    }
+      // Update rules are complex and granular
+      allow update: if 
+        // 1. The user must be authenticated
+        request.auth != null && 
+        // 2. The user must be a player in the game
+        isPlayer(gameId, request.auth.uid) &&
+        // 3. The incoming data must be valid
+        request.resource.data.keys().hasOnly([
+            'name', 'status', 'phase', 'creator', 'players', 'events', 
+            'chatMessages', 'wolfChatMessages', 'fairyChatMessages', 'twinChatMessages',
+            'loversChatMessages', 'ghostChatMessages', 'maxPlayers', 'createdAt', 'lastActiveAt', 'currentRound', 
+            'settings', 'phaseEndsAt', 'twins', 'lovers', 'pendingHunterShot', 
+            'wolfCubRevengeRound', 'nightActions', 'vampireKills', 'boat', 
+            'leprosaBlockedRound', 'witchFoundSeer', 'seerDied', 'silencedPlayerId', 
+            'exiledPlayerId', 'troublemakerUsed', 'fairiesFound', 'fairyKillUsed'
+        ]) &&
 
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
+        // --- FIELD-LEVEL SECURITY ---
 
-    function isExistingOwner(userId) {
-      return isSignedIn() && isOwner(userId) && resource != null;
+        // Prevent players from changing immutable core game properties
+        request.resource.data.name == resource.data.name &&
+        request.resource.data.creator == resource.data.creator &&
+        request.resource.data.maxPlayers == resource.data.maxPlayers &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        
+        // --- PLAYER ARRAY IMMUTABILITY RULES ---
+        (
+          // Allow adding players ONLY during 'waiting' phase
+          (request.resource.data.players.size() > resource.data.players.size() && resource.data.status == 'waiting') ||
+          // Allow players list to change for reasons other than just adding players
+          (request.resource-data.players.size() == resource.data.players.size())
+        ) &&
+        
+        // A player cannot change their own critical, unchangeable fields
+        !request.resource.data.players.exists(p, 
+            p.userId == request.auth.uid && (
+                p.role != getPlayerData(gameId, request.auth.uid).role ||
+                p.isAlive != getPlayerData(gameId, request.auth.uid).isAlive ||
+                p.isLover != getPlayerData(gameId, request.auth.uid).isLover ||
+                p.isCultMember != getPlayerData(gameId, request.auth.uid).isCultMember ||
+                p.isAI != getPlayerData(gameId, request.auth.uid).isAI
+            )
+        ) &&
+        
+        // --- PHASE-BASED ACTION RULES ---
+        
+        // Players can only update their 'votedFor' field during the 'day' phase
+        (
+            !request.resource.data.players.exists(p, p.userId == request.auth.uid && p.votedFor != getPlayerData(gameId, request.auth.uid).votedFor) ||
+            (getGame(gameId).phase == 'day' && getPlayerData(gameId, request.auth.uid).isAlive)
+        ) &&
+        
+        // Players can only update their 'usedNightAbility' field during the 'night' phase
+        (
+            !request.resource.data.players.exists(p, p.userId == request.auth.uid && p.usedNightAbility != getPlayerData(gameId, request.auth.uid).usedNightAbility) ||
+            (getGame(gameId).phase == 'night' && getPlayerData(gameId, request.auth.uid).isAlive)
+        ) &&
+
+        // --- CREATOR-ONLY ACTIONS ---
+        (
+          // Creator can start the game
+          (request.resource.data.status == 'in_progress' && resource.data.status == 'waiting' && request.auth.uid == resource.data.creator) ||
+          // Creator can reset the game
+          (request.resource.data.status == 'waiting' && resource.data.status == 'finished' && request.auth.uid == resource.data.creator) ||
+          // If status is not changing, the rule passes for this check
+          request.resource.data.status == resource.data.status
+        )
+
     }
   }
 }
+
+    

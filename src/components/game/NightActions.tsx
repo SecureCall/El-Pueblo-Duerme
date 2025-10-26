@@ -370,24 +370,23 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         )
     }
     
-    const playersForGrid = isResurrectorAngel ? players.filter(p => !p.isAlive) : players.filter(p=>p.isAlive);
+    const playersForGrid = isResurrectorAngel 
+        ? players.filter(p => !p.isAlive) 
+        : players.filter(p => p.isAlive);
     
-    // CRITICAL DEBUG: If the grid is empty, show a loading state.
-    if (!playersForGrid || playersForGrid.length === 0) {
-        if(canPerformAction && currentPlayer.role !== 'sleeping_fairy' && !isLookout){
-            return (
-                <Card className="mt-8 bg-card/80">
-                    <CardHeader>
-                        <CardTitle className="font-headline text-2xl">Acciones Nocturnas</CardTitle>
-                        <CardDescription>{getActionPrompt()}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="text-center py-8">
-                        <Loader2 className="animate-spin h-8 w-8 text-primary" />
-                        <p className="text-muted-foreground mt-2">Cargando objetivos...</p>
-                    </CardContent>
-                </Card>
-            )
-        }
+    if (canPerformAction && (!playersForGrid || playersForGrid.length === 0) && currentPlayer.role !== 'sleeping_fairy' && !isLookout) {
+        return (
+            <Card className="mt-8 bg-card/80">
+                <CardHeader>
+                    <CardTitle className="font-headline text-2xl">Acciones Nocturnas</CardTitle>
+                    <CardDescription>{getActionPrompt()}</CardDescription>
+                </CardHeader>
+                <CardContent className="text-center py-8">
+                    <Loader2 className="animate-spin h-8 w-8 text-primary" />
+                    <p className="text-muted-foreground mt-2">Cargando objetivos...</p>
+                </CardContent>
+            </Card>
+        )
     }
 
     return (

@@ -33,7 +33,7 @@ export function PlayerGrid({
                     player={player} 
                     currentPlayer={currentPlayer}
                     onClick={onPlayerClick ? () => onPlayerClick(player) : undefined}
-                    isClickable={clickable && player.isAlive && player.userId !== currentPlayer.userId}
+                    isClickable={clickable && player.isAlive}
                     isSelected={selectedPlayerIds.includes(player.userId)}
                     highlightColor={highlight?.color}
                     votes={votesByPlayer[player.userId]}
@@ -44,5 +44,7 @@ export function PlayerGrid({
     </div>
   );
 }
+
+    
 
     
