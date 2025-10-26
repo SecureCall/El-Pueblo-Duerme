@@ -95,7 +95,6 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
              return;
         }
 
-
         if (isWerewolfTeam && ['werewolf', 'wolf_cub'].includes(player.role || '')) return;
         if (isVampire && (player.biteCount || 0) >= 3) {
             toast({ variant: 'destructive', title: 'Regla del Vampiro', description: 'Esta persona ya no tiene más sangre que dar.' });
@@ -322,31 +321,29 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     const apprenticeIsActive = currentPlayer.role === 'seer_apprentice' && !!game.seerDied;
 
     const canPerformAction = (
-        (
-            isWerewolfTeam || 
-            currentPlayer.role === 'seer' || 
-            currentPlayer.role === 'doctor' ||
-            currentPlayer.role === 'guardian' ||
-            currentPlayer.role === 'priest' ||
-            isVampire ||
-            isCultLeader ||
-            isFisherman ||
-            (isHechicera && (hasPoison || hasSavePotion)) ||
-            isCupidFirstNight ||
-            isShapeshifterFirstNight ||
-            isVirginiaWoolfFirstNight ||
-            isRiverSirenFirstNight ||
-            isSilencer ||
-            isElderLeader ||
-            isWitch ||
-            isBanshee ||
-            isLookout ||
-            apprenticeIsActive ||
-            isSeekerFairy ||
-            canFairiesKill ||
-            isResurrectorAngel
-        ) && game.exiledPlayerId !== currentPlayer.userId
-    );
+        isWerewolfTeam || 
+        currentPlayer.role === 'seer' || 
+        currentPlayer.role === 'doctor' ||
+        currentPlayer.role === 'guardian' ||
+        currentPlayer.role === 'priest' ||
+        isVampire ||
+        isCultLeader ||
+        isFisherman ||
+        (isHechicera && (hasPoison || hasSavePotion)) ||
+        isCupidFirstNight ||
+        isShapeshifterFirstNight ||
+        isVirginiaWoolfFirstNight ||
+        isRiverSirenFirstNight ||
+        isSilencer ||
+        isElderLeader ||
+        isWitch ||
+        isBanshee ||
+        isLookout ||
+        apprenticeIsActive ||
+        isSeekerFairy ||
+        canFairiesKill ||
+        isResurrectorAngel
+    ) && game.exiledPlayerId !== currentPlayer.userId;
 
     if (seerResult) {
         return <SeerResult targetName={seerResult.targetName} isWerewolf={seerResult.isWerewolf} />;
@@ -370,9 +367,44 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             </Card>
         )
     }
+    
+    const getPlayersForGrid = () => {
+        let baseList = players;
+        if (isResurrectorAngel) {
+            baseList = players.filter(p => !p.isAlive);
+        } else {
+            baseList = players.filter(p => p.isAlive);
+        }
 
+        if (isWerewolfTeam) {
+            const witchIsAlly = game.witchFoundSeer && players.some(p => p.role === 'witch');
+            return baseList.filter(p => !['werewolf', 'wolf_cub'].includes(p.role || '') && !(witchIsAlly && p.role === 'witch'));
+        }
+        
+        if (canFairiesKill) {
+             return baseList.filter(p => !['seeker_fairy', 'sleeping_fairy'].includes(p.role || ''));
+        }
 
-    const playersForGrid = isResurrectorAngel ? game.players.filter(p => !p.isAlive) : players.filter(p=>p.isAlive);
+        if (isVampire) {
+             return baseList.filter(p => p.role !== 'vampire');
+        }
+
+        if(isCultLeader) {
+             return baseList.filter(p => !p.isCultMember);
+        }
+        
+        if(isFisherman) {
+             return baseList.filter(p => !game.boat?.includes(p.userId));
+        }
+
+        if (!['guardian', 'priest', 'cupid'].includes(currentPlayer.role || '')) {
+             return baseList.filter(p => p.userId !== currentPlayer.userId);
+        }
+
+        return baseList;
+    }
+
+    const playersForGrid = getPlayersForGrid();
 
     return (
         <Card className="mt-8 bg-card/80">
@@ -432,3 +464,5 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         </Card>
     );
 }
+
+    

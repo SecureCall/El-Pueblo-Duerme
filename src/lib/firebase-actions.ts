@@ -98,6 +98,7 @@ export async function createGame(
       fairyChatMessages: [],
       twinChatMessages: [],
       loversChatMessages: [],
+      ghostChatMessages: [],
       maxPlayers: maxPlayers,
       createdAt: Timestamp.now(),
       currentRound: 0,
@@ -388,6 +389,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
         return { error: e.message || 'Error al iniciar la partida.' };
     }
 }
+
 export async function submitNightAction(db: Firestore, action: Omit<NightAction, 'createdAt' | 'round'> & { round: number }) {
   const { gameId, playerId, actionType, targetId } = action;
   const gameRef = doc(db, 'games', gameId);
@@ -417,7 +419,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
             case 'guardian_protect':
                 const targetPlayer = players.find(p => p.userId === targetId);
                 if (!targetPlayer) break;
-                if (targetPlayer.lastHealedRound === game.currentRound - 1) throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
+                if (targetPlayer.lastHealedRound === game.currentRound - 1 && game.currentRound > 1) throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
                 
                 const targetPlayerIndex = players.findIndex(p => p.userId === targetId);
                 if (targetPlayerIndex !== -1) {
@@ -1258,7 +1260,7 @@ async function sendSpecialChatMessage(
     senderId: string,
     senderName: string,
     text: string,
-    chatType: 'wolf' | 'fairy' | 'lovers' | 'twin'
+    chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost'
 ) {
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
@@ -1306,6 +1308,12 @@ async function sendSpecialChatMessage(
                         chatField = 'twinChatMessages';
                     }
                     break;
+                case 'ghost':
+                    if (!sender.isAlive) {
+                        canSend = true;
+                        chatField = 'ghostChatMessages';
+                    }
+                    break;
             }
 
             if (!canSend) {
@@ -1338,6 +1346,7 @@ export const sendWolfChatMessage = (db: Firestore, gameId: string, senderId: str
 export const sendFairyChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'fairy');
 export const sendLoversChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'lovers');
 export const sendTwinChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'twin');
+export const sendGhostChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'ghost');
 
 
 export async function resetGame(db: Firestore, gameId: string) {
@@ -1360,7 +1369,7 @@ export async function resetGame(db: Firestore, gameId: string) {
             transaction.update(gameRef, toPlainObject({
                 status: 'waiting', phase: 'waiting', currentRound: 0,
                 events: [], chatMessages: [], wolfChatMessages: [], fairyChatMessages: [],
-                twinChatMessages: [], loversChatMessages: [], nightActions: [],
+                twinChatMessages: [], loversChatMessages: [], ghostChatMessages: [], nightActions: [],
                 twins: null, lovers: null, phaseEndsAt: Timestamp.now(), pendingHunterShot: null,
                 wolfCubRevengeRound: 0, players: resetHumanPlayers, vampireKills: 0, boat: [],
                 leprosaBlockedRound: 0, witchFoundSeer: false, seerDied: false,
@@ -1519,7 +1528,7 @@ export async function submitTroublemakerAction(db: Firestore, gameId: string, tr
 // AI LOGIC
 // ===============================================================================================
 
-async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers') {
+async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
     try {
         const gameDoc = await getDoc(doc(db, 'games', gameId));
         if (!gameDoc.exists()) return;
@@ -1829,3 +1838,5 @@ export async function runAIActions(db: Firestore, gameId: string) {
         console.error("Error in AI Actions:", e);
     }
 }
+
+    
