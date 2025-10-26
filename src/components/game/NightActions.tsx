@@ -371,46 +371,40 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     }
     
     const getPlayersForGrid = () => {
-        let baseList = players;
-        if (isResurrectorAngel) {
-            return players.filter(p => !p.isAlive);
-        } else {
-            baseList = players.filter(p => p.isAlive);
-        }
-
-        let filteredList = baseList;
-
-        if (isWerewolfTeam) {
-            const witchIsAlly = game.witchFoundSeer && players.some(p => p.role === 'witch');
-            filteredList = filteredList.filter(p => !['werewolf', 'wolf_cub'].includes(p.role || '') && !(witchIsAlly && p.role === 'witch'));
-        }
+        let baseList = isResurrectorAngel ? players.filter(p => !p.isAlive) : players.filter(p => p.isAlive);
+        if (baseList.length === 0) return [];
         
-        if (canFairiesKill) {
-             filteredList = filteredList.filter(p => !['seeker_fairy', 'sleeping_fairy'].includes(p.role || ''));
+        switch (currentPlayer.role) {
+            case 'werewolf':
+            case 'wolf_cub':
+                const witchIsAlly = game.witchFoundSeer && players.some(p => p.role === 'witch');
+                return baseList.filter(p => !['werewolf', 'wolf_cub'].includes(p.role || '') && !(witchIsAlly && p.role === 'witch'));
+            case 'fairy_kill':
+                return baseList.filter(p => !['seeker_fairy', 'sleeping_fairy'].includes(p.role || ''));
+            case 'vampire':
+                return baseList.filter(p => p.role !== 'vampire');
+            case 'cult_leader':
+                return baseList.filter(p => p.userId !== currentPlayer.userId && !p.isCultMember);
+            case 'fisherman':
+                 return baseList.filter(p => p.userId !== currentPlayer.userId && !game.boat?.includes(p.userId));
+            case 'hechicera':
+                if (hechiceraAction === 'save') {
+                    return baseList.filter(p => p.userId !== currentPlayer.userId);
+                }
+                return baseList; // Can poison anyone
+            case 'guardian':
+            case 'priest':
+            case 'doctor':
+            case 'seer':
+            case 'seer_apprentice':
+                // For these roles, they can target anyone alive, including themselves under certain rules handled by handlePlayerSelect
+                return baseList;
+            case 'cupid':
+                return game.currentRound === 1 ? baseList : [];
+            default:
+                 // Default for roles like silencer, elder_leader, etc. is not to target self
+                 return baseList.filter(p => p.userId !== currentPlayer.userId);
         }
-
-        if (isVampire) {
-             filteredList = filteredList.filter(p => p.role !== 'vampire');
-        }
-
-        if(isCultLeader) {
-             filteredList = filteredList.filter(p => !p.isCultMember);
-        }
-        
-        if(isFisherman) {
-             filteredList = filteredList.filter(p => !game.boat?.includes(p.userId));
-        }
-
-        // Keep self-targetting possibility for certain roles
-        if (!['guardian', 'priest', 'cupid', 'hechicera'].includes(currentPlayer.role || '')) {
-             filteredList = filteredList.filter(p => p.userId !== currentPlayer.userId);
-        }
-        
-        if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save') {
-             filteredList = filteredList.filter(p => p.userId !== currentPlayer.userId);
-        }
-        
-        return filteredList;
     }
 
     const playersForGrid = getPlayersForGrid();
