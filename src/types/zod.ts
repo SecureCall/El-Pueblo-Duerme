@@ -142,6 +142,7 @@ export const GameSchema = z.object({
   ghostChatMessages: z.array(ChatMessageSchema),
   maxPlayers: z.number(),
   createdAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null),
+  lastActiveAt: TimestampSchema,
   currentRound: z.number(),
   settings: GameSettingsSchema,
   phaseEndsAt: TimestampSchema,

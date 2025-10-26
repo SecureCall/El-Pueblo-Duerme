@@ -70,7 +70,6 @@ export async function createGame(
   maxPlayers: number,
   settings: Game['settings']
 ) {
-  // Defensive type checking
   if (typeof displayName !== 'string' || typeof gameName !== 'string') {
       return { error: "El nombre del jugador y de la partida deben ser texto." };
   }
@@ -101,6 +100,7 @@ export async function createGame(
       ghostChatMessages: [],
       maxPlayers: maxPlayers,
       createdAt: Timestamp.now(),
+      lastActiveAt: Timestamp.now(),
       currentRound: 0,
       settings: {
           ...settings,
@@ -173,6 +173,8 @@ export async function joinGame(
       }
       
       const playerExists = game.players.some(p => p.userId === userId);
+      let updateData: {[key: string]: any} = { lastActiveAt: Timestamp.now() };
+
       if (playerExists) {
         const currentPlayers = game.players;
         const playerIndex = currentPlayers.findIndex(p => p.userId === userId);
@@ -187,25 +189,24 @@ export async function joinGame(
                 changed = true;
             }
             if(changed) {
-                transaction.update(gameRef, { players: toPlainObject(currentPlayers) });
+                updateData.players = toPlainObject(currentPlayers);
             }
         }
-        return;
-      }
-      
-      const nameExists = game.players.some(p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase());
-      if (nameExists) {
-        throw new Error("Ese nombre ya está en uso en esta partida.");
-      }
+      } else {
+         const nameExists = game.players.some(p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase());
+        if (nameExists) {
+          throw new Error("Ese nombre ya está en uso en esta partida.");
+        }
 
-      if (game.players.length >= game.maxPlayers) {
-        throw new Error("Esta partida está llena.");
+        if (game.players.length >= game.maxPlayers) {
+          throw new Error("Esta partida está llena.");
+        }
+        
+        const newPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
+        updateData.players = arrayUnion(toPlainObject(newPlayer));
       }
       
-      const newPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
-      transaction.update(gameRef, {
-        players: arrayUnion(toPlainObject(newPlayer)),
-      });
+      transaction.update(gameRef, updateData);
     });
 
     return { success: true };
@@ -399,6 +400,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         if (!gameSnap.exists()) throw new Error("Game not found");
         
         let game = gameSnap.data() as Game;
+        if (!game || !game.players) throw new Error("Game data is incomplete.");
         if (game.phase !== 'night' || game.status === 'finished') return;
 
         const player = game.players.find(p => p.userId === playerId);
@@ -466,7 +468,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         
         const newAction: NightAction = { ...action, createdAt: Timestamp.now() };
         const updatedNightActions = [...(game.nightActions || []), newAction];
-        transaction.update(gameRef, { nightActions: updatedNightActions, players: toPlainObject(players) });
+        transaction.update(gameRef, { nightActions: toPlainObject(updatedNightActions), players: toPlainObject(players) });
 
     });
 
@@ -746,7 +748,7 @@ export async function processNight(db: Firestore, gameId: string) {
         if (!gameSnap.exists()) throw new Error("Game not found!");
         
         let game = gameSnap.data();
-        if (game.phase !== 'night' || game.status === 'finished') {
+        if (!game || game.phase !== 'night' || game.status === 'finished') {
             return;
         }
 
@@ -941,7 +943,7 @@ export async function processVotes(db: Firestore, gameId: string) {
       if (!gameSnap.exists()) throw new Error("Partida no encontrada");
 
       let game = gameSnap.data();
-      if (game.phase !== 'day' || game.status === 'finished') return;
+      if (!game || game.phase !== 'day' || game.status === 'finished') return;
       
       const lastVoteEvent = [...game.events].sort((a, b) => toPlainObject(b.createdAt) - toPlainObject(a.createdAt)).find(e => e.type === 'vote_result');
       const isTiebreaker = lastVoteEvent?.data?.tiedPlayerIds && !lastVoteEvent?.data?.final;
@@ -1080,7 +1082,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             if (!gameSnap.exists()) throw new Error("Game not found");
             let game = gameSnap.data();
 
-            if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId || game.status === 'finished') {
+            if (!game || game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId || game.status === 'finished') {
                 return;
             }
             
@@ -1151,7 +1153,7 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             if (!gameSnap.exists()) throw new Error("Game not found");
             
             let game = gameSnap.data();
-            if (game.phase !== 'day' || game.status === 'finished') return;
+            if (!game || game.phase !== 'day' || game.status === 'finished') return;
             
             const playerIndex = game.players.findIndex(p => p.userId === voterId && p.isAlive);
             if (playerIndex === -1) throw new Error("Player not found or is not alive");
@@ -1475,7 +1477,7 @@ export async function submitTroublemakerAction(db: Firestore, gameId: string, tr
       if (!gameSnap.exists()) throw new Error("Partida no encontrada");
       let game = gameSnap.data();
 
-      if (game.status === 'finished') return;
+      if (!game || game.status === 'finished') return;
 
       const player = game.players.find(p => p.userId === troublemakerId);
       if (!player || player.role !== 'troublemaker' || game.troublemakerUsed) {
@@ -1838,5 +1840,3 @@ export async function runAIActions(db: Firestore, gameId: string) {
         console.error("Error in AI Actions:", e);
     }
 }
-
-    
