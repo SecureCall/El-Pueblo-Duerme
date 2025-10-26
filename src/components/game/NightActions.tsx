@@ -370,13 +370,25 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         )
     }
     
-    const getPlayersForGrid = () => {
-        const alivePlayers = players.filter(p => p.isAlive);
-        if (isResurrectorAngel) return players.filter(p => !p.isAlive);
-        return alivePlayers;
+    const playersForGrid = isResurrectorAngel ? players.filter(p => !p.isAlive) : players.filter(p=>p.isAlive);
+    
+    // CRITICAL DEBUG: If the grid is empty, show a loading state.
+    if (!playersForGrid || playersForGrid.length === 0) {
+        if(canPerformAction && currentPlayer.role !== 'sleeping_fairy' && !isLookout){
+            return (
+                <Card className="mt-8 bg-card/80">
+                    <CardHeader>
+                        <CardTitle className="font-headline text-2xl">Acciones Nocturnas</CardTitle>
+                        <CardDescription>{getActionPrompt()}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="text-center py-8">
+                        <Loader2 className="animate-spin h-8 w-8 text-primary" />
+                        <p className="text-muted-foreground mt-2">Cargando objetivos...</p>
+                    </CardContent>
+                </Card>
+            )
+        }
     }
-
-    const playersForGrid = getPlayersForGrid();
 
     return (
         <Card className="mt-8 bg-card/80">
@@ -394,7 +406,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                 ) : (canPerformAction && game.exiledPlayerId !== currentPlayer.userId) ? (
                     <>
                         {(!isLookout && currentPlayer.role !== 'sleeping_fairy') && (
-                            <PlayerGrid 
+                             <PlayerGrid 
                                 players={playersForGrid}
                                 currentPlayer={currentPlayer}
                                 onPlayerClick={handlePlayerSelect}
@@ -445,5 +457,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         </Card>
     );
 }
+
+    
 
     
