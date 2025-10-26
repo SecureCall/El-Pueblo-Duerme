@@ -36,6 +36,20 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     
     const { toast } = useToast();
     const { hasSubmitted } = useNightActions(game.id, game.currentRound, currentPlayer.userId);
+    
+    if (!game || !players) {
+        return (
+             <Card className="mt-8 bg-card/80">
+                <CardHeader>
+                    <CardTitle className="font-headline text-2xl">Acciones Nocturnas</CardTitle>
+                </CardHeader>
+                <CardContent className="text-center py-8">
+                    <Loader2 className="animate-spin h-8 w-8 text-primary" />
+                    <p className="text-muted-foreground mt-2">Cargando...</p>
+                </CardContent>
+            </Card>
+        );
+    }
 
     const isExecutioner = currentPlayer.role === 'executioner';
     const isCupidFirstNight = currentPlayer.role === 'cupid' && game.currentRound === 1;
@@ -459,4 +473,3 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
 
     
 
-    

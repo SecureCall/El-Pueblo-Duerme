@@ -8,10 +8,10 @@ import { AIPlayerPerspectiveSchema, GenerateAIChatMessageOutputSchema } from '@/
 
 // Helper function to sanitize any object and replace undefined with null recursively.
 const sanitizeObject = (obj: any): any => {
-    if (obj === undefined) {
+    if (obj === undefined || obj === null) {
         return null;
     }
-    if (obj === null || typeof obj !== 'object') {
+    if (typeof obj !== 'object') {
         return obj;
     }
 
@@ -92,7 +92,7 @@ const generateAiChatMessageFlow = ai.defineFlow(
             for (const action of seerActions) {
                 const targetPlayer = input.players.find(p => p.userId === action.targetId);
                 if (targetPlayer) {
-                    if (wolfRoles.includes(targetPlayer.role)) {
+                    if (targetPlayer.role && wolfRoles.includes(targetPlayer.role)) {
                         knownWolfPlayers.add(targetPlayer.userId);
                     } else {
                         knownGoodPlayers.add(targetPlayer.userId);
@@ -130,7 +130,11 @@ const generateAiChatMessageFlow = ai.defineFlow(
         };
 
         const { output } = await prompt(promptInput);
-        return output || { message: '', shouldSend: false };
+        if (!output) {
+          console.warn("AI generation returned null or undefined output.");
+          return { message: '', shouldSend: false };
+        }
+        return output;
     }
 );
 
@@ -139,6 +143,12 @@ export async function generateAIChatMessage(input: AIPlayerPerspective): Promise
     try {
         // Deep sanitize the entire input object to remove any 'undefined' values recursively.
         const sanitizedInput = sanitizeObject(input);
+
+        // Ensure sanitizedInput is not null before proceeding
+        if (!sanitizedInput) {
+             console.error("Sanitized input resulted in null. Aborting AI chat generation.");
+             return { message: '', shouldSend: false };
+        }
 
         const result = await generateAiChatMessageFlow(sanitizedInput);
         return result;
