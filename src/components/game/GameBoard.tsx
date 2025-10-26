@@ -28,6 +28,7 @@ import { VampireKillOverlay } from "./VampireKillOverlay";
 import { useGameState } from "@/hooks/use-game-state";
 import { LoversChat } from "./LoversChat";
 import { getMillis } from "@/lib/utils";
+import { GhostChat } from "./GhostChat";
 
 
 interface GameBoardProps {
@@ -40,6 +41,7 @@ interface GameBoardProps {
   fairyMessages: ChatMessage[];
   twinMessages: ChatMessage[];
   loversMessages: ChatMessage[];
+  ghostMessages: ChatMessage[];
 }
 
 export function GameBoard({ 
@@ -52,9 +54,10 @@ export function GameBoard({
     fairyMessages: initialFairyMessages, 
     twinMessages: initialTwinMessages,
     loversMessages: initialLoversMessages,
+    ghostMessages: initialGhostMessages,
 }: GameBoardProps) {
   const { firestore } = useFirebase();
-  const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages } = useGameState(initialGame.id, {
+  const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages } = useGameState(initialGame.id, {
     initialGame,
     initialPlayers,
     initialCurrentPlayer,
@@ -64,6 +67,7 @@ export function GameBoard({
     initialFairyMessages,
     initialTwinMessages,
     initialLoversMessages,
+    initialGhostMessages,
   });
   
   const prevPhaseRef = useRef<Game['phase']>();
@@ -225,18 +229,18 @@ export function GameBoard({
     return (
         <>
             {renderDeathOverlay()}
-            <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} currentPlayer={currentPlayer} getCauseOfDeath={getCauseOfDeath} timeLeft={timeLeft} />
+            <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} ghostMessages={ghostMessages} currentPlayer={currentPlayer} getCauseOfDeath={getCauseOfDeath} timeLeft={timeLeft} />
         </>
     );
   }
 
   return (
-    <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} currentPlayer={currentPlayer} getCauseOfDeath={getCauseOfDeath} timeLeft={timeLeft} />
+    <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} ghostMessages={ghostMessages} currentPlayer={currentPlayer} getCauseOfDeath={getCauseOfDeath} timeLeft={timeLeft} />
   );
 }
 
 
-function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, currentPlayer, getCauseOfDeath, timeLeft }: Omit<GameBoardProps, 'ghostMessages'> & { getCauseOfDeath: (playerId: string) => GameEvent['type'] | 'other', timeLeft: number }) {
+function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, currentPlayer, getCauseOfDeath, timeLeft }: GameBoardProps & { getCauseOfDeath: (playerId: string) => GameEvent['type'] | 'other', timeLeft: number }) {
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
   const voteEvent = events.find(e => e.type === 'vote_result' && e.round === (game.phase === 'day' ? game.currentRound : game.currentRound - 1));
@@ -396,24 +400,31 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
         <GhostAction game={game} currentPlayer={currentPlayer} players={players.filter(p => p.isAlive)} />
       )}
       
-      {game.phase === 'day' && currentPlayer && (
+      {(game.phase === 'day' || showGhostChat) && currentPlayer && (
         <div className="mt-8 w-full flex flex-col md:flex-row gap-4">
             <div className="flex-1 flex flex-col gap-4">
-              <DayPhase 
-                  game={game} 
-                  players={players}
-                  currentPlayer={currentPlayer}
-                  nightEvent={nightEvent}
-                  loverDeathEvents={loverDeathEvents}
-                  voteEvent={voteEvent}
-                  behaviorClueEvent={behaviorClueEvent}
-                  chatMessages={messages}
-              />
-              <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
-                  {isTwin && <TwinChat gameId={game.id} currentPlayer={currentPlayer} messages={twinMessages} />}
-                  {game.fairiesFound && ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer?.role || '') && <FairyChat gameId={game.id} currentPlayer={currentPlayer} messages={fairyMessages} />}
-                  {isLover && <LoversChat gameId={game.id} currentPlayer={currentPlayer} messages={loversMessages} />}
-              </div>
+                {game.phase === 'day' && (
+                    <DayPhase 
+                        game={game} 
+                        players={players}
+                        currentPlayer={currentPlayer}
+                        nightEvent={nightEvent}
+                        loverDeathEvents={loverDeathEvents}
+                        voteEvent={voteEvent}
+                        behaviorClueEvent={behaviorClueEvent}
+                        chatMessages={messages}
+                    />
+                )}
+                
+                {showGhostChat && (
+                     <GhostChat gameId={game.id} currentPlayer={currentPlayer} messages={ghostMessages} />
+                )}
+
+                <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
+                    {isTwin && <TwinChat gameId={game.id} currentPlayer={currentPlayer} messages={twinMessages} />}
+                    {game.fairiesFound && ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer?.role || '') && <FairyChat gameId={game.id} currentPlayer={currentPlayer} messages={fairyMessages} />}
+                    {isLover && <LoversChat gameId={game.id} currentPlayer={currentPlayer} messages={loversMessages} />}
+                </div>
             </div>
              <div className="w-full md:w-96">
                 <GameChat 
@@ -443,3 +454,5 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
+
+    

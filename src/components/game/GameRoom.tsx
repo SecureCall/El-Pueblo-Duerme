@@ -16,7 +16,7 @@ import { GameMusic } from "./GameMusic";
 
 export function GameRoom({ gameId }: { gameId: string }) {
   const { userId, displayName, setDisplayName, isSessionLoaded, avatarUrl } = useGameSession();
-  const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, loading, error: gameStateError } = useGameState(gameId);
+  const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, loading, error: gameStateError } = useGameState(gameId);
   const [isJoining, setIsJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
 
@@ -108,7 +108,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
             return <GameLobby game={game} players={players} isCreator={game.creator === userId} currentPlayer={currentPlayer} />;
         case 'in_progress':
         case 'finished':
-            return <GameBoard game={game} players={players} currentPlayer={currentPlayer} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} />;
+            return <GameBoard game={game} players={players} currentPlayer={currentPlayer} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} ghostMessages={ghostMessages} />;
         default:
             return <p>Estado de la partida desconocido.</p>;
     }
@@ -135,3 +135,5 @@ export function GameRoom({ gameId }: { gameId: string }) {
     </div>
   );
 }
+
+    
