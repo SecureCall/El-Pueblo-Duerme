@@ -71,6 +71,10 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             setHechiceraAction('save');
         }
     }, [isHechicera, hasPoison, hasSavePotion]);
+
+    useEffect(() => {
+        setSelectedPlayerIds([]);
+    }, [hechiceraAction]);
     
     let selectionLimit = 1;
     if (isWerewolfTeam && wolfCubRevengeActive) selectionLimit = 2;
@@ -300,7 +304,6 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                     onValueChange={(value: HechiceraAction) => {
                         if (value) {
                             setHechiceraAction(value);
-                            setSelectedPlayerIds([]);
                         }
                     }}
                     className='w-auto'
@@ -320,7 +323,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
 
     const apprenticeIsActive = currentPlayer.role === 'seer_apprentice' && !!game.seerDied;
 
-    const canPerformAction = (
+    const canPerformAction =
         isWerewolfTeam || 
         currentPlayer.role === 'seer' || 
         currentPlayer.role === 'doctor' ||
@@ -342,8 +345,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         apprenticeIsActive ||
         isSeekerFairy ||
         canFairiesKill ||
-        isResurrectorAngel
-    ) && game.exiledPlayerId !== currentPlayer.userId;
+        isResurrectorAngel;
 
     if (seerResult) {
         return <SeerResult targetName={seerResult.targetName} isWerewolf={seerResult.isWerewolf} />;
@@ -371,37 +373,44 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     const getPlayersForGrid = () => {
         let baseList = players;
         if (isResurrectorAngel) {
-            baseList = players.filter(p => !p.isAlive);
+            return players.filter(p => !p.isAlive);
         } else {
             baseList = players.filter(p => p.isAlive);
         }
 
+        let filteredList = baseList;
+
         if (isWerewolfTeam) {
             const witchIsAlly = game.witchFoundSeer && players.some(p => p.role === 'witch');
-            return baseList.filter(p => !['werewolf', 'wolf_cub'].includes(p.role || '') && !(witchIsAlly && p.role === 'witch'));
+            filteredList = filteredList.filter(p => !['werewolf', 'wolf_cub'].includes(p.role || '') && !(witchIsAlly && p.role === 'witch'));
         }
         
         if (canFairiesKill) {
-             return baseList.filter(p => !['seeker_fairy', 'sleeping_fairy'].includes(p.role || ''));
+             filteredList = filteredList.filter(p => !['seeker_fairy', 'sleeping_fairy'].includes(p.role || ''));
         }
 
         if (isVampire) {
-             return baseList.filter(p => p.role !== 'vampire');
+             filteredList = filteredList.filter(p => p.role !== 'vampire');
         }
 
         if(isCultLeader) {
-             return baseList.filter(p => !p.isCultMember);
+             filteredList = filteredList.filter(p => !p.isCultMember);
         }
         
         if(isFisherman) {
-             return baseList.filter(p => !game.boat?.includes(p.userId));
+             filteredList = filteredList.filter(p => !game.boat?.includes(p.userId));
         }
 
-        if (!['guardian', 'priest', 'cupid'].includes(currentPlayer.role || '')) {
-             return baseList.filter(p => p.userId !== currentPlayer.userId);
+        // Keep self-targetting possibility for certain roles
+        if (!['guardian', 'priest', 'cupid', 'hechicera'].includes(currentPlayer.role || '')) {
+             filteredList = filteredList.filter(p => p.userId !== currentPlayer.userId);
         }
-
-        return baseList;
+        
+        if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save') {
+             filteredList = filteredList.filter(p => p.userId !== currentPlayer.userId);
+        }
+        
+        return filteredList;
     }
 
     const playersForGrid = getPlayersForGrid();
@@ -419,7 +428,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                      <div className="text-center py-8">
                         <p className="text-lg text-muted-foreground">No tienes acciones esta noche. Tu trabajo empieza durante el día.</p>
                     </div>
-                ) : canPerformAction ? (
+                ) : (canPerformAction && game.exiledPlayerId !== currentPlayer.userId) ? (
                     <>
                         {(!isLookout && currentPlayer.role !== 'sleeping_fairy') && (
                             <PlayerGrid 
@@ -451,7 +460,16 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                         </Button>
                     </>
                 ) : (
-                    <p className="text-center text-muted-foreground py-8">Duermes profundamente...</p>
+                    <div className="text-center py-8">
+                         {game.exiledPlayerId === currentPlayer.userId ? (
+                            <div className="flex items-center justify-center gap-2 text-yellow-400">
+                                <UserX className="h-5 w-5"/>
+                                <p>Has sido exiliado. No puedes actuar esta noche.</p>
+                            </div>
+                        ) : (
+                             <p className="text-muted-foreground">Duermes profundamente...</p>
+                        )}
+                    </div>
                 )}
 
                 {(isWerewolfTeam || (game.fairiesFound && isFairyTeam)) && (
@@ -464,5 +482,3 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         </Card>
     );
 }
-
-    
