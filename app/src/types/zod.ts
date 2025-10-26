@@ -1,8 +1,6 @@
 
-
 import { z } from 'zod';
 
-// Helper for Firebase Timestamps - now accepting string for client-server transfer
 const TimestampSchema = z.union([
   z.object({
     seconds: z.number(),
@@ -10,8 +8,8 @@ const TimestampSchema = z.union([
   }),
   z.string().refine(val => !isNaN(Date.parse(val)), {
     message: "Invalid date string format",
-  }), // ISO 8601 string
-  z.date(), // Accept Date objects as well
+  }),
+  z.date(),
 ]).nullable();
 
 
@@ -30,6 +28,7 @@ export const PlayerSchema = z.object({
   isAlive: z.boolean(),
   votedFor: z.string().nullable(),
   displayName: z.string(),
+  avatarUrl: z.string(),
   joinedAt: TimestampSchema,
   lastHealedRound: z.number(),
   isAI: z.boolean(),
@@ -140,11 +139,13 @@ export const GameSchema = z.object({
   fairyChatMessages: z.array(ChatMessageSchema),
   twinChatMessages: z.array(ChatMessageSchema),
   loversChatMessages: z.array(ChatMessageSchema),
+  ghostChatMessages: z.array(ChatMessageSchema),
   maxPlayers: z.number(),
-  createdAt: TimestampSchema.refine((v): v is NonNullable<typeof v> => v !== null),
+  createdAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null),
+  lastActiveAt: TimestampSchema,
   currentRound: z.number(),
   settings: GameSettingsSchema,
-  phaseEndsAt: TimestampSchema.refine((v): v is NonNullable<typeof v> => v !== null),
+  phaseEndsAt: TimestampSchema,
   twins: z.tuple([z.string(), z.string()]).nullable(),
   lovers: z.tuple([z.string(), z.string()]).nullable(),
   pendingHunterShot: z.string().nullable(),
@@ -167,10 +168,10 @@ export const AIPlayerPerspectiveSchema = z.object({
   aiPlayer: PlayerSchema,
   trigger: z.string(),
   players: z.array(PlayerSchema),
+  chatType: z.enum(['public', 'wolf', 'twin', 'lovers', 'ghost']),
 });
 
 export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
-
