@@ -3,70 +3,91 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper functions to keep rules DRY
+
+    // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
 
     function isPlayerInGame(gameId) {
-      return request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.players.map(p => p.userId);
+      return isSignedIn() && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.userId == request.auth.uid);
     }
     
     function isCreator(gameId) {
-        return request.auth.uid == get(/databases/$(database)/documents/games/$(gameId)).data.creator;
+        return isSignedIn() && get(/databases/$(database)/documents/games/$(gameId)).data.creator == request.auth.uid;
+    }
+
+    function isPlayerAlive(gameId) {
+        let player = get(/databases/$(database)/documents/games/$(gameId)).data.players.get(p, p.userId == request.auth.uid, null);
+        return player != null && player.isAlive == true;
     }
 
     match /games/{gameId} {
-      // Anyone can read game data, necessary for clients to stay in sync.
+      // Anyone can read game data to join or spectate.
       allow read: if true;
 
       // Only authenticated users can create a new game.
       allow create: if isSignedIn();
-
-      // Update rules are complex and critical for game integrity.
-      allow update: if isSignedIn() && isPlayerInGame(gameId) && (
-        
-        // Rule: A player can join a waiting game or update their name/avatar
-        (request.resource.data.players.size() == resource.data.players.size() + 1 ||
-         request.resource.data.players.size() == resource.data.players.size()) &&
-        resource.data.status == 'waiting'
-      ) || (
-        // Rule: The creator can start the game.
-        isCreator(gameId) && 
-        resource.data.status == 'waiting' &&
-        request.resource.data.status == 'in_progress'
-      ) || (
-         // Rule: The creator can reset the game.
-        isCreator(gameId) && 
-        resource.data.status == 'finished' &&
-        request.resource.data.status == 'waiting'
-      ) || (
-        // Rule: A player can submit a vote during the day phase
-        request.resource.data.phase == 'day' &&
-        resource.data.phase == 'day' &&
-        request.auth.uid == request.resource.data.players.diff(resource.data.players)[0].userId &&
-        request.resource.data.players.diff(resource.data.players)[0].votedFor != resource.data.players.diff(resource.data.players)[0].votedFor
-      ) || (
-        // Rule: A player can submit a night action during the night phase
-        request.resource.data.phase == 'night' &&
-        resource.data.phase == 'night'
-      ) || (
-        // Rule: A player can send a chat message
-        request.resource.data.chatMessages.size() == resource.data.chatMessages.size() + 1 ||
-        request.resource.data.wolfChatMessages.size() == resource.data.wolfChatMessages.size() + 1 ||
-        request.resource.data.twinChatMessages.size() == resource.data.twinChatMessages.size() + 1 ||
-        request.resource.data.loversChatMessages.size() == resource.data.loversChatMessages.size() + 1 ||
-        request.resource.data.ghostChatMessages.size() == resource.data.ghostChatMessages.size() + 1
-      ) || (
-        // Rule: Server-side processes (like our cloud functions) can update game state
-        // This is a simplified rule; in a real app, you'd check for a specific admin role.
-        // For now, we trust our firebase-actions.
-        get(/databases/$(database)/documents/games/$(gameId)).data.creator == request.auth.uid
-      );
       
-      // No one can delete a game from the client side. This should be handled by a Cloud Function.
-      allow delete: if false;
+      // Update permissions are highly granular.
+      allow update: if 
+        // A user must be a signed-in player in this specific game to update it.
+        isPlayerInGame(gameId) &&
+        (
+            // --- Lobby Phase ---
+            // Allow joining/leaving/updating display name only in 'waiting' status.
+            (
+                resource.data.status == 'waiting' &&
+                (
+                    // Joining: Adding self to players array
+                    request.resource.data.players.size() == resource.data.players.size() + 1 &&
+                    request.resource.data.players.diff(resource.data.players).addedKeys().hasOnly([request.auth.uid])
+                ) || (
+                    // Updating own player data (e.g., displayName, avatarUrl) in lobby
+                    request.resource.data.players.size() == resource.data.players.size() &&
+                    request.resource.data.players.diff(resource.data.players).affectedKeys().hasOnly([request.auth.uid]) &&
+                    request.resource.data.players.get(p, p.userId == request.auth.uid, null).role == null // Cannot change role
+                )
+            ) ||
+            // --- Game Start ---
+            // Only the creator can start the game.
+            (
+                isCreator(gameId) &&
+                resource.data.status == 'waiting' &&
+                request.resource.data.status == 'in_progress'
+            ) ||
+            // --- Gameplay Actions ---
+            (
+                resource.data.status == 'in_progress' &&
+                isPlayerAlive(gameId) &&
+                (
+                    // Voting: Can only set 'votedFor' during the 'day' phase.
+                    (
+                        request.resource.data.phase == 'day' &&
+                        request.resource.data.players.diff(resource.data.players).affectedKeys().hasOnly([request.auth.uid]) &&
+                        request.resource.data.players.get(p, p.userId == request.auth.uid, null).votedFor != resource.data.players.get(p, p.userId == request.auth.uid, null).votedFor
+                    ) ||
+                    // Night Action: Can only set 'usedNightAbility' during 'night' phase.
+                    (
+                        request.resource.data.phase == 'night' &&
+                        request.resource.data.players.diff(resource.data.players).affectedKeys().hasOnly([request.auth.uid]) &&
+                        request.resource.data.players.get(p, p.userId == request.auth.uid, null).usedNightAbility == true
+                    )
+                ) &&
+                // Critical fields that players should NEVER be able to change.
+                request.resource.data.players.get(p, p.userId == request.auth.uid, null).role == resource.data.players.get(p, p.userId == request.auth.uid, null).role &&
+                request.resource.data.players.get(p, p.userId == request.auth.uid, null).isAlive == resource.data.players.get(p, p.userId == request.auth.uid, null).isAlive &&
+                request.resource.data.players.get(p, p.userId == request.auth.uid, null).isLover == resource.data.players.get(p, p.userId == request.auth.uid, null).isLover &&
+                request.resource.data.players.get(p, p.userId == request.auth.uid, null).isCultMember == resource.data.players.get(p, p.userId == request.auth.uid, null).isCultMember
+            ) ||
+            // --- Resetting Game ---
+            // Only the creator can reset the game when it's finished.
+            (
+                isCreator(gameId) &&
+                resource.data.status == 'finished' &&
+                request.resource.data.status == 'waiting'
+            )
+        );
     }
   }
 }
