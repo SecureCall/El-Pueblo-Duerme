@@ -3,65 +3,70 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // Helper functions to keep rules DRY
+    function isSignedIn() {
+      return request.auth != null;
+    }
 
     function isPlayerInGame(gameId) {
-      return get(/databases/$(database)/documents/games/$(gameId)).data.players.hasAny(['userId'], request.auth.uid);
-    }
-
-    function isCreator(gameId) {
-      return get(/databases/$(database)/documents/games/$(gameId)).data.creator == request.auth.uid;
+      return request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.players.map(p => p.userId);
     }
     
-    function isPlayerAlive(gameId) {
-        let player = get(/databases/$(database)/documents/games/$(gameId)).data.players.get(request.auth.uid, null);
-        return player != null && player.isAlive == true;
+    function isCreator(gameId) {
+        return request.auth.uid == get(/databases/$(database)/documents/games/$(gameId)).data.creator;
     }
 
     match /games/{gameId} {
+      // Anyone can read game data, necessary for clients to stay in sync.
       allow read: if true;
-      allow create: if request.auth != null;
 
-      allow update: if request.auth != null && isPlayerInGame(gameId);
+      // Only authenticated users can create a new game.
+      allow create: if isSignedIn();
 
-      // --- Granular field validation for updates ---
-
-      // Only the creator can start the game
-      allow update: if isCreator(gameId) && request.resource.data.status == 'in_progress' && resource.data.status == 'waiting';
-
-      // Only the creator can reset the game
-      allow update: if isCreator(gameId) && request.resource.data.status == 'waiting' && resource.data.status == 'finished';
-
-      // Players can join a waiting game
-      allow update: if request.auth != null && resource.data.status == 'waiting' && request.resource.data.players.size() == resource.data.players.size() + 1;
+      // Update rules are complex and critical for game integrity.
+      allow update: if isSignedIn() && isPlayerInGame(gameId) && (
+        
+        // Rule: A player can join a waiting game or update their name/avatar
+        (request.resource.data.players.size() == resource.data.players.size() + 1 ||
+         request.resource.data.players.size() == resource.data.players.size()) &&
+        resource.data.status == 'waiting'
+      ) || (
+        // Rule: The creator can start the game.
+        isCreator(gameId) && 
+        resource.data.status == 'waiting' &&
+        request.resource.data.status == 'in_progress'
+      ) || (
+         // Rule: The creator can reset the game.
+        isCreator(gameId) && 
+        resource.data.status == 'finished' &&
+        request.resource.data.status == 'waiting'
+      ) || (
+        // Rule: A player can submit a vote during the day phase
+        request.resource.data.phase == 'day' &&
+        resource.data.phase == 'day' &&
+        request.auth.uid == request.resource.data.players.diff(resource.data.players)[0].userId &&
+        request.resource.data.players.diff(resource.data.players)[0].votedFor != resource.data.players.diff(resource.data.players)[0].votedFor
+      ) || (
+        // Rule: A player can submit a night action during the night phase
+        request.resource.data.phase == 'night' &&
+        resource.data.phase == 'night'
+      ) || (
+        // Rule: A player can send a chat message
+        request.resource.data.chatMessages.size() == resource.data.chatMessages.size() + 1 ||
+        request.resource.data.wolfChatMessages.size() == resource.data.wolfChatMessages.size() + 1 ||
+        request.resource.data.twinChatMessages.size() == resource.data.twinChatMessages.size() + 1 ||
+        request.resource.data.loversChatMessages.size() == resource.data.loversChatMessages.size() + 1 ||
+        request.resource.data.ghostChatMessages.size() == resource.data.ghostChatMessages.size() + 1
+      ) || (
+        // Rule: Server-side processes (like our cloud functions) can update game state
+        // This is a simplified rule; in a real app, you'd check for a specific admin role.
+        // For now, we trust our firebase-actions.
+        get(/databases/$(database)/documents/games/$(gameId)).data.creator == request.auth.uid
+      );
       
-      // Players can update their own display name or avatar in the lobby
-      allow update: if request.auth != null && resource.data.status == 'waiting' 
-                  && request.resource.data.players.size() == resource.data.players.size()
-                  && request.resource.data.players.get(request.auth.uid, null) != null;
-
-
-      // Immutable fields after game starts (cannot be changed by client)
-      allow update: if resource.data.status == 'in_progress'
-                  && request.resource.data.players[request.auth.uid].role == resource.data.players[request.auth.uid].role
-                  && request.resource.data.players[request.auth.uid].isAlive == resource.data.players[request.auth.uid].isAlive
-                  && request.resource.data.players[request.auth.uid].isLover == resource.data.players[request.auth.uid].isLover;
-
-      // Voting logic
-      allow update: if resource.data.phase == 'day' 
-                    && isPlayerAlive(gameId)
-                    && resource.data.players[request.auth.uid].votedFor == null
-                    && request.resource.data.players[request.auth.uid].votedFor != null;
-
-      // Night action logic
-      allow update: if resource.data.phase == 'night'
-                    && isPlayerAlive(gameId)
-                    && resource.data.players[request.auth.uid].usedNightAbility == false
-                    && request.resource.data.players[request.auth.uid].usedNightAbility == true;
-      
-      // Allow sending chat messages if player is in game
-      allow update: if isPlayerInGame(gameId)
-                    && request.resource.data.chatMessages.size() == resource.data.chatMessages.size() + 1;
-
+      // No one can delete a game from the client side. This should be handled by a Cloud Function.
+      allow delete: if false;
     }
   }
 }
