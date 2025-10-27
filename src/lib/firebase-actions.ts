@@ -214,6 +214,7 @@ export async function joinGame(
       const newPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
       transaction.update(gameRef, {
         players: arrayUnion(toPlainObject(newPlayer)),
+        lastActiveAt: Timestamp.now(),
       });
     });
 
@@ -774,36 +775,36 @@ function checkGameOver(gameData: Game, lynchedPlayer?: Player | null): { isGameO
 
 // Define la prioridad de las acciones nocturnas
 const nightActionPriority: Record<NightActionType, number> = {
-    // Acciones de información y preparación
+    // Acciones de Preparación (Noche 1)
     cupid_love: 1,
     shapeshifter_select: 2,
     virginia_woolf_link: 2,
     river_siren_charm: 2,
-    seer_check: 3,
-    witch_hunt: 4,
-    lookout_spy: 5,
     
-    // Acciones de protección (se ejecutan antes que los ataques)
+    // Acciones de Protección y Modificación
+    elder_leader_exile: 5,
     priest_bless: 10,
     guardian_protect: 11,
     doctor_heal: 12,
     hechicera_save: 13,
 
-    // Acciones de ataque/negativas
+    // Acciones de Investigación
+    seer_check: 15,
+    witch_hunt: 16,
+    lookout_spy: 17,
+    fairy_find: 18,
+
+    // Acciones de Ataque y Negativas
     werewolf_kill: 20,
     vampire_bite: 21,
     hechicera_poison: 22,
     fairy_kill: 23,
-
-    // Acciones de alteración de estado/rol
+    
+    // Acciones de Alteración de Estado y Misceláneas
     cult_recruit: 30,
     silencer_silence: 31,
-    elder_leader_exile: 32,
-
-    // Acciones misceláneas
     fisherman_catch: 40,
     banshee_scream: 41,
-    fairy_find: 42,
     resurrect: 43,
 };
 
@@ -1728,5 +1729,6 @@ export async function executeMasterAction(db: Firestore, gameId: string, masterI
     }
 }
 export { triggerAIChat, runAIActions, triggerAIVote };
+
 
     
