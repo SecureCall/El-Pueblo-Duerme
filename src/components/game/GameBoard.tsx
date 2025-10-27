@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -28,7 +27,7 @@ import { VampireKillOverlay } from "./VampireKillOverlay";
 import { useGameState } from "@/hooks/use-game-state";
 import { LoversChat } from "./LoversChat";
 import { getMillis } from "@/lib/utils";
-import { GhostChat } from "./GhostChat";
+import { GhostChat } from "@/components/game/GhostChat";
 
 
 interface GameBoardProps {
@@ -454,4 +453,3 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
-
