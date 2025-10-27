@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 import { PlayerRoleEnum } from '.';
 
@@ -143,7 +144,7 @@ export const GameSchema = z.object({
   ghostChatMessages: z.array(ChatMessageSchema),
   maxPlayers: z.number(),
   createdAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null),
-  lastActiveAt: TimestampSchema,
+  lastActiveAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null),
   currentRound: z.number(),
   settings: GameSettingsSchema,
   phaseEndsAt: TimestampSchema,

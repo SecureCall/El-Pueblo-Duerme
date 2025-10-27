@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { collection, query, where, Timestamp } from 'firebase/firestore';
+import { collection, query, where, Timestamp, orderBy } from 'firebase/firestore';
 
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import type { Game } from '@/types';
@@ -70,13 +70,13 @@ export default function PublicGamesPage() {
 
     const gamesQuery = useMemoFirebase(() => {
         if (!firestore) return null;
-        // Calculate a timestamp for 5 minutes ago to filter out stale rooms.
         const fiveMinutesAgo = Timestamp.fromMillis(Date.now() - 5 * 60 * 1000);
         return query(
             collection(firestore, 'games'),
             where('settings.isPublic', '==', true),
             where('status', '==', 'waiting'),
-            where('lastActiveAt', '>', fiveMinutesAgo)
+            where('lastActiveAt', '>', fiveMinutesAgo),
+            orderBy('lastActiveAt', 'desc')
         );
     }, [firestore]);
 
@@ -84,7 +84,8 @@ export default function PublicGamesPage() {
 
     const sortedGames = useMemo(() => {
         if (!publicGames) return [];
-        return [...publicGames].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt));
+        // The query now handles the sorting, but we can keep this as a fallback.
+        return [...publicGames].sort((a, b) => getMillis(b.lastActiveAt) - getMillis(a.lastActiveAt));
     }, [publicGames]);
 
     useEffect(() => {
