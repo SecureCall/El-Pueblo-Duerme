@@ -8,106 +8,36 @@ import {
 import type { Game, Player, NightActionType, PlayerRole, AIPlayerPerspective } from "@/types";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { toPlainObject } from "@/lib/utils";
-import { sendChatMessage, sendWolfChatMessage, sendTwinChatMessage, sendLoversChatMessage, submitNightAction, submitVote, sendGhostChatMessage } from "@/lib/firebase-actions";
 
-async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
+// This file is now only responsible for DECIDING the AI's action or chat message.
+// It does NOT perform the action itself (like writing to Firestore).
+// That responsibility is handled by the functions in firebase-actions.ts that call these helpers.
+
+export async function getAIChatResponse(db: Firestore, gameId: string, aiPlayer: Player, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
     try {
         const gameDoc = await getDoc(doc(db, 'games', gameId));
-        if (!gameDoc.exists()) return;
-
+        if (!gameDoc.exists()) return null;
         const game = gameDoc.data() as Game;
-        if (game.status === 'finished') return;
+        if (game.status === 'finished') return null;
 
-        const aiPlayersToTrigger = game.players.filter(p => p.isAI && (p.isAlive || chatType === 'ghost'));
+        const perspective: AIPlayerPerspective = {
+            game: toPlainObject(game),
+            aiPlayer: toPlainObject(aiPlayer),
+            trigger: triggerMessage,
+            players: toPlainObject(game.players),
+            chatType,
+        };
 
-        for (const aiPlayer of aiPlayersToTrigger) {
-             const isAccused = triggerMessage.toLowerCase().includes(aiPlayer.displayName.toLowerCase());
-             let shouldTrigger = isAccused ? Math.random() < 0.95 : Math.random() < 0.35;
-             
-             if (chatType === 'ghost' && aiPlayer.isAlive) continue; // Ghosts are dead
-             if (chatType !== 'ghost' && !aiPlayer.isAlive) continue; // Other chats are for the living
-
-             if (shouldTrigger) {
-                const perspective: AIPlayerPerspective = {
-                    game: toPlainObject(game),
-                    aiPlayer: toPlainObject(aiPlayer),
-                    trigger: triggerMessage,
-                    players: toPlainObject(game.players),
-                    chatType,
-                };
-
-                generateAIChatMessage(perspective, chatType).then(async ({ message, shouldSend }) => {
-                    if (shouldSend && message) {
-                        await new Promise(resolve => setTimeout(resolve, Math.random() * 4000 + 1000));
-                        if(chatType === 'public') {
-                            await sendChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName, message, true);
-                        } else if (chatType === 'ghost') {
-                             await sendGhostChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName, message);
-                        } else if (chatType === 'wolf') {
-                            await sendWolfChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName, message);
-                        } else if (chatType === 'twin') {
-                            await sendTwinChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName, message);
-                        } else if (chatType === 'lovers') {
-                            await sendLoversChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName, message);
-                        }
-                    }
-                }).catch(aiError => console.error(`Error generating AI chat for ${aiPlayer.displayName}:`, aiError));
-            }
-        }
-    } catch (e) {
-        console.error("Error in triggerAIChat:", e);
-    }
-}
-async function triggerPrivateAIChats(db: Firestore, gameId: string, triggerMessage: string) {
-     try {
-        const gameDoc = await getDoc(doc(db, 'games', gameId));
-        if (!gameDoc.exists()) return;
-
-        const game = gameDoc.data() as Game;
-        if (game.status === 'finished') return;
-
-        const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
-        const twinIds = game.twins || [];
-        const loverIds = game.lovers || [];
-
-        const wolves = game.players.filter(p => p.isAI && p.isAlive && p.role && wolfRoles.includes(p.role));
-        const twins = game.players.filter(p => p.isAI && p.isAlive && twinIds.includes(p.userId));
-        const lovers = game.players.filter(p => p.isAI && p.isAlive && loverIds.includes(p.userId));
-
-        if (wolves.length > 1) await triggerAIChat(db, gameId, triggerMessage, 'wolf');
-        if (twins.length > 1) await triggerAIChat(db, gameId, triggerMessage, 'twin');
-        if (lovers.length > 1) await triggerAIChat(db, gameId, triggerMessage, 'lovers');
-
-    } catch (e) {
-        console.error("Error in triggerPrivateAIChats:", e);
-    }
-}
-
-
-
-export async function triggerAIVote(db: Firestore, gameId: string) {
-    try {
-        const gameDoc = await getDoc(doc(db, 'games', gameId));
-        if (!gameDoc.exists()) return;
-        const game = gameDoc.data() as Game;
-        if (game.status === 'finished' || game.phase !== 'day') return;
-
-        const aiPlayersToVote = game.players.filter(p => p.isAI && p.isAlive && !p.votedFor);
-        const alivePlayers = game.players.filter(p => p.isAlive);
-        const deadPlayers = game.players.filter(p => !p.isAlive);
+        const { message, shouldSend } = await generateAIChatMessage(perspective, chatType);
         
-        await triggerPrivateAIChats(db, gameId, "El día ha comenzado. ¿Por quién deberíamos votar?");
-
-        for (const ai of aiPlayersToVote) {
-            const { targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
-            if (targetId) {
-                 await new Promise(resolve => setTimeout(resolve, Math.random() * 8000 + 2000));
-                 await submitVote(db, gameId, ai.userId, targetId);
-            }
+        if (shouldSend && message) {
+            return message;
         }
+        return null;
 
-    } catch(e) {
-        console.error("Error in triggerAIVote:", e);
+    } catch (e) {
+        console.error("Error in getAIChatResponse:", e);
+        return null;
     }
 }
 
@@ -291,32 +221,5 @@ export const getDeterministicAIAction = (
             return { actionType: 'NONE', targetId: '' };
     }
 };
-
-export async function runAIActions(db: Firestore, gameId: string) {
-    try {
-        const gameDoc = await getDoc(doc(db, 'games', gameId));
-        if (!gameDoc.exists()) return;
-        const game = gameDoc.data() as Game;
-
-        if(game.phase !== 'night' || game.status === 'finished') return;
-
-        const aiPlayers = game.players.filter(p => p.isAI && p.isAlive && !p.usedNightAbility);
-        const alivePlayers = game.players.filter(p => p.isAlive);
-        const deadPlayers = game.players.filter(p => !p.isAlive);
-
-        for (const ai of aiPlayers) {
-            const { actionType, targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
-
-            if (!actionType || actionType === 'NONE' || !targetId || actionType === 'VOTE' || actionType === 'SHOOT') continue;
-
-            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
-            await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
-        }
-    } catch(e) {
-        console.error("Error in AI Actions:", e);
-    }
-}
-
-export { triggerAIChat };
 
     

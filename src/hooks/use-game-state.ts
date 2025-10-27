@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useReducer, useRef } from 'react';
@@ -149,7 +150,7 @@ export const useGameState = (gameId: string) => {
             }
           break;
         case 'day':
-          playSoundEffect('/audio/effects/rooster-crowing.mp3');
+          playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
           setTimeout(() => {
             playNarration('dia_pueblo_despierta.mp3');
             setTimeout(() => {
@@ -167,9 +168,10 @@ export const useGameState = (gameId: string) => {
     if (game.phase === 'role_reveal' && game.creator === currentPlayer?.userId && game.status === 'in_progress') {
         const timer = setTimeout(() => {
             if (firestore) { // Ensure firestore is available
-                processNight(firestore, game.id); // Creator triggers the first night processing
+                // This is now the ONLY place this transition logic lives on the client.
+                processNight(firestore, game.id); 
             }
-        }, 15000);
+        }, 15000); // 15 seconds to read role
         return () => clearTimeout(timer);
     }
     

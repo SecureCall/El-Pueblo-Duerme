@@ -17,9 +17,9 @@ import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { roleDetails } from "@/lib/roles";
 import { toPlainObject, getMillis } from "@/lib/utils";
-import { triggerAIChat, runAIActions, triggerAIVote } from "@/lib/ai-actions";
 import { secretObjectives } from "./objectives";
 import { masterActions, type MasterActionId } from "./master-actions";
+import { getAIChatResponse, getDeterministicAIAction } from "./ai-actions";
 
 const PHASE_DURATION_SECONDS = 45;
 
@@ -407,3 +407,4 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
     
 
     
+
