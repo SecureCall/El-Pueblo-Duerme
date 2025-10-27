@@ -8,7 +8,7 @@ import {
 import type { Game, Player, NightActionType, PlayerRole, AIPlayerPerspective } from "@/types";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { toPlainObject } from "@/lib/utils";
-import { submitNightAction, submitVote, sendChatMessage, sendWolfChatMessage, sendTwinChatMessage, sendLoversChatMessage } from "@/lib/firebase-actions";
+import { submitNightAction, submitVote, sendChatMessage, sendWolfChatMessage, sendTwinChatMessage, sendLoversChatMessage, submitHunterShot } from "@/lib/firebase-actions";
 
 
 export async function getAIChatResponse(db: Firestore, gameId: string, aiPlayer: Player, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
@@ -26,10 +26,10 @@ export async function getAIChatResponse(db: Firestore, gameId: string, aiPlayer:
             chatType,
         };
 
-        const { message, shouldSend } = await generateAIChatMessage(perspective);
+        const result = await generateAIChatMessage(perspective, chatType);
         
-        if (shouldSend && message) {
-            return message;
+        if (result && result.shouldSend && result.message) {
+            return result.message;
         }
         return null;
 
@@ -266,5 +266,29 @@ export async function triggerAIVote(db: Firestore, gameId: string) {
 
     } catch(e) {
         console.error("Error in triggerAIVote:", e);
+    }
+}
+
+export async function runAIHunterShot(db: Firestore, gameId: string, hunter: Player) {
+    try {
+        const gameDoc = await getDoc(doc(db, 'games', gameId));
+        if (!gameDoc.exists()) return;
+        const game = gameDoc.data() as Game;
+
+        if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunter.userId) return;
+
+        const alivePlayers = game.players.filter(p => p.isAlive && p.userId !== hunter.userId);
+        
+        const { targetId } = getDeterministicAIAction(hunter, game, alivePlayers, []);
+
+        if (targetId) {
+            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+            await submitHunterShot(db, gameId, hunter.userId, targetId);
+        } else {
+             console.error(`AI Hunter ${hunter.displayName} could not find a target to shoot.`);
+        }
+
+    } catch(e) {
+         console.error("Error in runAIHunterShot:", e);
     }
 }

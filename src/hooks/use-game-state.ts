@@ -16,7 +16,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { useGameSession } from './use-game-session';
 import { getMillis } from '@/lib/utils';
 import { playNarration, playSoundEffect } from '@/lib/sounds';
-import { runAIActions, triggerAIVote } from "@/lib/ai-actions";
+import { runAIActions, triggerAIVote, runAIHunterShot } from "@/lib/ai-actions";
 import { processNight } from '@/lib/game-logic';
 
 
@@ -93,7 +93,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 export const useGameState = (gameId: string) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const { firestore } = useFirebase();
-  const { userId, isSessionLoaded } = useGameSession();
+  const { userId, isSessionLoaded, updateStats } = useGameSession();
   const gameRef = useRef(firestore ? doc(firestore, 'games', gameId) : null);
   const prevPhaseRef = useRef<Game['phase']>();
   const nightSoundsPlayedForRound = useRef<number>(0);
@@ -134,7 +134,16 @@ export const useGameState = (gameId: string) => {
     if (!state.game || !state.currentPlayer || !firestore) return;
     
     const prevPhase = prevPhaseRef.current;
-    const { game, currentPlayer, events } = state;
+    const { game, currentPlayer, events, players } = state;
+    
+    if (prevPhase !== 'finished' && game.status === 'finished') {
+      const gameOverEvent = events.find(e => e.type === 'game_over');
+      const winners = gameOverEvent?.data?.winners || [];
+      const isWinner = winners.some((p: Player) => p.userId === currentPlayer.userId);
+      const losers = players.filter(p => !winners.some((w: Player) => w.userId === p.userId));
+      updateStats(winners, losers, players, game);
+    }
+
 
     if (prevPhase !== game.phase) {
       switch (game.phase) {
@@ -161,15 +170,20 @@ export const useGameState = (gameId: string) => {
             }, 2000);
           }, 1500);
           break;
+        case 'hunter_shot':
+            const pendingHunter = players.find(p => p.userId === game.pendingHunterShot);
+            if (pendingHunter?.isAI && game.creator === currentPlayer.userId) {
+                runAIHunterShot(firestore, game.id, pendingHunter);
+            }
+            break;
       }
     }
     
     // Auto-advance from role reveal, controlled by creator
     if (game.phase === 'role_reveal' && game.creator === currentPlayer?.userId && game.status === 'in_progress') {
         const timer = setTimeout(() => {
-            if (firestore) { // Ensure firestore is available
-                // This is now the ONLY place this transition logic lives on the client.
-                processNight(firestore, game.id); 
+            if (firestore) {
+                processNight(firestore, game.id);
             }
         }, 15000); // 15 seconds to read role
         return () => clearTimeout(timer);
