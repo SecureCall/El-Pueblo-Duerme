@@ -8,10 +8,8 @@ import {
 import type { Game, Player, NightActionType, PlayerRole, AIPlayerPerspective } from "@/types";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { toPlainObject } from "@/lib/utils";
+import { submitNightAction, submitVote, sendChatMessage, sendWolfChatMessage, sendTwinChatMessage, sendLoversChatMessage } from "@/lib/firebase-actions";
 
-// This file is now only responsible for DECIDING the AI's action or chat message.
-// It does NOT perform the action itself (like writing to Firestore).
-// That responsibility is handled by the functions in firebase-actions.ts that call these helpers.
 
 export async function getAIChatResponse(db: Firestore, gameId: string, aiPlayer: Player, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
     try {
@@ -28,7 +26,7 @@ export async function getAIChatResponse(db: Firestore, gameId: string, aiPlayer:
             chatType,
         };
 
-        const { message, shouldSend } = await generateAIChatMessage(perspective, chatType);
+        const { message, shouldSend } = await generateAIChatMessage(perspective);
         
         if (shouldSend && message) {
             return message;
@@ -222,4 +220,51 @@ export const getDeterministicAIAction = (
     }
 };
 
-    
+export async function runAIActions(db: Firestore, gameId: string) {
+    try {
+        const gameDoc = await getDoc(doc(db, 'games', gameId));
+        if (!gameDoc.exists()) return;
+        const game = gameDoc.data() as Game;
+
+        if(game.phase !== 'night' || game.status === 'finished') return;
+
+        const aiPlayers = game.players.filter(p => p.isAI && p.isAlive && !p.usedNightAbility);
+        const alivePlayers = game.players.filter(p => p.isAlive);
+        const deadPlayers = game.players.filter(p => !p.isAlive);
+
+        for (const ai of aiPlayers) {
+            const { actionType, targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
+
+            if (!actionType || actionType === 'NONE' || !targetId || actionType === 'VOTE' || actionType === 'SHOOT') continue;
+
+            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
+            await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
+        }
+    } catch(e) {
+        console.error("Error in AI Actions:", e);
+    }
+}
+
+export async function triggerAIVote(db: Firestore, gameId: string) {
+    try {
+        const gameDoc = await getDoc(doc(db, 'games', gameId));
+        if (!gameDoc.exists()) return;
+        const game = gameDoc.data() as Game;
+        if (game.status === 'finished' || game.phase !== 'day') return;
+
+        const aiPlayersToVote = game.players.filter(p => p.isAI && p.isAlive && !p.votedFor);
+        const alivePlayers = game.players.filter(p => p.isAlive);
+        const deadPlayers = game.players.filter(p => !p.isAlive);
+
+        for (const ai of aiPlayersToVote) {
+            const { targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
+            if (targetId) {
+                 await new Promise(resolve => setTimeout(resolve, Math.random() * 8000 + 2000));
+                 await submitVote(db, gameId, ai.userId, targetId);
+            }
+        }
+
+    } catch(e) {
+        console.error("Error in triggerAIVote:", e);
+    }
+}
