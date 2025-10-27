@@ -278,20 +278,18 @@ export async function processNight(db: Firestore, gameId: string) {
         let game = gameSnap.data() as Game;
         if (game.status === 'finished') return;
         
-        // Special case for first round transition from role reveal
         if (game.phase === 'role_reveal' && game.currentRound === 1) {
             const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
             transaction.update(gameRef, { phase: 'night', phaseEndsAt });
             return;
         }
 
-        if (game.phase !== 'night') return; // Only process if it's night
+        if (game.phase !== 'night') return;
 
 
         const initialPlayerState = JSON.parse(JSON.stringify(game.players));
         const actions = game.nightActions?.filter(a => a.round === game.currentRound) || [];
         
-        // --- PHASE 1: PRE-ATTACK ACTIONS ---
         actions.forEach(action => {
              const playerIndex = game.players.findIndex(p => p.userId === action.playerId);
              const targetIndex = game.players.findIndex(p => p.userId === action.targetId);
@@ -331,7 +329,6 @@ export async function processNight(db: Firestore, gameId: string) {
             }
         }
 
-        // --- PHASE 2: ATTACK DETERMINATION ---
         let pendingDeaths: { targetId: string | null, cause: GameEvent['type'] }[] = [];
         
         const fishermanAction = actions.find(a => a.actionType === 'fisherman_catch');
@@ -364,7 +361,7 @@ export async function processNight(db: Firestore, gameId: string) {
         
         const lookoutAction = actions.find(a => a.actionType === 'lookout_spy');
         if (lookoutAction) {
-             if (Math.random() < 0.4) { // 40% fail rate
+             if (Math.random() < 0.4) {
                 pendingDeaths.push({ targetId: lookoutAction.playerId, cause: 'special' });
                 game.events.push({ id: `evt_lookout_fail_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: `¡${game.players.find(p=>p.userId===lookoutAction.playerId)?.displayName} ha sido descubierto espiando y ha muerto!`, data: { targetId: lookoutAction.playerId }, createdAt: Timestamp.now() });
             } else {
@@ -387,7 +384,6 @@ export async function processNight(db: Firestore, gameId: string) {
             }
         }
         
-        // --- PHASE 3: PROTECTION & REACTION ---
         const allProtectedIds = new Set<string>();
         actions.filter(a => ['doctor_heal', 'guardian_protect', 'priest_bless', 'hechicera_save'].includes(a.actionType)).forEach(a => allProtectedIds.add(a.targetId));
 
@@ -406,7 +402,6 @@ export async function processNight(db: Firestore, gameId: string) {
             }
         }
         
-        // --- PHASE 4: RESOLVE DEATHS ---
         let triggeredHunterId: string | null = null;
         for (const death of pendingDeaths) {
             if (death.targetId && !allProtectedIds.has(death.targetId)) {
@@ -421,10 +416,9 @@ export async function processNight(db: Firestore, gameId: string) {
              game.players.forEach(p => { if (p.role === 'werewolf' || p.role === 'wolf_cub') p.usedNightAbility = false; });
              game.wolfCubRevengeRound = 0; // Mark as used
              transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, wolfCubRevengeRound: 0 }));
-             return; 
+             // Do NOT return here, let the phase transition happen
         }
 
-        // --- PHASE 5: CHECK GAME OVER & TRANSITION ---
         let gameOverInfo = checkGameOver(game);
         if (gameOverInfo.isGameOver) {
             game.status = "finished";
