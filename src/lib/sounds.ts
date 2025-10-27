@@ -7,9 +7,6 @@ let soundEffectAudio: HTMLAudioElement | null = null;
 let audioUnlocked = false;
 let currentMusicSrc: string | null = null;
 
-const narrationQueue: string[] = [];
-let isNarrationPlaying = false;
-
 const initializeAudio = () => {
     if (typeof window === 'undefined') return;
 
@@ -17,20 +14,15 @@ const initializeAudio = () => {
         narrationAudio = new Audio();
         narrationAudio.volume = 1.0;
         narrationAudio.onended = () => {
-            isNarrationPlaying = false;
             if (musicAudio) musicAudio.volume = 0.3; // Restore music volume
-            playNextInQueue();
         };
         narrationAudio.onplay = () => {
-            isNarrationPlaying = true;
             if (musicAudio && !musicAudio.paused) {
                 musicAudio.volume = 0.1; // Lower music volume during narration
             }
         };
          narrationAudio.onerror = (e) => {
             console.error(`Failed to load or play narration: ${narrationAudio?.src}`, e);
-            isNarrationPlaying = false;
-            playNextInQueue(); // Skip to the next one
         };
     }
 
@@ -73,47 +65,41 @@ export const unlockAudio = () => {
     unlockAndPause(soundEffectAudio);
     audioUnlocked = true;
     
-    // After unlocking, try to play any queued music or narration
     if (currentMusicSrc) setMusic(currentMusicSrc);
-    playNextInQueue();
 };
 
-const playNextInQueue = () => {
-    if (!audioUnlocked || isNarrationPlaying || narrationQueue.length === 0) return;
-    
-    isNarrationPlaying = true;
-    const nextNarration = narrationQueue.shift();
-    if (nextNarration && narrationAudio) {
-        const audioSrc = `/audio/voz/${nextNarration}`;
-        if(narrationAudio.src !== new URL(audioSrc, window.location.origin).href) {
-            narrationAudio.src = audioSrc;
-            narrationAudio.load();
-        }
-        narrationAudio.play().catch(e => {
-            console.error(`Could not play narration ${nextNarration}`, e);
-            isNarrationPlaying = false;
-            playNextInQueue(); // Try next one
-        });
-    } else {
-        isNarrationPlaying = false; // Should not happen but as a safeguard
-    }
-};
 
-export const playNarration = (narrationFileOrFiles: string | string[]) => {
-    const files = Array.isArray(narrationFileOrFiles) ? narrationFileOrFiles : [narrationFileOrFiles];
-    narrationQueue.push(...files);
+export const playNarration = (narrationFile: string) => {
+    if (!narrationAudio || !audioUnlocked) return;
     
-    if (!isNarrationPlaying && audioUnlocked) {
-        playNextInQueue();
+    const audioSrc = `/audio/voz/${narrationFile}`;
+    
+    // If it's already playing the requested audio, do nothing.
+    if (!narrationAudio.paused && narrationAudio.src.endsWith(audioSrc)) {
+        return;
     }
+
+    // Stop current narration before starting a new one
+    if (!narrationAudio.paused) {
+        narrationAudio.pause();
+        narrationAudio.currentTime = 0;
+    }
+    
+    narrationAudio.src = audioSrc;
+    narrationAudio.load();
+    narrationAudio.play().catch(e => {
+        console.error(`Could not play narration ${narrationFile}`, e);
+    });
 };
 
 export const playSoundEffect = (soundFile: string) => {
     if (!soundEffectAudio || !audioUnlocked) return;
     
     const effectSrc = `/audio/effects/${soundFile}`;
-    soundEffectAudio.src = effectSrc;
-    soundEffectAudio.play().catch(e => console.warn(`Could not play sound effect ${soundFile}`, e));
+    // Create a new instance for each effect to allow overlaps
+    const effectAudio = new Audio(effectSrc);
+    effectAudio.volume = 0.5;
+    effectAudio.play().catch(e => console.warn(`Could not play sound effect ${soundFile}`, e));
 };
 
 export const setMusic = (musicFile: string | null) => {
@@ -133,7 +119,7 @@ export const setMusic = (musicFile: string | null) => {
             musicAudio.load();
         }
         if (audioUnlocked) {
-            musicAudio.volume = isNarrationPlaying ? 0.1 : 0.3;
+            musicAudio.volume = narrationAudio && !narrationAudio.paused ? 0.1 : 0.3;
             musicAudio.play().catch(e => console.warn(`Could not play music ${musicFile}`, e));
         }
     } else {
