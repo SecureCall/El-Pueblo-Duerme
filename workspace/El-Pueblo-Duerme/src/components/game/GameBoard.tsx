@@ -28,7 +28,8 @@ import { VampireKillOverlay } from "./VampireKillOverlay";
 import { useGameState } from "@/hooks/use-game-state";
 import { LoversChat } from "./LoversChat";
 import { getMillis } from "@/lib/utils";
-import { GhostChat } from "@/components/game/GhostChat";
+import { GhostChat } from "./GhostChat";
+
 
 interface GameBoardProps {
   game: Game;
@@ -79,8 +80,6 @@ export function GameBoard({
     if (!firestore || !game || !currentPlayer) return;
     if (game.status === 'finished') return;
     
-    // Any player can trigger the phase end as a failsafe.
-    // The backend functions are idempotent.
     if (game.phase === 'day' && game.creator === currentPlayer.userId) {
         await processVotes(firestore, game.id);
     } else if (game.phase === 'night' && game.creator === currentPlayer.userId) {
@@ -89,7 +88,6 @@ export function GameBoard({
   }, [firestore, game, currentPlayer]);
 
 
-  // Sound and action trigger logic
   useEffect(() => {
     if (!game || !currentPlayer || game.status === 'finished') return;
     const prevPhase = prevPhaseRef.current;
@@ -162,7 +160,6 @@ export function GameBoard({
         setDeathCause(getCauseOfDeath(currentPlayer.userId));
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
   
-  // Auto-advance from role reveal
   useEffect(() => {
     if (!game || !currentPlayer) return;
     if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore && game.status === 'in_progress') {
@@ -174,7 +171,6 @@ export function GameBoard({
     }
   }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, firestore, game?.status]);
   
-  // Phase timer logic
   useEffect(() => {
     if (!game?.phaseEndsAt || !firestore || !game || game.status === 'finished') {
       setTimeLeft(0);
@@ -289,10 +285,9 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
   const otherTwinId = isTwin ? game.twins!.find(id => id !== currentPlayer!.userId) : null;
   const otherTwin = otherTwinId ? players.find(p => p.userId === otherTwinId) : null;
 
-  const isLover = currentPlayer?.isLover;
-  const otherLoverId = isLover && game.lovers ? game.lovers.find(id => id !== currentPlayer!.userId) : null;
-  const otherLover = otherLoverId ? players.find(p => p.userId === otherLoverId) : null;
-  
+  const isLover = !!game.lovers?.includes(currentPlayer?.userId ?? '');
+  const otherLover = isLover ? players.find(p => p.userId === game.lovers?.find(id => id !== currentPlayer!.userId)) : null;
+
   const highlightedPlayers = [];
   if (otherTwin) highlightedPlayers.push({ userId: otherTwin.userId, color: 'rgba(135, 206, 250, 0.7)' });
   if (otherLover) highlightedPlayers.push({ userId: otherLover.userId, color: 'rgba(244, 114, 182, 0.7)' });
@@ -453,5 +448,6 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
+
 
     

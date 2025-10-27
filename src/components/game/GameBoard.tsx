@@ -27,7 +27,7 @@ import { VampireKillOverlay } from "./VampireKillOverlay";
 import { useGameState } from "@/hooks/use-game-state";
 import { LoversChat } from "./LoversChat";
 import { getMillis } from "@/lib/utils";
-import { GhostChat } from "./GhostChat";
+import { GhostSpectatorChat } from "./GhostSpectatorChat";
 import { JuryVote } from "./JuryVote";
 import { MasterActionBar, type MasterActionState } from "./MasterActionBar";
 import { useGameSession } from "@/hooks/use-game-session";
@@ -365,7 +365,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
                 )}
 
                 {showGhostChat && ghostMessages && (
-                     <GhostChat gameId={game.id} currentPlayer={currentPlayer} messages={ghostMessages} />
+                     <GhostSpectatorChat gameId={game.id} currentPlayer={currentPlayer} messages={ghostMessages} />
                 )}
 
                 <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
