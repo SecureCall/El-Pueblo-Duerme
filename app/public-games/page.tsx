@@ -4,7 +4,7 @@ import { useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, where, Timestamp, orderBy } from 'firebase/firestore';
 
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import type { Game } from '@/types';
@@ -17,6 +17,7 @@ import { Users, Loader2, HomeIcon } from 'lucide-react';
 import { EnterNameModal } from '@/components/game/EnterNameModal';
 import { useGameSession } from '@/hooks/use-game-session';
 import { useToast } from '@/hooks/use-toast';
+import { getMillis } from '@/lib/utils';
 
 function GameCard({ game }: { game: Game }) {
     const { displayName } = useGameSession();
@@ -58,10 +59,13 @@ export default function PublicGamesPage() {
 
     const gamesQuery = useMemoFirebase(() => {
         if (!firestore) return null;
+        const fiveMinutesAgo = Timestamp.fromMillis(Date.now() - 5 * 60 * 1000);
         return query(
             collection(firestore, 'games'),
             where('settings.isPublic', '==', true),
-            where('status', '==', 'waiting')
+            where('status', '==', 'waiting'),
+            where('lastActiveAt', '>', fiveMinutesAgo),
+            orderBy('lastActiveAt', 'desc')
         );
     }, [firestore]);
 
@@ -69,7 +73,8 @@ export default function PublicGamesPage() {
 
     const sortedGames = useMemo(() => {
         if (!publicGames) return [];
-        return publicGames.sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
+        // The query now handles the sorting, but we can keep this as a fallback.
+        return [...publicGames].sort((a, b) => getMillis(b.lastActiveAt) - getMillis(a.lastActiveAt));
     }, [publicGames]);
 
     useEffect(() => {
