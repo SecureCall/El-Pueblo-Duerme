@@ -1,84 +1,54 @@
-/**
- * @fileoverview Firestore Security Rules for 'El Pueblo Duerme'.
- *
- * Core Philosophy:
- * This ruleset enforces a collaborative access control model for games.
- * Only authenticated users can create, join, update, or delete games.
- * Authorization checks focus on the current user's participation and role
- * within a game.
- *
- * Data Structure:
- * Games are stored in the `/games/{gameId}` collection. Each game document
- * contains all the necessary information for the game, including an array
- * of players.
- *
- * Key Security Decisions:
- * - Games are collaborative, and any user can join a game.
- * - The creator of the game has implicit admin privileges.
- * - Schema validation is relaxed in prototyping mode to allow rapid iteration.
- *
- * Denormalization for Authorization:
- * The 'players' array within the `/games/{gameId}` document is used to determine
- * whether a user is authorized to perform certain actions on the game. This
- * avoids costly `get()` operations to check player status in separate collections.
- */
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // Helper function to check if a user is part of a specific game
+    function isPlayer(gameId, userId) {
+      return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.userId == userId);
+    }
+    
+    // Helper function to check if a user is the creator of a game
+    function isCreator(gameId, userId) {
+      return get(/databases/$(database)/documents/games/$(gameId)).data.creator == userId;
+    }
 
-    /**
-     * @description Controls access to individual game documents.
-     * @path /games/{gameId}
-     * @allow (get, list): Any user can read game documents.
-     * @allow (create): Any authenticated user can create a game.
-     * @allow (update): Only players who are part of the game can update the game.
-     * @allow (delete): Only the game creator can delete the game.
-     * @principle Enforces collaborative access with creator-based deletion.
-     */
     match /games/{gameId} {
-      allow get, list: if true;
-      allow create: if isSignedIn() && request.resource.data.creator == request.auth.uid;
-      allow update: if isSignedIn() && isPlayer(gameId);
-      allow delete: if isSignedIn() && isExistingOwner(gameId);
-    }
+      // ANY authenticated user can create a game.
+      allow create: if request.auth != null;
 
-    // ---- Helper functions ----
+      // ANY authenticated user can read the list of public games.
+      // This is safe because we will use a query with a 'where' clause on 'isPublic'.
+      allow list: if request.auth != null;
 
-    /**
-     * @description Checks if the user is signed in.
-     * @returns {boolean} True if the user is signed in, false otherwise.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the requesting user is the owner of the game.
-     * @param {string} gameId The ID of the game.
-     * @returns {boolean} True if the user is the owner, false otherwise.
-     */
-    function isOwner(gameId) {
-      return get(/databases/$(database)/documents/games/$(gameId)).data.creator == request.auth.uid;
-    }
-
-    /**
-     * @description Checks if the requesting user is the owner of the game and it exists.
-     * @param {string} gameId The ID of the game.
-     * @returns {boolean} True if the user is the existing owner, false otherwise.
-     */
-    function isExistingOwner(gameId) {
-      return isOwner(gameId) && resource != null;
-    }
-
-    /**
-     * @description Checks if the requesting user is a player in the game.
-     * @param {string} gameId The ID of the game.
-     * @returns {boolean} True if the user is a player, false otherwise.
-     */
-    function isPlayer(gameId) {
-      return get(/databases/$(database)/documents/games/$(gameId)).data.players.hasAny(
-          [request.auth.uid]
+      // ONLY a player in the game can read its full data.
+      allow get: if request.auth != null && isPlayer(gameId, request.auth.uid);
+      
+      // Complex update logic
+      allow update: if request.auth != null && (
+        // Case 1: The game is in 'waiting' state.
+        (resource.data.status == 'waiting' && (
+            // A new player is joining (the list of players grows by 1).
+            (request.resource.data.players.size() == resource.data.players.size() + 1 &&
+             !isPlayer(gameId, request.auth.uid)) ||
+            // An existing player is updating their avatar or display name.
+            (request.resource.data.players.size() == resource.data.players.size() &&
+             isPlayer(gameId, request.auth.uid))
+        )) ||
+        // Case 2: The creator is starting the game.
+        (isCreator(gameId, request.auth.uid) && 
+         request.resource.data.status == 'in_progress' && 
+         resource.data.status == 'waiting') ||
+        // Case 3: The game is in progress, and a player is performing an action (voting, night action).
+        (resource.data.status == 'in_progress' && isPlayer(gameId, request.auth.uid)) ||
+        // Case 4: The creator is resetting the game.
+        (isCreator(gameId, request.auth.uid) && 
+         request.resource.data.status == 'waiting' && 
+         resource.data.status == 'finished')
       );
+      
+      // Nobody can delete a game.
+      allow delete: if false;
     }
   }
 }

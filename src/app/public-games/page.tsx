@@ -61,6 +61,7 @@ export default function PublicGamesPage() {
     const [isNameModalOpen, setIsNameModalOpen] = useState(false);
 
     useEffect(() => {
+        // Only open the modal if the display name is not set.
         if (!displayName) {
             setIsNameModalOpen(true);
         }
@@ -80,10 +81,7 @@ export default function PublicGamesPage() {
 
     const sortedGames = useMemo(() => {
         if (!publicGames) return [];
-        const fifteenMinutesAgo = Date.now() - 15 * 60 * 1000;
-        return publicGames
-            .filter(game => getMillis(game.lastActiveAt) > fifteenMinutesAgo)
-            .sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt));
+        return [...publicGames].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt));
     }, [publicGames]);
 
     useEffect(() => {

@@ -94,25 +94,25 @@
       "id": "avatar-7",
       "description": "Un boticario con frascos y pociones",
       "imageUrl": "/avatares/Un boticario con frascos y pociones.png",
-      "imageHint": "apothecary"
+      "imageHint": "apothecary potions"
     },
     {
       "id": "avatar-8",
       "description": "Un cazador con un arco y flechas",
       "imageUrl": "/avatares/Un cazador con un arco y flechas.png",
-      "imageHint": "hunter"
+      "imageHint": "hunter bow"
     },
     {
       "id": "avatar-9",
       "description": "Un clérigo con un símbolo sagrado",
       "imageUrl": "/avatares/Un clérigo con un símbolo sagrado.png",
-      "imageHint": "cleric"
+      "imageHint": "cleric symbol"
     },
     {
       "id": "avatar-10",
       "description": "Un granjero robusto con un rastrillo y un sombrero de paja",
       "imageUrl": "/avatares/Un granjero robusto con un rastrillo y un sombrero de paja.png",
-      "imageHint": "robust farmer"
+      "imageHint": "sturdy farmer"
     },
     {
       "id": "avatar-11",
@@ -130,25 +130,25 @@
       "id": "avatar-13",
       "description": "Un noble con ropas elegantes y una pluma",
       "imageUrl": "/avatares/Un noble con ropas elegantes y una pluma.png",
-      "imageHint": "noble"
+      "imageHint": "elegant noble"
     },
     {
       "id": "avatar-14",
       "description": "Un pescador con una caña y un pez",
       "imageUrl": "/avatares/Un pescador con una caña y un pez.png",
-      "imageHint": "fisherman"
+      "imageHint": "fisherman fish"
     },
     {
       "id": "avatar-15",
       "description": "Un pícaro con capucha y una daga",
       "imageUrl": "/avatares/Un pícaro con capucha y una daga.png",
-      "imageHint": "rogue"
+      "imageHint": "rogue dagger"
     },
     {
       "id": "avatar-16",
       "description": "Un trovador con un laúd y una capa",
       "imageUrl": "/avatares/Un trovador con un laúd y una capa.png",
-      "imageHint": "troubadour"
+      "imageHint": "troubadour lute"
     },
     {
       "id": "avatar-17",
@@ -160,19 +160,19 @@
       "id": "avatar-18",
       "description": "Una monja con un hábito y un rosario",
       "imageUrl": "/avatares/Una monja con un hábito y un rosario.png",
-      "imageHint": "nun"
+      "imageHint": "nun habit"
     },
     {
       "id": "avatar-19",
       "description": "Una niña pequeña con un osito de peluche",
       "imageUrl": "/avatares/Una niña pequeña con un osito de peluche.png",
-      "imageHint": "little girl"
+      "imageHint": "girl teddy"
     },
     {
       "id": "avatar-20",
       "description": "Una tejedora con hilo y un telar",
       "imageUrl": "/avatares/Una tejedora con hilo y un telar.png",
-      "imageHint": "weaver"
+      "imageHint": "weaver loom"
     }
   ]
 }

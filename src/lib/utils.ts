@@ -60,5 +60,3 @@ export function toPlainObject<T>(obj: T): T {
     }
     return newObj as T;
 }
-
-    

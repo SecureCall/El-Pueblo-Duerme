@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import type { Player } from "@/types";
@@ -76,5 +75,3 @@ export function CurrentPlayerRole({ player }: CurrentPlayerRoleProps) {
     </Sheet>
   );
 }
-
-    

@@ -1,4 +1,3 @@
-
 'use client';
 import { 
   doc,
@@ -8,8 +7,7 @@ import {
 import type { Game, Player, NightActionType, PlayerRole } from "@/types";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { toPlainObject } from "@/lib/utils";
-import { sendChatMessage, sendWolfChatMessage, sendTwinChatMessage, sendLoversChatMessage, submitNightAction } from "@/lib/firebase-actions";
-import { submitVote } from "./firebase-actions";
+import { sendChatMessage, sendWolfChatMessage, sendTwinChatMessage, sendLoversChatMessage, submitNightAction, submitVote, sendGhostChatMessage } from "@/lib/firebase-actions";
 
 async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
     try {
@@ -19,11 +17,14 @@ async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: stri
         const game = gameDoc.data() as Game;
         if (game.status === 'finished') return;
 
-        const aiPlayersToTrigger = game.players.filter(p => p.isAI && p.isAlive);
+        const aiPlayersToTrigger = game.players.filter(p => p.isAI && (p.isAlive || chatType === 'ghost'));
 
         for (const aiPlayer of aiPlayersToTrigger) {
              const isAccused = triggerMessage.toLowerCase().includes(aiPlayer.displayName.toLowerCase());
-             const shouldTrigger = isAccused ? Math.random() < 0.95 : Math.random() < 0.35;
+             let shouldTrigger = isAccused ? Math.random() < 0.95 : Math.random() < 0.35;
+             
+             if (chatType === 'ghost' && aiPlayer.isAlive) continue; // Ghosts are dead
+             if (chatType !== 'ghost' && !aiPlayer.isAlive) continue; // Other chats are for the living
 
              if (shouldTrigger) {
                 const perspective = {
@@ -37,7 +38,17 @@ async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: stri
                 generateAIChatMessage(perspective, chatType).then(async ({ message, shouldSend }) => {
                     if (shouldSend && message) {
                         await new Promise(resolve => setTimeout(resolve, Math.random() * 4000 + 1000));
-                        await sendChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName, message, true);
+                        if(chatType === 'public') {
+                            await sendChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName, message, true);
+                        } else if (chatType === 'ghost') {
+                             await sendGhostChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName, message);
+                        } else if (chatType === 'wolf') {
+                            await sendWolfChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName, message);
+                        } else if (chatType === 'twin') {
+                            await sendTwinChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName, message);
+                        } else if (chatType === 'lovers') {
+                            await sendLoversChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName, message);
+                        }
                     }
                 }).catch(aiError => console.error(`Error generating AI chat for ${aiPlayer.displayName}:`, aiError));
             }
@@ -62,26 +73,9 @@ async function triggerPrivateAIChats(db: Firestore, gameId: string, triggerMessa
         const twins = game.players.filter(p => p.isAI && p.isAlive && twinIds.includes(p.userId));
         const lovers = game.players.filter(p => p.isAI && p.isAlive && loverIds.includes(p.userId));
 
-        const processChat = async (players: Player[], chatType: 'wolf' | 'twin' | 'lovers', sendMessageFn: Function) => {
-            for (const aiPlayer of players) {
-                if (Math.random() < 0.8) { // Higher chance to talk in private
-                    const perspective = {
-                        game: toPlainObject(game), aiPlayer: toPlainObject(aiPlayer), trigger: triggerMessage,
-                        players: toPlainObject(game.players), chatType,
-                    };
-                    generateAIChatMessage(perspective, chatType).then(async ({ message, shouldSend }) => {
-                        if (shouldSend && message) {
-                            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
-                            await sendMessageFn(db, gameId, aiPlayer.userId, aiPlayer.displayName, message);
-                        }
-                    }).catch(err => console.error(`Error in private AI chat for ${aiPlayer.displayName}:`, err));
-                }
-            }
-        };
-
-        if (wolves.length > 1) await processChat(wolves, 'wolf', sendWolfChatMessage);
-        if (twins.length > 1) await processChat(twins, 'twin', sendTwinChatMessage);
-        if (lovers.length > 1) await processChat(lovers, 'lovers', sendLoversChatMessage);
+        if (wolves.length > 1) await triggerAIChat(db, gameId, triggerMessage, 'wolf');
+        if (twins.length > 1) await triggerAIChat(db, gameId, triggerMessage, 'twin');
+        if (lovers.length > 1) await triggerAIChat(db, gameId, triggerMessage, 'lovers');
 
     } catch (e) {
         console.error("Error in triggerPrivateAIChats:", e);
@@ -323,5 +317,3 @@ export async function runAIActions(db: Firestore, gameId: string) {
 }
 
 export { triggerAIChat };
-
-    

@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -17,7 +18,6 @@ import { Users, Loader2, HomeIcon } from 'lucide-react';
 import { EnterNameModal } from '@/components/game/EnterNameModal';
 import { useGameSession } from '@/hooks/use-game-session';
 import { useToast } from '@/hooks/use-toast';
-import { getMillis } from '@/lib/utils';
 
 function GameCard({ game }: { game: Game }) {
     const { displayName } = useGameSession();
@@ -61,6 +61,7 @@ export default function PublicGamesPage() {
     const [isNameModalOpen, setIsNameModalOpen] = useState(false);
 
     useEffect(() => {
+        // Only open the modal if the display name is not set.
         if (!displayName) {
             setIsNameModalOpen(true);
         }
@@ -80,10 +81,7 @@ export default function PublicGamesPage() {
 
     const sortedGames = useMemo(() => {
         if (!publicGames) return [];
-        const fifteenMinutesAgo = Date.now() - 15 * 60 * 1000;
-        return publicGames
-            .filter(game => getMillis(game.lastActiveAt) > fifteenMinutesAgo)
-            .sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt));
+        return publicGames.sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0));
     }, [publicGames]);
 
     useEffect(() => {
@@ -176,3 +174,4 @@ export default function PublicGamesPage() {
         </>
     );
 }
+

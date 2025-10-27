@@ -1,5 +1,5 @@
-
 import { z } from 'zod';
+import { PlayerRoleEnum } from '.';
 
 const TimestampSchema = z.union([
   z.object({
@@ -13,13 +13,8 @@ const TimestampSchema = z.union([
 ]).nullable();
 
 
-export const PlayerRoleSchema = z.enum([
-  "villager", "seer", "doctor", "hunter", "guardian", "priest", "prince", "lycanthrope", "twin",
-  "hechicera", "ghost", "virginia_woolf", "leprosa", "river_siren", "lookout", "troublemaker",
-  "silencer", "seer_apprentice", "elder_leader", "werewolf", "wolf_cub", "cursed", "seeker_fairy",
-  "sleeping_fairy", "shapeshifter", "drunk_man", "cult_leader", "fisherman", "vampire", "witch", "banshee",
-  "resurrector_angel", "cupid", "executioner"
-]).nullable();
+export const PlayerRoleSchema = z.nativeEnum(PlayerRoleEnum).nullable();
+
 
 export const PlayerSchema = z.object({
   userId: z.string(),
@@ -51,6 +46,11 @@ export const PlayerSchema = z.object({
   bansheeScreams: z.record(z.string()).optional(),
   lookoutUsed: z.boolean().optional(),
   executionerTargetId: z.string().nullable(),
+  victories: z.number(),
+  defeats: z.number(),
+  roleStats: z.record(z.object({ played: z.number(), won: z.number() })).optional(),
+  achievements: z.array(z.string()),
+  secretObjectiveId: z.string().nullable(),
 });
 
 export const NightActionSchema = z.object({
@@ -92,6 +92,7 @@ export const GameSettingsSchema = z.object({
     werewolves: z.number(),
     fillWithAI: z.boolean(),
     isPublic: z.boolean(),
+    juryVoting: z.boolean(),
     seer: z.boolean(),
     doctor: z.boolean(),
     hunter: z.boolean(),
@@ -124,13 +125,13 @@ export const GameSettingsSchema = z.object({
     resurrector_angel: z.boolean(),
     cupid: z.boolean(),
     executioner: z.boolean(),
-});
+}).catchall(z.union([z.string(), z.number(), z.boolean()]));
 
 export const GameSchema = z.object({
   id: z.string(),
   name: z.string(),
   status: z.enum(["waiting", "in_progress", "finished"]),
-  phase: z.enum(["waiting", "role_reveal", "night", "day", "voting", "hunter_shot", "finished"]),
+  phase: z.enum(["waiting", "role_reveal", "night", "day", "voting", "hunter_shot", "jury_voting", "finished"]),
   creator: z.string(),
   players: z.array(PlayerSchema),
   events: z.array(GameEventSchema),
@@ -142,7 +143,6 @@ export const GameSchema = z.object({
   ghostChatMessages: z.array(ChatMessageSchema),
   maxPlayers: z.number(),
   createdAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null),
-  lastActiveAt: TimestampSchema,
   currentRound: z.number(),
   settings: GameSettingsSchema,
   phaseEndsAt: TimestampSchema,
@@ -161,6 +161,8 @@ export const GameSchema = z.object({
   troublemakerUsed: z.boolean(),
   fairiesFound: z.boolean(),
   fairyKillUsed: z.boolean(),
+  juryVotes: z.record(z.string()).optional(),
+  masterKillUsed: z.boolean().optional(),
 });
 
 export const AIPlayerPerspectiveSchema = z.object({

@@ -1,18 +1,17 @@
+'use client';
 
-"use client";
-
-import { useEffect, useState, useCallback } from "react";
-import { useGameSession } from "@/hooks/use-game-session";
-import { useGameState } from "@/hooks/use-game-state";
-import { EnterNameModal } from "./EnterNameModal";
-import { joinGame } from "@/lib/firebase-actions";
-import { Loader2 } from "lucide-react";
-import { GameLobby } from "./GameLobby";
-import { GameBoard } from "./GameBoard";
-import Image from "next/image";
-import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { useFirebase } from "@/firebase";
-import { GameMusic } from "./GameMusic";
+import { useEffect, useState, useCallback } from 'react';
+import { useGameSession } from '@/hooks/use-game-session';
+import { useGameState } from '@/hooks/use-game-state';
+import { EnterNameModal } from './EnterNameModal';
+import { joinGame } from '@/lib/firebase-actions';
+import { Loader2 } from 'lucide-react';
+import { GameLobby } from './GameLobby';
+import { GameBoard } from './GameBoard';
+import Image from 'next/image';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { useFirebase } from '@/firebase';
+import { GameMusic } from './GameMusic';
 
 export function GameRoom({ gameId }: { gameId: string }) {
   const { userId, displayName, setDisplayName, isSessionLoaded, avatarUrl } = useGameSession();
@@ -22,48 +21,50 @@ export function GameRoom({ gameId }: { gameId: string }) {
 
   const { firestore } = useFirebase();
 
-  const handleNameSubmit = useCallback((name: string) => {
-    setDisplayName(name);
-    setJoinError(null); 
-  }, [setDisplayName]);
-  
+  const handleNameSubmit = useCallback(
+    (name: string) => {
+      setDisplayName(name);
+      setJoinError(null);
+    },
+    [setDisplayName]
+  );
+
   const handleJoinGame = useCallback(async () => {
     if (!displayName || !firestore || !avatarUrl || !userId) return;
-    
+
     setIsJoining(true);
     setJoinError(null);
 
     const result = await joinGame(firestore, gameId, userId, displayName, avatarUrl);
-    
+
     if (result.error) {
-        setJoinError(result.error);
-        if (result.error.includes("nombre ya está en uso")) {
-            setDisplayName(null); // Force user to re-enter name
-        }
+      setJoinError(result.error);
+      if (result.error.includes('nombre ya está en uso')) {
+        setDisplayName(null); // Force user to re-enter name
+      }
     }
     setIsJoining(false);
   }, [displayName, firestore, gameId, userId, setDisplayName, avatarUrl]);
-  
+
   useEffect(() => {
     if (game && displayName && !currentPlayer && game.status === 'waiting' && !isJoining) {
-        handleJoinGame();
+      handleJoinGame();
     }
   }, [game, displayName, currentPlayer, isJoining, handleJoinGame]);
 
-
   const getMusicSrc = () => {
-    if (!game) return "/audio/lobby-theme.mp3";
+    if (!game) return '/audio/lobby-theme.mp3';
     switch (game.phase) {
       case 'day':
-        return "/audio/day-theme.mp3";
+        return '/audio/day-theme.mp3';
       case 'night':
       case 'role_reveal':
       case 'hunter_shot':
-        return "/audio/night-theme.mp3";
+        return '/audio/night-theme.mp3';
       case 'waiting':
       case 'finished':
       default:
-        return "/audio/lobby-theme.mp3";
+        return '/audio/lobby-theme.mp3';
     }
   };
 
@@ -71,7 +72,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
   const bgImage = PlaceHolderImages.find((img) => img.id === bgImageId);
 
   const renderContent = () => {
-    if (loading || !isSessionLoaded || !avatarUrl) {
+    if (loading || !isSessionLoaded || !avatarUrl || (gameId && !game)) {
       return (
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -80,20 +81,17 @@ export function GameRoom({ gameId }: { gameId: string }) {
       );
     }
 
-    if (gameStateError || !game) {
-      return <p className="text-destructive text-xl">{gameStateError || "Partida no encontrada."}</p>;
+    if (gameStateError) {
+      return <p className="text-destructive text-xl">{gameStateError}</p>;
     }
     
     if (!displayName) {
-        return <EnterNameModal isOpen={!displayName} onNameSubmit={handleNameSubmit} error={joinError} />;
+      return <EnterNameModal isOpen={!displayName} onNameSubmit={handleNameSubmit} error={joinError} />;
     }
 
-    if (!currentPlayer) {
-      if (game.status !== 'waiting') {
-        return <p className="text-destructive text-xl">Esta partida ya ha comenzado.</p>;
-      }
-       if (players.length >= game.maxPlayers) {
-        return <p className="text-destructive text-xl">Esta partida está llena.</p>;
+    if (!game || !currentPlayer) {
+      if (game && game.status !== 'waiting') {
+        return <p className="text-destructive text-xl">Esta partida ya ha comenzado o está llena.</p>;
       }
       return (
         <div className="flex flex-col items-center gap-4">
@@ -108,7 +106,18 @@ export function GameRoom({ gameId }: { gameId: string }) {
             return <GameLobby game={game} players={players} isCreator={game.creator === userId} currentPlayer={currentPlayer} />;
         case 'in_progress':
         case 'finished':
-            return <GameBoard game={game} players={players} currentPlayer={currentPlayer} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} ghostMessages={ghostMessages} />;
+            return <GameBoard 
+              game={game} 
+              players={players} 
+              currentPlayer={currentPlayer} 
+              events={events} 
+              messages={messages} 
+              wolfMessages={wolfMessages}
+              fairyMessages={fairyMessages}
+              twinMessages={twinMessages}
+              loversMessages={loversMessages}
+              ghostMessages={ghostMessages}
+            />;
         default:
             return <p>Estado de la partida desconocido.</p>;
     }
@@ -116,7 +125,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
 
   return (
     <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 overflow-hidden">
-       {bgImage && (
+      {bgImage && (
         <Image
           src={bgImage.imageUrl}
           alt={bgImage.description}
@@ -129,11 +138,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
       )}
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
       <GameMusic src={getMusicSrc()} />
-      <div className="relative z-10 w-full flex items-center justify-center">
-        {renderContent()}
-      </div>
+      <div className="relative z-10 w-full flex items-center justify-center">{renderContent()}</div>
     </div>
   );
 }
-
-    
