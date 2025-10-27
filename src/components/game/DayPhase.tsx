@@ -1,7 +1,8 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
-import type { Game, Player, GameEvent, ChatMessage } from '@/types';
+import type { Game, Player, GameEvent } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
@@ -11,6 +12,7 @@ import { Loader2, Zap, Scale } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { HeartCrack, SunIcon, Users, BrainCircuit } from 'lucide-react';
 import { useFirebase } from '@/firebase';
+import type { MasterActionState } from './MasterActionBar';
 
 interface DayPhaseProps {
     game: Game;
@@ -20,7 +22,6 @@ interface DayPhaseProps {
     loverDeathEvents?: GameEvent[];
     voteEvent?: GameEvent;
     behaviorClueEvent?: GameEvent;
-    chatMessages: ChatMessage[];
 }
 
 function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, currentPlayer: Player, players: Player[] }) {
@@ -28,6 +29,7 @@ function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, curre
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { firestore } = useFirebase();
     const { toast } = useToast();
+    const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
 
     const handlePlayerSelect = (player: Player) => {
         if (!player.isAlive || player.userId === currentPlayer.userId) return;
@@ -82,6 +84,8 @@ function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, curre
                     onPlayerClick={handlePlayerSelect}
                     clickable={true}
                     selectedPlayerIds={selectedPlayerIds}
+                    masterActionState={masterActionState} 
+                    setMasterActionState={setMasterActionState}
                 />
                 <Button 
                     className="w-full mt-6 text-lg" 
@@ -99,11 +103,13 @@ function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, curre
     );
 }
 
-export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathEvents = [], voteEvent, behaviorClueEvent, chatMessages }: DayPhaseProps) {
+export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathEvents = [], voteEvent, behaviorClueEvent }: DayPhaseProps) {
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
     const { firestore } = useFirebase();
+    const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
+
 
     const siren = players.find(p => p.role === 'river_siren');
     const isCharmed = siren?.riverSirenTargetId === currentPlayer.userId;
@@ -151,6 +157,19 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
     const sirenVote = isCharmed && isSirenAlive && siren?.votedFor ? players.find(p => p.userId === siren.votedFor) : null;
     const votedForPlayer = players.find(p => p.userId === currentPlayer.votedFor);
     
+    const votesByPlayer = players.filter(p => p.isAlive).reduce((acc, player) => {
+        if (player.votedFor) {
+            if (!acc[player.votedFor]) {
+                acc[player.votedFor] = [];
+            }
+            const voter = players.find(p => p.userId === player.userId);
+            if (voter) {
+                acc[player.votedFor].push(voter.displayName);
+            }
+        }
+        return acc;
+    }, {} as Record<string, string[]>);
+
     return (
         <Card className="bg-card/80 w-full h-full">
             <CardHeader>
@@ -211,6 +230,14 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                             <p className="text-lg text-primary">
                                 Has votado por {votedForPlayer?.displayName || 'alguien'}. Esperando al resto de jugadores...
                             </p>
+                            <PlayerGrid 
+                                game={game}
+                                players={players.filter(p => p.isAlive)}
+                                currentPlayer={currentPlayer}
+                                votesByPlayer={votesByPlayer}
+                                masterActionState={masterActionState} 
+                                setMasterActionState={setMasterActionState}
+                            />
                         </div>
                     ) : (
                         <>
@@ -239,6 +266,9 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                                 onPlayerClick={handlePlayerSelect}
                                 clickable={canPlayerVote}
                                 selectedPlayerIds={selectedPlayerId ? [selectedPlayerId] : []}
+                                votesByPlayer={votesByPlayer}
+                                masterActionState={masterActionState} 
+                                setMasterActionState={setMasterActionState}
                             />
                             <Button 
                                 className="w-full mt-6 text-lg" 
@@ -256,6 +286,9 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                             game={game}
                             players={players.filter(p => p.isAlive)}
                             currentPlayer={currentPlayer}
+                            votesByPlayer={votesByPlayer}
+                            masterActionState={masterActionState} 
+                            setMasterActionState={setMasterActionState}
                         />
                     </div>
                 )}

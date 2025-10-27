@@ -52,11 +52,9 @@ export function useGameSession() {
         setDisplayNameState(storedDisplayName);
     }
     
-    // Robust parsing for stats
-    if (storedStatsRaw) {
+    if (storedStatsRaw && storedStatsRaw.length > 2) { // Basic check for non-empty JSON
         try {
             const parsedStats = JSON.parse(storedStatsRaw);
-            // Basic validation to ensure it's a plausible stats object
             if (typeof parsedStats === 'object' && parsedStats !== null && 'victories' in parsedStats) {
                  if (!Array.isArray(parsedStats.history)) {
                     parsedStats.history = [];
@@ -67,7 +65,7 @@ export function useGameSession() {
             }
         } catch (e) {
             console.error("Failed to parse stats from localStorage, resetting.", e);
-            localStorage.removeItem("werewolf_stats");
+            localStorage.removeItem("werewolf_stats"); // Clear corrupted data
             setStats(defaultStats);
         }
     } else {

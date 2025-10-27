@@ -6,6 +6,8 @@ let musicAudio: HTMLAudioElement | null = null;
 let soundEffectAudio: HTMLAudioElement | null = null;
 let audioUnlocked = false;
 let currentMusicSrc: string | null = null;
+
+const narrationQueue: string[] = [];
 let isNarrationPlaying = false;
 
 const initializeAudio = () => {
@@ -16,14 +18,12 @@ const initializeAudio = () => {
         narrationAudio.volume = 1.0;
         narrationAudio.addEventListener('ended', () => {
             isNarrationPlaying = false;
-            if (musicAudio && musicAudio.src && musicAudio.paused) {
-                musicAudio.play().catch(e => console.warn("Music resume failed after narration", e));
-            }
+            playNextInQueue();
         });
         narrationAudio.addEventListener('play', () => {
             isNarrationPlaying = true;
             if (musicAudio && !musicAudio.paused) {
-                musicAudio.pause();
+                musicAudio.volume = 0.05; // Lower music volume during narration
             }
         });
     }
@@ -40,24 +40,18 @@ const initializeAudio = () => {
     }
 };
 
-// Initialize audio elements on script load in browser environment
 initializeAudio();
 
-
-// This function MUST be called from a user interaction event (e.g., 'click', 'touchstart')
 export const unlockAudio = () => {
     if (audioUnlocked || typeof window === 'undefined') return;
     
     const unlockPromise = (audio: HTMLAudioElement | null) => {
         if (audio) {
-            // A common trick to unlock audio is to play and immediately pause it.
             const promise = audio.play();
             if (promise !== undefined) {
                 promise.then(() => {
                     audio.pause();
-                }).catch(() => {
-                    // Autoplay was prevented, which is fine. The context is still "unlocked".
-                });
+                }).catch(() => {});
             }
         }
     };
@@ -68,23 +62,33 @@ export const unlockAudio = () => {
     audioUnlocked = true;
 };
 
-export const playNarration = (narrationFile: string) => {
-    if (!narrationAudio) return;
-
-    if (musicAudio && !musicAudio.paused) {
-        musicAudio.pause();
-    }
-    
-    narrationAudio.src = `/audio/voz/${narrationFile}`;
-    isNarrationPlaying = true;
-    narrationAudio.play().catch(e => {
-        console.error(`Could not play narration ${narrationFile}`, e);
-        isNarrationPlaying = false;
-        // If narration fails, try to resume music
-        if (musicAudio && musicAudio.src && musicAudio.paused) {
-            musicAudio.play().catch(e => console.warn("Music resume failed after narration error", e));
+const playNextInQueue = () => {
+    if (narrationQueue.length > 0) {
+        const nextNarration = narrationQueue.shift();
+        if (nextNarration && narrationAudio) {
+            narrationAudio.src = `/audio/voz/${nextNarration}`;
+            isNarrationPlaying = true;
+            narrationAudio.play().catch(e => {
+                console.error(`Could not play narration ${nextNarration}`, e);
+                isNarrationPlaying = false;
+                playNextInQueue(); // Try next one
+            });
         }
-    });
+    } else {
+        // Queue is empty, restore music volume
+        if (musicAudio && !musicAudio.paused) {
+            musicAudio.volume = 0.3;
+        }
+    }
+};
+
+export const playNarration = (narrationFileOrFiles: string | string[]) => {
+    const files = Array.isArray(narrationFileOrFiles) ? narrationFileOrFiles : [narrationFileOrFiles];
+    narrationQueue.push(...files);
+    
+    if (!isNarrationPlaying) {
+        playNextInQueue();
+    }
 };
 
 export const playSoundEffect = (soundFile: string) => {
@@ -102,7 +106,7 @@ export const setMusic = (musicFile: string | null) => {
     const newSrc = musicFile ? new URL(musicFile, window.location.origin).href : null;
 
     if (currentMusicSrc === newSrc && !musicAudio.paused) {
-        return; // Already playing the correct music
+        return;
     }
 
     currentMusicSrc = newSrc;
@@ -110,7 +114,8 @@ export const setMusic = (musicFile: string | null) => {
     if (newSrc) {
         musicAudio.src = newSrc;
         if (audioUnlocked && !isNarrationPlaying) {
-             musicAudio.play().catch(e => console.warn(`Could not play music ${musicFile}`, e));
+            musicAudio.volume = 0.3; // Ensure volume is normal
+            musicAudio.play().catch(e => console.warn(`Could not play music ${musicFile}`, e));
         }
     } else {
         musicAudio.pause();
