@@ -16,7 +16,8 @@ import { FirestorePermissionError } from "@/firebase/errors";
 import { roleDetails } from "@/lib/roles";
 import { toPlainObject } from "@/lib/utils";
 import { secretObjectives } from "./objectives";
-import { getAIChatResponse, getDeterministicAIAction } from "./ai-actions";
+import { getAIChatResponse } from "./ai-actions";
+import { killPlayer, checkGameOver } from "./game-logic";
 
 const PHASE_DURATION_SECONDS = 45;
 
@@ -513,10 +514,8 @@ export async function processVotes(db: Firestore, gameId: string) {
       const voteCounts: Record<string, number> = {};
       
       alivePlayers.forEach(player => {
-        if (player.votedFor) {
-             if (!isTiebreaker || lastVoteEvent.data.tiedPlayerIds.includes(player.votedFor)) {
-                 voteCounts[player.votedFor] = (voteCounts[player.votedFor] || 0) + 1;
-            }
+        if (player.votedFor && (!isTiebreaker || lastVoteEvent.data.tiedPlayerIds.includes(player.votedFor))) {
+            voteCounts[player.votedFor] = (voteCounts[player.votedFor] || 0) + 1;
         }
       });
       
@@ -532,15 +531,21 @@ export async function processVotes(db: Firestore, gameId: string) {
       }
 
       if (mostVotedPlayerIds.length > 1 && !isTiebreaker) {
-          game.events.push({ id: `evt_vote_tie_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: `¡La votación resultó en un empate! Se requiere una segunda votación solo entre los siguientes jugadores: ${mostVotedPlayerIds.map(id => game.players.find(p=>p.userId === id)?.displayName).join(', ')}.`, data: { tiedPlayerIds: mostVotedPlayerIds, final: false }, createdAt: Timestamp.now() });
+          if (game.settings.juryVoting) {
+            game.phase = 'jury_voting';
+            game.events.push({ id: `evt_jury_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: `¡Empate! El destino de ${mostVotedPlayerIds.map(id => game.players.find(p=>p.userId === id)?.displayName).join(' y ')} está en manos del jurado de los muertos.`, data: { tiedPlayerIds: mostVotedPlayerIds, final: false }, createdAt: Timestamp.now() });
+          } else {
+            game.events.push({ id: `evt_vote_tie_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: `¡La votación resultó en un empate! Se requiere una segunda votación solo entre los siguientes jugadores: ${mostVotedPlayerIds.map(id => game.players.find(p=>p.userId === id)?.displayName).join(', ')}.`, data: { tiedPlayerIds: mostVotedPlayerIds, final: false }, createdAt: Timestamp.now() });
+          }
           game.players.forEach(p => { p.votedFor = null; });
           const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
-          transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, phaseEndsAt }));
+          transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, phase: game.phase, phaseEndsAt }));
           return;
       }
 
       let lynchedPlayerId: string | null = mostVotedPlayerIds[0] || null;
       let lynchedPlayerObject: Player | null = null;
+      let triggeredHunterId: string | null = null;
       
       if (lynchedPlayerId) {
         lynchedPlayerObject = game.players.find(p => p.userId === lynchedPlayerId) || null;
@@ -554,13 +559,42 @@ export async function processVotes(db: Firestore, gameId: string) {
               createdAt: Timestamp.now(), data: { lynchedPlayerId: null, final: true },
             });
             lynchedPlayerId = null; 
+        } else {
+            const result = await killPlayer(transaction, gameRef, game, lynchedPlayerId, 'vote_result');
+            game = result.updatedGame;
+            triggeredHunterId = result.triggeredHunterId;
         }
       } else {
         const message = isTiebreaker ? 'Tras un segundo empate, el pueblo decide perdonar una vida hoy.' : 'El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.';
         game.events.push({ id: `evt_vote_result_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message, data: { lynchedPlayerId: null, final: true }, createdAt: Timestamp.now() });
       }
       
-      transaction.update(gameRef, toPlainObject(game));
+      const gameOverInfo = checkGameOver(game, lynchedPlayerObject);
+      if (gameOverInfo.isGameOver) {
+          game.status = "finished";
+          game.phase = "finished";
+          game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
+          transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: game.players, events: game.events }));
+          return;
+      }
+      
+      game.pendingHunterShot = triggeredHunterId;
+      if (game.pendingHunterShot) {
+        transaction.update(gameRef, toPlainObject({
+          players: game.players, events: game.events, phase: 'hunter_shot', 
+          pendingHunterShot: game.pendingHunterShot
+        }));
+        return;
+      }
+
+      game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; });
+      const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
+      
+      transaction.update(gameRef, toPlainObject({
+        players: game.players, events: game.events, phase: 'night', phaseEndsAt,
+        currentRound: game.currentRound + 1, pendingHunterShot: null, silencedPlayerId: null,
+        exiledPlayerId: null,
+      }));
     });
 
     return { success: true };
@@ -620,13 +654,43 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 return;
             }
             
+            let { updatedGame, triggeredHunterId } = await killPlayer(transaction, gameRef, game, targetId, 'hunter_shot');
+            game = updatedGame;
+            
             game.events.push({
                 id: `evt_huntershot_${Date.now()}`, gameId, round: game.currentRound, type: 'hunter_shot',
                 message: `En su último aliento, ${hunterPlayer.displayName} dispara y se lleva consigo a ${targetPlayer.displayName}.`,
                 createdAt: Timestamp.now(), data: {killedPlayerIds: [targetId]},
             });
             
-            transaction.update(gameRef, toPlainObject(game));
+            if (triggeredHunterId) {
+                game.pendingHunterShot = triggeredHunterId;
+                transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: triggeredHunterId }));
+                return;
+            }
+
+            const gameOverInfo = checkGameOver(game);
+            if (gameOverInfo.isGameOver) {
+                game.status = "finished";
+                game.phase = "finished";
+                game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
+                transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: game.players, events: game.events }));
+                return;
+            }
+            
+            const hunterDeathEvent = [...game.events].sort((a, b) => toPlainObject(b.createdAt) - toPlainObject(a.createdAt)).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
+            
+            const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
+            const currentRound = game.currentRound;
+            const newRound = nextPhase === 'night' ? currentRound + 1 : currentRound;
+
+            game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; });
+            const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
+            
+            transaction.update(gameRef, toPlainObject({
+                players: game.players, events: game.events, phase: nextPhase, phaseEndsAt,
+                currentRound: newRound, pendingHunterShot: null
+            }));
         });
         return { success: true };
     } catch (error: any) {
@@ -678,7 +742,8 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             const voter = gameData.players.find(p => p.userId === voterId);
             const target = gameData.players.find(p => p.userId === targetId);
             if (voter && target && !voter.isAI) {
-                await triggerAIChat(db, gameId, `${voter.displayName} ha votado por ${target.displayName}.`);
+                // Now handled by ai-actions to prevent circular deps
+                // await triggerAIChat(db, gameId, `${voter.displayName} ha votado por ${target.displayName}.`);
             }
         }
 
@@ -733,10 +798,6 @@ export async function sendChatMessage(
 
             transaction.update(gameRef, { chatMessages: arrayUnion(toPlainObject(messageData)) });
         });
-
-        if (!isFromAI && latestGame) {
-            await triggerAIChat(db, gameId, `${senderName} dijo: "${text.trim()}"`);
-        }
 
         return { success: true };
 
@@ -938,10 +999,32 @@ export async function processJuryVotes(db: Firestore, gameId: string) {
             }
         }
         
-        // This is where you would call the rest of the day processing logic
-        // For simplicity, we'll just update the game state here
-        transaction.update(gameRef, { phase: 'day', currentRound: game.currentRound + 1 });
+        let gameOverInfo;
+        if (mostVotedId) {
+            const lynchedPlayerObject = game.players.find(p => p.userId === mostVotedId);
+            const { updatedGame } = await killPlayer(transaction, gameRef, game, mostVotedId, 'vote_result');
+            game = updatedGame;
+            gameOverInfo = checkGameOver(game, lynchedPlayerObject);
+        } else {
+            game.events.push({ id: `evt_jury_tie_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: `El jurado de los muertos no ha llegado a un acuerdo. Se ha perdonado una vida.`, data: { lynchedPlayerId: null, final: true }, createdAt: Timestamp.now() });
+            gameOverInfo = checkGameOver(game);
+        }
 
+        if (gameOverInfo.isGameOver) {
+            game.status = "finished";
+            game.phase = "finished";
+            game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
+            transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: game.players, events: game.events }));
+            return;
+        }
+
+        game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; });
+        const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
+        transaction.update(gameRef, toPlainObject({
+            players: game.players, events: game.events, phase: 'night', phaseEndsAt,
+            currentRound: game.currentRound + 1, pendingHunterShot: null, silencedPlayerId: null,
+            exiledPlayerId: null,
+        }));
     });
     return { success: true };
   } catch (error: any) {
@@ -959,13 +1042,43 @@ export async function masterKillPlayer(db: Firestore, gameId: string, targetId: 
             let game = gameDoc.data() as Game;
             if(game.masterKillUsed) throw new Error("El Zarpazo del Destino ya fue utilizado.");
             
-            transaction.update(gameRef, { masterKillUsed: true });
+            const { updatedGame } = await killPlayer(transaction, gameRef, game, targetId, 'special');
+            game = updatedGame;
+
+            const gameOverInfo = checkGameOver(game);
+            if (gameOverInfo.isGameOver) {
+                game.status = "finished";
+                game.phase = "finished";
+                game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
+            }
+
+            transaction.update(gameRef, toPlainObject({ ...game, masterKillUsed: true }));
         });
         return { success: true };
     } catch (error: any) {
         console.error("Error in master kill:", error);
         return { success: false, error: error.message };
     }
+}
+
+export async function executeMasterAction(db: Firestore, gameId: string, actionId: string, sourceId: string | null, targetId: string) {
+     const gameRef = doc(db, 'games', gameId);
+     try {
+        await runTransaction(db, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error("Game not found");
+            let game = gameDoc.data() as Game;
+
+             // Logic for master actions will go here
+            // For now, it's a placeholder
+
+            transaction.update(gameRef, toPlainObject(game));
+        });
+        return { success: true };
+     } catch (error: any) {
+        console.error(`Error executing master action ${actionId}:`, error);
+        return { success: false, error: error.message };
+     }
 }
 
 export async function sendGhostMessage(db: Firestore, gameId: string, ghostId: string, targetId: string, message: string) {
@@ -1030,12 +1143,27 @@ export async function submitTroublemakerAction(db: Firestore, gameId: string, tr
         throw new Error("Los objetivos seleccionados no son válidos.");
       }
       
+      let { updatedGame } = await killPlayer(transaction, gameRef, game, target1Id, 'troublemaker_duel');
+      game = updatedGame;
+      let finalResult = await killPlayer(transaction, gameRef, game, target2Id, 'troublemaker_duel');
+      game = finalResult.updatedGame;
+
       game.events.push({
         id: `evt_trouble_${Date.now()}`, gameId, round: game.currentRound, type: 'special',
         message: `${player.displayName} ha provocado una pelea mortal. ${target1.displayName} y ${target2.displayName} han sido eliminados.`,
         createdAt: Timestamp.now(), data: { killedPlayerIds: [target1Id, target2Id] }
       });
-      transaction.update(gameRef, toPlainObject({ events: game.events, troublemakerUsed: true }));
+
+      const gameOverInfo = checkGameOver(game);
+      if (gameOverInfo.isGameOver) {
+        game.status = "finished";
+        game.phase = "finished";
+        game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
+        transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: game.players, events: game.events, troublemakerUsed: true }));
+        return;
+      }
+
+      transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, troublemakerUsed: true }));
     });
 
     return { success: true };
@@ -1048,13 +1176,4 @@ export async function submitTroublemakerAction(db: Firestore, gameId: string, tr
     console.error("Error submitting troublemaker action:", error);
     return { error: error.message || "No se pudo realizar la acción." };
   }
-}
-
-async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: string) {
-    try {
-        const message = await getAIChatResponse(db, gameId, {} as Player, triggerMessage, 'public'); // This is broken and needs fixing
-        // ... sending logic
-    } catch(e) {
-        // ...
-    }
 }

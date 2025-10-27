@@ -14,7 +14,7 @@ import { roleDetails } from "./roles";
 
 const PHASE_DURATION_SECONDS = 45;
 
-async function killPlayer(transaction: any, gameRef: any, gameData: Game, playerIdToKill: string | null, cause: GameEvent['type']): Promise<{ updatedGame: Game; triggeredHunterId: string | null; }> {
+export async function killPlayer(transaction: any, gameRef: any, gameData: Game, playerIdToKill: string | null, cause: GameEvent['type']): Promise<{ updatedGame: Game; triggeredHunterId: string | null; }> {
     let newGameData = { ...gameData };
     let triggeredHunterId: string | null = null;
     
@@ -120,7 +120,7 @@ async function killPlayer(transaction: any, gameRef: any, gameData: Game, player
 }
 
 
-function checkGameOver(gameData: Game, lynchedPlayer?: Player | null): { isGameOver: boolean; message: string; winnerCode?: string; winners: string[] } {
+export function checkGameOver(gameData: Game, lynchedPlayer?: Player | null): { isGameOver: boolean; message: string; winnerCode?: string; winners: string[] } {
     if (gameData.status === 'finished') {
         const lastEvent = gameData.events[gameData.events.length - 1];
         return { isGameOver: true, message: lastEvent?.message || "La partida ha terminado.", winnerCode: lastEvent?.data?.winnerCode, winners: lastEvent?.data?.winners || [] };
@@ -278,14 +278,16 @@ export async function processNight(db: Firestore, gameId: string) {
         
         let game = gameSnap.data() as Game;
         if (game.status === 'finished') return;
-        if (game.phase !== 'night' && game.phase !== 'role_reveal') return;
-
+        
         // Special case for first round transition from role reveal
         if (game.phase === 'role_reveal' && game.currentRound === 1) {
             const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
             transaction.update(gameRef, { phase: 'night', phaseEndsAt });
             return;
         }
+
+        if (game.phase !== 'night') return; // Only process if it's night
+
 
         const initialPlayerState = JSON.parse(JSON.stringify(game.players));
         const actions = game.nightActions?.filter(a => a.round === game.currentRound) || [];
@@ -453,6 +455,7 @@ export async function processNight(db: Firestore, gameId: string) {
         transaction.update(gameRef, toPlainObject({
             players: game.players, events: game.events, phase: 'day', phaseEndsAt,
             pendingHunterShot: null, silencedPlayerId: null, exiledPlayerId: null,
+            currentRound: game.currentRound + 1
         }));
     });
     
