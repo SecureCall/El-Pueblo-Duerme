@@ -5,7 +5,7 @@ import {
   getDoc,
   type Firestore,
 } from "firebase/firestore";
-import type { Game, Player, NightActionType, PlayerRole } from "@/types";
+import type { Game, Player, NightActionType, PlayerRole, AIPlayerPerspective } from "@/types";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { toPlainObject } from "@/lib/utils";
 import { sendChatMessage, sendWolfChatMessage, sendTwinChatMessage, sendLoversChatMessage, submitNightAction, submitVote, sendGhostChatMessage } from "@/lib/firebase-actions";
@@ -28,7 +28,7 @@ async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: stri
              if (chatType !== 'ghost' && !aiPlayer.isAlive) continue; // Other chats are for the living
 
              if (shouldTrigger) {
-                const perspective = {
+                const perspective: AIPlayerPerspective = {
                     game: toPlainObject(game),
                     aiPlayer: toPlainObject(aiPlayer),
                     trigger: triggerMessage,

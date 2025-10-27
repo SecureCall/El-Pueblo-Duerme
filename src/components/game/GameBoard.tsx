@@ -53,6 +53,7 @@ export function GameBoard({
     if (!firestore || !game || !currentPlayer) return;
     if (game.status === 'finished') return;
     
+    // Only the creator processes the phase end to avoid multiple triggers.
     if (game.creator === currentPlayer.userId) {
       if (game.phase === 'day') {
         await processVotes(firestore, game.id);
@@ -65,7 +66,7 @@ export function GameBoard({
   }, [firestore, game, currentPlayer]);
 
 
-  // Sound and action trigger logic
+  // Sound and action trigger logic based on game state
   useEffect(() => {
     if (!game || !currentPlayer) return;
     
@@ -73,6 +74,7 @@ export function GameBoard({
        if (prevPhaseRef.current !== 'finished') {
             const gameOverEvent = events.find(e => e.type === 'game_over');
             const myPlayer = players.find(p => p.userId === currentPlayer.userId);
+            // This is a client-side only effect, safe to keep here.
             if (gameOverEvent?.data?.winners && myPlayer) {
                const isWinner = gameOverEvent.data.winners.some((w: Player) => w.userId === myPlayer.userId);
                updateStats(isWinner, myPlayer, game);
@@ -106,7 +108,7 @@ export function GameBoard({
         setDeathCause(getCauseOfDeath(currentPlayer.userId));
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
   
-  // Phase timer logic
+  // Phase timer logic - this is purely for the UI
   useEffect(() => {
     if (!game?.phaseEndsAt || !firestore || game.status === 'finished') {
       setTimeLeft(0);
@@ -120,7 +122,7 @@ export function GameBoard({
       setTimeLeft(Math.round(remaining / 1000));
 
       if (remaining <= 0) {
-        handlePhaseEnd();
+        handlePhaseEnd(); // Attempt to end phase, creator's call will succeed
         clearInterval(interval); 
       }
     }, 1000);
