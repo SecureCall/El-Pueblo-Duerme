@@ -25,7 +25,7 @@ git add .
 Esto crea un punto de guardado con un mensaje que describe los cambios.
 
 ```bash
-git commit -m "Describe aquí el cambio que hiciste, ej: Arreglado el bug del Cazador"
+git commit -m "Describe here the change you made, e.g., Fixed the Hunter bug"
 ```
 
 **Paso C: Enviar la "caja" a GitHub (Hacer el "push")**
