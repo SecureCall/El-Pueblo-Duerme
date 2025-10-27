@@ -167,7 +167,7 @@ export interface GameEvent {
     type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot' | 'player_transformed' | 'behavior_clue' | 'special' | 'vampire_kill' | 'werewolf_kill' | 'troublemaker_duel';
     message: string;
     data?: any;
-    createdAt: Timestamp;
+    createdAt: Timestamp | string;
 }
 
 export interface ChatMessage {
