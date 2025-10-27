@@ -13,7 +13,7 @@ import {
   type Transaction,
   DocumentReference,
 } from "firebase/firestore";
-import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage, AIPlayerPerspective } from "@/types";
+import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage } from "@/types";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
@@ -1545,15 +1545,12 @@ async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: stri
              const shouldTrigger = isAccused ? Math.random() < 0.95 : Math.random() < 0.35;
 
              if (shouldTrigger) {
-                const perspective: AIPlayerPerspective = {
+                generateAIChatMessage({
                     game: toPlainObject(game),
                     aiPlayer: toPlainObject(aiPlayer),
                     trigger: triggerMessage,
                     players: toPlainObject(game.players),
-                    chatType,
-                };
-
-                generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
+                }, chatType).then(async ({ message, shouldSend }) => {
                     if (shouldSend && message) {
                         await new Promise(resolve => setTimeout(resolve, Math.random() * 4000 + 1000));
                         await sendChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName, message, true);
@@ -1584,11 +1581,10 @@ async function triggerPrivateAIChats(db: Firestore, gameId: string, triggerMessa
         const processChat = async (players: Player[], chatType: 'wolf' | 'twin' | 'lovers', sendMessageFn: Function) => {
             for (const aiPlayer of players) {
                 if (Math.random() < 0.8) { // Higher chance to talk in private
-                    const perspective: AIPlayerPerspective = {
+                    generateAIChatMessage({
                         game: toPlainObject(game), aiPlayer: toPlainObject(aiPlayer), trigger: triggerMessage,
-                        players: toPlainObject(game.players), chatType,
-                    };
-                    generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
+                        players: toPlainObject(game.players), 
+                    }, chatType).then(async ({ message, shouldSend }) => {
                         if (shouldSend && message) {
                             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
                             await sendMessageFn(db, gameId, aiPlayer.userId, aiPlayer.displayName, message);
