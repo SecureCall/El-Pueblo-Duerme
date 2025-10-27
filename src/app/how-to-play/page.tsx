@@ -163,6 +163,42 @@ export default function HowToPlayPage() {
                             <p className="text-center italic pt-4 text-base">El ciclo de noche y día se repite hasta que uno de los bandos cumpla su objetivo de victoria.</p>
                         </CardContent>
                     </Card>
+
+                    <Card className="bg-card/80">
+                        <CardHeader>
+                            <CardTitle className="font-headline text-3xl">Reglas Avanzadas y Orden Nocturno</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4 text-base text-muted-foreground">
+                            <h4 className="font-bold text-xl text-primary-foreground">Orden de Acciones en la Noche</h4>
+                            <p>Las habilidades nocturnas se resuelven en un orden estricto para evitar conflictos. El Máster seguirá esta secuencia:</p>
+                            <ol className="list-decimal list-inside space-y-2 pl-4">
+                                <li>**Acciones de Bloqueo/Manipulación:** Anciana Líder (Exilio), Silenciador.</li>
+                                <li>**Acciones de Protección:** Sacerdote (Bendición), Guardián, Doctor.</li>
+                                <li>**Acciones de Investigación:** Vidente, Vigía, Bruja, Hada Buscadora.</li>
+                                <li>**Acciones de Asesinato/Ataque:** Hombres Lobo, Hechicera (Veneno).</li>
+                                <li>**Roles Especiales (Post-Ataque):** Hechicera (Poción de Vida).</li>
+                            </ol>
+
+                            <h4 className="font-bold text-xl text-primary-foreground mt-4">Resolución de Conflictos y Habilidades</h4>
+                            <ul className="list-disc list-inside space-y-2 pl-4">
+                                <li>
+                                    <strong>Prioridad de Protección:</strong> La bendición del **Sacerdote** es la protección más fuerte; anula cualquier ataque o habilidad negativa. Le siguen las protecciones del Guardián y el Doctor, que solo protegen del ataque de los lobos. La poción de vida de la Hechicera actúa en último lugar, revirtiendo una muerte ya ocurrida esa noche.
+                                </li>
+                                <li>
+                                    <strong>Vínculos Inquebrantables:</strong> La muerte causada por el vínculo de **Virginia Woolf** o la de los **Enamorados** es automática e inevitable. Ninguna protección puede salvar al jugador vinculado si su pareja muere.
+                                </li>
+                                <li>
+                                    <strong>El Último Disparo del Cazador:</strong> La habilidad del **Cazador** al morir es ineludible. Si dispara a un jugador, este muere sin importar si estaba protegido o bendecido esa noche o si es el Príncipe.
+                                </li>
+                                <li>
+                                    <strong>Sirena y el Lobo Hechizado:</strong> Si la **Sirena del Río** hechiza a un Hombre Lobo, este sentirá un impulso irrefrenable de eliminarla. En la práctica, esto significa que el jugador lobo debe hacer todo lo posible (persuasión, votación) para que el resto de la manada elija a la Sirena como objetivo. No es un control mental automático, sino una obligación de rol.
+                                </li>
+                                <li>
+                                    <strong>Objetivos (Líder de Culto, Pescador):</strong> Las condiciones de victoria de estos roles se aplican únicamente a los jugadores que siguen **vivos** en la partida.
+                                </li>
+                            </ul>
+                        </CardContent>
+                    </Card>
                     
                     <RoleSection title="El Pueblo" roleKeys={aldeanoRoleKeys} teamColor="text-blue-400" />
                     <RoleSection title="Los Lobos" roleKeys={loboRoleKeys} teamColor="text-destructive" />
@@ -181,3 +217,4 @@ export default function HowToPlayPage() {
         </>
     );
 }
+
