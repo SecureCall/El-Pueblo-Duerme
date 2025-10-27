@@ -16,6 +16,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { useGameSession } from './use-game-session';
 import { getMillis } from '@/lib/utils';
 import { playNarration, playSoundEffect } from '@/lib/sounds';
+import { runAIActions, triggerAIVote, setPhaseToNight } from '@/lib/firebase-actions';
 
 
 interface GameState {
@@ -127,11 +128,20 @@ export const useGameState = (gameId: string) => {
 
 
   useEffect(() => {
-    if (!state.game || !state.currentPlayer) return;
+    if (!state.game || !state.currentPlayer || !firestore) return;
     const prevPhase = prevPhaseRef.current;
-
+    
+    // Phase change logic
     if (prevPhase !== state.game.phase) {
       switch (state.game.phase) {
+        case 'role_reveal':
+          // The creator will trigger the transition to night after a delay
+           if (state.game.creator === state.currentPlayer.userId) {
+              setTimeout(() => {
+                  setPhaseToNight(firestore, state.game!.id);
+              }, 15000);
+           }
+          break;
         case 'night':
           if (state.game.currentRound === 1 && prevPhase === 'role_reveal') {
              playNarration('intro_epica.mp3');
@@ -139,6 +149,9 @@ export const useGameState = (gameId: string) => {
           } else {
             playNarration('noche_pueblo_duerme.mp3');
           }
+           if (state.game.creator === state.currentPlayer.userId) {
+                runAIActions(firestore, state.game.id);
+            }
           break;
         case 'day':
           playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
@@ -146,6 +159,9 @@ export const useGameState = (gameId: string) => {
             playNarration('dia_pueblo_despierta.mp3');
             setTimeout(() => {
               playNarration('inicio_debate.mp3');
+              if (firestore && state.game?.creator === state.currentPlayer?.userId) {
+                  triggerAIVote(firestore, state.game.id);
+              }
             }, 2000);
           }, 1500);
           break;
@@ -154,6 +170,7 @@ export const useGameState = (gameId: string) => {
     
     prevPhaseRef.current = state.game.phase;
 
+    // Sound effect logic for night results
     const nightEvent = state.events.find(e => e.type === 'night_result' && e.round === state.game?.currentRound);
     if (nightEvent && nightSoundsPlayedForRound.current !== state.game.currentRound) {
         const hasDeaths = (nightEvent.data?.killedPlayerIds?.length || 0) > 0;
@@ -166,8 +183,10 @@ export const useGameState = (gameId: string) => {
         nightSoundsPlayedForRound.current = state.game.currentRound; 
     }
 
-  }, [state.game?.phase, state.game?.currentRound, state.events, state.players, state.currentPlayer, firestore, state.game]);
+  }, [state.game?.phase, state.game?.currentRound, firestore, state.currentPlayer, state.game, state.events]);
 
 
   return { ...state };
 };
+
+    

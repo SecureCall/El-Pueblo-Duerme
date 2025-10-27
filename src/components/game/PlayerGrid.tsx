@@ -1,8 +1,10 @@
+
 "use client";
 
 import React from 'react';
 import type { Game, Player, GameEvent } from "@/types";
 import { PlayerCard } from "./PlayerCard";
+import type { MasterActionState } from './MasterActionBar';
 
 interface PlayerGridProps {
     game: Game;
@@ -13,6 +15,8 @@ interface PlayerGridProps {
     selectedPlayerIds?: string[];
     highlightedPlayers?: { userId: string, color: string }[];
     votesByPlayer?: Record<string, string[]>;
+    masterActionState: MasterActionState;
+    setMasterActionState: React.Dispatch<React.SetStateAction<MasterActionState>>;
 }
 
 export const PlayerGrid = React.memo(function PlayerGrid({ 
@@ -24,6 +28,8 @@ export const PlayerGrid = React.memo(function PlayerGrid({
     selectedPlayerIds = [], 
     highlightedPlayers = [],
     votesByPlayer = {},
+    masterActionState,
+    setMasterActionState
 }: PlayerGridProps) {
   return (
     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
@@ -47,3 +53,5 @@ export const PlayerGrid = React.memo(function PlayerGrid({
     </div>
   );
 });
+
+    

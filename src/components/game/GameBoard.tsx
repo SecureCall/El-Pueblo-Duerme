@@ -106,17 +106,6 @@ export function GameBoard({
         setDeathCause(getCauseOfDeath(currentPlayer.userId));
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
   
-  // Auto-advance from role reveal
-  useEffect(() => {
-    if (game?.phase === 'role_reveal' && game.creator === currentPlayer?.userId && firestore && game.status === 'in_progress') {
-      const timer = setTimeout(() => {
-        setPhaseToNight(firestore, game.id);
-      }, 15000); 
-
-      return () => clearTimeout(timer);
-    }
-  }, [game?.phase, game?.id, game?.creator, currentPlayer?.userId, firestore, game?.status]);
-  
   // Phase timer logic
   useEffect(() => {
     if (!game?.phaseEndsAt || !firestore || game.status === 'finished') {
@@ -404,3 +393,5 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
+
+    

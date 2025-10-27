@@ -404,4 +404,5 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
         return { error: e.message || 'Error al iniciar la partida.' };
     }
 }
-export { triggerAIChat, runAIActions, triggerAIVote };
+
+    
