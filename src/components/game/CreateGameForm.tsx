@@ -144,7 +144,12 @@ export function CreateGameForm() {
   };
 
   async function onSubmit(data: CreateGameFormValues) {
-    if (!isSessionLoaded || !userId || !firestore || !avatarUrl) {
+    if (!isSessionLoaded || !userId || !firestore) {
+      toast({
+            variant: "destructive",
+            title: "Sesión no lista",
+            description: "Por favor, espera un momento a que cargue la sesión e inténtalo de nuevo.",
+        });
       return;
     }
     
@@ -159,6 +164,15 @@ export function CreateGameForm() {
         form.setError("gameName", { type: "manual", message: "El nombre de la partida no puede estar vacío." });
         return;
     }
+     if (!avatarUrl) {
+        toast({
+            variant: "destructive",
+            title: "Avatar no encontrado",
+            description: "No se ha podido cargar tu avatar. Por favor, recarga la página.",
+        });
+        return;
+    }
+
 
     setIsSubmitting(true);
     setDisplayName(trimmedDisplayName);
