@@ -60,6 +60,7 @@ export interface Game {
   ghostChatMessages: ChatMessage[];
   maxPlayers: number;
   createdAt: Timestamp;
+  lastActiveAt: Timestamp;
   currentRound: number;
   settings: {
     werewolves: number;
