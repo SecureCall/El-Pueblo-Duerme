@@ -325,10 +325,6 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
                 throw new Error('La partida ya ha comenzado.');
             }
             
-            if (game.settings.seer && game.settings.lookout) {
-                throw new Error("No se puede iniciar una partida con Vidente y Vigía al mismo tiempo.");
-            }
-
             let finalPlayers = [...game.players];
 
             if (game.settings.fillWithAI && finalPlayers.length < game.maxPlayers) {
@@ -1766,3 +1762,5 @@ export async function executeMasterAction(db: Firestore, gameId: string, masterI
     }
 }
 export { triggerAIChat, runAIActions, triggerAIVote };
+
+    
