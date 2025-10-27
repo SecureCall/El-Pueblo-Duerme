@@ -325,6 +325,10 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
                 throw new Error('La partida ya ha comenzado.');
             }
             
+            if (game.settings.seer && game.settings.lookout) {
+                throw new Error("No se puede iniciar una partida con Vidente y Vigía al mismo tiempo.");
+            }
+
             let finalPlayers = [...game.players];
 
             if (game.settings.fillWithAI && finalPlayers.length < game.maxPlayers) {
@@ -830,8 +834,11 @@ export async function processNight(db: Firestore, gameId: string) {
 
             // Procesar todas las acciones en orden de prioridad
             for (const action of actions) {
-                const playerIndex = game.players.findIndex(p => p.userId === action.playerId);
+                const player = game.players.find(p => p.userId === action.playerId);
                 const targetPlayer = game.players.find(p => p.userId === action.targetId);
+                
+                // Un jugador exiliado no puede actuar.
+                if (player?.userId === game.exiledPlayerId) continue;
 
                 switch (action.actionType) {
                     // Acciones de información y preparación
@@ -872,8 +879,32 @@ export async function processNight(db: Firestore, gameId: string) {
                             pendingDeaths.push({ targetId: action.targetId, cause: 'special' });
                          }
                          break;
+                    case 'lookout_spy':
+                        if (player) {
+                            if (Math.random() < 0.4) { // 40% fail rate
+                                pendingDeaths.push({ targetId: player.userId, cause: 'special' });
+                                game.events.push({ id: `evt_lookout_fail_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: `¡${player.displayName} ha sido descubierto espiando y ha muerto!`, data: { targetId: player.userId }, createdAt: Timestamp.now() });
+                            } else {
+                                const visits: Record<string, string[]> = {};
+                                actions.forEach(act => {
+                                    if (act.playerId !== player.userId && act.targetId) {
+                                        act.targetId.split('|').forEach(tid => {
+                                            if (!visits[tid]) visits[tid] = [];
+                                            const visitor = game.players.find(p => p.userId === act.playerId);
+                                            if (visitor) visits[tid].push(visitor.displayName);
+                                        });
+                                    }
+                                });
+                                const visitorsToTarget = visits[action.targetId] || [];
+                                if (visitorsToTarget.length > 0) {
+                                    game.events.push({ id: `evt_lookout_success_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: `Mientras vigilabas a ${targetPlayer?.displayName}, viste a ${[...new Set(visitorsToTarget)].join(', ')} visitar la casa.`, data: { targetId: player.userId }, createdAt: Timestamp.now() });
+                                } else {
+                                    game.events.push({ id: `evt_lookout_success_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: `La noche fue tranquila en la casa de ${targetPlayer?.displayName}. No viste a nadie.`, data: { targetId: player.userId }, createdAt: Timestamp.now() });
+                                }
+                            }
+                        }
+                        break;
                     
-                    // Resto de acciones
                      default:
                         const pIndex = game.players.findIndex(p => p.userId === action.playerId);
                         const tIndex = game.players.findIndex(p => p.userId === action.targetId);

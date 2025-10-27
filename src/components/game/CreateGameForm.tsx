@@ -39,6 +39,7 @@ interface CreateGameFormValues {
   maxPlayers: number;
   fillWithAI: boolean;
   isPublic: boolean;
+  juryVoting: boolean;
   seer: boolean;
   doctor: boolean;
   hunter: boolean;
@@ -95,6 +96,7 @@ export function CreateGameForm() {
       maxPlayers: 8,
       fillWithAI: true,
       isPublic: false,
+      juryVoting: true,
       seer: true,
       doctor: true,
       hunter: true,
@@ -142,7 +144,6 @@ export function CreateGameForm() {
   };
 
   async function onSubmit(data: CreateGameFormValues) {
-    // This check is now a safeguard; the button's disabled state is the primary gate.
     if (!isSessionLoaded || !userId || !firestore || !avatarUrl) {
       return;
     }
@@ -162,7 +163,7 @@ export function CreateGameForm() {
     setIsSubmitting(true);
     setDisplayName(trimmedDisplayName);
 
-    const { maxPlayers, fillWithAI, isPublic, ...roles } = data;
+    const { maxPlayers, fillWithAI, isPublic, juryVoting, ...roles } = data;
 
     const roleSettings = implementedRoles.reduce((acc, roleId) => {
         acc[roleId] = !!roles[roleId];
@@ -173,6 +174,7 @@ export function CreateGameForm() {
     const gameSettings = {
         fillWithAI,
         isPublic,
+        juryVoting,
         werewolves: 1, // This can be adjusted later based on rules
         ...roleSettings
     };
@@ -302,6 +304,27 @@ export function CreateGameForm() {
               </div>
             </div>
 
+            <FormField
+              control={form.control}
+              name="juryVoting"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background/50">
+                  <div className="space-y-0.5">
+                    <FormLabel>Voto del Jurado</FormLabel>
+                    <FormDescription>
+                      En caso de empate, los jugadores muertos deciden.
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            
             <FormField
               control={form.control}
               name="fillWithAI"
