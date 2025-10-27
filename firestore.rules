@@ -1,56 +1,41 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if a player is in the game.
-    function isPlayer(gameData, uid) {
-      return uid in gameData.players.map(p => p.userId).toSet();
+
+    // Helper functions
+    function isPlayerInGame(gameId, userId) {
+      return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.userId == userId);
     }
     
-    // Helper function to get a player's data from the game document
-    function getPlayer(gameData, uid) {
-      return gameData.players.filter(p => p.userId == uid)[0];
-    }
-    
-    // Helper function to get a player's data from the incoming request
-    function getRequestPlayer(requestData, uid) {
-      return requestData.players.filter(p => p.userId == uid)[0];
+    function isGameCreator(gameId, userId) {
+      return get(/databases/$(database)/documents/games/$(gameId)).data.creator == userId;
     }
 
     match /games/{gameId} {
-      // Allow anyone to read the game state. Sensitive data should be handled by client-side logic.
+      // Anyone can read a game's data. This is necessary for players to see the game state.
       allow read: if true;
 
-      // Allow any authenticated user to create a new game document.
-      allow create: if request.auth != null;
+      // Allow creating a new game if the user is authenticated.
+      // The creator's ID must match the authenticated user's ID.
+      // The initial players array must be empty.
+      allow create: if request.auth != null && request.resource.data.creator == request.auth.uid && request.resource.data.players.size() == 0;
       
-      // Allow players to update the game state under specific conditions.
-      allow update: if 
-          // Rule 1: Allow any existing player in the game to make valid updates.
-          isPlayer(resource.data, request.auth.uid) &&
-          
-          // Rule 1a: Players can only update their own vote, and only during the day phase.
-          (request.resource.data.phase == 'day' && resource.data.phase == 'day' && 
-           getPlayer(request.resource.data, request.auth.uid).votedFor != getPlayer(resource.data, request.auth.uid).votedFor) ||
-           
-          // Rule 1b: Players can only mark their own night ability as used, and only during the night phase.
-          (request.resource.data.phase == 'night' && resource.data.phase == 'night' &&
-           getPlayer(request.resource.data, request.auth.uid).usedNightAbility == true && getPlayer(resource.data, request.auth.uid).usedNightAbility == false) ||
-           
-          // Rule 1c: Allow the creator to manage the game (start, reset).
-          (request.auth.uid == resource.data.creator && (
-              // Starting the game
-              (request.resource.data.status == 'in_progress' && resource.data.status == 'waiting') ||
-              // Resetting the game
-              (request.resource.data.status == 'waiting' && resource.data.status == 'finished')
-           )) ||
-           
-          // Rule 2: Allow a new player to join a 'waiting' game.
-          // This checks if the user's UID is being added to the players array and the game is in 'waiting' status.
-          (resource.data.status == 'waiting' && 
-           !isPlayer(resource.data, request.auth.uid) && 
-           isPlayer(request.resource.data, request.auth.uid));
-
-      // Disallow deletion of games for data integrity. Can be changed later.
+      // Allow updates (joining, playing, etc.) under specific conditions.
+      allow update: if request.auth != null && (
+        // Condition 1: An existing player is making a valid update.
+        (isPlayerInGame(gameId, request.auth.uid)) ||
+        // Condition 2: A new player is joining a "waiting" game that is not yet full.
+        (resource.data.status == 'waiting' && 
+         request.resource.data.players.size() == resource.data.players.size() + 1 &&
+         !isPlayerInGame(gameId, request.auth.uid) &&
+         request.resource.data.players.size() <= resource.data.maxPlayers
+        ) ||
+        // Condition 3: Allow the creator to start the game.
+        (isGameCreator(gameId, request.auth.uid) && resource.data.status == 'waiting' && request.resource.data.status == 'in_progress')
+      );
+      
+      // Nobody can delete a game document directly.
       allow delete: if false;
     }
   }

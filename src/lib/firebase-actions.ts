@@ -906,7 +906,7 @@ export async function processNight(db: Firestore, gameId: string) {
             if (game.wolfCubRevengeRound === game.currentRound) {
                  game.events.push({ id: `evt_revenge_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: "¡La cría de lobo ha muerto! La manada, enfurecida, atacará de nuevo.", data: {}, createdAt: Timestamp.now() });
                  game.players.forEach(p => { if (p.role === 'werewolf' || p.role === 'wolf_cub') p.usedNightAbility = false; });
-                 game.wolfCubRevengeRound = 0;
+                 game.wolfCubRevengeRound = 0; // Mark as used
                  transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, wolfCubRevengeRound: 0 }));
                  return; // Se quedan en la fase de noche
             }
