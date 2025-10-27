@@ -141,7 +141,7 @@ export const useGameState = (gameId: string) => {
           }
           break;
         case 'day':
-          playSoundEffect('/audio/effects/rooster-crowing.mp3');
+          playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
           playNarration('dia_pueblo_despierta.mp3');
           setTimeout(() => {
             playNarration('inicio_debate.mp3');
