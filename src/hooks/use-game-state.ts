@@ -169,7 +169,7 @@ export const useGameState = (gameId: string) => {
         nightSoundsPlayedForRound.current = state.game.currentRound; 
     }
 
-  }, [state.game?.phase, state.game?.currentRound]);
+  }, [state.game?.phase, state.game?.currentRound, state.events, state.players, state.currentPlayer, firestore, state.game]);
 
 
   return { ...state };
