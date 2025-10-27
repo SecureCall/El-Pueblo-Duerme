@@ -1,147 +1,196 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useReducer, useRef } from 'react';
 import { 
   doc, 
   onSnapshot, 
   type DocumentData, 
   type DocumentSnapshot, 
   type FirestoreError,
-  Timestamp,
 } from 'firebase/firestore';
 import type { Game, Player, GameEvent, ChatMessage } from '@/types';
-import { useFirebase, useMemoFirebase } from '@/firebase';
+import { useFirebase } from '@/firebase';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useGameSession } from './use-game-session';
+import { getMillis } from '@/lib/utils';
+import { playNarration, playSoundEffect } from '@/lib/sounds';
+import { runAIActions, triggerAIVote } from "@/lib/ai-actions";
+import { processNight } from '@/lib/firebase-actions';
 
 
-export const getMillis = (timestamp: any): number => {
-  if (!timestamp) return 0;
-  if (timestamp instanceof Timestamp) {
-    return timestamp.toMillis();
-  }
-  if (typeof timestamp === 'object' && timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
-    return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
-  }
-  if (timestamp instanceof Date) {
-      return timestamp.getTime();
-  }
-  if (typeof timestamp === 'string') {
-      const date = new Date(timestamp);
-      if (!isNaN(date.getTime())) {
-          return date.getTime();
-      }
-  }
-  return 0;
-};
-
-interface InitialState {
-    initialGame: Game;
-    initialPlayers: Player[];
-    initialCurrentPlayer: Player | null;
-    initialEvents: GameEvent[];
-    initialMessages: ChatMessage[];
-    initialWolfMessages: ChatMessage[];
-    initialFairyMessages: ChatMessage[];
-    initialTwinMessages: ChatMessage[];
-    initialLoversMessages: ChatMessage[];
+interface GameState {
+    game: Game | null;
+    players: Player[];
+    currentPlayer: Player | null;
+    events: GameEvent[];
+    messages: ChatMessage[];
+    wolfMessages: ChatMessage[];
+    fairyMessages: ChatMessage[];
+    twinMessages: ChatMessage[];
+    loversMessages: ChatMessage[];
+    ghostMessages: ChatMessage[];
+    loading: boolean;
+    error: string | null;
 }
 
-export const useGameState = (gameId: string, initialState?: InitialState) => {
-  const { firestore } = useFirebase();
-  const { userId } = useGameSession();
+type GameAction =
+  | { type: 'SET_GAME_DATA'; payload: { game: Game; userId: string; } }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string | null };
 
-  const [game, setGame] = useState<Game | null>(initialState?.initialGame ?? null);
-  const [players, setPlayers] = useState<Player[]>(initialState?.initialPlayers ?? []);
-  const [currentPlayer, setCurrentPlayer] = useState<Player | null>(initialState?.initialCurrentPlayer ?? null);
-  const [events, setEvents] = useState<GameEvent[]>(initialState?.initialEvents ?? []);
-  const [messages, setMessages] = useState<ChatMessage[]>(initialState?.initialMessages ?? []);
-  const [wolfMessages, setWolfMessages] = useState<ChatMessage[]>(initialState?.initialWolfMessages ?? []);
-  const [fairyMessages, setFairyMessages] = useState<ChatMessage[]>(initialState?.initialFairyMessages ?? []);
-  const [twinMessages, setTwinMessages] = useState<ChatMessage[]>(initialState?.initialTwinMessages ?? []);
-  const [loversMessages, setLoversMessages] = useState<ChatMessage[]>(initialState?.initialLoversMessages ?? []);
-  const [loading, setLoading] = useState(!initialState);
-  const [error, setError] = useState<string | null>(null);
+const initialState: GameState = {
+    game: null,
+    players: [],
+    currentPlayer: null,
+    events: [],
+    messages: [],
+    wolfMessages: [],
+    fairyMessages: [],
+    twinMessages: [],
+    loversMessages: [],
+    ghostMessages: [],
+    loading: true,
+    error: null,
+};
 
-  const gameRef = useMemoFirebase(() => {
-    if (!gameId || !firestore) return null;
-    return doc(firestore, 'games', gameId);
-  }, [gameId, firestore]);
-
-  useEffect(() => {
-    if (!gameRef) {
-        if (!initialState) {
-            setLoading(false);
-            if (!gameId) setError("No game ID provided.");
-            else setError("Cargando sesión de Firebase...");
+function gameReducer(state: GameState, action: GameAction): GameState {
+    switch (action.type) {
+        case 'SET_GAME_DATA': {
+            const { game, userId } = action.payload;
+            const sortedPlayers = [...game.players].sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
+            return {
+                ...state,
+                game,
+                players: sortedPlayers,
+                currentPlayer: sortedPlayers.find(p => p.userId === userId) || null,
+                events: [...(game.events || [])].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)),
+                messages: (game.chatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                wolfMessages: (game.wolfChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                fairyMessages: (game.fairyChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                twinMessages: (game.twinChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                loversMessages: (game.loversChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                ghostMessages: (game.ghostChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                loading: false,
+                error: null,
+            };
         }
-        return;
-    };
+        case 'SET_LOADING':
+            return { ...state, loading: action.payload };
+        case 'SET_ERROR':
+             return { 
+                ...initialState,
+                loading: false,
+                error: action.payload,
+            };
+        default:
+            return state;
+    }
+}
 
-    setLoading(true);
 
-    const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
+export const useGameState = (gameId: string) => {
+  const [state, dispatch] = useReducer(gameReducer, initialState);
+  const { firestore } = useFirebase();
+  const { userId, isSessionLoaded } = useGameSession();
+  const gameRef = useRef(firestore ? doc(firestore, 'games', gameId) : null);
+  const prevPhaseRef = useRef<Game['phase']>();
+  const nightSoundsPlayedForRound = useRef<number>(0);
+
+  // Firestore listener
+  useEffect(() => {
+    if (!firestore || !userId || !isSessionLoaded) return;
+    if (!gameRef.current || gameRef.current.path !== `games/${gameId}`) {
+        gameRef.current = doc(firestore, 'games', gameId);
+    }
+
+    dispatch({ type: 'SET_LOADING', payload: true });
+
+    const unsubscribeGame = onSnapshot(gameRef.current, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
         const gameData = { ...snapshot.data() as Game, id: snapshot.id };
-
-        setGame(gameData);
-        
-        const sortedPlayers = [...gameData.players].sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
-        setPlayers(sortedPlayers);
-        setCurrentPlayer(sortedPlayers.find(p => p.userId === userId) || null);
-
-        setEvents([...(gameData.events || [])].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)));
-        setMessages(
-          (gameData.chatMessages || [])
-            .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
-        );
-         setWolfMessages(
-          (gameData.wolfChatMessages || [])
-            .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
-        );
-        setFairyMessages(
-          (gameData.fairyChatMessages || [])
-            .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
-        );
-        setTwinMessages(
-          (gameData.twinChatMessages || [])
-            .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
-        );
-        setLoversMessages(
-          (gameData.loversChatMessages || [])
-            .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))
-        );
-
-        setError(null);
+        dispatch({ type: 'SET_GAME_DATA', payload: { game: gameData, userId } });
       } else {
-        setError('Partida no encontrada.');
-        setGame(null);
-        setPlayers([]);
-        setCurrentPlayer(null);
-        setEvents([]);
-        setMessages([]);
-        setWolfMessages([]);
-        setFairyMessages([]);
-        setTwinMessages([]);
-        setLoversMessages([]);
+        dispatch({ type: 'SET_ERROR', payload: 'Partida no encontrada.' });
       }
-      setLoading(false);
     }, (err: FirestoreError) => {
         const contextualError = new FirestorePermissionError({
             operation: 'get',
-            path: gameRef.path,
+            path: gameRef.current!.path,
         });
-        setError("Error al cargar la partida. Permisos insuficientes.");
-        setLoading(false);
+        dispatch({ type: 'SET_ERROR', payload: "Error al cargar la partida. Permisos insuficientes." });
         errorEmitter.emit('permission-error', contextualError);
     });
 
     return () => {
       unsubscribeGame();
     };
-  }, [gameId, firestore, gameRef, userId]);
+  }, [gameId, firestore, userId, isSessionLoaded]);
 
-  return { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, loading, error };
+
+  // Game logic triggers (sounds, AI actions, phase transitions)
+  useEffect(() => {
+    if (!state.game || !state.currentPlayer || !firestore) return;
+    
+    const prevPhase = prevPhaseRef.current;
+    const { game, currentPlayer, events } = state;
+
+    if (prevPhase !== game.phase) {
+      switch (game.phase) {
+        case 'night':
+          if (game.currentRound === 1 && prevPhase === 'role_reveal') {
+             playNarration('intro_epica.mp3');
+             setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 4000);
+          } else {
+            playNarration('noche_pueblo_duerme.mp3');
+          }
+           if (game.creator === currentPlayer.userId) {
+                runAIActions(firestore, game.id);
+            }
+          break;
+        case 'day':
+          playSoundEffect('/audio/effects/rooster-crowing.mp3');
+          setTimeout(() => {
+            playNarration('dia_pueblo_despierta.mp3');
+            setTimeout(() => {
+              playNarration('inicio_debate.mp3');
+              if (firestore && game.creator === currentPlayer.userId) {
+                  triggerAIVote(firestore, game.id);
+              }
+            }, 2000);
+          }, 1500);
+          break;
+      }
+    }
+    
+    // Auto-advance from role reveal, controlled by creator
+    if (game.phase === 'role_reveal' && game.creator === currentPlayer?.userId && game.status === 'in_progress') {
+        const timer = setTimeout(() => {
+            if (firestore) { // Ensure firestore is available
+                processNight(firestore, game.id); // Creator triggers the first night processing
+            }
+        }, 15000);
+        return () => clearTimeout(timer);
+    }
+    
+    prevPhaseRef.current = game.phase;
+
+    // Sound effect logic for night results
+    const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
+    if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
+        const hasDeaths = (nightEvent.data?.killedPlayerIds?.length || 0) > 0;
+        
+        setTimeout(() => {
+            if (hasDeaths) {
+                playNarration('Descanse en paz.mp3');
+            }
+        }, 3000); 
+        nightSoundsPlayedForRound.current = game.currentRound; 
+    }
+
+  }, [state.game, state.currentPlayer, state.events, firestore]);
+
+
+  return { ...state };
 };

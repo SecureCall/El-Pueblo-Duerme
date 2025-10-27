@@ -12,6 +12,7 @@ import { Loader2, Zap, Scale } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { HeartCrack, SunIcon, Users, BrainCircuit } from 'lucide-react';
 import { useFirebase } from '@/firebase';
+import type { MasterActionState } from './MasterActionBar';
 
 interface DayPhaseProps {
     game: Game;
@@ -28,6 +29,7 @@ function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, curre
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { firestore } = useFirebase();
     const { toast } = useToast();
+    const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
 
     const handlePlayerSelect = (player: Player) => {
         if (!player.isAlive || player.userId === currentPlayer.userId) return;
@@ -76,10 +78,14 @@ function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, curre
             <CardContent>
                 <p className="text-center mb-4 text-muted-foreground">Selecciona a dos jugadores para que se peleen.</p>
                 <PlayerGrid 
+                    game={game}
                     players={players.filter(p => p.isAlive && p.userId !== currentPlayer.userId)}
+                    currentPlayer={currentPlayer}
                     onPlayerClick={handlePlayerSelect}
                     clickable={true}
                     selectedPlayerIds={selectedPlayerIds}
+                    masterActionState={masterActionState} 
+                    setMasterActionState={setMasterActionState}
                 />
                 <Button 
                     className="w-full mt-6 text-lg" 
@@ -102,6 +108,8 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
     const { firestore } = useFirebase();
+    const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
+
 
     const siren = players.find(p => p.role === 'river_siren');
     const isCharmed = siren?.riverSirenTargetId === currentPlayer.userId;
@@ -223,8 +231,12 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                                 Has votado por {votedForPlayer?.displayName || 'alguien'}. Esperando al resto de jugadores...
                             </p>
                             <PlayerGrid 
+                                game={game}
                                 players={players.filter(p => p.isAlive)}
+                                currentPlayer={currentPlayer}
                                 votesByPlayer={votesByPlayer}
+                                masterActionState={masterActionState} 
+                                setMasterActionState={setMasterActionState}
                             />
                         </div>
                     ) : (
@@ -248,11 +260,15 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
 
                             <p className="text-center mb-4 text-muted-foreground">{isTiebreaker ? "Debes elegir a uno de los empatados." : "Selecciona al jugador que crees que es un Hombre Lobo."}</p>
                             <PlayerGrid 
+                                game={game}
                                 players={votablePlayers.filter(p => p.userId !== currentPlayer.userId)}
+                                currentPlayer={currentPlayer}
                                 onPlayerClick={handlePlayerSelect}
                                 clickable={canPlayerVote}
                                 selectedPlayerIds={selectedPlayerId ? [selectedPlayerId] : []}
                                 votesByPlayer={votesByPlayer}
+                                masterActionState={masterActionState} 
+                                setMasterActionState={setMasterActionState}
                             />
                             <Button 
                                 className="w-full mt-6 text-lg" 
@@ -267,8 +283,12 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                     <div className="text-center py-4 space-y-4">
                         <p className="text-lg">Observas el debate desde el más allá...</p>
                         <PlayerGrid 
+                            game={game}
                             players={players.filter(p => p.isAlive)}
+                            currentPlayer={currentPlayer}
                             votesByPlayer={votesByPlayer}
+                            masterActionState={masterActionState} 
+                            setMasterActionState={setMasterActionState}
                         />
                     </div>
                 )}
@@ -279,4 +299,3 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
         </Card>
     );
 }
-
