@@ -8,8 +8,9 @@ import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { roleDetails, defaultRoleDetail } from "@/lib/roles";
-import { setPhaseToNight } from "@/lib/firebase-actions";
+import { processNight } from "@/lib/firebase-actions";
 import { useFirebase } from "@/firebase";
+import { useGameSession } from "@/hooks/use-game-session";
 
 
 interface RoleRevealProps {
@@ -19,6 +20,7 @@ interface RoleRevealProps {
 
 export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
     const { firestore } = useFirebase();
+    const { userId } = useGameSession();
 
     if (!player.role) {
         return (
@@ -31,11 +33,11 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
     const details = roleDetails[player.role] ?? defaultRoleDetail;
     const bgImage = PlaceHolderImages.find((img) => img.id === details.bgImageId);
 
-    const handleAcknowledge = () => {
+    const handleAcknowledge = async () => {
         onAcknowledge();
         // Only the creator triggers the next phase
-        if (player.userId === player.gameId.split('_')[0]) { // A simple way to check if creator
-            setPhaseToNight(firestore, player.gameId);
+        if (userId === player.gameId.split('_')[0] && firestore) { 
+            await processNight(firestore, player.gameId);
         }
     };
 
@@ -87,3 +89,6 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
     </div>
   );
 }
+
+
+    

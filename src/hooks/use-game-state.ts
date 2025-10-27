@@ -17,6 +17,7 @@ import { useGameSession } from './use-game-session';
 import { getMillis } from '@/lib/utils';
 import { playNarration, playSoundEffect } from '@/lib/sounds';
 import { runAIActions, triggerAIVote } from "@/lib/ai-actions";
+import { processNight } from '@/lib/firebase-actions';
 
 
 interface GameState {
@@ -128,7 +129,7 @@ export const useGameState = (gameId: string) => {
   }, [gameId, firestore, userId, isSessionLoaded]);
 
 
-  // Game logic triggers (sounds, AI actions)
+  // Game logic triggers (sounds, AI actions, phase transitions)
   useEffect(() => {
     if (!state.game || !state.currentPlayer || !firestore) return;
     
@@ -163,6 +164,14 @@ export const useGameState = (gameId: string) => {
       }
     }
     
+    // Auto-advance from role reveal, controlled by creator
+    if (game.phase === 'role_reveal' && game.creator === currentPlayer?.userId && game.status === 'in_progress') {
+        const timer = setTimeout(() => {
+            processNight(firestore, game.id); // Creator triggers the first night processing
+        }, 15000);
+        return () => clearTimeout(timer);
+    }
+    
     prevPhaseRef.current = game.phase;
 
     // Sound effect logic for night results
@@ -183,3 +192,5 @@ export const useGameState = (gameId: string) => {
 
   return { ...state };
 };
+
+    
