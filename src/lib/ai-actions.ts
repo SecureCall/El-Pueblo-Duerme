@@ -8,7 +8,7 @@ import {
 import type { Game, Player, NightActionType, PlayerRole, AIPlayerPerspective } from "@/types";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { toPlainObject } from "@/lib/utils";
-import { submitNightAction, submitVote, sendChatMessage, sendWolfChatMessage, sendTwinChatMessage, sendLoversChatMessage, submitHunterShot } from "@/lib/firebase-actions";
+import { submitNightAction, submitVote, submitHunterShot } from "@/lib/firebase-actions";
 
 
 export async function getAIChatResponse(db: Firestore, gameId: string, aiPlayer: Player, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
@@ -26,7 +26,7 @@ export async function getAIChatResponse(db: Firestore, gameId: string, aiPlayer:
             chatType,
         };
 
-        const result = await generateAIChatMessage(perspective, chatType);
+        const result = await generateAIChatMessage(perspective);
         
         if (result && result.shouldSend && result.message) {
             return result.message;
@@ -48,7 +48,7 @@ export const getDeterministicAIAction = (
 ): { actionType: NightActionType | 'VOTE' | 'SHOOT' | 'NONE', targetId: string } => {
     const { role, userId } = aiPlayer;
     const { currentRound, nightActions = [] } = game;
-    const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed'];
+    const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
     const wolfCubRevengeActive = game.wolfCubRevengeRound === game.currentRound;
     const apprenticeIsActive = role === 'seer_apprentice' && game.seerDied;
     const canFairiesKill = game.fairiesFound && !game.fairyKillUsed && (role === 'seeker_fairy' || role === 'sleeping_fairy');
