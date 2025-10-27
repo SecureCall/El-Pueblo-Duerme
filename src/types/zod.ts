@@ -147,7 +147,7 @@ export const GameSchema = z.object({
   lastActiveAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null),
   currentRound: z.number(),
   settings: GameSettingsSchema,
-  phaseEndsAt: TimestampSchema,
+  phaseEndsAt: TimestampSchema.nullable(),
   twins: z.tuple([z.string(), z.string()]).nullable(),
   lovers: z.tuple([z.string(), z.string()]).nullable(),
   pendingHunterShot: z.string().nullable(),
