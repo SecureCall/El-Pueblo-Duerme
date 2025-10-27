@@ -1728,5 +1728,3 @@ export async function executeMasterAction(db: Firestore, gameId: string, masterI
     }
 }
 export { triggerAIChat, runAIActions, triggerAIVote };
-
-    
