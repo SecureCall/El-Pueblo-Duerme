@@ -23,8 +23,13 @@ const initializeAudio = () => {
         narrationAudio.onplay = () => {
             isNarrationPlaying = true;
             if (musicAudio && !musicAudio.paused) {
-                musicAudio.volume = 0.05; // Lower music volume during narration
+                musicAudio.volume = 0.1; // Lower music volume during narration
             }
+        };
+         narrationAudio.onerror = () => {
+            console.error(`Failed to load narration: ${narrationAudio?.src}`);
+            isNarrationPlaying = false;
+            playNextInQueue(); // Skip to the next one
         };
     }
 
@@ -45,20 +50,26 @@ initializeAudio();
 export const unlockAudio = () => {
     if (audioUnlocked || typeof window === 'undefined') return;
     
-    const unlockPromise = (audio: HTMLAudioElement | null) => {
-        if (audio) {
-            const promise = audio.play();
-            if (promise !== undefined) {
-                promise.then(() => {
-                    audio.pause();
-                }).catch(() => {});
-            }
+    const unlockAndPause = (audio: HTMLAudioElement | null) => {
+        if (!audio) return;
+        const promise = audio.play();
+        if (promise !== undefined) {
+            promise.then(() => {
+                audio.pause();
+                // For looping audio, reset to the beginning after the silent play
+                if(audio.loop) {
+                    audio.currentTime = 0;
+                }
+            }).catch(error => {
+                // Autoplay was prevented.
+                console.warn("Audio unlock failed for one of the channels. User interaction might be needed.", error);
+            });
         }
     };
     
-    unlockPromise(narrationAudio);
-    unlockPromise(musicAudio);
-    unlockPromise(soundEffectAudio);
+    unlockAndPause(narrationAudio);
+    unlockAndPause(musicAudio);
+    unlockAndPause(soundEffectAudio);
     audioUnlocked = true;
 };
 
@@ -66,7 +77,10 @@ const playNextInQueue = () => {
     if (narrationQueue.length > 0) {
         const nextNarration = narrationQueue.shift();
         if (nextNarration && narrationAudio) {
-            narrationAudio.src = `/audio/voz/${nextNarration}`;
+            const audioSrc = `/audio/voz/${nextNarration}`;
+            if(narrationAudio.src !== new URL(audioSrc, window.location.origin).href) {
+                narrationAudio.src = audioSrc;
+            }
             narrationAudio.play().catch(e => {
                 console.error(`Could not play narration ${nextNarration}`, e);
                 isNarrationPlaying = false;
@@ -83,6 +97,7 @@ const playNextInQueue = () => {
 };
 
 export const playNarration = (narrationFileOrFiles: string | string[]) => {
+    if (!audioUnlocked) unlockAudio();
     const files = Array.isArray(narrationFileOrFiles) ? narrationFileOrFiles : [narrationFileOrFiles];
     narrationQueue.push(...files);
     
@@ -92,14 +107,16 @@ export const playNarration = (narrationFileOrFiles: string | string[]) => {
 };
 
 export const playSoundEffect = (soundFile: string) => {
-    if (!soundEffectAudio || !audioUnlocked) return;
+    if (!soundEffectAudio) return;
+    if (!audioUnlocked) unlockAudio();
     
-    soundEffectAudio.src = soundFile.startsWith('/') ? soundFile : `/audio/effects/${soundFile}`;
+    soundEffectAudio.src = soundFile;
     soundEffectAudio.play().catch(e => console.warn(`Could not play sound effect ${soundFile}`, e));
 };
 
 export const setMusic = (musicFile: string | null) => {
     if (!musicAudio) return;
+     if (!audioUnlocked) unlockAudio();
 
     const newSrc = musicFile ? new URL(musicFile, window.location.origin).href : null;
 
@@ -114,6 +131,8 @@ export const setMusic = (musicFile: string | null) => {
         if (audioUnlocked) {
             if (!isNarrationPlaying) {
                  musicAudio.volume = 0.3;
+            } else {
+                 musicAudio.volume = 0.1;
             }
             musicAudio.play().catch(e => console.warn(`Could not play music ${musicFile}`, e));
         }

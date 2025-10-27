@@ -157,13 +157,10 @@ export const useGameState = (gameId: string) => {
     const nightEvent = state.events.find(e => e.type === 'night_result' && e.round === state.game?.currentRound);
     if (nightEvent && nightSoundsPlayedForRound.current !== state.game.currentRound) {
         const hasDeaths = (nightEvent.data?.killedPlayerIds?.length || 0) > 0;
-        const wasSaved = !hasDeaths && ((nightEvent.data?.savedPlayerIds?.length || 0) > 0);
         
         setTimeout(() => {
             if (hasDeaths) {
                 playNarration('Descanse en paz.mp3');
-            } else if (wasSaved) {
-                playNarration('¡Milagro!.mp3');
             }
         }, 3000); 
         nightSoundsPlayedForRound.current = state.game.currentRound; 

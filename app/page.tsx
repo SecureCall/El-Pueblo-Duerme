@@ -15,7 +15,6 @@ export default function Home() {
   const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
   
   useEffect(() => {
-    // This will only run on the client, and is safe here.
     playNarration('Que comience el juego..mp3');
   }, []);
 
