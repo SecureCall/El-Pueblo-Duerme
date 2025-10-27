@@ -863,14 +863,20 @@ export async function processNight(db: Firestore, gameId: string) {
                     // Acciones de ataque
                     case 'werewolf_kill':
                          if (game.leprosaBlockedRound !== game.currentRound) {
-                            if (targetPlayer?.role === 'cursed' && game.settings.cursed && !allProtectedIds.has(action.targetId)) {
-                                const cursedPlayerIndex = game.players.findIndex(p => p.userId === action.targetId);
-                                if (cursedPlayerIndex !== -1) {
-                                    game.players[cursedPlayerIndex].role = 'werewolf';
-                                    game.events.push({ id: `evt_transform_cursed_${Date.now()}`, gameId, round: game.currentRound, type: 'player_transformed', message: `¡${targetPlayer.displayName} ha sido mordido y se ha transformado en Hombre Lobo!`, data: { targetId: targetPlayer.userId, newRole: 'werewolf' }, createdAt: Timestamp.now() });
+                            const targets = action.targetId.split('|');
+                            for (const targetId of targets) {
+                                if (targetId) {
+                                    const tPlayer = game.players.find(p => p.userId === targetId);
+                                    if (tPlayer?.role === 'cursed' && game.settings.cursed && !allProtectedIds.has(targetId)) {
+                                        const cursedPlayerIndex = game.players.findIndex(p => p.userId === targetId);
+                                        if (cursedPlayerIndex !== -1) {
+                                            game.players[cursedPlayerIndex].role = 'werewolf';
+                                            game.events.push({ id: `evt_transform_cursed_${Date.now()}`, gameId, round: game.currentRound, type: 'player_transformed', message: `¡${tPlayer.displayName} ha sido mordido y se ha transformado en Hombre Lobo!`, data: { targetId: tPlayer.userId, newRole: 'werewolf' }, createdAt: Timestamp.now() });
+                                        }
+                                    } else if (!allProtectedIds.has(targetId)) {
+                                        pendingDeaths.push({ targetId: targetId, cause: 'werewolf_kill' });
+                                    }
                                 }
-                            } else if (!allProtectedIds.has(action.targetId)) {
-                                pendingDeaths.push({ targetId: action.targetId, cause: 'werewolf_kill' });
                             }
                          }
                         break;
@@ -883,25 +889,22 @@ export async function processNight(db: Firestore, gameId: string) {
                         if (player) {
                             if (Math.random() < 0.4) { // 40% fail rate
                                 pendingDeaths.push({ targetId: player.userId, cause: 'special' });
-                                game.events.push({ id: `evt_lookout_fail_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: `¡${player.displayName} ha sido descubierto espiando y ha muerto!`, data: { targetId: player.userId }, createdAt: Timestamp.now() });
+                                game.events.push({ id: `evt_lookout_fail_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: `¡${player.displayName} ha sido descubierto espiando y ha muerto!`, data: { targetId: player.userId, for: [player.userId] }, createdAt: Timestamp.now() });
                             } else {
-                                const visits: Record<string, string[]> = {};
-                                actions.forEach(act => {
-                                    if (act.playerId !== player.userId && act.targetId) {
-                                        act.targetId.split('|').forEach(tid => {
-                                            if (!visits[tid]) visits[tid] = [];
-                                            const visitor = game.players.find(p => p.userId === act.playerId);
-                                            if (visitor) visits[tid].push(visitor.displayName);
-                                        });
-                                    }
-                                });
-                                const visitorsToTarget = visits[action.targetId] || [];
-                                if (visitorsToTarget.length > 0) {
-                                    game.events.push({ id: `evt_lookout_success_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: `Mientras vigilabas a ${targetPlayer?.displayName}, viste a ${[...new Set(visitorsToTarget)].join(', ')} visitar la casa.`, data: { targetId: player.userId }, createdAt: Timestamp.now() });
+                                const wolfUserIds = game.players.filter(p => p.isAlive && (p.role === 'werewolf' || p.role === 'wolf_cub')).map(p => p.displayName);
+                                if (wolfUserIds.length > 0) {
+                                    game.events.push({ id: `evt_lookout_success_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: `Has tenido éxito. Los lobos son: ${wolfUserIds.join(', ')}.`, data: { targetId: player.userId, for: [player.userId] }, createdAt: Timestamp.now() });
                                 } else {
-                                    game.events.push({ id: `evt_lookout_success_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: `La noche fue tranquila en la casa de ${targetPlayer?.displayName}. No viste a nadie.`, data: { targetId: player.userId }, createdAt: Timestamp.now() });
+                                     game.events.push({ id: `evt_lookout_success_nowolves_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: `No encontraste lobos esta noche.`, data: { targetId: player.userId, for: [player.userId] }, createdAt: Timestamp.now() });
                                 }
                             }
+                        }
+                        break;
+                     case 'witch_hunt':
+                        if (targetPlayer?.role === 'seer') {
+                            game.witchFoundSeer = true;
+                            pendingDeaths.push({ targetId: action.targetId, cause: 'special' }); // Witch's curse
+                             game.events.push({ id: `evt_witch_success_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: `¡La Bruja ha encontrado y maldecido a la Vidente!`, data: { killedPlayerIds: [action.targetId] }, createdAt: Timestamp.now() });
                         }
                         break;
                     
@@ -915,7 +918,12 @@ export async function processNight(db: Firestore, gameId: string) {
                         if (action.actionType === 'river_siren_charm' && game.currentRound === 1) game.players[pIndex].riverSirenTargetId = action.targetId;
                         if (action.actionType === 'silencer_silence') game.silencedPlayerId = action.targetId;
                         if (action.actionType === 'elder_leader_exile') game.exiledPlayerId = action.targetId;
-                        if (action.actionType === 'resurrect' && tIndex !== -1) game.players[tIndex].isAlive = true;
+                        if (action.actionType === 'resurrect' && tIndex !== -1) {
+                            if (!game.players[tIndex].isAlive) {
+                                game.players[tIndex].isAlive = true;
+                                game.events.push({ id: `evt_resurrect_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: `¡Un milagro! ${game.players[tIndex].displayName} ha vuelto de entre los muertos.`, data: { resurrectedId: action.targetId }, createdAt: Timestamp.now() });
+                            }
+                        }
                         break;
                 }
             }
@@ -932,13 +940,12 @@ export async function processNight(db: Firestore, gameId: string) {
                 }
             }
             
-            // Venganza del cachorro de lobo
             if (game.wolfCubRevengeRound === game.currentRound) {
-                 game.events.push({ id: `evt_revenge_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: "¡La cría de lobo ha muerto! La manada, enfurecida, atacará de nuevo.", data: {}, createdAt: Timestamp.now() });
+                 game.events.push({ id: `evt_revenge_${Date.now()}`, gameId, round: game.currentRound, type: 'special', message: "¡La cría de lobo ha muerto! La manada, enfurecida, atacará de nuevo en la misma noche.", data: {}, createdAt: Timestamp.now() });
                  game.players.forEach(p => { if (p.role === 'werewolf' || p.role === 'wolf_cub') p.usedNightAbility = false; });
-                 game.wolfCubRevengeRound = 0; // Mark as used
+                 game.wolfCubRevengeRound = 0;
                  transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, wolfCubRevengeRound: 0 }));
-                 return; // Se quedan en la fase de noche
+                 return; 
             }
 
             // --- CHECK GAME OVER & TRANSITION ---

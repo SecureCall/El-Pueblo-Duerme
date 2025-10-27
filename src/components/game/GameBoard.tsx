@@ -59,10 +59,7 @@ export function GameBoard({
 }: GameBoardProps) {
   const { firestore } = useFirebase();
   const { updateStats } = useGameSession();
-  const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages } = useGameState(initialGame.id, {
-    initialGame, initialPlayers, initialCurrentPlayer, initialEvents, initialMessages,
-    initialWolfMessages, initialFairyMessages, initialTwinMessages, initialLoversMessages, initialGhostMessages
-  });
+  const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages } = useGameState(initialGame.id);
   
   const prevPhaseRef = useRef<Game['phase']>();
   const [showRole, setShowRole] = useState(true);
@@ -91,8 +88,7 @@ export function GameBoard({
   // Sound and action trigger logic
   useEffect(() => {
     if (!game || !currentPlayer) return;
-    const prevPhase = prevPhaseRef.current;
-    
+
     if (game.status === 'finished' && prevPhaseRef.current !== 'finished') {
         const gameOverEvent = events.find(e => e.type === 'game_over');
         if (gameOverEvent?.data) {
@@ -100,10 +96,10 @@ export function GameBoard({
         }
     }
 
-    if (prevPhase !== game.phase) {
+    if (prevPhaseRef.current !== game.phase) {
       switch (game.phase) {
         case 'night':
-          if (game.currentRound === 1 && prevPhase === 'role_reveal') {
+          if (game.currentRound === 1 && prevPhaseRef.current === 'role_reveal') {
              playNarration('intro_epica.mp3');
              setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 4000);
           } else {

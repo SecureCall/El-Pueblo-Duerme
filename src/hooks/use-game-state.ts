@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useReducer } from 'react';
+import { useEffect, useReducer, useRef } from 'react';
 import { 
   doc, 
   onSnapshot, 
@@ -90,23 +90,17 @@ export const useGameState = (gameId: string) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const { firestore } = useFirebase();
   const { userId } = useGameSession();
-
-  const gameRef = useMemoFirebase(() => {
-    if (!gameId || !firestore) return null;
-    return doc(firestore, 'games', gameId);
-  }, [gameId, firestore]);
+  const gameRef = useRef(firestore ? doc(firestore, 'games', gameId) : null);
 
   useEffect(() => {
-    if (!gameRef) {
-        if (!gameId) dispatch({ type: 'SET_ERROR', payload: "No game ID provided." });
-        else if (!firestore) dispatch({ type: 'SET_ERROR', payload: "Cargando sesión de Firebase..." });
-        else dispatch({ type: 'SET_LOADING', payload: true });
-        return;
-    };
+    if (!firestore) return;
+    if (!gameRef.current || gameRef.current.path !== `games/${gameId}`) {
+        gameRef.current = doc(firestore, 'games', gameId);
+    }
 
     dispatch({ type: 'SET_LOADING', payload: true });
 
-    const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
+    const unsubscribeGame = onSnapshot(gameRef.current, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
         const gameData = { ...snapshot.data() as Game, id: snapshot.id };
         if (userId) {
@@ -118,7 +112,7 @@ export const useGameState = (gameId: string) => {
     }, (err: FirestoreError) => {
         const contextualError = new FirestorePermissionError({
             operation: 'get',
-            path: gameRef.path,
+            path: gameRef.current!.path,
         });
         dispatch({ type: 'SET_ERROR', payload: "Error al cargar la partida. Permisos insuficientes." });
         errorEmitter.emit('permission-error', contextualError);
@@ -127,7 +121,7 @@ export const useGameState = (gameId: string) => {
     return () => {
       unsubscribeGame();
     };
-  }, [gameId, firestore, gameRef, userId]);
+  }, [gameId, firestore, userId]);
 
   return { ...state };
 };

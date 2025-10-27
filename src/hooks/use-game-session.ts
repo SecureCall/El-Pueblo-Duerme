@@ -47,7 +47,7 @@ export function useGameSession() {
     let storedAvatarUrl = localStorage.getItem("werewolf_avatarUrl");
 
     const storedStatsRaw = localStorage.getItem("werewolf_stats");
-    if (storedStatsRaw && storedStatsRaw.length > 2) {
+     if (storedStatsRaw && storedStatsRaw.length > 2) {
         try {
             const parsedStats = JSON.parse(storedStatsRaw);
             if (!Array.isArray(parsedStats.history)) {
