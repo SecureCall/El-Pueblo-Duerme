@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useReducer, useRef } from 'react';
@@ -14,6 +15,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useGameSession } from './use-game-session';
 import { getMillis } from '@/lib/utils';
+import { playNarration, playSoundEffect } from '@/lib/sounds';
 
 
 interface GameState {
@@ -89,11 +91,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 export const useGameState = (gameId: string) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const { firestore } = useFirebase();
-  const { userId } = useGameSession();
+  const { userId, isSessionLoaded } = useGameSession();
   const gameRef = useRef(firestore ? doc(firestore, 'games', gameId) : null);
+  const prevPhaseRef = useRef<Game['phase']>();
+  const nightSoundsPlayedForRound = useRef<number>(0);
 
   useEffect(() => {
-    if (!firestore) return;
+    if (!firestore || !userId || !isSessionLoaded) return;
     if (!gameRef.current || gameRef.current.path !== `games/${gameId}`) {
         gameRef.current = doc(firestore, 'games', gameId);
     }
@@ -103,9 +107,7 @@ export const useGameState = (gameId: string) => {
     const unsubscribeGame = onSnapshot(gameRef.current, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
         const gameData = { ...snapshot.data() as Game, id: snapshot.id };
-        if (userId) {
-          dispatch({ type: 'SET_GAME_DATA', payload: { game: gameData, userId } });
-        }
+        dispatch({ type: 'SET_GAME_DATA', payload: { game: gameData, userId } });
       } else {
         dispatch({ type: 'SET_ERROR', payload: 'Partida no encontrada.' });
       }
@@ -121,9 +123,52 @@ export const useGameState = (gameId: string) => {
     return () => {
       unsubscribeGame();
     };
-  }, [gameId, firestore, userId]);
+  }, [gameId, firestore, userId, isSessionLoaded]);
+
+
+  useEffect(() => {
+    if (!state.game || !state.currentPlayer) return;
+    const prevPhase = prevPhaseRef.current;
+
+    if (prevPhase !== state.game.phase) {
+      switch (state.game.phase) {
+        case 'night':
+          if (state.game.currentRound === 1 && prevPhase === 'role_reveal') {
+             playNarration('intro_epica.mp3');
+             setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 4000);
+          } else {
+            playNarration('noche_pueblo_duerme.mp3');
+          }
+          break;
+        case 'day':
+          playSoundEffect('/audio/effects/rooster-crowing.mp3');
+          playNarration('dia_pueblo_despierta.mp3');
+          setTimeout(() => {
+            playNarration('inicio_debate.mp3');
+          }, 2000);
+          break;
+      }
+    }
+    
+    prevPhaseRef.current = state.game.phase;
+
+    const nightEvent = state.events.find(e => e.type === 'night_result' && e.round === state.game?.currentRound);
+    if (nightEvent && nightSoundsPlayedForRound.current !== state.game.currentRound) {
+        const hasDeaths = (nightEvent.data?.killedPlayerIds?.length || 0) > 0;
+        const wasSaved = !hasDeaths && ((nightEvent.data?.savedPlayerIds?.length || 0) > 0);
+        
+        setTimeout(() => {
+            if (hasDeaths) {
+                playNarration('Descanse en paz.mp3');
+            } else if (wasSaved) {
+                playNarration('¡Milagro!.mp3');
+            }
+        }, 3000); 
+        nightSoundsPlayedForRound.current = state.game.currentRound; 
+    }
+
+  }, [state.game?.phase, state.game?.currentRound]);
+
 
   return { ...state };
 };
-
-    
