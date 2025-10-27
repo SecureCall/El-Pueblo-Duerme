@@ -44,7 +44,6 @@ export function useGameSession() {
   const [isSessionLoaded, setIsSessionLoaded] = useState(false);
 
   useEffect(() => {
-    // Attempt to load all data from localStorage at once.
     const storedDisplayName = localStorage.getItem("werewolf_displayName");
     const storedAvatarUrl = localStorage.getItem("werewolf_avatarUrl");
     const storedStatsRaw = localStorage.getItem("werewolf_stats");
@@ -52,35 +51,40 @@ export function useGameSession() {
     if (storedDisplayName) {
         setDisplayNameState(storedDisplayName);
     }
-
-    if (storedStatsRaw && storedStatsRaw.length > 2) { // Basic check for non-empty JSON
+    
+    // Robust parsing for stats
+    if (storedStatsRaw) {
         try {
             const parsedStats = JSON.parse(storedStatsRaw);
-            // Ensure history is an array, correcting potential data corruption.
-            if (!Array.isArray(parsedStats.history)) {
-                parsedStats.history = [];
+            // Basic validation to ensure it's a plausible stats object
+            if (typeof parsedStats === 'object' && parsedStats !== null && 'victories' in parsedStats) {
+                 if (!Array.isArray(parsedStats.history)) {
+                    parsedStats.history = [];
+                }
+                setStats(parsedStats);
+            } else {
+                 throw new Error("Parsed data is not a valid stats object.");
             }
-            setStats(parsedStats);
         } catch (e) {
             console.error("Failed to parse stats from localStorage, resetting.", e);
-            localStorage.removeItem("werewolf_stats"); // Clear corrupted data
+            localStorage.removeItem("werewolf_stats");
             setStats(defaultStats);
         }
     } else {
         setStats(defaultStats);
     }
 
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) {
         signInAnonymously(auth).catch((error) => {
           console.error("Anonymous sign-in failed:", error);
         });
-        return; // onAuthStateChanged will be called again on sign-in
+        return;
       }
       
       setFirebaseUser(user);
       
-      // Handle avatar logic after user is determined.
       let finalAvatarUrl = storedAvatarUrl;
       if (!finalAvatarUrl) {
         const defaultAvatarId = Math.floor(Math.random() * 20) + 1;

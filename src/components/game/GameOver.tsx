@@ -19,15 +19,15 @@ interface GameOverProps {
     game: Game;
     event?: GameEvent;
     players: Player[];
+    currentPlayer: Player | null;
 }
 
-export function GameOver({ game, event, players }: GameOverProps) {
-    const { userId } = useGameSession();
+export function GameOver({ game, event, players, currentPlayer }: GameOverProps) {
     const { firestore } = useFirebase();
     const { toast } = useToast();
     const [isResetting, setIsResetting] = useState(false);
 
-    const isCreator = game.creator === userId;
+    const isCreator = game.creator === currentPlayer?.userId;
 
     useEffect(() => {
         if (event?.data?.winnerCode) {
@@ -40,7 +40,7 @@ export function GameOver({ game, event, players }: GameOverProps) {
                     playNarration('victoria_lobos.mp3');
                     break;
                 case 'lovers':
-                    // No specific sound provided for lovers, can be added here
+                    playNarration('victoria enamorados.mp3');
                     break;
                 case 'cult':
                     playNarration('victoria culto.mp3');
@@ -79,7 +79,6 @@ export function GameOver({ game, event, players }: GameOverProps) {
             });
             setIsResetting(false);
         }
-        // On success, the game state will change and this component will unmount
     };
 
     if (!event) {
