@@ -17,7 +17,7 @@ import { useGameSession } from './use-game-session';
 import { getMillis } from '@/lib/utils';
 import { playNarration, playSoundEffect } from '@/lib/sounds';
 import { runAIActions, triggerAIVote } from "@/lib/ai-actions";
-import { processNight } from '@/lib/firebase-actions';
+import { processNight } from '@/lib/game-logic';
 
 
 interface GameState {
