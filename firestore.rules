@@ -2,40 +2,42 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper functions
-    function isPlayerInGame(gameId, userId) {
+  
+    // Helper function to check if a user is part of the game
+    function isPlayer(gameId, userId) {
       return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.userId == userId);
     }
     
-    function isGameCreator(gameId, userId) {
+    // Helper function to check if the user is the creator of the game
+    function isCreator(gameId, userId) {
       return get(/databases/$(database)/documents/games/$(gameId)).data.creator == userId;
     }
 
     match /games/{gameId} {
-      // Anyone can read a game's data. This is necessary for players to see the game state.
+      
+      // ANYONE can read a game document. This is necessary for players to get real-time updates.
+      // Access to sensitive information (like roles) is controlled by what's written to the document, not by read rules.
       allow read: if true;
 
-      // Allow creating a new game if the user is authenticated.
-      // The creator's ID must match the authenticated user's ID.
-      // The initial players array must be empty.
-      allow create: if request.auth != null && request.resource.data.creator == request.auth.uid && request.resource.data.players.size() == 0;
-      
-      // Allow updates (joining, playing, etc.) under specific conditions.
-      allow update: if request.auth != null && (
-        // Condition 1: An existing player is making a valid update.
-        (isPlayerInGame(gameId, request.auth.uid)) ||
-        // Condition 2: A new player is joining a "waiting" game that is not yet full.
-        (resource.data.status == 'waiting' && 
-         request.resource.data.players.size() == resource.data.players.size() + 1 &&
-         !isPlayerInGame(gameId, request.auth.uid) &&
-         request.resource.data.players.size() <= resource.data.maxPlayers
-        ) ||
-        // Condition 3: Allow the creator to start the game.
-        (isGameCreator(gameId, request.auth.uid) && resource.data.status == 'waiting' && request.resource.data.status == 'in_progress')
-      );
-      
-      // Nobody can delete a game document directly.
+      // CREATE: Anyone authenticated can create a new game document.
+      allow create: if request.auth != null;
+
+      // UPDATE: A user can update a game document if:
+      // 1. They are the creator of the game (for starting the game, etc.).
+      // 2. They are a player already in the game (for voting, performing actions).
+      // 3. They are not yet a player, but are joining a 'waiting' game that is not full.
+      // 4. They are not yet a player, but the game has 0 players (initial join by creator).
+      allow update: if request.auth != null && 
+                      (isCreator(gameId, request.auth.uid) ||
+                       isPlayer(gameId, request.auth.uid) ||
+                       (resource.data.status == 'waiting' && 
+                        resource.data.players.size() < resource.data.maxPlayers &&
+                        !isPlayer(gameId, request.auth.uid)) ||
+                        (resource.data.players.size() == 0 &&
+                        !isPlayer(gameId, request.auth.uid))
+                      );
+
+      // DELETE: No one can delete a game document. Games should be archived or marked as 'deleted' if needed.
       allow delete: if false;
     }
   }
