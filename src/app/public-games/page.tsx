@@ -26,6 +26,7 @@ function GameCard({ game }: { game: Game }) {
 
     const handleJoin = () => {
         if (!displayName) {
+            // Logic to handle missing name is in the parent component
             return;
         }
         setIsJoining(true);
