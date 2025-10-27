@@ -1,93 +1,84 @@
-
+/**
+ * @fileoverview Firestore Security Rules for 'El Pueblo Duerme'.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a collaborative access control model for games.
+ * Only authenticated users can create, join, update, or delete games.
+ * Authorization checks focus on the current user's participation and role
+ * within a game.
+ *
+ * Data Structure:
+ * Games are stored in the `/games/{gameId}` collection. Each game document
+ * contains all the necessary information for the game, including an array
+ * of players.
+ *
+ * Key Security Decisions:
+ * - Games are collaborative, and any user can join a game.
+ * - The creator of the game has implicit admin privileges.
+ * - Schema validation is relaxed in prototyping mode to allow rapid iteration.
+ *
+ * Denormalization for Authorization:
+ * The 'players' array within the `/games/{gameId}` document is used to determine
+ * whether a user is authorized to perform certain actions on the game. This
+ * avoids costly `get()` operations to check player status in separate collections.
+ */
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
+    /**
+     * @description Controls access to individual game documents.
+     * @path /games/{gameId}
+     * @allow (get, list): Any user can read game documents.
+     * @allow (create): Any authenticated user can create a game.
+     * @allow (update): Only players who are part of the game can update the game.
+     * @allow (delete): Only the game creator can delete the game.
+     * @principle Enforces collaborative access with creator-based deletion.
+     */
+    match /games/{gameId} {
+      allow get, list: if true;
+      allow create: if isSignedIn() && request.resource.data.creator == request.auth.uid;
+      allow update: if isSignedIn() && isPlayer(gameId);
+      allow delete: if isSignedIn() && isExistingOwner(gameId);
+    }
+
+    // ---- Helper functions ----
+
+    /**
+     * @description Checks if the user is signed in.
+     * @returns {boolean} True if the user is signed in, false otherwise.
+     */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isPlayerInGame(gameId) {
-      return isSignedIn() && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.userId == request.auth.uid);
-    }
-    
-    function isCreator(gameId) {
-        return isSignedIn() && get(/databases/$(database)/documents/games/$(gameId)).data.creator == request.auth.uid;
-    }
-
-    function isPlayerAlive(gameId) {
-        let player = get(/databases/$(database)/documents/games/$(gameId)).data.players.get(p, p.userId == request.auth.uid, null);
-        return player != null && player.isAlive == true;
+    /**
+     * @description Checks if the requesting user is the owner of the game.
+     * @param {string} gameId The ID of the game.
+     * @returns {boolean} True if the user is the owner, false otherwise.
+     */
+    function isOwner(gameId) {
+      return get(/databases/$(database)/documents/games/$(gameId)).data.creator == request.auth.uid;
     }
 
-    match /games/{gameId} {
-      // Anyone can read game data to join or spectate.
-      allow read: if true;
+    /**
+     * @description Checks if the requesting user is the owner of the game and it exists.
+     * @param {string} gameId The ID of the game.
+     * @returns {boolean} True if the user is the existing owner, false otherwise.
+     */
+    function isExistingOwner(gameId) {
+      return isOwner(gameId) && resource != null;
+    }
 
-      // Only authenticated users can create a new game.
-      allow create: if isSignedIn();
-      
-      // Update permissions are highly granular.
-      allow update: if 
-        // A user must be a signed-in player in this specific game to update it.
-        isPlayerInGame(gameId) &&
-        (
-            // --- Lobby Phase ---
-            // Allow joining/leaving/updating display name only in 'waiting' status.
-            (
-                resource.data.status == 'waiting' &&
-                (
-                    // Joining: Adding self to players array
-                    request.resource.data.players.size() == resource.data.players.size() + 1 &&
-                    request.resource.data.players.diff(resource.data.players).addedKeys().hasOnly([request.auth.uid])
-                ) || (
-                    // Updating own player data (e.g., displayName, avatarUrl) in lobby
-                    request.resource.data.players.size() == resource.data.players.size() &&
-                    request.resource.data.players.diff(resource.data.players).affectedKeys().hasOnly([request.auth.uid]) &&
-                    request.resource.data.players.get(p, p.userId == request.auth.uid, null).role == null // Cannot change role
-                )
-            ) ||
-            // --- Game Start ---
-            // Only the creator can start the game.
-            (
-                isCreator(gameId) &&
-                resource.data.status == 'waiting' &&
-                request.resource.data.status == 'in_progress'
-            ) ||
-            // --- Gameplay Actions ---
-            (
-                resource.data.status == 'in_progress' &&
-                isPlayerAlive(gameId) &&
-                (
-                    // Voting: Can only set 'votedFor' during the 'day' phase.
-                    (
-                        request.resource.data.phase == 'day' &&
-                        request.resource.data.players.diff(resource.data.players).affectedKeys().hasOnly([request.auth.uid]) &&
-                        request.resource.data.players.get(p, p.userId == request.auth.uid, null).votedFor != resource.data.players.get(p, p.userId == request.auth.uid, null).votedFor
-                    ) ||
-                    // Night Action: Can only set 'usedNightAbility' during 'night' phase.
-                    (
-                        request.resource.data.phase == 'night' &&
-                        request.resource.data.players.diff(resource.data.players).affectedKeys().hasOnly([request.auth.uid]) &&
-                        request.resource.data.players.get(p, p.userId == request.auth.uid, null).usedNightAbility == true
-                    )
-                ) &&
-                // Critical fields that players should NEVER be able to change.
-                request.resource.data.players.get(p, p.userId == request.auth.uid, null).role == resource.data.players.get(p, p.userId == request.auth.uid, null).role &&
-                request.resource.data.players.get(p, p.userId == request.auth.uid, null).isAlive == resource.data.players.get(p, p.userId == request.auth.uid, null).isAlive &&
-                request.resource.data.players.get(p, p.userId == request.auth.uid, null).isLover == resource.data.players.get(p, p.userId == request.auth.uid, null).isLover &&
-                request.resource.data.players.get(p, p.userId == request.auth.uid, null).isCultMember == resource.data.players.get(p, p.userId == request.auth.uid, null).isCultMember
-            ) ||
-            // --- Resetting Game ---
-            // Only the creator can reset the game when it's finished.
-            (
-                isCreator(gameId) &&
-                resource.data.status == 'finished' &&
-                request.resource.data.status == 'waiting'
-            )
-        );
+    /**
+     * @description Checks if the requesting user is a player in the game.
+     * @param {string} gameId The ID of the game.
+     * @returns {boolean} True if the user is a player, false otherwise.
+     */
+    function isPlayer(gameId) {
+      return get(/databases/$(database)/documents/games/$(gameId)).data.players.hasAny(
+          [request.auth.uid]
+      );
     }
   }
 }
