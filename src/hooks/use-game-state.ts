@@ -17,7 +17,6 @@ import { useGameSession } from './use-game-session';
 import { getMillis } from '@/lib/utils';
 import { playNarration, playSoundEffect } from '@/lib/sounds';
 import { runAIActions, triggerAIVote } from "@/lib/ai-actions";
-import { setPhaseToNight } from "@/lib/firebase-actions";
 
 
 interface GameState {
@@ -129,7 +128,7 @@ export const useGameState = (gameId: string) => {
   }, [gameId, firestore, userId, isSessionLoaded]);
 
 
-  // Game logic triggers (sounds, AI actions, auto-transitions)
+  // Game logic triggers (sounds, AI actions)
   useEffect(() => {
     if (!state.game || !state.currentPlayer || !firestore) return;
     
@@ -138,16 +137,6 @@ export const useGameState = (gameId: string) => {
 
     if (prevPhase !== game.phase) {
       switch (game.phase) {
-        case 'role_reveal':
-           if (game.creator === currentPlayer.userId) {
-              // Set a timeout to automatically transition to the first night
-              const timer = setTimeout(() => {
-                  setPhaseToNight(firestore, game.id);
-              }, 15000); 
-              // Cleanup the timer if the component unmounts or phase changes
-              return () => clearTimeout(timer);
-           }
-          break;
         case 'night':
           if (game.currentRound === 1 && prevPhase === 'role_reveal') {
              playNarration('intro_epica.mp3');
@@ -194,5 +183,3 @@ export const useGameState = (gameId: string) => {
 
   return { ...state };
 };
-
-    

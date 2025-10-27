@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { roleDetails, defaultRoleDetail } from "@/lib/roles";
+import { setPhaseToNight } from "@/lib/firebase-actions";
+import { useFirebase } from "@/firebase";
 
 
 interface RoleRevealProps {
@@ -16,6 +18,8 @@ interface RoleRevealProps {
 }
 
 export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
+    const { firestore } = useFirebase();
+
     if (!player.role) {
         return (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-sm">
@@ -26,6 +30,15 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
 
     const details = roleDetails[player.role] ?? defaultRoleDetail;
     const bgImage = PlaceHolderImages.find((img) => img.id === details.bgImageId);
+
+    const handleAcknowledge = () => {
+        onAcknowledge();
+        // Only the creator triggers the next phase
+        if (player.userId === player.gameId.split('_')[0]) { // A simple way to check if creator
+            setPhaseToNight(firestore, player.gameId);
+        }
+    };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center animate-in fade-in">
@@ -68,7 +81,7 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
                 </p>
             </CardContent>
             <CardFooter>
-                <Button className="w-full text-lg" onClick={onAcknowledge}>Entendido</Button>
+                <Button className="w-full text-lg" onClick={handleAcknowledge}>Entendido</Button>
             </CardFooter>
         </Card>
     </div>
