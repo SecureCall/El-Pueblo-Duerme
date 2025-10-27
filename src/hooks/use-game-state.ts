@@ -17,7 +17,7 @@ import { useGameSession } from './use-game-session';
 import { getMillis } from '@/lib/utils';
 import { playNarration, playSoundEffect } from '@/lib/sounds';
 import { runAIActions, triggerAIVote, runAIHunterShot } from "@/lib/ai-actions";
-import { processNight } from '@/lib/game-logic';
+import { processNight } from '@/lib/firebase-actions';
 
 
 interface GameState {
@@ -138,10 +138,10 @@ export const useGameState = (gameId: string) => {
     
     if (prevPhase !== 'finished' && game.status === 'finished') {
       const gameOverEvent = events.find(e => e.type === 'game_over');
-      const winners = gameOverEvent?.data?.winners || [];
-      const isWinner = winners.some((p: Player) => p.userId === currentPlayer.userId);
-      const losers = players.filter(p => !winners.some((w: Player) => w.userId === p.userId));
-      updateStats(winners, losers, players, game);
+      if (gameOverEvent?.data?.winners && currentPlayer) {
+         const isWinner = gameOverEvent.data.winners.some((p: Player) => p.userId === currentPlayer.userId);
+         updateStats(isWinner, currentPlayer, game);
+      }
     }
 
 
@@ -182,14 +182,15 @@ export const useGameState = (gameId: string) => {
     // Auto-advance from role reveal, controlled by creator
     if (game.phase === 'role_reveal' && game.creator === currentPlayer?.userId && game.status === 'in_progress') {
         const timer = setTimeout(() => {
-            if (firestore) {
-                processNight(firestore, game.id);
+            if (firestore) { // Ensure firestore is available
+                // This is now the ONLY place this transition logic lives on the client.
+                processNight(firestore, game.id); 
             }
         }, 15000); // 15 seconds to read role
         return () => clearTimeout(timer);
     }
     
-    prevPhaseRef.current = game.phase;
+    prevPhaseRef.current = game.status === 'finished' ? 'finished' : game.phase;
 
     // Sound effect logic for night results
     const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
@@ -209,3 +210,5 @@ export const useGameState = (gameId: string) => {
 
   return { ...state };
 };
+
+    

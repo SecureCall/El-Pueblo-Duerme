@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -54,13 +55,13 @@ export function GameBoard({
     if (game.status === 'finished') return;
     
     if (game.creator === currentPlayer.userId) {
-      if (game.phase === 'day') {
-        await processVotes(firestore, game.id);
-      } else if (game.phase === 'night') {
-        await processNight(firestore, game.id);
-      } else if (game.phase === 'jury_voting') {
-        await processJuryVotes(firestore, game.id);
-      }
+        if (game.phase === 'day') {
+          await processVotes(firestore, game.id);
+        } else if (game.phase === 'night') {
+          await processNight(firestore, game.id);
+        } else if (game.phase === 'jury_voting') {
+          await processJuryVotes(firestore, game.id);
+        }
     }
   }, [firestore, game, currentPlayer]);
 

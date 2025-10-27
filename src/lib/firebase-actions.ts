@@ -13,13 +13,10 @@ import {
 import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage } from "@/types";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
-import { roleDetails } from "@/lib/roles";
 import { toPlainObject } from "@/lib/utils";
 import { secretObjectives } from "./objectives";
 import { getAIChatResponse } from "./ai-actions";
 import { killPlayer, checkGameOver } from "./game-logic";
-
-const PHASE_DURATION_SECONDS = 45;
 
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -942,9 +939,6 @@ export async function executeMasterAction(db: Firestore, gameId: string, actionI
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error("Game not found");
             let game = gameDoc.data() as Game;
-
-             // Logic for master actions will go here
-            // For now, it's a placeholder
 
             transaction.update(gameRef, toPlainObject(game));
         });
