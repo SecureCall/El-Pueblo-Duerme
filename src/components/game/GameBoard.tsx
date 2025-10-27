@@ -72,14 +72,16 @@ export function GameBoard({
     if (game.status === 'finished') {
        if (prevPhaseRef.current !== 'finished') {
             const gameOverEvent = events.find(e => e.type === 'game_over');
-            if (gameOverEvent?.data?.winners && gameOverEvent?.data?.losers) {
-               updateStats(gameOverEvent.data.winners, gameOverEvent.data.losers, players, game);
+            const myPlayer = players.find(p => p.userId === currentPlayer.userId);
+            if (gameOverEvent?.data?.winners && myPlayer) {
+               const isWinner = gameOverEvent.data.winners.some((w: Player) => w.userId === myPlayer.userId);
+               updateStats(isWinner, myPlayer, game);
             }
        }
        prevPhaseRef.current = 'finished';
        return;
     }
-  }, [game, events, players, updateStats]);
+  }, [game, events, players, updateStats, currentPlayer]);
 
     const getCauseOfDeath = (playerId: string): GameEvent['type'] | 'other' => {
         const deathEvent = [...events]
@@ -402,4 +404,3 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
-
