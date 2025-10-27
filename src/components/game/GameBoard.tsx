@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -74,7 +73,6 @@ export function GameBoard({
        if (prevPhaseRef.current !== 'finished') {
             const gameOverEvent = events.find(e => e.type === 'game_over');
             const myPlayer = players.find(p => p.userId === currentPlayer.userId);
-            // This is a client-side only effect, safe to keep here.
             if (gameOverEvent?.data?.winners && myPlayer) {
                const isWinner = gameOverEvent.data.winners.some((w: Player) => w.userId === myPlayer.userId);
                updateStats(isWinner, myPlayer, game);
@@ -109,7 +107,7 @@ export function GameBoard({
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
   
   
-  // Phase timer logic - this is purely for the UI
+  // Phase timer logic
   useEffect(() => {
     if (!game?.phaseEndsAt || !firestore || game.status === 'finished') {
       setTimeLeft(0);
@@ -123,7 +121,7 @@ export function GameBoard({
       setTimeLeft(Math.round(remaining / 1000));
 
       if (remaining <= 0) {
-        handlePhaseEnd(); // Attempt to end phase, creator's call will succeed
+        handlePhaseEnd(); 
         clearInterval(interval); 
       }
     }, 1000);
@@ -396,9 +394,3 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
-
-    
-
-    
-
-    

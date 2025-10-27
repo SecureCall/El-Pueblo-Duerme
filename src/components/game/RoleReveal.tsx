@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { Player } from "@/types";
@@ -36,8 +35,9 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
     const handleAcknowledge = async () => {
         onAcknowledge();
         // Only the creator triggers the next phase
-        if (userId === player.gameId.split('_')[0] && firestore) { 
-            await processNight(firestore, player.gameId);
+        const gameCreatorId = player.gameId.split('_')[0];
+        if (userId === gameCreatorId && firestore) { 
+             await processNight(firestore, player.gameId);
         }
     };
 
@@ -89,6 +89,3 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
     </div>
   );
 }
-
-
-    
