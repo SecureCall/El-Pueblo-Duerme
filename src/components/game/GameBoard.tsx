@@ -7,8 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
-import { processVotes, processJuryVotes, executeMasterAction } from "@/lib/firebase-actions";
-import { processNight } from "@/lib/game-logic";
+import { processJuryVotes, executeMasterAction } from "@/lib/firebase-actions";
+import { processNight, processVotes } from "@/lib/game-logic";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { Heart, Moon, Sun, Users2, Wand2, Loader2, UserX, Scale } from "lucide-react";
@@ -53,7 +53,6 @@ export function GameBoard({
     if (!firestore || !game || !currentPlayer) return;
     if (game.status === 'finished') return;
     
-    // Only the creator processes the phase end to avoid multiple triggers.
     if (game.creator === currentPlayer.userId) {
       if (game.phase === 'day') {
         await processVotes(firestore, game.id);
@@ -66,22 +65,18 @@ export function GameBoard({
   }, [firestore, game, currentPlayer]);
 
 
-  // Sound and action trigger logic based on game state
   useEffect(() => {
     if (!game || !currentPlayer) return;
     
-    if (game.status === 'finished') {
-       if (prevPhaseRef.current !== 'finished') {
-            const gameOverEvent = events.find(e => e.type === 'game_over');
-            const myPlayer = players.find(p => p.userId === currentPlayer.userId);
-            if (gameOverEvent?.data?.winners && myPlayer) {
-               const isWinner = gameOverEvent.data.winners.some((w: Player) => w.userId === myPlayer.userId);
-               updateStats(isWinner, myPlayer, game);
-            }
+    if (prevPhaseRef.current !== 'finished' && game.status === 'finished') {
+       const gameOverEvent = events.find(e => e.type === 'game_over');
+       const myPlayer = players.find(p => p.userId === currentPlayer.userId);
+       if (gameOverEvent?.data?.winners && myPlayer) {
+          const isWinner = gameOverEvent.data.winners.some((p: Player) => p.userId === myPlayer.userId);
+          updateStats(isWinner, myPlayer, game);
        }
-       prevPhaseRef.current = 'finished';
-       return;
     }
+    prevPhaseRef.current = game.status === 'finished' ? 'finished' : game.phase;
   }, [game, events, players, updateStats, currentPlayer]);
 
     const getCauseOfDeath = (playerId: string): GameEvent['type'] | 'other' => {
@@ -89,8 +84,8 @@ export function GameBoard({
             .sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt))
             .find(e => {
                 const data = e.data || {};
-                if (data.killedPlayerId === playerId) return true;
-                if (Array.isArray(data.killedPlayerIds) && data.killedPlayerIds.includes(playerId)) return true;
+                const killedIds = data.killedPlayerIds || (data.killedPlayerId ? [data.killedPlayerId] : []);
+                if (killedIds.includes(playerId)) return true;
                 if (data.lynchedPlayerId === playerId) return true;
                 return false;
             });
@@ -108,7 +103,6 @@ export function GameBoard({
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
   
   
-  // Phase timer logic
   useEffect(() => {
     if (!game?.phaseEndsAt || !firestore || game.status === 'finished') {
       setTimeLeft(0);

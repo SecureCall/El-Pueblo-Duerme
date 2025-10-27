@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -53,5 +52,3 @@ export const PlayerGrid = React.memo(function PlayerGrid({
     </div>
   );
 });
-
-    

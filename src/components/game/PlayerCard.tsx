@@ -5,7 +5,7 @@ import type { Game, Player, GameEvent } from "@/types";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { Bot, Crown, Gavel, Skull, Heart, Swords, Eye, Edit } from "lucide-react";
+import { Bot, Crown, Gavel, Skull, Heart, Swords, Edit } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { roleDetails, defaultRoleDetail } from "@/lib/roles";
@@ -13,6 +13,7 @@ import Image from "next/image";
 import { VampireIcon } from "../icons";
 
 interface PlayerCardProps {
+  game: Game;
   player: Player & { causeOfDeath?: GameEvent['type'] | 'other' };
   currentPlayer: Player;
   onClick?: (player: Player) => void;
@@ -23,9 +24,7 @@ interface PlayerCardProps {
 }
 
 export const PlayerCard = React.memo(function PlayerCard({ game, player, currentPlayer, onClick, isClickable, isSelected, highlightColor, votes }: PlayerCardProps) {
-  if (!game || !currentPlayer) {
-    return null; // Safeguard against rendering without essential props
-  }
+  if (!player) return null;
 
  if (!player.isAlive) {
     const roleInfo = player.role ? (roleDetails[player.role] ?? defaultRoleDetail) : defaultRoleDetail;
@@ -69,7 +68,7 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
             );
         default:
           return (
-             <div className={baseClasses}>
+             <div className={cn(baseClasses)}>
                 <Skull className={cn(iconClasses, "text-gray-400")} />
             </div>
           );
@@ -120,7 +119,7 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
                   <Edit className="h-4 w-4 text-secondary-foreground" />
                 </div>
               )}
-              {player.userId === game.creator && (
+              {game && player.userId === game.creator && (
                  <Crown className="absolute -top-2 -left-2 h-6 w-6 text-yellow-400 rotate-[-15deg]" />
               )}
               {votes && votes.length > 0 && (
