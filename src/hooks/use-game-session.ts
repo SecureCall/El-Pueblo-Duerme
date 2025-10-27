@@ -115,13 +115,9 @@ export function useGameSession() {
     setAvatarUrlState(url);
   }, []);
 
-  const updateStats = useCallback((winners: Player[], losers: Player[], allPlayers: Player[], game: Game) => {
-      if (!firebaseUser) return;
-      
-      const myPlayerInfo = allPlayers.find(p => p.userId === firebaseUser.uid);
-      if (!myPlayerInfo || !myPlayerInfo.role) return;
+  const updateStats = useCallback((isWinner: boolean, myPlayerInfo: Player, game: Game) => {
+      if (!firebaseUser || !myPlayerInfo?.role) return;
 
-      const isWinner = winners.some(p => p.userId === firebaseUser.uid);
       const objectiveLogic = myPlayerInfo.secretObjectiveId ? getObjectiveLogic(myPlayerInfo.secretObjectiveId) : undefined;
       const objectiveMet = objectiveLogic ? objectiveLogic(myPlayerInfo, game) : false;
 
@@ -153,12 +149,22 @@ export function useGameSession() {
             }
         }
         
-        const winningTeam = winners.length > 0 ? (winners[0].role === PlayerRoleEnum.WEREWOLF ? 'los Lobos' : 'el Pueblo') : 'nadie';
+        const winningTeamText = () => {
+            const lastEvent = game.events.find(e => e.type === 'game_over');
+            const winnerCode = lastEvent?.data?.winnerCode;
+            switch(winnerCode) {
+                case 'villagers': return 'el Pueblo';
+                case 'wolves': return 'los Lobos';
+                case 'lovers': return 'los Enamorados';
+                default: return 'un equipo inesperado';
+            }
+        };
+
         if (!newStats.history) newStats.history = [];
         newStats.history.unshift({
             type: 'victory',
             title: isWinner ? '¡Victoria!' : 'Derrota',
-            description: `Terminó la partida. Ganaron ${winningTeam}.`,
+            description: `Terminó la partida. Ganaron ${winningTeamText()}.`,
             timestamp: Date.now(),
         });
 
