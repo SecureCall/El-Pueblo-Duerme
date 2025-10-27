@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
@@ -15,7 +14,7 @@ export function VampireKillOverlay({ angelInPlay }: VampireKillOverlayProps) {
 
     useEffect(() => {
         if (isVisible && !hasPlayedSound.current) {
-            playNarration('muerte vampiro.mp3');
+            playNarration('muerte_vampiro.mp3');
             hasPlayedSound.current = true;
         }
     }, [isVisible]);

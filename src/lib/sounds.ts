@@ -1,4 +1,3 @@
-
 "use client";
 
 let narrationAudio: HTMLAudioElement | null = null;
@@ -26,8 +25,8 @@ const initializeAudio = () => {
                 musicAudio.volume = 0.1; // Lower music volume during narration
             }
         };
-         narrationAudio.onerror = () => {
-            console.error(`Failed to load narration: ${narrationAudio?.src}`);
+         narrationAudio.onerror = (e) => {
+            console.error(`Failed to load or play narration: ${narrationAudio?.src}`, e);
             isNarrationPlaying = false;
             playNextInQueue(); // Skip to the next one
         };
@@ -37,11 +36,13 @@ const initializeAudio = () => {
         musicAudio = new Audio();
         musicAudio.volume = 0.3;
         musicAudio.loop = true;
+         musicAudio.onerror = (e) => console.error(`Failed to load music: ${musicAudio?.src}`, e);
     }
 
     if (!soundEffectAudio) {
         soundEffectAudio = new Audio();
         soundEffectAudio.volume = 0.5;
+        soundEffectAudio.onerror = (e) => console.error(`Failed to load sound effect: ${soundEffectAudio?.src}`, e);
     }
 };
 
@@ -56,13 +57,11 @@ export const unlockAudio = () => {
         if (promise !== undefined) {
             promise.then(() => {
                 audio.pause();
-                // For looping audio, reset to the beginning after the silent play
                 if(audio.loop) {
                     audio.currentTime = 0;
                 }
             }).catch(error => {
-                // Autoplay was prevented.
-                console.warn("Audio unlock failed for one of the channels. User interaction might be needed.", error);
+                console.warn("Audio unlock failed for one channel. User interaction is needed.", error);
             });
         }
     };
@@ -74,12 +73,15 @@ export const unlockAudio = () => {
 };
 
 const playNextInQueue = () => {
+    if (isNarrationPlaying) return;
     if (narrationQueue.length > 0) {
+        isNarrationPlaying = true;
         const nextNarration = narrationQueue.shift();
         if (nextNarration && narrationAudio) {
             const audioSrc = `/audio/voz/${nextNarration}`;
             if(narrationAudio.src !== new URL(audioSrc, window.location.origin).href) {
                 narrationAudio.src = audioSrc;
+                narrationAudio.load();
             }
             narrationAudio.play().catch(e => {
                 console.error(`Could not play narration ${nextNarration}`, e);
@@ -89,7 +91,6 @@ const playNextInQueue = () => {
         }
     } else {
         isNarrationPlaying = false;
-        // Queue is empty, restore music volume
         if (musicAudio && !musicAudio.paused) {
             musicAudio.volume = 0.3;
         }
@@ -107,8 +108,7 @@ export const playNarration = (narrationFileOrFiles: string | string[]) => {
 };
 
 export const playSoundEffect = (soundFile: string) => {
-    if (!soundEffectAudio) return;
-    if (!audioUnlocked) unlockAudio();
+    if (!soundEffectAudio || !audioUnlocked) return;
     
     soundEffectAudio.src = soundFile;
     soundEffectAudio.play().catch(e => console.warn(`Could not play sound effect ${soundFile}`, e));
@@ -116,24 +116,23 @@ export const playSoundEffect = (soundFile: string) => {
 
 export const setMusic = (musicFile: string | null) => {
     if (!musicAudio) return;
-     if (!audioUnlocked) unlockAudio();
+    if (!audioUnlocked) unlockAudio();
 
     const newSrc = musicFile ? new URL(musicFile, window.location.origin).href : null;
 
-    if (currentMusicSrc === newSrc && !musicAudio.paused) {
-        return;
+    if (currentMusicSrc === newSrc && newSrc !== null && !musicAudio.paused) {
+        return; 
     }
-
+    
     currentMusicSrc = newSrc;
 
     if (newSrc) {
-        musicAudio.src = newSrc;
+        if(musicAudio.src !== newSrc) {
+            musicAudio.src = newSrc;
+            musicAudio.load();
+        }
         if (audioUnlocked) {
-            if (!isNarrationPlaying) {
-                 musicAudio.volume = 0.3;
-            } else {
-                 musicAudio.volume = 0.1;
-            }
+            musicAudio.volume = isNarrationPlaying ? 0.1 : 0.3;
             musicAudio.play().catch(e => console.warn(`Could not play music ${musicFile}`, e));
         }
     } else {

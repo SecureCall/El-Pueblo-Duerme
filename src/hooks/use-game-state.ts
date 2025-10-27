@@ -150,7 +150,7 @@ export const useGameState = (gameId: string) => {
             }
           break;
         case 'day':
-          playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
+          playSoundEffect('/audio/effects/rooster-crowing.mp3');
           setTimeout(() => {
             playNarration('dia_pueblo_despierta.mp3');
             setTimeout(() => {
@@ -192,5 +192,3 @@ export const useGameState = (gameId: string) => {
 
   return { ...state };
 };
-
-    

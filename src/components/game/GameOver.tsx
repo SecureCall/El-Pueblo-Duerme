@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -40,22 +39,22 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
                     playNarration('victoria_lobos.mp3');
                     break;
                 case 'lovers':
-                    playNarration('victoria enamorados.mp3');
+                    playNarration('victoria_enamorados.mp3');
                     break;
                 case 'cult':
-                    playNarration('victoria culto.mp3');
+                    playNarration('victoria_culto.mp3');
                     break;
                 case 'vampire':
-                    playNarration('el vampiro ha ganado .mp3');
+                    playNarration('el_vampiro_ha_ganado.mp3');
                     break;
                 case 'drunk_man':
-                    playNarration('ganador el ebrio.mp3');
+                    playNarration('ganador_el_ebrio.mp3');
                     break;
                 case 'fisherman':
-                    playNarration('pescador ganador.mp3');
+                    playNarration('pescador_ganador.mp3');
                     break;
                 case 'executioner':
-                    playNarration('victoria el berdugo.mp3');
+                    playNarration('victoria_el_berdugo.mp3');
                     break;
                 case 'banshee':
                     // No specific sound provided for banshee, can be added here

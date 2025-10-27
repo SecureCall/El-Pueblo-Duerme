@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
@@ -15,7 +14,7 @@ export function HunterKillOverlay({ angelInPlay }: HunterKillOverlayProps) {
 
     useEffect(() => {
         if (isVisible && !hasPlayedSound.current) {
-            playNarration('la ultima bala.mp3');
+            playNarration('la_ultima_bala.mp3');
             hasPlayedSound.current = true;
         }
     }, [isVisible]);
