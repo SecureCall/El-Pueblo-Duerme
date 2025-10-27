@@ -27,7 +27,7 @@ import { VampireKillOverlay } from "./VampireKillOverlay";
 import { useGameState } from "@/hooks/use-game-state";
 import { LoversChat } from "./LoversChat";
 import { getMillis } from "@/lib/utils";
-import { GhostChat } from "@/components/game/GhostChat";
+import { GhostChat } from "./GhostChat";
 import { JuryVote } from "./JuryVote";
 import { MasterActionBar, type MasterActionState } from "./MasterActionBar";
 import { useGameSession } from "@/hooks/use-game-session";
@@ -180,7 +180,7 @@ export function GameBoard({
 }
 
 
-function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, currentPlayer, getCauseOfDeath, timeLeft, masterActionState, setMasterActionState }: Omit<GameBoardProps, 'game'> & { game: Game, players: Player[], currentPlayer: Player, events: GameEvent[], messages: ChatMessage[], wolfMessages: ChatMessage[], fairyMessages: ChatMessage[], twinMessages: ChatMessage[], loversMessages: ChatMessage[], ghostMessages: ChatMessage[], getCauseOfDeath: (playerId: string) => GameEvent['type'] | 'other', timeLeft: number; masterActionState: MasterActionState; setMasterActionState: React.Dispatch<React.SetStateAction<MasterActionState>> }) {
+function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, currentPlayer, getCauseOfDeath, timeLeft, masterActionState, setMasterActionState }: { game: Game, players: Player[], currentPlayer: Player, events: GameEvent[], messages: ChatMessage[], wolfMessages: ChatMessage[], fairyMessages: ChatMessage[], twinMessages: ChatMessage[], loversMessages: ChatMessage[], ghostMessages: ChatMessage[], getCauseOfDeath: (playerId: string) => GameEvent['type'] | 'other', timeLeft: number; masterActionState: MasterActionState; setMasterActionState: React.Dispatch<React.SetStateAction<MasterActionState>> }) {
 
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
@@ -402,3 +402,5 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
+
+    
