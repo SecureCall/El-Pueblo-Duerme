@@ -182,7 +182,7 @@ export default function HowToPlayPage() {
                             <h4 className="font-bold text-xl text-primary-foreground mt-4">Resolución de Conflictos y Habilidades</h4>
                             <ul className="list-disc list-inside space-y-2 pl-4">
                                 <li>
-                                    <strong>Prioridad de Protección:</strong> La bendición del **Sacerdote** es la protección más fuerte; anula cualquier ataque o habilidad negativa. Le siguen las protecciones del Guardián y el Doctor, que solo protegen del ataque de los lobos. La poción de vida de la Hechicera actúa en último lugar, revirtiendo una muerte ya ocurrida esa noche.
+                                    <strong>Prioridad de Protección:</strong> La bendición del **Sacerdote** es la protección más fuerte; anula cualquier ataque o habilidad negativa. Le siguen las protecciones del Guardián y el Doctor, que solo protegen del ataque de los lobos. La poción de vida de la Hechicera actúa en último lugar, revirtiendo una muerte ya ocurrida esa noche. Si múltiples protecciones se aplican a un jugador, solo se "gasta" la de mayor prioridad que sea necesaria.
                                 </li>
                                 <li>
                                     <strong>Vínculos Inquebrantables:</strong> La muerte causada por el vínculo de **Virginia Woolf** o la de los **Enamorados** es automática e inevitable. Ninguna protección puede salvar al jugador vinculado si su pareja muere.
