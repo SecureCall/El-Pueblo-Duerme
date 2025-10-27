@@ -1,5 +1,4 @@
-
-"use client";
+'use client';
 
 import { useEffect, useReducer, useRef } from 'react';
 import { 
@@ -150,7 +149,7 @@ export const useGameState = (gameId: string) => {
             }
           break;
         case 'day':
-          playSoundEffect('rooster-crowing.mp3');
+          playSoundEffect('/audio/effects/rooster-crowing.mp3');
           setTimeout(() => {
             playNarration('dia_pueblo_despierta.mp3');
             setTimeout(() => {
@@ -167,7 +166,9 @@ export const useGameState = (gameId: string) => {
     // Auto-advance from role reveal, controlled by creator
     if (game.phase === 'role_reveal' && game.creator === currentPlayer?.userId && game.status === 'in_progress') {
         const timer = setTimeout(() => {
-            processNight(firestore, game.id);
+            if (firestore) { // Ensure firestore is available
+                processNight(firestore, game.id); // Creator triggers the first night processing
+            }
         }, 15000);
         return () => clearTimeout(timer);
     }
