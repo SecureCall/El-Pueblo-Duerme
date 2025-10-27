@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
-import { processNight, processVotes, processJuryVotes, executeMasterAction } from "@/lib/firebase-actions";
+import { processVotes, processJuryVotes, executeMasterAction } from "@/lib/firebase-actions";
+import { processNight } from "@/lib/game-logic";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { Heart, Moon, Sun, Users2, Wand2, Loader2, UserX, Scale } from "lucide-react";
@@ -74,9 +75,11 @@ export function GameBoard({
        if (prevPhaseRef.current !== 'finished') {
             const gameOverEvent = events.find(e => e.type === 'game_over');
             const myPlayer = players.find(p => p.userId === currentPlayer.userId);
-            if (gameOverEvent?.data?.winners && myPlayer) {
-               const isWinner = gameOverEvent.data.winners.some((w: Player) => w.userId === myPlayer.userId);
-               updateStats(isWinner, myPlayer, game);
+            const winners = gameOverEvent?.data?.winners || [];
+            if (myPlayer) {
+               const isWinner = winners.some((w: Player) => w.userId === myPlayer.userId);
+               const losers = players.filter(p => !winners.some(w => w.userId === p.userId));
+               updateStats(isWinner ? [myPlayer] : [], isWinner ? [] : [myPlayer], players, game);
             }
        }
        prevPhaseRef.current = 'finished';
