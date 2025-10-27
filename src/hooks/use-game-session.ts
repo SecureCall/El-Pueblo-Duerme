@@ -52,7 +52,7 @@ export function useGameSession() {
         setDisplayNameState(storedDisplayName);
     }
     
-    if (storedStatsRaw && storedStatsRaw.length > 2) { // Basic check for non-empty JSON
+    if (storedStatsRaw && storedStatsRaw.length > 2) {
         try {
             const parsedStats = JSON.parse(storedStatsRaw);
             if (typeof parsedStats === 'object' && parsedStats !== null && 'victories' in parsedStats) {
@@ -65,7 +65,7 @@ export function useGameSession() {
             }
         } catch (e) {
             console.error("Failed to parse stats from localStorage, resetting.", e);
-            localStorage.removeItem("werewolf_stats"); // Clear corrupted data
+            localStorage.removeItem("werewolf_stats");
             setStats(defaultStats);
         }
     } else {

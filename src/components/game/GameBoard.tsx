@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -15,7 +16,6 @@ import { HunterShot } from "./HunterShot";
 import { GameChronicle } from "./GameChronicle";
 import { PhaseTimer } from "./PhaseTimer";
 import { CurrentPlayerRole } from "./CurrentPlayerRole";
-import { playNarration, playSoundEffect } from "@/lib/sounds";
 import { YouAreDeadOverlay } from "./YouAreDeadOverlay";
 import { BanishedOverlay } from "./BanishedOverlay";
 import { HunterKillOverlay } from "./HunterKillOverlay";
@@ -34,15 +34,6 @@ import { useGameSession } from "@/hooks/use-game-session";
 
 interface GameBoardProps {
   game: Game;
-  players: Player[];
-  currentPlayer: Player | null;
-  events: GameEvent[];
-  messages: ChatMessage[];
-  wolfMessages: ChatMessage[];
-  fairyMessages: ChatMessage[];
-  twinMessages: ChatMessage[];
-  loversMessages: ChatMessage[];
-  ghostMessages: ChatMessage[];
 }
 
 export function GameBoard({ 
@@ -55,8 +46,6 @@ export function GameBoard({
   const prevPhaseRef = useRef<Game['phase']>();
   const [showRole, setShowRole] = useState(true);
   const [deathCause, setDeathCause] = useState<GameEvent['type'] | 'other' | null>(null);
-  const nightSoundsPlayedForRound = useRef<number>(0);
-  const voteTieSoundPlayedForRound = useRef<number>(0);
   const [timeLeft, setTimeLeft] = useState(0);
   const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
 
@@ -83,54 +72,13 @@ export function GameBoard({
     if (game.status === 'finished') {
        if (prevPhaseRef.current !== 'finished') {
             const gameOverEvent = events.find(e => e.type === 'game_over');
-            if (gameOverEvent?.data) {
+            if (gameOverEvent?.data?.winners && gameOverEvent?.data?.losers) {
                updateStats(gameOverEvent.data.winners, gameOverEvent.data.losers, players, game);
             }
        }
        prevPhaseRef.current = 'finished';
        return;
     }
-
-    if (prevPhaseRef.current !== game.phase) {
-      switch (game.phase) {
-        case 'night':
-          if (game.currentRound === 1 && prevPhaseRef.current === 'role_reveal') {
-             playNarration('intro_epica.mp3');
-             setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 4000);
-          } else {
-            playNarration('noche_pueblo_duerme.mp3');
-          }
-          break;
-        case 'day':
-          playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
-          playNarration('¡Pueblo... despierta!.mp3');
-          setTimeout(() => {
-            const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
-            if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
-                const hasDeaths = (nightEvent.data?.killedPlayerIds?.length || 0) > 0;
-                if (hasDeaths) {
-                    playNarration('Descanse en paz.mp3');
-                } else {
-                    playNarration('¡Milagro!.mp3');
-                }
-                nightSoundsPlayedForRound.current = game.currentRound; 
-            }
-            setTimeout(() => {
-                playNarration('inicio_debate.mp3');
-            }, 3000);
-          }, 2000);
-          break;
-      }
-    }
-    
-    const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound);
-    if (voteEvent && voteEvent.data?.tiedPlayerIds && voteTieSoundPlayedForRound.current !== game.currentRound) {
-      playNarration('empate.mp3');
-      voteTieSoundPlayedForRound.current = game.currentRound;
-    }
-    
-    prevPhaseRef.current = game.phase;
-
   }, [game, events, players, updateStats]);
 
     const getCauseOfDeath = (playerId: string): GameEvent['type'] | 'other' => {
@@ -221,18 +169,18 @@ export function GameBoard({
     return (
         <>
             {renderDeathOverlay()}
-            <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} ghostMessages={ghostMessages} currentPlayer={currentPlayer} getCauseOfDeath={getCauseOfDeath} timeLeft={timeLeft} masterActionState={masterActionState} setMasterActionState={setMasterActionState} />
+            <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} ghostMessages={ghostMessages || []} currentPlayer={currentPlayer} getCauseOfDeath={getCauseOfDeath} timeLeft={timeLeft} masterActionState={masterActionState} setMasterActionState={setMasterActionState} />
         </>
     );
   }
 
   return (
-    <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} ghostMessages={ghostMessages} currentPlayer={currentPlayer} getCauseOfDeath={getCauseOfDeath} timeLeft={timeLeft} masterActionState={masterActionState} setMasterActionState={setMasterActionState} />
+    <SpectatorGameBoard game={game} players={players} events={events} messages={messages} wolfMessages={wolfMessages} fairyMessages={fairyMessages} twinMessages={twinMessages} loversMessages={loversMessages} ghostMessages={ghostMessages || []} currentPlayer={currentPlayer} getCauseOfDeath={getCauseOfDeath} timeLeft={timeLeft} masterActionState={masterActionState} setMasterActionState={setMasterActionState} />
   );
 }
 
 
-function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, currentPlayer, getCauseOfDeath, timeLeft, masterActionState, setMasterActionState }: GameBoardProps & { getCauseOfDeath: (playerId: string) => GameEvent['type'] | 'other', timeLeft: number; masterActionState: MasterActionState; setMasterActionState: React.Dispatch<React.SetStateAction<MasterActionState>> }) {
+function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, currentPlayer, getCauseOfDeath, timeLeft, masterActionState, setMasterActionState }: Omit<GameBoardProps, 'game' | 'players' | 'currentPlayer' | 'events' | 'messages' | 'wolfMessages' | 'fairyMessages' | 'twinMessages' | 'loversMessages' | 'ghostMessages'> & { game: Game, players: Player[], currentPlayer: Player, events: GameEvent[], messages: ChatMessage[], wolfMessages: ChatMessage[], fairyMessages: ChatMessage[], twinMessages: ChatMessage[], loversMessages: ChatMessage[], ghostMessages: ChatMessage[], getCauseOfDeath: (playerId: string) => GameEvent['type'] | 'other', timeLeft: number; masterActionState: MasterActionState; setMasterActionState: React.Dispatch<React.SetStateAction<MasterActionState>> }) {
 
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
@@ -409,7 +357,6 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
                         loverDeathEvents={loverDeathEvents}
                         voteEvent={voteEvent}
                         behaviorClueEvent={behaviorClueEvent}
-                        chatMessages={messages}
                     />
                 )}
                 

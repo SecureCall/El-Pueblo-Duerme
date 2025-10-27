@@ -16,6 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { useFirebase } from '@/firebase';
 import { WolfChat } from './WolfChat';
 import { FairyChat } from './FairyChat';
+import type { MasterActionState } from './MasterActionBar';
 
 interface NightActionsProps {
     game: Game;
@@ -33,6 +34,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     const [seerResult, setSeerResult] = useState<{ targetName: string; isWerewolf: boolean; } | null>(null);
     const [hechiceraAction, setHechiceraAction] = useState<HechiceraAction>('poison');
     const { firestore } = useFirebase();
+    const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
     
     const { toast } = useToast();
     const { hasSubmitted } = useNightActions(game.id, game.currentRound, currentPlayer.userId);
@@ -391,11 +393,14 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                     <>
                         {(!isLookout && currentPlayer.role !== 'sleeping_fairy') && (
                             <PlayerGrid 
+                                game={game}
                                 players={playersForGrid}
                                 currentPlayer={currentPlayer}
                                 onPlayerClick={handlePlayerSelect}
                                 clickable={true}
                                 selectedPlayerIds={selectedPlayerIds}
+                                masterActionState={masterActionState}
+                                setMasterActionState={setMasterActionState}
                             />
                         )}
                          { (isWerewolfTeam && wolfCubRevengeActive) || isCupidFirstNight ? (

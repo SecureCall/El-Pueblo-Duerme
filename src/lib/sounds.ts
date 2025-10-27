@@ -16,16 +16,16 @@ const initializeAudio = () => {
     if (!narrationAudio) {
         narrationAudio = new Audio();
         narrationAudio.volume = 1.0;
-        narrationAudio.addEventListener('ended', () => {
+        narrationAudio.onended = () => {
             isNarrationPlaying = false;
             playNextInQueue();
-        });
-        narrationAudio.addEventListener('play', () => {
+        };
+        narrationAudio.onplay = () => {
             isNarrationPlaying = true;
             if (musicAudio && !musicAudio.paused) {
                 musicAudio.volume = 0.05; // Lower music volume during narration
             }
-        });
+        };
     }
 
     if (!musicAudio) {
@@ -67,7 +67,6 @@ const playNextInQueue = () => {
         const nextNarration = narrationQueue.shift();
         if (nextNarration && narrationAudio) {
             narrationAudio.src = `/audio/voz/${nextNarration}`;
-            isNarrationPlaying = true;
             narrationAudio.play().catch(e => {
                 console.error(`Could not play narration ${nextNarration}`, e);
                 isNarrationPlaying = false;
@@ -75,6 +74,7 @@ const playNextInQueue = () => {
             });
         }
     } else {
+        isNarrationPlaying = false;
         // Queue is empty, restore music volume
         if (musicAudio && !musicAudio.paused) {
             musicAudio.volume = 0.3;
@@ -92,12 +92,10 @@ export const playNarration = (narrationFileOrFiles: string | string[]) => {
 };
 
 export const playSoundEffect = (soundFile: string) => {
-    if (!soundEffectAudio) return;
+    if (!soundEffectAudio || !audioUnlocked) return;
     
     soundEffectAudio.src = soundFile.startsWith('/') ? soundFile : `/audio/effects/${soundFile}`;
-    if(audioUnlocked) {
-        soundEffectAudio.play().catch(e => console.warn(`Could not play sound effect ${soundFile}`, e));
-    }
+    soundEffectAudio.play().catch(e => console.warn(`Could not play sound effect ${soundFile}`, e));
 };
 
 export const setMusic = (musicFile: string | null) => {
@@ -113,8 +111,10 @@ export const setMusic = (musicFile: string | null) => {
 
     if (newSrc) {
         musicAudio.src = newSrc;
-        if (audioUnlocked && !isNarrationPlaying) {
-            musicAudio.volume = 0.3; // Ensure volume is normal
+        if (audioUnlocked) {
+            if (!isNarrationPlaying) {
+                 musicAudio.volume = 0.3;
+            }
             musicAudio.play().catch(e => console.warn(`Could not play music ${musicFile}`, e));
         }
     } else {
