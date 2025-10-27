@@ -47,15 +47,6 @@ interface GameBoardProps {
 
 export function GameBoard({ 
     game: initialGame, 
-    players: initialPlayers, 
-    currentPlayer: initialCurrentPlayer, 
-    events: initialEvents, 
-    messages: initialMessages, 
-    wolfMessages: initialWolfMessages, 
-    fairyMessages: initialFairyMessages, 
-    twinMessages: initialTwinMessages,
-    loversMessages: initialLoversMessages,
-    ghostMessages: initialGhostMessages,
 }: GameBoardProps) {
   const { firestore } = useFirebase();
   const { updateStats } = useGameSession();
@@ -88,12 +79,16 @@ export function GameBoard({
   // Sound and action trigger logic
   useEffect(() => {
     if (!game || !currentPlayer) return;
-
-    if (game.status === 'finished' && prevPhaseRef.current !== 'finished') {
-        const gameOverEvent = events.find(e => e.type === 'game_over');
-        if (gameOverEvent?.data) {
-           updateStats(gameOverEvent.data.winners, gameOverEvent.data.losers, players, game);
-        }
+    
+    if (game.status === 'finished') {
+       if (prevPhaseRef.current !== 'finished') {
+            const gameOverEvent = events.find(e => e.type === 'game_over');
+            if (gameOverEvent?.data) {
+               updateStats(gameOverEvent.data.winners, gameOverEvent.data.losers, players, game);
+            }
+       }
+       prevPhaseRef.current = 'finished';
+       return;
     }
 
     if (prevPhaseRef.current !== game.phase) {
@@ -422,7 +417,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
                     <JuryVote game={game} players={players} currentPlayer={currentPlayer} tiedPlayerIds={voteEvent.data.tiedPlayerIds} />
                 )}
 
-                {showGhostChat && (
+                {showGhostChat && ghostMessages && (
                      <GhostChat gameId={game.id} currentPlayer={currentPlayer} messages={ghostMessages} />
                 )}
 
@@ -460,3 +455,5 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
+
+    

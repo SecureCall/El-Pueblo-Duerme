@@ -9,7 +9,7 @@ import {
   type FirestoreError,
 } from 'firebase/firestore';
 import type { Game, Player, GameEvent, ChatMessage } from '@/types';
-import { useFirebase, useMemoFirebase } from '@/firebase';
+import { useFirebase } from '@/firebase';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useGameSession } from './use-game-session';
@@ -53,7 +53,7 @@ const initialState: GameState = {
 
 function gameReducer(state: GameState, action: GameAction): GameState {
     switch (action.type) {
-        case 'SET_GAME_DATA':
+        case 'SET_GAME_DATA': {
             const { game, userId } = action.payload;
             const sortedPlayers = [...game.players].sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
             return {
@@ -71,14 +71,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
                 loading: false,
                 error: null,
             };
+        }
         case 'SET_LOADING':
             return { ...state, loading: action.payload };
         case 'SET_ERROR':
              return { 
-                ...state, 
+                ...initialState,
                 loading: false,
                 error: action.payload,
-                game: null, players: [], currentPlayer: null, events: [], messages: [], wolfMessages: [], fairyMessages: [], twinMessages: [], loversMessages: [], ghostMessages: []
             };
         default:
             return state;
@@ -125,3 +125,5 @@ export const useGameState = (gameId: string) => {
 
   return { ...state };
 };
+
+    

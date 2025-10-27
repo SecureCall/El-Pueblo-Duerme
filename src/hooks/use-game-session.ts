@@ -26,65 +26,73 @@ interface PlayerStats {
     history: GameHistoryEvent[];
 }
 
+const defaultStats: PlayerStats = {
+    victories: 0,
+    defeats: 0,
+    roleStats: {},
+    achievements: [],
+    history: [],
+};
+
+
 export function useGameSession() {
   const auth = useAuth();
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [displayName, setDisplayNameState] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrlState] = useState<string | null>(null);
-  const [stats, setStats] = useState<PlayerStats>({
-      victories: 0,
-      defeats: 0,
-      roleStats: {},
-      achievements: [],
-      history: [],
-  });
+  const [stats, setStats] = useState<PlayerStats>(defaultStats);
   const [isSessionLoaded, setIsSessionLoaded] = useState(false);
 
   useEffect(() => {
+    // Attempt to load all data from localStorage at once.
     const storedDisplayName = localStorage.getItem("werewolf_displayName");
-    if (storedDisplayName) setDisplayNameState(storedDisplayName);
-    
-    let storedAvatarUrl = localStorage.getItem("werewolf_avatarUrl");
-
+    const storedAvatarUrl = localStorage.getItem("werewolf_avatarUrl");
     const storedStatsRaw = localStorage.getItem("werewolf_stats");
-     if (storedStatsRaw && storedStatsRaw.length > 2) {
+
+    if (storedDisplayName) {
+        setDisplayNameState(storedDisplayName);
+    }
+
+    if (storedStatsRaw && storedStatsRaw.length > 2) { // Basic check for non-empty JSON
         try {
             const parsedStats = JSON.parse(storedStatsRaw);
+            // Ensure history is an array, correcting potential data corruption.
             if (!Array.isArray(parsedStats.history)) {
                 parsedStats.history = [];
             }
             setStats(parsedStats);
         } catch (e) {
-            console.error("Failed to parse stats from localStorage", e);
-            localStorage.removeItem("werewolf_stats");
+            console.error("Failed to parse stats from localStorage, resetting.", e);
+            localStorage.removeItem("werewolf_stats"); // Clear corrupted data
+            setStats(defaultStats);
         }
+    } else {
+        setStats(defaultStats);
     }
-
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) {
         signInAnonymously(auth).catch((error) => {
           console.error("Anonymous sign-in failed:", error);
-          setIsSessionLoaded(true);
         });
-        return;
+        return; // onAuthStateChanged will be called again on sign-in
       }
       
       setFirebaseUser(user);
-
-      if (!storedAvatarUrl) {
+      
+      // Handle avatar logic after user is determined.
+      let finalAvatarUrl = storedAvatarUrl;
+      if (!finalAvatarUrl) {
         const defaultAvatarId = Math.floor(Math.random() * 20) + 1;
         const defaultAvatar = PlaceHolderImages.find(img => img.id === `avatar-${defaultAvatarId}`);
         if(defaultAvatar) {
-            storedAvatarUrl = defaultAvatar.imageUrl;
-            localStorage.setItem("werewolf_avatarUrl", storedAvatarUrl);
+            finalAvatarUrl = defaultAvatar.imageUrl;
+            localStorage.setItem("werewolf_avatarUrl", finalAvatarUrl);
         }
       }
-      setAvatarUrlState(storedAvatarUrl);
+      setAvatarUrlState(finalAvatarUrl);
       
-      if (user && storedAvatarUrl) {
-        setIsSessionLoaded(true);
-      }
+      setIsSessionLoaded(true);
     });
 
     return () => unsubscribe();
