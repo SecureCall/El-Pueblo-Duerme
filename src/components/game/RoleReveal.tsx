@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Player } from "@/types";
@@ -7,10 +8,6 @@ import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { roleDetails, defaultRoleDetail } from "@/lib/roles";
-import { processNight } from "@/lib/firebase-actions";
-import { useFirebase } from "@/firebase";
-import { useGameSession } from "@/hooks/use-game-session";
-
 
 interface RoleRevealProps {
   player: Player;
@@ -18,9 +15,6 @@ interface RoleRevealProps {
 }
 
 export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
-    const { firestore } = useFirebase();
-    const { userId } = useGameSession();
-
     if (!player.role) {
         return (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-sm">
@@ -34,11 +28,6 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
 
     const handleAcknowledge = async () => {
         onAcknowledge();
-        // Only the creator triggers the next phase
-        const gameCreatorId = player.gameId.split('_')[0];
-        if (userId === gameCreatorId && firestore) { 
-             await processNight(firestore, player.gameId);
-        }
     };
 
 

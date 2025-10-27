@@ -1,6 +1,6 @@
 
 'use client';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -22,12 +22,14 @@ import { getMillis } from '@/lib/utils';
 function GameCard({ game }: { game: Game }) {
     const { displayName } = useGameSession();
     const router = useRouter();
+    const [isJoining, setIsJoining] = useState(false);
 
     const handleJoin = () => {
         if (!displayName) {
             // Logic to handle missing name is in the parent component
             return;
         }
+        setIsJoining(true);
         router.push(`/game/${game.id}`);
     }
 
@@ -42,8 +44,8 @@ function GameCard({ game }: { game: Game }) {
                     <Users className="h-5 w-5" />
                     <span className="font-bold">{game.players.length} / {game.maxPlayers}</span>
                 </div>
-                <Button onClick={handleJoin} disabled={!displayName || game.players.length >= game.maxPlayers}>
-                    Unirse
+                <Button onClick={handleJoin} disabled={isJoining || !displayName || game.players.length >= game.maxPlayers}>
+                     {isJoining ? <Loader2 className="animate-spin" /> : "Unirse"}
                 </Button>
             </CardContent>
         </Card>
@@ -56,6 +58,15 @@ export default function PublicGamesPage() {
     const { firestore } = useFirebase();
     const { displayName, setDisplayName } = useGameSession();
     const { toast } = useToast();
+    const [isNameModalOpen, setIsNameModalOpen] = useState(false);
+
+    useEffect(() => {
+        // Only open the modal if the display name is not set.
+        if (!displayName) {
+            setIsNameModalOpen(true);
+        }
+    }, [displayName]);
+
 
     const gamesQuery = useMemoFirebase(() => {
         if (!firestore) return null;
@@ -91,6 +102,7 @@ export default function PublicGamesPage() {
             return;
         }
         setDisplayName(name);
+        setIsNameModalOpen(false);
     }
 
     const renderContent = () => {
@@ -125,7 +137,7 @@ export default function PublicGamesPage() {
         <>
             <GameMusic src="/audio/lobby-theme.mp3" />
              <EnterNameModal
-                isOpen={!displayName}
+                isOpen={isNameModalOpen}
                 onNameSubmit={handleNameSubmit}
             />
             <div className="relative min-h-screen w-full flex flex-col items-center p-4 overflow-y-auto">

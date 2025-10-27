@@ -150,7 +150,7 @@ export const useGameState = (gameId: string) => {
             }
           break;
         case 'day':
-          playSoundEffect('/audio/effects/rooster-crowing.mp3');
+          playSoundEffect('rooster-crowing.mp3');
           setTimeout(() => {
             playNarration('dia_pueblo_despierta.mp3');
             setTimeout(() => {
@@ -167,7 +167,7 @@ export const useGameState = (gameId: string) => {
     // Auto-advance from role reveal, controlled by creator
     if (game.phase === 'role_reveal' && game.creator === currentPlayer?.userId && game.status === 'in_progress') {
         const timer = setTimeout(() => {
-            processNight(firestore, game.id); // Creator triggers the first night processing
+            processNight(firestore, game.id);
         }, 15000);
         return () => clearTimeout(timer);
     }
@@ -181,7 +181,7 @@ export const useGameState = (gameId: string) => {
         
         setTimeout(() => {
             if (hasDeaths) {
-                playNarration('Descanse en paz.mp3');
+                playNarration('descanse_en_paz.mp3');
             }
         }, 3000); 
         nightSoundsPlayedForRound.current = game.currentRound; 
