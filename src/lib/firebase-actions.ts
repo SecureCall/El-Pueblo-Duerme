@@ -195,7 +195,7 @@ export async function joinGame(
                 changed = true;
             }
             if(changed) {
-                transaction.update(gameRef, { players: toPlainObject(currentPlayers) });
+                transaction.update(gameRef, { players: toPlainObject(currentPlayers), lastActiveAt: Timestamp.now() });
             }
         }
         return;
@@ -249,7 +249,7 @@ export async function updatePlayerAvatar(db: Firestore, gameId: string, userId: 
             const updatedPlayers = [...gameData.players];
             updatedPlayers[playerIndex].avatarUrl = newAvatarUrl;
 
-            transaction.update(gameRef, { players: toPlainObject(updatedPlayers) });
+            transaction.update(gameRef, { players: toPlainObject(updatedPlayers), lastActiveAt: Timestamp.now() });
         });
         return { success: true };
     } catch (error: any) {

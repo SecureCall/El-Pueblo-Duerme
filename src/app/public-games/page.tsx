@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, where, Timestamp } from 'firebase/firestore';
 
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import type { Game } from '@/types';
@@ -70,10 +70,13 @@ export default function PublicGamesPage() {
 
     const gamesQuery = useMemoFirebase(() => {
         if (!firestore) return null;
+        // Calculate a timestamp for 5 minutes ago to filter out stale rooms.
+        const fiveMinutesAgo = Timestamp.fromMillis(Date.now() - 5 * 60 * 1000);
         return query(
             collection(firestore, 'games'),
             where('settings.isPublic', '==', true),
-            where('status', '==', 'waiting')
+            where('status', '==', 'waiting'),
+            where('lastActiveAt', '>', fiveMinutesAgo)
         );
     }, [firestore]);
 
