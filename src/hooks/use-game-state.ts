@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useReducer, useRef, useCallback, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { 
   doc, 
   onSnapshot, 
@@ -16,8 +16,6 @@ import { useGameSession } from './use-game-session';
 import { getMillis } from '@/lib/utils';
 import { playNarration, playSoundEffect } from '@/lib/sounds';
 import { runAIActions, triggerAIVote, runAIHunterShot } from "@/lib/ai-actions";
-import { processNight, processVotes, processJuryVotes } from '@/lib/game-logic';
-
 
 interface GameState {
     game: Game | null;
@@ -51,7 +49,7 @@ const initialState: GameState = {
 
 export const useGameState = (gameId: string) => {
   const { firestore } = useFirebase();
-  const { userId, isSessionLoaded } = useGameSession();
+  const { userId } = useGameSession();
   
   const [game, setGame] = useState<Game | null>(initialState.game);
   const [players, setPlayers] = useState<Player[]>(initialState.players);
@@ -66,13 +64,19 @@ export const useGameState = (gameId: string) => {
   const [loading, setLoading] = useState<boolean>(initialState.loading);
   const [error, setError] = useState<string | null>(initialState.error);
 
+  const prevPhaseRef = useRef<Game['phase']>();
+  const nightSoundsPlayedForRound = useRef<number>(0);
+
   // Effect 1: Subscribe to Firestore for state updates
   useEffect(() => {
-    if (!firestore || !userId || !isSessionLoaded) return;
-
-    const gameRef = doc(firestore, 'games', gameId);
+    if (!firestore || !userId || !gameId) {
+        setLoading(false);
+        if(!gameId) setError("No se ha proporcionado un ID de partida.");
+        return;
+    };
 
     setLoading(true);
+    const gameRef = doc(firestore, 'games', gameId);
 
     const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
@@ -108,7 +112,57 @@ export const useGameState = (gameId: string) => {
     });
 
     return () => unsubscribeGame();
-  }, [gameId, firestore, userId, isSessionLoaded]);
+  }, [gameId, firestore, userId]);
+
+  // Effect 2: Game logic triggers (sounds, AI actions)
+  useEffect(() => {
+    if (!game || !currentPlayer || !firestore || game.status === 'finished') return;
+
+    const isCreator = game.creator === currentPlayer.userId;
+    const prevPhase = prevPhaseRef.current;
+    
+    if (prevPhase !== game.phase) {
+        switch (game.phase) {
+            case 'night':
+                if (game.currentRound === 1 && prevPhase === 'role_reveal') {
+                    playNarration('intro_epica.mp3');
+                    setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 4000);
+                } else {
+                    playNarration('noche_pueblo_duerme.mp3');
+                }
+                if (isCreator) runAIActions(firestore, game.id);
+                break;
+            case 'day':
+                playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
+                setTimeout(() => {
+                    playNarration('dia_pueblo_despierta.mp3');
+                    setTimeout(() => {
+                        playNarration('inicio_debate.mp3');
+                        if (isCreator) triggerAIVote(firestore, game.id);
+                    }, 2000);
+                }, 1500);
+                break;
+            case 'hunter_shot':
+                 if (isCreator) {
+                    const pendingHunter = game.players.find(p => p.userId === game.pendingHunterShot);
+                    if (pendingHunter?.isAI) runAIHunterShot(firestore, game.id, pendingHunter);
+                 }
+                break;
+        }
+    }
+    
+    const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
+    if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
+        const hasDeaths = (nightEvent.data?.killedPlayerIds?.length || 0) > 0;
+        setTimeout(() => {
+            if (hasDeaths) playNarration('descanse_en_paz.mp3');
+        }, 3000);
+        nightSoundsPlayedForRound.current = game.currentRound;
+    }
+    
+    prevPhaseRef.current = game.phase;
+
+  }, [game?.phase, game?.currentRound, firestore, game?.id, game?.creator, game?.status, game?.players, game?.pendingHunterShot, currentPlayer, events]);
 
 
   return { 

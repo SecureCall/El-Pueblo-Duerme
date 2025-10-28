@@ -1,4 +1,3 @@
-
 import type { Timestamp } from 'firebase/firestore';
 import { z } from 'zod';
 import type { GameSchema, PlayerSchema } from './zod';
@@ -60,8 +59,8 @@ export interface Game {
   loversChatMessages: ChatMessage[];
   ghostChatMessages: ChatMessage[];
   maxPlayers: number;
-  createdAt: Timestamp;
-  lastActiveAt: Timestamp;
+  createdAt: Timestamp | Date | string;
+  lastActiveAt: Timestamp | Date | string;
   currentRound: number;
   settings: {
     werewolves: number;
@@ -70,7 +69,7 @@ export interface Game {
     juryVoting: boolean;
     [key: string]: boolean | number;
   };
-  phaseEndsAt: Timestamp;
+  phaseEndsAt: Timestamp | Date | string | null;
   twins: [string, string] | null;
   lovers: [string, string] | null;
   pendingHunterShot: string | null;
@@ -98,7 +97,7 @@ export interface Player {
   votedFor: string | null;
   displayName: string;
   avatarUrl: string;
-  joinedAt: Timestamp | string | null;
+  joinedAt: Timestamp | Date | string | null;
   lastHealedRound: number;
   isAI: boolean;
   potions?: {
@@ -154,7 +153,7 @@ export interface NightAction {
     playerId: string;
     actionType: NightActionType;
     targetId: string;
-    createdAt: Timestamp;
+    createdAt: Timestamp | Date | string;
 }
 
 export interface GameEvent {
@@ -164,7 +163,7 @@ export interface GameEvent {
     type: 'night_result' | 'vote_result' | 'game_start' | 'role_reveal' | 'game_over' | 'lover_death' | 'hunter_shot' | 'player_transformed' | 'behavior_clue' | 'special' | 'vampire_kill' | 'werewolf_kill' | 'troublemaker_duel';
     message: string;
     data?: any;
-    createdAt: Timestamp | string;
+    createdAt: Timestamp | Date | string;
 }
 
 export interface ChatMessage {
@@ -173,7 +172,7 @@ export interface ChatMessage {
   senderName: string;
   text: string;
   round: number;
-  createdAt: Timestamp | string;
+  createdAt: Timestamp | Date | string;
   mentionedPlayerIds?: string[];
 }
 

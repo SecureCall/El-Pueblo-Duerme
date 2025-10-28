@@ -31,8 +31,6 @@ import { JuryVote } from "./JuryVote";
 import { MasterActionBar, type MasterActionState } from "./MasterActionBar";
 import { useGameSession } from "@/hooks/use-game-session";
 import { useGameState } from "@/hooks/use-game-state";
-import { playNarration, playSoundEffect } from '@/lib/sounds';
-import { runAIActions, triggerAIVote, runAIHunterShot } from "@/lib/ai-actions";
 
 interface GameBoardProps {
   game: Game;
@@ -68,9 +66,6 @@ export function GameBoard({
   const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
 
   const prevGameStatusRef = useRef<Game['status']>();
-  const prevPhaseRef = useRef<Game['phase']>();
-  const nightSoundsPlayedForRound = useRef<number>(0);
-
 
   const handleAcknowledgeRole = useCallback(() => {
     setShowRole(false);
@@ -110,55 +105,6 @@ export function GameBoard({
     }
     prevGameStatusRef.current = game.status;
   }, [game?.status, events, currentPlayer, game, updateStats]);
-
-  // Effect for sounds, AI actions, and other side effects on phase change
-  useEffect(() => {
-    if (!game || !currentPlayer || !firestore || game.status === 'finished') return;
-
-    const isCreator = game.creator === currentPlayer.userId;
-    const prevPhase = prevPhaseRef.current;
-
-    if (prevPhase !== game.phase) {
-        switch (game.phase) {
-            case 'night':
-                if (game.currentRound === 1 && prevPhase === 'role_reveal') {
-                    playNarration('intro_epica.mp3');
-                    setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 4000);
-                } else {
-                    playNarration('noche_pueblo_duerme.mp3');
-                }
-                if (isCreator) runAIActions(firestore, game.id);
-                break;
-            case 'day':
-                playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
-                setTimeout(() => {
-                    playNarration('dia_pueblo_despierta.mp3');
-                    setTimeout(() => {
-                        playNarration('inicio_debate.mp3');
-                        if (isCreator) triggerAIVote(firestore, game.id);
-                    }, 2000);
-                }, 1500);
-                break;
-            case 'hunter_shot':
-                 if (isCreator) {
-                    const pendingHunter = game.players.find(p => p.userId === game.pendingHunterShot);
-                    if (pendingHunter?.isAI) runAIHunterShot(firestore, game.id, pendingHunter);
-                 }
-                break;
-        }
-    }
-
-    const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
-    if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
-        const hasDeaths = (nightEvent.data?.killedPlayerIds?.length || 0) > 0;
-        setTimeout(() => {
-            if (hasDeaths) playNarration('descanse_en_paz.mp3');
-        }, 3000);
-        nightSoundsPlayedForRound.current = game.currentRound;
-    }
-
-    prevPhaseRef.current = game.phase;
-  }, [game?.phase, game?.currentRound, firestore, game?.id, currentPlayer?.userId, game?.creator, events, game?.players, game?.pendingHunterShot, game?.status]);
 
 
   // Effect for phase timer

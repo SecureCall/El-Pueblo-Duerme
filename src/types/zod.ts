@@ -1,4 +1,3 @@
-
 import { z } from 'zod';
 import { PlayerRoleEnum } from '.';
 
@@ -25,7 +24,7 @@ export const PlayerSchema = z.object({
   votedFor: z.string().nullable(),
   displayName: z.string(),
   avatarUrl: z.string(),
-  joinedAt: TimestampSchema,
+  joinedAt: z.union([TimestampSchema, z.string()]).nullable(),
   lastHealedRound: z.number(),
   isAI: z.boolean(),
   potions: z.object({
@@ -62,7 +61,7 @@ export const NightActionSchema = z.object({
     "fairy_find", "fairy_kill", "resurrect", "cupid_love"
   ]),
   targetId: z.string(),
-  createdAt: TimestampSchema.refine((v): v is NonNullable<typeof v> => v !== null),
+  createdAt: z.union([TimestampSchema, z.string()]).refine((v): v is NonNullable<typeof v> => v !== null),
 });
 
 export const GameEventSchema = z.object({
@@ -139,11 +138,11 @@ export const GameSchema = z.object({
   loversChatMessages: z.array(ChatMessageSchema),
   ghostChatMessages: z.array(ChatMessageSchema),
   maxPlayers: z.number(),
-  createdAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null),
-  lastActiveAt: TimestampSchema.refine((val): val is NonNullable<typeof val> => val !== null),
+  createdAt: z.union([TimestampSchema, z.string()]).refine((val): val is NonNullable<typeof val> => val !== null),
+  lastActiveAt: z.union([TimestampSchema, z.string()]).refine((val): val is NonNullable<typeof val> => val !== null),
   currentRound: z.number(),
   settings: GameSettingsSchema,
-  phaseEndsAt: TimestampSchema.nullable(),
+  phaseEndsAt: z.union([TimestampSchema, z.string()]).nullable(),
   twins: z.tuple([z.string(), z.string()]).nullable(),
   lovers: z.tuple([z.string(), z.string()]).nullable(),
   pendingHunterShot: z.string().nullable(),
