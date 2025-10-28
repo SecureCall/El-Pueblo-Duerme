@@ -148,7 +148,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
 
         if (result.error) {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
-            setIsSubmitting(false); // Only re-enable on error
+            setIsSubmitting(false);
         } else {
              toast({ title: 'Voto registrado.' });
         }

@@ -63,7 +63,6 @@ export const useGameState = (gameId: string) => {
   const [loading, setLoading] = useState<boolean>(initialState.loading);
   const [error, setError] = useState<string | null>(initialState.error);
 
-  // Effect 1: Subscribe to Firestore for state updates
   useEffect(() => {
     if (!firestore || !userId || !gameId) {
         setLoading(false);

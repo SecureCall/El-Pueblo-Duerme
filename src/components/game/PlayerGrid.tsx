@@ -39,7 +39,7 @@ export const PlayerGrid = React.memo(function PlayerGrid({
                     game={game}
                     player={player} 
                     currentPlayer={currentPlayer}
-                    onClick={onPlayerClick ? () => onPlayerClick(player) : undefined}
+                    onClick={onPlayerClick}
                     isClickable={clickable && player.isAlive && player.userId !== currentPlayer.userId}
                     isSelected={selectedPlayerIds.includes(player.userId)}
                     highlightColor={highlight?.color}
