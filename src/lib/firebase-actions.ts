@@ -1,3 +1,4 @@
+
 'use client';
 import { 
   doc,
@@ -15,7 +16,7 @@ import { FirestorePermissionError } from "@/firebase/errors";
 import { toPlainObject } from "@/lib/utils";
 import { secretObjectives } from "./objectives";
 import { getAIChatResponse } from "./ai-actions";
-import { killPlayer, checkGameOver } from "./game-logic";
+import { roleDetails } from "@/lib/roles";
 
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -877,3 +878,8 @@ export async function executeMasterAction(db: Firestore, gameId: string, actionI
         return { success: false, error: error.message };
     }
 }
+
+// Re-export logic functions
+export * from './game-logic';
+
+    
