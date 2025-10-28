@@ -17,8 +17,6 @@ import { FirestorePermissionError } from "@/firebase/errors";
 import { secretObjectives, getObjectiveLogic } from "./objectives";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { roleDetails } from "@/lib/roles";
-import { PlayerRoleEnum } from "@/types";
-
 
 const PHASE_DURATION_SECONDS = 45;
 
@@ -115,7 +113,7 @@ export async function getAIChatResponse(db: Firestore, gameId: string, aiPlayer:
             chatType,
         };
 
-        const result = await generateAIChatMessage(perspective, chatType);
+        const result = await generateAIChatMessage(perspective);
         
         if (result && result.shouldSend && result.message) {
             return result.message;
@@ -1613,5 +1611,3 @@ export async function executeMasterAction(db: Firestore, gameId: string, actionI
          return { success: false, error: error.message };
      }
 }
-
-    
