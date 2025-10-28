@@ -65,9 +65,9 @@ export const unlockAudio = () => {
     unlockAndPause(soundEffectAudio);
     audioUnlocked = true;
     
+    // Once unlocked, immediately try to play the correct music if it was set before.
     if (currentMusicSrc) setMusic(currentMusicSrc);
 };
-
 
 export const playNarration = (narrationFile: string) => {
     if (!narrationAudio || !audioUnlocked) return;
@@ -90,7 +90,7 @@ export const playNarration = (narrationFile: string) => {
 };
 
 export const playSoundEffect = (soundFile: string) => {
-    if (!soundEffectAudio || !audioUnlocked) return;
+    if (!audioUnlocked) return;
     
     // Create a new instance for each effect to allow overlaps
     const effectAudio = new Audio(soundFile);

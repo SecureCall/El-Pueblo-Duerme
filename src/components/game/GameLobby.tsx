@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Game, Player } from "@/types";
@@ -120,24 +121,24 @@ export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobby
               </div>
           </CardContent>
         </Card>
-      </div>
       
-      <PlayerGrid 
-        game={game}
-        players={players}
-        currentPlayer={currentPlayer}
-        onPlayerClick={(player) => {
-            if(player.userId === currentPlayer.userId) {
-                setIsAvatarModalOpen(true);
-            }
-        }}
-      />
+        <PlayerGrid 
+            game={game}
+            players={players}
+            currentPlayer={currentPlayer}
+            onPlayerClick={(player) => {
+                if(player.userId === currentPlayer.userId) {
+                    setIsAvatarModalOpen(true);
+                }
+            }}
+        />
 
-      {isCreator && (
-        <div className="text-center pt-4">
-          <StartGameButton game={game} playerCount={players.length} />
-        </div>
-      )}
+        {isCreator && (
+            <div className="text-center pt-4">
+            <StartGameButton game={game} playerCount={players.length} />
+            </div>
+        )}
+      </div>
     </>
   );
 }
