@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useEffect, useReducer, useRef } from 'react';
+import { useEffect, useReducer, useRef, useCallback } from 'react';
 import { 
   doc, 
   onSnapshot, 
@@ -193,3 +194,5 @@ export const useGameState = (gameId: string) => {
 
   return { ...state };
 };
+
+    
