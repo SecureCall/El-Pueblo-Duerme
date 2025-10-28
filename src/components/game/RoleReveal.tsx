@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import type { Player } from "@/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -16,6 +16,15 @@ interface RoleRevealProps {
 }
 
 export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            onAcknowledge();
+        }, 15000); // Auto-acknowledge after 15 seconds
+
+        return () => clearTimeout(timer);
+    }, [onAcknowledge]);
+
 
     if (!player.role || !player.gameId) {
         return (

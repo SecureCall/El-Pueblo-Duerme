@@ -1,4 +1,3 @@
-
 'use client';
 import { 
   doc,
@@ -856,7 +855,7 @@ export async function masterKillPlayer(db: Firestore, gameId: string, targetId: 
             transaction.update(gameRef, toPlainObject({ ...game, masterKillUsed: true }));
         });
         return { success: true };
-    } catch (error: any) {
+     } catch (error: any) {
         console.error("Error in master kill:", error);
         return { success: false, error: error.message };
     }

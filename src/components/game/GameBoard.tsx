@@ -71,9 +71,12 @@ export function GameBoard({
   const prevPhaseRef = useRef<Game['phase']>();
   const nightSoundsPlayedForRound = useRef<number>(0);
   
-  const handleAcknowledgeRole = useCallback(() => {
+  const handleAcknowledgeRole = useCallback(async () => {
     setShowRole(false);
-  }, []);
+     if (game.phase === 'role_reveal' && game.creator === currentPlayer?.userId && firestore) {
+        await processNight(firestore, game.id);
+    }
+  }, [firestore, game, currentPlayer]);
 
   const handlePhaseEnd = useCallback(async () => {
     if (!firestore || !game || !currentPlayer) return;
@@ -142,7 +145,7 @@ export function GameBoard({
              case 'role_reveal':
                  if (isCreator) {
                     const timer = setTimeout(() => {
-                       processNight(firestore, game.id);
+                       handleAcknowledgeRole();
                     }, 15000);
                     return () => clearTimeout(timer);
                  }
@@ -161,7 +164,7 @@ export function GameBoard({
     
     prevPhaseRef.current = game.phase;
 
-  }, [game?.phase, game?.currentRound, firestore, game?.id, game?.creator, game?.status, game?.players, game?.pendingHunterShot, currentPlayer, events]);
+  }, [game?.phase, game?.currentRound, firestore, game?.id, game?.creator, game?.status, game?.players, game?.pendingHunterShot, currentPlayer, events, handleAcknowledgeRole]);
 
 
   // Effect for phase timer
