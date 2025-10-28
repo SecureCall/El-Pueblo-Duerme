@@ -31,7 +31,6 @@ import { GhostSpectatorChat } from "./GhostSpectatorChat";
 import { JuryVote } from "./JuryVote";
 import { MasterActionBar, type MasterActionState } from "./MasterActionBar";
 import { useGameSession } from "@/hooks/use-game-session";
-import { useGameState } from "@/hooks/use-game-state";
 import { playNarration, playSoundEffect } from '@/lib/sounds';
 import { runAIActions, triggerAIVote, runAIHunterShot } from "@/lib/ai-actions";
 
@@ -89,7 +88,7 @@ export function GameBoard({
           await processJuryVotes(firestore, game.id);
         }
     }
-  }, [firestore, game, currentPlayer]);
+  }, [firestore, game?.id, game?.phase, game?.status, game?.creator, currentPlayer?.userId]);
 
   // Effect for handling game over state change
   useEffect(() => {
@@ -138,6 +137,14 @@ export function GameBoard({
                  if (isCreator) {
                     const pendingHunter = game.players.find(p => p.userId === game.pendingHunterShot);
                     if (pendingHunter?.isAI) runAIHunterShot(firestore, game.id, pendingHunter);
+                 }
+                break;
+             case 'role_reveal':
+                 if (isCreator) {
+                    const timer = setTimeout(() => {
+                       processNight(firestore, game.id);
+                    }, 15000);
+                    return () => clearTimeout(timer);
                  }
                 break;
         }

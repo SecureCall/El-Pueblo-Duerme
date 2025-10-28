@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import type { Player } from "@/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -9,9 +9,6 @@ import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { roleDetails, defaultRoleDetail } from "@/lib/roles";
-import { useFirebase } from "@/firebase";
-import { processNight } from '@/lib/game-logic';
-import { useGameSession } from '@/hooks/use-game-session';
 
 interface RoleRevealProps {
   player: Player;
@@ -19,8 +16,6 @@ interface RoleRevealProps {
 }
 
 export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
-    const { firestore } = useFirebase();
-    const { userId } = useGameSession();
 
     if (!player.role || !player.gameId) {
         return (
@@ -32,27 +27,6 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
 
     const details = roleDetails[player.role] ?? defaultRoleDetail;
     const bgImage = PlaceHolderImages.find((img) => img.id === details.bgImageId);
-
-    const handleAcknowledgeAndProceed = useCallback(() => {
-        onAcknowledge();
-        // The creator is responsible for kicking off the next phase
-        if (player.userId === userId && firestore) {
-            // A delay gives other players time to see their roles as well.
-            setTimeout(() => {
-                processNight(firestore, player.gameId!);
-            }, 1000); 
-        }
-    }, [onAcknowledge, player, userId, firestore]);
-    
-    // Automatic advance for everyone after a generous timeout
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            handleAcknowledgeAndProceed();
-        }, 15000);
-
-        return () => clearTimeout(timer);
-    }, [handleAcknowledgeAndProceed]);
-
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center animate-in fade-in">
@@ -95,7 +69,7 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
                 </p>
             </CardContent>
             <CardFooter>
-                <Button className="w-full text-lg" onClick={handleAcknowledgeAndProceed}>Entendido</Button>
+                <Button className="w-full text-lg" onClick={onAcknowledge}>Entendido</Button>
             </CardFooter>
         </Card>
     </div>
