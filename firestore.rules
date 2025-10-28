@@ -1,43 +1,31 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Helper function to check if a user is part of the game
+    // Helper function to check if a user is a player in the game.
     function isPlayer(gameId, userId) {
-      return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.userId == userId);
+      return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p => p.userId == userId);
     }
     
-    // Helper function to check if the user is the creator of the game
-    function isCreator(gameId, userId) {
-      return get(/databases/$(database)/documents/games/$(gameId)).data.creator == userId;
-    }
-
+    // Rules for the 'games' collection
     match /games/{gameId} {
       
-      // ANYONE can read a game document. This is necessary for players to get real-time updates.
-      // Access to sensitive information (like roles) is controlled by what's written to the document, not by read rules.
-      allow read: if true;
-
-      // CREATE: Anyone authenticated can create a new game document.
+      // ANYONE can CREATE a game.
       allow create: if request.auth != null;
 
-      // UPDATE: A user can update a game document if:
-      // 1. They are the creator of the game (for starting the game, etc.).
-      // 2. They are a player already in the game (for voting, performing actions).
-      // 3. They are not yet a player, but are joining a 'waiting' game that is not full.
-      // 4. They are not yet a player, but the game has 0 players (initial join by creator).
-      allow update: if request.auth != null && 
-                      (isCreator(gameId, request.auth.uid) ||
-                       isPlayer(gameId, request.auth.uid) ||
-                       (resource.data.status == 'waiting' && 
-                        resource.data.players.size() < resource.data.maxPlayers &&
-                        !isPlayer(gameId, request.auth.uid)) ||
-                        (resource.data.players.size() == 0 &&
-                        !isPlayer(gameId, request.auth.uid))
-                      );
+      // A player can GET a game if they are a player in it OR if the game is public.
+      allow get: if request.auth != null && (isPlayer(gameId, request.auth.uid) || resource.data.settings.isPublic == true);
 
-      // DELETE: No one can delete a game document. Games should be archived or marked as 'deleted' if needed.
+      // A player can UPDATE a game if they are a player in it.
+      // This covers joining, leaving, voting, and other in-game actions.
+      allow update: if request.auth != null && isPlayer(gameId, request.auth.uid);
+      
+      // Users can LIST public games that are in the "waiting" status.
+      // This is crucial for the "Public Rooms" feature.
+      allow list: if request.auth != null && resource.data.settings.isPublic == true;
+      
+      // No one can delete a game document directly. Deletion should be handled by a server-side process if needed.
       allow delete: if false;
     }
   }
