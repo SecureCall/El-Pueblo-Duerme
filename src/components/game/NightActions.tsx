@@ -10,7 +10,6 @@ import { useToast } from '@/hooks/use-toast';
 import { submitNightAction, getSeerResult } from '@/lib/firebase-actions';
 import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, BotIcon, Eye, Wand2, UserX } from 'lucide-react';
 import { SeerResult } from './SeerResult';
-import { useNightActions } from '@/hooks/use-night-actions';
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { useFirebase } from '@/firebase';
@@ -37,7 +36,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
     
     const { toast } = useToast();
-    const { hasSubmitted } = useNightActions(game.id, game.currentRound, currentPlayer.userId);
+    const hasSubmitted = !!currentPlayer.usedNightAbility;
 
     const isExecutioner = currentPlayer.role === 'executioner';
     const isCupidFirstNight = currentPlayer.role === 'cupid' && game.currentRound === 1;
@@ -437,5 +436,3 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         </Card>
     );
 }
-
-    
