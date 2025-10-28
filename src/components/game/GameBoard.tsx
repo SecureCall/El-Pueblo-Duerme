@@ -25,7 +25,6 @@ import { GameChat } from "./GameChat";
 import { TwinChat } from "./TwinChat";
 import { FairyChat } from "./FairyChat";
 import { VampireKillOverlay } from "./VampireKillOverlay";
-import { useGameState } from "@/hooks/use-game-state";
 import { LoversChat } from "./LoversChat";
 import { getMillis } from "@/lib/utils";
 import { GhostSpectatorChat } from "./GhostSpectatorChat";
@@ -35,14 +34,31 @@ import { useGameSession } from "@/hooks/use-game-session";
 
 interface GameBoardProps {
   game: Game;
+  players: Player[];
+  currentPlayer: Player;
+  events: GameEvent[];
+  messages: ChatMessage[];
+  wolfMessages: ChatMessage[];
+  fairyMessages: ChatMessage[];
+  twinMessages: ChatMessage[];
+  loversMessages: ChatMessage[];
+  ghostMessages: ChatMessage[];
 }
 
 export function GameBoard({ 
-    game: initialGame, 
+    game, 
+    players, 
+    currentPlayer, 
+    events, 
+    messages, 
+    wolfMessages, 
+    fairyMessages, 
+    twinMessages, 
+    loversMessages, 
+    ghostMessages 
 }: GameBoardProps) {
   const { firestore } = useFirebase();
   const { updateStats } = useGameSession();
-  const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages } = useGameState(initialGame.id);
   
   const prevPhaseRef = useRef<Game['phase']>();
   const [showRole, setShowRole] = useState(true);
@@ -71,10 +87,9 @@ export function GameBoard({
     
     if (prevPhaseRef.current !== 'finished' && game.status === 'finished') {
        const gameOverEvent = events.find(e => e.type === 'game_over');
-       const myPlayer = players.find(p => p.userId === currentPlayer.userId);
-       if (gameOverEvent?.data?.winners && myPlayer) {
-          const isWinner = gameOverEvent.data.winners.some((p: Player) => p.userId === myPlayer.userId);
-          updateStats(isWinner, myPlayer, game);
+       if (gameOverEvent?.data?.winners && currentPlayer) {
+          const isWinner = gameOverEvent.data.winners.some((p: Player) => p.userId === currentPlayer.userId);
+          updateStats(isWinner, currentPlayer, game);
        }
     }
     prevPhaseRef.current = game.status === 'finished' ? 'finished' : game.phase;
@@ -390,3 +405,5 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
+
+    

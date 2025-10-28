@@ -93,7 +93,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 export const useGameState = (gameId: string) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const { firestore } = useFirebase();
-  const { userId, isSessionLoaded, updateStats } = useGameSession();
+  const { userId, isSessionLoaded } = useGameSession();
   const gameRef = useRef(firestore ? doc(firestore, 'games', gameId) : null);
   const prevPhaseRef = useRef<Game['phase']>();
   const nightSoundsPlayedForRound = useRef<number>(0);
@@ -136,15 +136,6 @@ export const useGameState = (gameId: string) => {
     const prevPhase = prevPhaseRef.current;
     const { game, currentPlayer, events, players } = state;
     
-    if (prevPhase !== 'finished' && game.status === 'finished') {
-      const gameOverEvent = events.find(e => e.type === 'game_over');
-      if (gameOverEvent?.data?.winners && currentPlayer) {
-         const isWinner = gameOverEvent.data.winners.some((p: Player) => p.userId === currentPlayer.userId);
-         updateStats(isWinner, currentPlayer, game);
-      }
-    }
-
-
     if (prevPhase !== game.phase) {
       switch (game.phase) {
         case 'night':
@@ -183,7 +174,6 @@ export const useGameState = (gameId: string) => {
     if (game.phase === 'role_reveal' && game.creator === currentPlayer?.userId && game.status === 'in_progress') {
         const timer = setTimeout(() => {
             if (firestore) { // Ensure firestore is available
-                // This is now the ONLY place this transition logic lives on the client.
                 processNight(firestore, game.id); 
             }
         }, 15000); // 15 seconds to read role
@@ -210,3 +200,5 @@ export const useGameState = (gameId: string) => {
 
   return { ...state };
 };
+
+    
