@@ -314,7 +314,7 @@ export const getDeterministicAIAction = (
 // GAME LOGIC
 // ===============================================================================================
 
-export async function killPlayer(transaction: Transaction, gameRef: doc, gameData: Game, playerIdToKill: string | null, cause: GameEvent['type']): Promise<{ updatedGame: Game; triggeredHunterId: string | null; }> {
+async function killPlayer(transaction: Transaction, gameRef: doc, gameData: Game, playerIdToKill: string | null, cause: GameEvent['type']): Promise<{ updatedGame: Game; triggeredHunterId: string | null; }> {
     let newGameData = { ...gameData };
     let triggeredHunterId: string | null = null;
     
@@ -420,7 +420,7 @@ export async function killPlayer(transaction: Transaction, gameRef: doc, gameDat
 }
 
 
-export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | null): Promise<{ isGameOver: boolean; message: string; winnerCode?: string; winners: Player[] }> {
+async function checkGameOver(gameData: Game, lynchedPlayer?: Player | null): Promise<{ isGameOver: boolean; message: string; winnerCode?: string; winners: Player[] }> {
     if (gameData.status === 'finished') {
         const lastEvent = gameData.events.find(e => e.type === 'game_over');
         return { isGameOver: true, message: lastEvent?.message || "La partida ha terminado.", winnerCode: lastEvent?.data?.winnerCode, winners: lastEvent?.data?.winners || [] };
@@ -572,7 +572,7 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
 }
 
 
-export async function processNight(db: Firestore, gameId: string) {
+async function processNight(db: Firestore, gameId: string) {
   const gameRef = doc(db, 'games', gameId);
   try {
     await runTransaction(db, async (transaction) => {
@@ -582,10 +582,10 @@ export async function processNight(db: Firestore, gameId: string) {
       if (game.phase !== 'night' && game.phase !== 'role_reveal') return;
 
        const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
-        transaction.update(gameRef, {
+        transaction.update(gameRef, toPlainObject({
             phase: 'day',
-            phaseEndsAt: phaseEndsAt
-        });
+            phaseEndsAt
+        }));
     });
     return { success: true };
   } catch (error: any) {
@@ -594,7 +594,7 @@ export async function processNight(db: Firestore, gameId: string) {
   }
 }
 
-export async function processVotes(db: Firestore, gameId: string) {
+async function processVotes(db: Firestore, gameId: string) {
   const gameRef = doc(db, 'games', gameId);
   try {
     await runTransaction(db, async (transaction) => {
@@ -604,11 +604,11 @@ export async function processVotes(db: Firestore, gameId: string) {
       if (game.phase !== 'day') return;
 
       const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
-        transaction.update(gameRef, {
+        transaction.update(gameRef, toPlainObject({
             phase: 'night',
             currentRound: game.currentRound + 1,
-            phaseEndsAt: phaseEndsAt
-        });
+            phaseEndsAt
+        }));
     });
     return { success: true };
   } catch (error: any) {
@@ -617,7 +617,7 @@ export async function processVotes(db: Firestore, gameId: string) {
   }
 }
 
-export async function processJuryVotes(db: Firestore, gameId: string) {
+async function processJuryVotes(db: Firestore, gameId: string) {
      const gameRef = doc(db, 'games', gameId);
       try {
         await runTransaction(db, async (transaction) => {
@@ -658,11 +658,11 @@ export async function processJuryVotes(db: Firestore, gameId: string) {
             });
             const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
             
-            transaction.update(gameRef, {
-                players: toPlainObject(game.players), events: toPlainObject(game.events), phase: 'night', phaseEndsAt: toPlainObject(phaseEndsAt),
+            transaction.update(gameRef, toPlainObject({
+                players: game.players, events: game.events, phase: 'night', phaseEndsAt,
                 currentRound: newRound, pendingHunterShot: null, silencedPlayerId: null,
                 exiledPlayerId: null, juryVotes: {}
-            });
+            }));
         });
         return { success: true };
       } catch (error: any) {
@@ -676,6 +676,46 @@ export async function processJuryVotes(db: Firestore, gameId: string) {
 // FIREBASE ACTIONS
 // ===============================================================================================
 
+function generateGameId(length = 5) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+const createPlayerObject = (userId: string, gameId: string, displayName: string, avatarUrl: string, isAI: boolean = false): Player => ({
+    userId,
+    gameId,
+    displayName: displayName.trim(),
+    avatarUrl,
+    role: null,
+    isAlive: true,
+    votedFor: null,
+    joinedAt: Timestamp.now(),
+    isAI,
+    lastHealedRound: 0,
+    potions: { poison: null, save: null },
+    priestSelfHealUsed: false,
+    princeRevealed: false,
+    guardianSelfProtects: 0,
+    biteCount: 0,
+    isCultMember: false,
+    isLover: false,
+    usedNightAbility: false,
+    shapeshifterTargetId: null,
+    virginiaWoolfTargetId: null,
+    riverSirenTargetId: null,
+    ghostMessageSent: false,
+    resurrectorAngelUsed: false,
+    bansheeScreams: {},
+    lookoutUsed: false,
+    executionerTargetId: null,
+    secretObjectiveId: null,
+});
+
+
 export async function createGame(
   db: Firestore,
   userId: string,
@@ -685,11 +725,12 @@ export async function createGame(
   maxPlayers: number,
   settings: Game['settings']
 ) {
-  if (typeof displayName !== 'string' || typeof gameName !== 'string' || !displayName.trim() || !gameName.trim()) {
-      return { error: "El nombre del jugador y de la partida no pueden estar vacíos." };
+  // Defensive type checking
+  if (typeof displayName !== 'string' || typeof gameName !== 'string') {
+      return { error: "El nombre del jugador y de la partida deben ser texto." };
   }
-  if (!userId) {
-    return { error: "ID de usuario no válido." };
+  if (!userId || !displayName.trim() || !gameName.trim()) {
+    return { error: "Datos incompletos para crear la partida." };
   }
   if (maxPlayers < 3 || maxPlayers > 32) {
     return { error: "El número de jugadores debe ser entre 3 y 32." };
@@ -860,6 +901,53 @@ export async function updatePlayerAvatar(db: Firestore, gameId: string, userId: 
         return { success: false, error: error.message };
     }
 }
+const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
+    let baseRoles: PlayerRole[] = [];
+    const numWerewolves = Math.max(1, Math.floor(playerCount / 4));
+    
+    for (let i = 0; i < numWerewolves; i++) {
+        baseRoles.push('werewolf');
+    }
+    
+    while (baseRoles.length < playerCount) {
+        baseRoles.push('villager');
+    }
+
+    const availableSpecialRoles: PlayerRole[] = (Object.keys(settings) as Array<keyof typeof settings>)
+        .filter(key => {
+            const roleKey = key as PlayerRole;
+            return settings[key] === true && roleKey !== 'werewolves' && roleKey !== 'fillWithAI' && roleKey !== 'isPublic' && roleKey !== 'juryVoting';
+        })
+        .sort(() => Math.random() - 0.5) as PlayerRole[];
+
+    let finalRoles = [...baseRoles];
+    let villagerIndices = finalRoles.map((role, index) => role === 'villager' ? index : -1).filter(index => index !== -1);
+
+    for (const specialRole of availableSpecialRoles) {
+        if (!specialRole) continue;
+
+        if (specialRole === 'twin') {
+            if (villagerIndices.length >= 2) {
+                const idx1 = villagerIndices.pop()!;
+                const idx2 = villagerIndices.pop()!;
+                finalRoles[idx1] = 'twin';
+                finalRoles[idx2] = 'twin';
+            }
+        } else {
+            if (villagerIndices.length > 0) {
+                const idx = villagerIndices.pop()!;
+                finalRoles[idx] = specialRole;
+            }
+        }
+    }
+    
+    return finalRoles.sort(() => Math.random() - 0.5);
+};
+
+
+const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
+const MINIMUM_PLAYERS = 3;
+
 export async function startGame(db: Firestore, gameId: string, creatorId: string) {
     const gameRef = doc(db, 'games', gameId);
     
@@ -1325,16 +1413,16 @@ export async function resetGame(db: Firestore, gameId: string) {
                 return newPlayer;
             });
 
-            transaction.update(gameRef, {
+            transaction.update(gameRef, toPlainObject({
                 status: 'waiting', phase: 'waiting', currentRound: 0,
                 events: [], chatMessages: [], wolfChatMessages: [], fairyChatMessages: [],
                 twinChatMessages: [], loversChatMessages: [], ghostChatMessages: [], nightActions: [],
-                twins: null, lovers: null, phaseEndsAt: toPlainObject(Timestamp.now()), pendingHunterShot: null,
-                wolfCubRevengeRound: 0, players: toPlainObject(resetHumanPlayers), vampireKills: 0, boat: [],
+                twins: null, lovers: null, phaseEndsAt: Timestamp.now(), pendingHunterShot: null,
+                wolfCubRevengeRound: 0, players: resetHumanPlayers, vampireKills: 0, boat: [],
                 leprosaBlockedRound: 0, witchFoundSeer: false, seerDied: false,
                 silencedPlayerId: null, exiledPlayerId: null, troublemakerUsed: false,
                 fairiesFound: false, fairyKillUsed: false,
-            });
+            }));
         });
         return { success: true };
     } catch (e: any) {

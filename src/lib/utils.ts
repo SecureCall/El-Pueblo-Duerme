@@ -6,35 +6,38 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function toPlainObject<T>(obj: T): T {
-    if (obj === undefined) {
-        return null as any;
+export function toPlainObject<T>(obj: T): any {
+    if (obj === undefined || obj === null) {
+        return null;
     }
-    if (obj === null || typeof obj !== 'object') {
+    // Most specific check first: Firestore Timestamps
+    if (obj instanceof Timestamp) {
+        return obj.toDate();
+    }
+    // Then check for standard Date objects
+    if (obj instanceof Date) {
         return obj;
     }
-    if (obj instanceof Timestamp) {
-        // CONVERT TIMESTAMP TO JAVASCRIPT DATE OBJECT
-        return obj.toDate() as any; 
-    }
-    if (obj instanceof Date) {
-        return obj as any;
-    }
     if (Array.isArray(obj)) {
-        return obj.map(item => toPlainObject(item)) as any;
+        return obj.map(item => toPlainObject(item));
     }
-    
-    const newObj: { [key: string]: any } = {};
-    for (const key in obj) {
-        if (Object.prototype.hasOwnProperty.call(obj, key)) {
-            const value = (obj as any)[key];
-             if (value !== undefined) {
-                newObj[key] = toPlainObject(value);
+    if (typeof obj === 'object') {
+        const newObj: { [key: string]: any } = {};
+        for (const key in obj) {
+            if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                const value = (obj as any)[key];
+                // Recursively convert nested properties, excluding undefined
+                if (value !== undefined) {
+                    newObj[key] = toPlainObject(value);
+                }
             }
         }
+        return newObj;
     }
-    return newObj as T;
+    // Return primitives and other types as-is
+    return obj;
 }
+
 
 export const getMillis = (timestamp: any): number => {
     if (!timestamp) return 0;
