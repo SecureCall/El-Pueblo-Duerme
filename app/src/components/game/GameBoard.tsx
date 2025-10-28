@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -79,7 +80,6 @@ export function GameBoard({
     if (!firestore || !game || !currentPlayer) return;
     if (game.status === 'finished') return;
     
-    // Only the creator triggers the automatic phase progression
     if (game.creator === currentPlayer.userId) {
         if (game.phase === 'day') {
           await processVotes(firestore, game.id);
@@ -91,7 +91,6 @@ export function GameBoard({
     }
   }, [firestore, game?.id, game?.phase, game?.status, game?.creator, currentPlayer?.userId]);
 
-  // Effect for handling game over state change
   useEffect(() => {
     if (!game || !currentPlayer) return;
     
@@ -106,7 +105,6 @@ export function GameBoard({
   }, [game?.status, events, currentPlayer, game, updateStats]);
 
 
-  // Effect for side effects like sounds and AI actions
   useEffect(() => {
     if (!game || !currentPlayer || !firestore || game.status === 'finished') return;
 
@@ -140,6 +138,14 @@ export function GameBoard({
                     if (pendingHunter?.isAI) runAIHunterShot(firestore, game.id, pendingHunter);
                  }
                 break;
+             case 'role_reveal':
+                 if (isCreator) {
+                    const timer = setTimeout(() => {
+                       handleAcknowledgeRole();
+                    }, 15000);
+                    return () => clearTimeout(timer);
+                 }
+                break;
         }
     }
     
@@ -154,10 +160,9 @@ export function GameBoard({
     
     prevPhaseRef.current = game.phase;
 
-  }, [game?.phase, game?.currentRound, firestore, game?.id, game?.creator, game?.status, game?.players, game?.pendingHunterShot, currentPlayer, events]);
+  }, [game?.phase, game?.currentRound, firestore, game?.id, game?.creator, game?.status, game?.players, game?.pendingHunterShot, currentPlayer, events, handleAcknowledgeRole]);
 
 
-  // Effect for phase timer
   useEffect(() => {
     if (!game?.phaseEndsAt || game.status === 'finished') {
       setTimeLeft(0);
@@ -499,3 +504,4 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
     </div>
   );
 }
+
