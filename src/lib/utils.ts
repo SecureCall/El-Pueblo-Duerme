@@ -6,6 +6,33 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function toPlainObject<T>(obj: T): T {
+    if (obj === undefined || obj === null) {
+        return obj;
+    }
+    if (obj instanceof Timestamp) {
+        return obj.toDate().toISOString() as any;
+    }
+    if (obj instanceof Date) {
+        return obj.toISOString() as any;
+    }
+    if (Array.isArray(obj)) {
+        return obj.map(item => toPlainObject(item)) as any;
+    }
+    if (typeof obj === 'object') {
+        const newObj: { [key: string]: any } = {};
+        for (const key in obj) {
+            if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                const value = (obj as any)[key];
+                newObj[key] = toPlainObject(value);
+            }
+        }
+        return newObj as T;
+    }
+    return obj;
+}
+
+
 export const getMillis = (timestamp: any): number => {
     if (!timestamp) return 0;
 
@@ -31,3 +58,5 @@ export const getMillis = (timestamp: any): number => {
     console.warn("Could not convert timestamp to milliseconds:", timestamp);
     return 0;
 };
+
+    

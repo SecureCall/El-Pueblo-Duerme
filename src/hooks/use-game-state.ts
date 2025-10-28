@@ -14,7 +14,7 @@ import { useFirebase } from '@/firebase';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useGameSession } from './use-game-session';
-import { getMillis } from '@/lib/utils';
+import { getMillis, toPlainObject } from '@/lib/utils';
 
 interface GameState {
     game: Game | null;
@@ -66,7 +66,8 @@ export const useGameState = (gameId: string) => {
 
     const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
-        const gameData = { ...snapshot.data() as Game, id: snapshot.id };
+        const gameData = toPlainObject({ ...snapshot.data() as Game, id: snapshot.id });
+        
         const sortedPlayers = [...gameData.players].sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
         
         setState({
@@ -100,3 +101,5 @@ export const useGameState = (gameId: string) => {
 
   return state;
 };
+
+    
