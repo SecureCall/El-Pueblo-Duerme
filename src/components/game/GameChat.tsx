@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { playSoundEffect } from '@/lib/sounds';
-import type { Timestamp } from 'firebase/firestore';
+import { getMillis } from '@/lib/utils';
 
 interface GameChatProps {
     game: Game;
@@ -107,18 +107,6 @@ export function GameChat({ game, gameId, currentPlayer, messages, players }: Gam
     const isSilenced = game?.silencedPlayerId === currentPlayer.userId;
     const canChat = currentPlayer.isAlive && !isSilenced;
     
-    const getDateFromTimestamp = (timestamp: Timestamp | { seconds: number; nanoseconds: number; } | string) => {
-        if (!timestamp) return new Date();
-        if (typeof timestamp === 'string') {
-            return new Date(timestamp);
-        }
-        if ('toDate' in timestamp && typeof timestamp.toDate === 'function') {
-            return timestamp.toDate();
-        }
-        // It's a plain object from JSON serialization
-        return new Date(timestamp.seconds * 1000);
-    }
-
     return (
         <Card className="bg-card/80 flex flex-col h-full">
             <CardHeader>
@@ -151,7 +139,7 @@ export function GameChat({ game, gameId, currentPlayer, messages, players }: Gam
                                         <p className="text-base break-words">{msg.text}</p>
                                     </div>
                                     <p className="text-xs text-muted-foreground mt-1">
-                                        {formatDistanceToNow(getDateFromTimestamp(msg.createdAt), { addSuffix: true, locale: es })}
+                                        {formatDistanceToNow(new Date(getMillis(msg.createdAt)), { addSuffix: true, locale: es })}
                                     </p>
                                 </div>
                             )})
@@ -203,5 +191,3 @@ export function GameChat({ game, gameId, currentPlayer, messages, players }: Gam
         </Card>
     );
 }
-
-    

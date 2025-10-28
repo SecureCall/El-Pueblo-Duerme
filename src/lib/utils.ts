@@ -12,11 +12,11 @@ export function toPlainObject<T>(obj: T): any {
     }
     // Most specific check first: Firestore Timestamps
     if (obj instanceof Timestamp) {
-        return obj.toDate();
+        return obj.toDate().toISOString();
     }
     // Then check for standard Date objects
     if (obj instanceof Date) {
-        return obj;
+        return obj.toISOString();
     }
     if (Array.isArray(obj)) {
         return obj.map(item => toPlainObject(item));
@@ -49,6 +49,7 @@ export const getMillis = (timestamp: any): number => {
         return timestamp.toMillis();
     }
     if (typeof timestamp === 'object' && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
+        // This is a plain object representation of a Firestore Timestamp
         return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
     }
     if (typeof timestamp === 'string') {

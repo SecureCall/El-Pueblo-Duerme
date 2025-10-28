@@ -658,11 +658,11 @@ async function processJuryVotes(db: Firestore, gameId: string) {
             });
             const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
             
-            transaction.update(gameRef, toPlainObject({
+            transaction.update(gameRef, {
                 players: game.players, events: game.events, phase: 'night', phaseEndsAt,
                 currentRound: newRound, pendingHunterShot: null, silencedPlayerId: null,
                 exiledPlayerId: null, juryVotes: {}
-            }));
+            });
         });
         return { success: true };
       } catch (error: any) {
@@ -1266,7 +1266,8 @@ export async function sendChatMessage(
     gameId: string,
     senderId: string,
     senderName: string,
-    text: string
+    text: string,
+    isFromAI: boolean = false
 ) {
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
@@ -1413,16 +1414,16 @@ export async function resetGame(db: Firestore, gameId: string) {
                 return newPlayer;
             });
 
-            transaction.update(gameRef, toPlainObject({
+            transaction.update(gameRef, {
                 status: 'waiting', phase: 'waiting', currentRound: 0,
                 events: [], chatMessages: [], wolfChatMessages: [], fairyChatMessages: [],
                 twinChatMessages: [], loversChatMessages: [], ghostChatMessages: [], nightActions: [],
                 twins: null, lovers: null, phaseEndsAt: Timestamp.now(), pendingHunterShot: null,
-                wolfCubRevengeRound: 0, players: resetHumanPlayers, vampireKills: 0, boat: [],
+                wolfCubRevengeRound: 0, players: toPlainObject(resetHumanPlayers), vampireKills: 0, boat: [],
                 leprosaBlockedRound: 0, witchFoundSeer: false, seerDied: false,
                 silencedPlayerId: null, exiledPlayerId: null, troublemakerUsed: false,
                 fairiesFound: false, fairyKillUsed: false,
-            }));
+            });
         });
         return { success: true };
     } catch (e: any) {

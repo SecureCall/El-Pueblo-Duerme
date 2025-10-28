@@ -17,7 +17,6 @@ import { ScrollText, SunIcon, MoonIcon, Swords, Milestone, Repeat, BrainCircuit,
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getMillis } from '@/lib/utils';
-import type { Timestamp } from 'firebase/firestore';
 
 interface GameChronicleProps {
   currentPlayerId: string;
@@ -55,18 +54,6 @@ export function GameChronicle({ events, currentPlayerId }: GameChronicleProps) {
       return true; // Show all other event types
   }); 
 
-  const getDateFromTimestamp = (timestamp: Timestamp | { seconds: number; nanoseconds: number; } | string) => {
-    if (!timestamp) return new Date();
-    if (typeof timestamp === 'string') {
-        return new Date(timestamp);
-    }
-    if ('toDate' in timestamp && typeof timestamp.toDate === 'function') {
-        return timestamp.toDate();
-    }
-    // It's a plain object from JSON serialization
-    return new Date(timestamp.seconds * 1000);
-  }
-
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -90,7 +77,7 @@ export function GameChronicle({ events, currentPlayerId }: GameChronicleProps) {
                 <div className="flex-1">
                   <p className="text-sm text-foreground">{event.message}</p>
                   <p className="text-xs text-muted-foreground">
-                    {`Ronda ${event.round} - ${event.createdAt ? formatDistanceToNow(getDateFromTimestamp(event.createdAt), { addSuffix: true, locale: es }) : ''}`}
+                    {`Ronda ${event.round} - ${event.createdAt ? formatDistanceToNow(new Date(getMillis(event.createdAt)), { addSuffix: true, locale: es }) : ''}`}
                   </p>
                 </div>
               </div>

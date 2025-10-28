@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { Timestamp } from 'firebase/firestore';
+import { getMillis } from '@/lib/utils';
 
 interface TwinChatProps {
     gameId: string;
@@ -49,17 +49,6 @@ export function TwinChat({ gameId, currentPlayer, messages }: TwinChatProps) {
             });
         }
     };
-    
-    const getDateFromTimestamp = (timestamp: Timestamp | { seconds: number; nanoseconds: number; } | string) => {
-        if (!timestamp) return new Date();
-        if (typeof timestamp === 'string') {
-            return new Date(timestamp);
-        }
-        if ('toDate' in timestamp && typeof timestamp.toDate === 'function') {
-            return timestamp.toDate();
-        }
-        return new Date(timestamp.seconds * 1000);
-    }
 
     return (
         <Card className="bg-blue-900/20 border-blue-400/40 flex flex-col h-full max-h-80">
@@ -90,7 +79,7 @@ export function TwinChat({ gameId, currentPlayer, messages }: TwinChatProps) {
                                         <p className="text-base break-words">{msg.text}</p>
                                     </div>
                                     <p className="text-xs text-muted-foreground mt-1">
-                                        {formatDistanceToNow(getDateFromTimestamp(msg.createdAt), { addSuffix: true, locale: es })}
+                                        {formatDistanceToNow(new Date(getMillis(msg.createdAt)), { addSuffix: true, locale: es })}
                                     </p>
                                 </div>
                             )})

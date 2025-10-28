@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { Timestamp } from 'firebase/firestore';
+import { getMillis } from '@/lib/utils';
 
 interface GhostSpectatorChatProps {
     gameId: string;
@@ -49,17 +49,6 @@ export function GhostSpectatorChat({ gameId, currentPlayer, messages }: GhostSpe
         }
     };
     
-    const getDateFromTimestamp = (timestamp: Timestamp | { seconds: number; nanoseconds: number; } | string) => {
-        if (!timestamp) return new Date();
-        if (typeof timestamp === 'string') {
-            return new Date(timestamp);
-        }
-        if ('toDate' in timestamp && typeof timestamp.toDate === 'function') {
-            return timestamp.toDate();
-        }
-        return new Date(timestamp.seconds * 1000);
-    }
-
     return (
         <Card className="bg-blue-900/10 border-blue-400/30 flex flex-col h-full max-h-96">
             <CardHeader className='pb-2'>
@@ -89,7 +78,7 @@ export function GhostSpectatorChat({ gameId, currentPlayer, messages }: GhostSpe
                                         <p className="text-base break-words">{msg.text}</p>
                                     </div>
                                     <p className="text-xs text-muted-foreground mt-1">
-                                        {formatDistanceToNow(getDateFromTimestamp(msg.createdAt), { addSuffix: true, locale: es })}
+                                        {formatDistanceToNow(new Date(getMillis(msg.createdAt)), { addSuffix: true, locale: es })}
                                     </p>
                                 </div>
                             )})
