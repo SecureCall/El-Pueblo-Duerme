@@ -74,7 +74,7 @@ export function GameBoard({
      if (game.phase === 'role_reveal' && game.creator === currentPlayer?.userId && firestore) {
         await processNight(firestore, game.id);
     }
-  }, [firestore, game, currentPlayer]);
+  }, [firestore, game.id, game.phase, game.creator, currentPlayer?.userId]);
 
   const handlePhaseEnd = useCallback(async () => {
     if (!firestore || !game || !currentPlayer) return;

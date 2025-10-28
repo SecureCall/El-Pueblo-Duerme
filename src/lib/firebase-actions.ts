@@ -1,4 +1,3 @@
-
 'use server';
 import { 
   doc,
@@ -15,9 +14,11 @@ import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { toPlainObject } from "@/lib/utils";
 import { secretObjectives } from "./objectives";
-import { getAIChatResponse, getDeterministicAIAction } from "./ai-actions";
+import { getAIChatResponse } from "./ai-actions";
 import { roleDetails } from "@/lib/roles";
-import { killPlayer, checkGameOver, processNight, processVotes } from "./game-logic";
+import { killPlayer, checkGameOver, processNight as processNightLogic, processVotes as processVotesLogic, processJuryVotes as processJuryVotesLogic } from "./game-logic";
+
+const PHASE_DURATION_SECONDS = 45;
 
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -566,7 +567,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             const newRound = nextPhase === 'night' ? currentRound + 1 : currentRound;
 
             game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; });
-            const phaseEndsAt = Timestamp.fromMillis(Date.now() + 45 * 1000);
+            const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
             
             transaction.update(gameRef, toPlainObject({
                 players: game.players, events: game.events, phase: nextPhase, phaseEndsAt,
@@ -762,11 +763,11 @@ async function sendSpecialChatMessage(
     }
 }
 
-export const sendWolfChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'wolf');
-export const sendFairyChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'fairy');
-export const sendLoversChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'lovers');
-export const sendTwinChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'twin');
-export const sendGhostChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'ghost');
+export async function sendWolfChatMessage(db: Firestore, gameId: string, senderId: string, senderName: string, text: string) { return sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'wolf'); }
+export async function sendFairyChatMessage(db: Firestore, gameId: string, senderId: string, senderName: string, text: string) { return sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'fairy'); }
+export async function sendLoversChatMessage(db: Firestore, gameId: string, senderId: string, senderName: string, text: string) { return sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'lovers'); }
+export async function sendTwinChatMessage(db: Firestore, gameId: string, senderId: string, senderName: string, text: string) { return sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'twin'); }
+export async function sendGhostChatMessage(db: Firestore, gameId: string, senderId: string, senderName: string, text: string) { return sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'ghost'); }
 
 
 export async function resetGame(db: Firestore, gameId: string) {
@@ -980,5 +981,37 @@ export async function executeMasterAction(db: Firestore, gameId: string, actionI
     }
 }
 
+export async function processNight(db: Firestore, gameId: string) {
+    const gameRef = doc(db, 'games', gameId);
+    try {
+        await runTransaction(db, (transaction) => processNightLogic(transaction, gameRef));
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error in processNight transaction:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function processVotes(db: Firestore, gameId: string) {
+    const gameRef = doc(db, 'games', gameId);
+    try {
+        await runTransaction(db, (transaction) => processVotesLogic(transaction, gameRef));
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error in processVotes transaction:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function processJuryVotes(db: Firestore, gameId: string) {
+    const gameRef = doc(db, 'games', gameId);
+    try {
+        await runTransaction(db, (transaction) => processJuryVotesLogic(transaction, gameRef));
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error in processJuryVotes transaction:", error);
+        return { success: false, error: error.message };
+    }
+}
+
 export { runAIActions, triggerAIVote, runAIHunterShot } from './ai-actions';
-export { processNight, processVotes, processJuryVotes } from './game-logic';

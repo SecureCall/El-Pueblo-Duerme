@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -118,11 +119,11 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             return;
         }
          if (isCultLeader && player.isCultMember) {
-            toast({ description: `${''}` });
+            toast({ description: `${player.displayName} ya es parte de tu culto.` });
             return;
         }
         if (isFisherman && game.boat?.includes(player.userId)) {
-            toast({ description: `${''}` });
+            toast({ description: `${player.displayName} ya está en tu barco.` });
             return;
         }
 
@@ -180,7 +181,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     const handleSubmit = async () => {
         if (!firestore) return;
         if (selectedPlayerIds.length !== selectionLimit && !isLookout && currentPlayer.role !== 'sleeping_fairy') {
-            toast({ variant: 'destructive', title: `Debes seleccionar ${''}` });
+            toast({ variant: 'destructive', title: `Debes seleccionar ${selectionLimit} jugador(es).` });
             return;
         }
 
@@ -256,7 +257,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             case 'resurrector_angel': return isResurrectorAngel ? 'Elige a un jugador muerto para devolverle la vida. Solo puedes usar este poder una vez.' : 'Ya has usado tu poder de resurrección.';
             case 'executioner':
                  const target = players.find(p => p.userId === currentPlayer.executionerTargetId);
-                 return target ? `Tu objetivo es que el pueblo linche a ${''}.` : 'Se te está asignando un objetivo...';
+                 return target ? `Tu objetivo es que el pueblo linche a ${target.displayName}.` : 'Se te está asignando un objetivo...';
             default: return 'No tienes acciones esta noche. Espera al amanecer.';
         }
     }
