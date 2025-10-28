@@ -8,24 +8,36 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export const getMillis = (timestamp: any): number => {
-  if (!timestamp) return 0;
-  if (timestamp instanceof Timestamp) {
-    return timestamp.toMillis();
-  }
-  if (typeof timestamp === 'object' && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
-    return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
-  }
-  if (timestamp instanceof Date) {
-      return timestamp.getTime();
-  }
-  if (typeof timestamp === 'string') {
-      const date = new Date(timestamp);
-      if (!isNaN(date.getTime())) {
-          return date.getTime();
-      }
-  }
-  return 0;
+    if (!timestamp) return 0;
+
+    // Handle Firebase Timestamp object
+    if (timestamp instanceof Timestamp) {
+        return timestamp.toMillis();
+    }
+    // Handle serialized Firebase Timestamp object (from server)
+    if (typeof timestamp === 'object' && timestamp !== null && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
+        return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
+    }
+    // Handle Date object
+    if (timestamp instanceof Date) {
+        return timestamp.getTime();
+    }
+    // Handle ISO string
+    if (typeof timestamp === 'string') {
+        const date = new Date(timestamp);
+        if (!isNaN(date.getTime())) {
+            return date.getTime();
+        }
+    }
+    // Handle number (already in milliseconds)
+    if (typeof timestamp === 'number') {
+        return timestamp;
+    }
+    
+    console.warn("Could not convert timestamp to milliseconds:", timestamp);
+    return 0;
 };
+
 
 export function toPlainObject<T>(obj: T): T {
     if (obj === undefined) {
@@ -60,3 +72,5 @@ export function toPlainObject<T>(obj: T): T {
     }
     return newObj as T;
 }
+
+    

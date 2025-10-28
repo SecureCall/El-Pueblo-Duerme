@@ -121,7 +121,7 @@ export function GameBoard({
   
   
   useEffect(() => {
-    if (!game?.phaseEndsAt || !firestore || game.status === 'finished') {
+    if (!game?.phaseEndsAt || game.status === 'finished') {
       setTimeLeft(0);
       return;
     }
@@ -139,7 +139,7 @@ export function GameBoard({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [game?.phaseEndsAt, game?.id, firestore, game, handlePhaseEnd]);
+  }, [game?.phaseEndsAt, game?.id, handlePhaseEnd]);
 
   useEffect(() => {
     if (!game || !currentPlayer || !firestore) return;
@@ -454,3 +454,4 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
   );
 }
 
+    
