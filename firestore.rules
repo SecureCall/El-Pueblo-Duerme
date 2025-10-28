@@ -1,21 +1,30 @@
-
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /games/{gameId} {
-      
-      // Reglas para documentos individuales
-      allow read: if request.auth != null && (resource.data.settings.isPublic == true || request.auth.uid in resource.data.players.map(p => p.userId));
-      allow create: if request.auth != null;
-      allow update: if request.auth != null && request.auth.uid in resource.data.players.map(p => p.userId);
-      allow delete: if request.auth != null && request.auth.uid == resource.data.creator;
 
-      // Reglas para la colección
-      match /{allPaths=**} {
-        // La consulta para salas públicas debe filtrar por isPublic == true
-        allow list: if request.auth != null && request.query.get("settings.isPublic") == true;
-      }
+    // Rules for the 'games' collection
+    match /games/{gameId} {
+
+      // Allow anyone authenticated to create a game.
+      allow create: if request.auth != null;
+
+      // Allow a user to read a game document if it's a public game, or if they are a player in that game.
+      allow get: if request.auth != null && (
+                   resource.data.settings.isPublic == true ||
+                   request.auth.uid in resource.data.players.map(p => p.userId)
+                 );
+                 
+      // Allow authenticated users to list games ONLY if they are querying for public, waiting games.
+      // This is crucial for the "Public Games" screen to work.
+      allow list: if request.auth != null &&
+                    request.query.get('settings.isPublic') == true &&
+                    request.query.get('status') == 'waiting';
+
+      // Allow a user to update a game (e.g., join, vote, perform an action) only if they are a player in that game.
+      allow update: if request.auth != null && request.auth.uid in resource.data.players.map(p => p.userId);
+      
+      // By default, deny delete operations.
+      allow delete: if false;
     }
   }
 }
