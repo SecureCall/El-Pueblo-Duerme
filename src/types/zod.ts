@@ -47,10 +47,6 @@ export const PlayerSchema = z.object({
   bansheeScreams: z.record(z.string()).optional(),
   lookoutUsed: z.boolean().optional(),
   executionerTargetId: z.string().nullable(),
-  victories: z.number(),
-  defeats: z.number(),
-  roleStats: z.record(z.object({ played: z.number(), won: z.number() })).optional(),
-  achievements: z.array(z.string()),
   secretObjectiveId: z.string().nullable(),
 });
 

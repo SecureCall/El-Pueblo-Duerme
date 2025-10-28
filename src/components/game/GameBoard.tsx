@@ -31,6 +31,8 @@ import { JuryVote } from "./JuryVote";
 import { MasterActionBar, type MasterActionState } from "./MasterActionBar";
 import { useGameSession } from "@/hooks/use-game-session";
 import { useGameState } from "@/hooks/use-game-state";
+import { playNarration, playSoundEffect } from '@/lib/sounds';
+import { runAIActions, triggerAIVote, runAIHunterShot } from "@/lib/ai-actions";
 
 interface GameBoardProps {
   game: Game;
@@ -66,8 +68,36 @@ export function GameBoard({
   const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
 
   const prevGameStatusRef = useRef<Game['status']>();
+  const prevPhaseRef = useRef<Game['phase']>();
+  const nightSoundsPlayedForRound = useRef<number>(0);
 
-  // Effect for handling game over state change
+
+  const handleAcknowledgeRole = useCallback(() => {
+    setShowRole(false);
+    if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore) {
+        setTimeout(() => {
+            processNight(firestore, game.id);
+        }, 1000);
+    }
+  }, [firestore, game, currentPlayer]);
+
+
+  const handlePhaseEnd = useCallback(async () => {
+    if (!firestore || !game || !currentPlayer) return;
+    if (game.status === 'finished') return;
+    
+    if (game.creator === currentPlayer.userId) {
+        if (game.phase === 'day') {
+          await processVotes(firestore, game.id);
+        } else if (game.phase === 'night') {
+          await processNight(firestore, game.id);
+        } else if (game.phase === 'jury_voting') {
+          await processJuryVotes(firestore, game.id);
+        }
+    }
+  }, [firestore, game, currentPlayer]);
+
+    // Effect for handling game over state change
   useEffect(() => {
     if (!game || !currentPlayer) return;
     
@@ -81,17 +111,77 @@ export function GameBoard({
     prevGameStatusRef.current = game.status;
   }, [game?.status, events, currentPlayer, game, updateStats]);
 
+  // Effect for sounds, AI actions, and other side effects on phase change
+  useEffect(() => {
+    if (!game || !currentPlayer || !firestore || game.status === 'finished') return;
 
-  const handleAcknowledgeRole = useCallback(() => {
-    setShowRole(false);
-    // After acknowledging, if the user is the creator, they trigger the first night.
-    if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore) {
-        // This gives a buffer for all players to see their roles before the night starts
-        setTimeout(() => {
-            processNight(firestore, game.id);
-        }, 1000);
+    const isCreator = game.creator === currentPlayer.userId;
+    const prevPhase = prevPhaseRef.current;
+
+    if (prevPhase !== game.phase) {
+        switch (game.phase) {
+            case 'night':
+                if (game.currentRound === 1 && prevPhase === 'role_reveal') {
+                    playNarration('intro_epica.mp3');
+                    setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 4000);
+                } else {
+                    playNarration('noche_pueblo_duerme.mp3');
+                }
+                if (isCreator) runAIActions(firestore, game.id);
+                break;
+            case 'day':
+                playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
+                setTimeout(() => {
+                    playNarration('dia_pueblo_despierta.mp3');
+                    setTimeout(() => {
+                        playNarration('inicio_debate.mp3');
+                        if (isCreator) triggerAIVote(firestore, game.id);
+                    }, 2000);
+                }, 1500);
+                break;
+            case 'hunter_shot':
+                 if (isCreator) {
+                    const pendingHunter = game.players.find(p => p.userId === game.pendingHunterShot);
+                    if (pendingHunter?.isAI) runAIHunterShot(firestore, game.id, pendingHunter);
+                 }
+                break;
+        }
     }
-  }, [firestore, game, currentPlayer]);
+
+    const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
+    if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
+        const hasDeaths = (nightEvent.data?.killedPlayerIds?.length || 0) > 0;
+        setTimeout(() => {
+            if (hasDeaths) playNarration('descanse_en_paz.mp3');
+        }, 3000);
+        nightSoundsPlayedForRound.current = game.currentRound;
+    }
+
+    prevPhaseRef.current = game.phase;
+  }, [game?.phase, game?.currentRound, firestore, game?.id, currentPlayer?.userId, game?.creator, events, game?.players, game?.pendingHunterShot, game?.status]);
+
+
+  // Effect for phase timer
+  useEffect(() => {
+    if (!game?.phaseEndsAt || game.status === 'finished') {
+      setTimeLeft(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const endTime = getMillis(game.phaseEndsAt);
+      const remaining = Math.max(0, endTime - now);
+      setTimeLeft(Math.round(remaining / 1000));
+
+      if (remaining <= 0) {
+        handlePhaseEnd(); 
+        clearInterval(interval); 
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [game?.phaseEndsAt, game?.id, handlePhaseEnd, game?.status]);
 
 
     const getCauseOfDeath = (playerId: string): GameEvent['type'] | 'other' => {
@@ -116,23 +206,6 @@ export function GameBoard({
         };
         setDeathCause(getCauseOfDeath(currentPlayer.userId));
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
-  
-  
-  useEffect(() => {
-    if (!game?.phaseEndsAt || game.status === 'finished') {
-      setTimeLeft(0);
-      return;
-    }
-
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const endTime = getMillis(game.phaseEndsAt);
-      const remaining = Math.max(0, endTime - now);
-      setTimeLeft(Math.round(remaining / 1000));
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [game?.phaseEndsAt, game?.id]);
   
   if (!game || !currentPlayer) {
       return null;

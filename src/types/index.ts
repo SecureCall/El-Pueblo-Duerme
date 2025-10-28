@@ -120,10 +120,6 @@ export interface Player {
   bansheeScreams?: Record<string, string>;
   lookoutUsed?: boolean;
   executionerTargetId: string | null;
-  victories: number;
-  defeats: number;
-  roleStats: Partial<Record<NonNullable<PlayerRole>, { played: number; won: number; }>>;
-  achievements: string[];
   secretObjectiveId: string | null;
 }
 

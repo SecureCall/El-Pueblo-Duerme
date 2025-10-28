@@ -18,6 +18,8 @@ import { secretObjectives } from "./objectives";
 import { getAIChatResponse } from "./ai-actions";
 import { killPlayer, checkGameOver } from "./game-logic";
 
+const PHASE_DURATION_SECONDS = 45;
+
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
@@ -54,10 +56,6 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     bansheeScreams: {},
     lookoutUsed: false,
     executionerTargetId: null,
-    victories: 0,
-    defeats: 0,
-    roleStats: {},
-    achievements: [],
     secretObjectiveId: null,
 });
 
@@ -553,7 +551,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 return;
             }
 
-            const gameOverInfo = checkGameOver(game);
+            const gameOverInfo = await checkGameOver(game);
             if (gameOverInfo.isGameOver) {
                 game.status = "finished";
                 game.phase = "finished";
@@ -562,7 +560,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 return;
             }
             
-            const hunterDeathEvent = [...game.events].sort((a, b) => toPlainObject(b.createdAt).getTime() - toPlainObject(a.createdAt).getTime()).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
+            const hunterDeathEvent = [...game.events].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
             
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
             const currentRound = game.currentRound;
@@ -875,10 +873,10 @@ export async function processJuryVotes(db: Firestore, gameId: string) {
             const lynchedPlayerObject = game.players.find(p => p.userId === mostVotedId);
             const { updatedGame } = await killPlayer(transaction, gameRef, game, mostVotedId, 'vote_result');
             game = updatedGame;
-            gameOverInfo = checkGameOver(game, lynchedPlayerObject);
+            gameOverInfo = await checkGameOver(game, lynchedPlayerObject);
         } else {
             game.events.push({ id: `evt_jury_tie_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: `El jurado de los muertos no ha llegado a un acuerdo. Se ha perdonado una vida.`, data: { lynchedPlayerId: null, final: true }, createdAt: Timestamp.now() });
-            gameOverInfo = checkGameOver(game);
+            gameOverInfo = await checkGameOver(game);
         }
 
         if (gameOverInfo.isGameOver) {
@@ -916,7 +914,7 @@ export async function masterKillPlayer(db: Firestore, gameId: string, targetId: 
             const { updatedGame } = await killPlayer(transaction, gameRef, game, targetId, 'special');
             game = updatedGame;
 
-            const gameOverInfo = checkGameOver(game);
+            const gameOverInfo = await checkGameOver(game);
             if (gameOverInfo.isGameOver) {
                 game.status = "finished";
                 game.phase = "finished";
@@ -1022,7 +1020,7 @@ export async function submitTroublemakerAction(db: Firestore, gameId: string, tr
         createdAt: Timestamp.now(), data: { killedPlayerIds: [target1Id, target2Id] }
       });
 
-      const gameOverInfo = checkGameOver(game);
+      const gameOverInfo = await checkGameOver(game);
       if (gameOverInfo.isGameOver) {
         game.status = "finished";
         game.phase = "finished";
