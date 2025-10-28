@@ -1,4 +1,3 @@
-
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { Timestamp } from "firebase/firestore";
@@ -15,10 +14,10 @@ export function toPlainObject<T>(obj: T): T {
         return obj;
     }
     if (obj instanceof Timestamp) {
-        return obj as any; // Keep Timestamp objects as they are
+        // CONVERT TIMESTAMP TO JAVASCRIPT DATE OBJECT
+        return obj.toDate() as any; 
     }
     if (obj instanceof Date) {
-        // Already a Date object, return as is
         return obj as any;
     }
     if (Array.isArray(obj)) {
@@ -40,11 +39,11 @@ export function toPlainObject<T>(obj: T): T {
 export const getMillis = (timestamp: any): number => {
     if (!timestamp) return 0;
 
-    if (timestamp instanceof Timestamp) {
-        return timestamp.toMillis();
-    }
     if (timestamp instanceof Date) {
         return timestamp.getTime();
+    }
+    if (timestamp instanceof Timestamp) {
+        return timestamp.toMillis();
     }
     if (typeof timestamp === 'object' && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
         return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
