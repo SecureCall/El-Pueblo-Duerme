@@ -1166,15 +1166,14 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             let game = gameSnap.data() as Game;
 
             if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId || game.status === 'finished') {
-                return;
+                throw new Error("No puedes disparar ahora.");
             }
             
             const hunterPlayer = game.players.find(p => p.userId === hunterId);
             const targetPlayer = game.players.find(p => p.userId === targetId);
             
             if (!hunterPlayer || !targetPlayer) {
-                console.error("Hunter or target not found for shot.");
-                return;
+                throw new Error("Cazador o objetivo no encontrado.");
             }
             
             let { updatedGame, triggeredHunterId } = await killPlayer(transaction, gameRef as any, game, targetId, 'hunter_shot');
@@ -1218,11 +1217,6 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
         return { success: true };
     } catch (error: any) {
         console.error("CRITICAL ERROR in submitHunterShot: ", error);
-        if (error.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
-            errorEmitter.emit('permission-error', permissionError);
-            return { error: "Permiso denegado al disparar." };
-        }
         return { success: false, error: error.message || "No se pudo registrar el disparo." };
     }
 }
@@ -1236,10 +1230,10 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             if (!gameSnap.exists()) throw new Error("Game not found");
             
             let game = gameSnap.data() as Game;
-            if (game.phase !== 'day' || game.status === 'finished') return;
+            if (game.phase !== 'day' || game.status === 'finished') throw new Error("No es la fase de votación o la partida ha terminado.");
             
             const playerIndex = game.players.findIndex(p => p.userId === voterId && p.isAlive);
-            if (playerIndex === -1) throw new Error("Player not found or is not alive");
+            if (playerIndex === -1) throw new Error("Jugador no encontrado o no está vivo.");
             
             if (game.players[playerIndex].votedFor) return;
 
@@ -1263,11 +1257,6 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
 
     } catch (error: any) {
         console.error("Error submitting vote: ", error);
-        if (error.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
-            errorEmitter.emit('permission-error', permissionError);
-            return { error: "Permiso denegado al votar." };
-        }
         return { error: `No se pudo registrar tu voto: ${error.message}` };
     }
 }
