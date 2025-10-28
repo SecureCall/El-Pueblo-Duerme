@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -8,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
-import { processJuryVotes, executeMasterAction, runAIActions, triggerAIVote, runAIHunterShot, processNight, processVotes } from "@/lib/firebase-actions";
+import { processJuryVotes, executeMasterAction, processNight, processVotes, runAIActions, triggerAIVote, runAIHunterShot } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { Heart, Moon, Sun, Users2, Wand2, Loader2, UserX, Scale } from "lucide-react";
@@ -74,7 +73,7 @@ export function GameBoard({
      if (game.phase === 'role_reveal' && game.creator === currentPlayer?.userId && firestore) {
         await processNight(firestore, game.id);
     }
-  }, [firestore, game, currentPlayer]);
+  }, [firestore, game.id, game.phase, game.creator, currentPlayer?.userId]);
 
   const handlePhaseEnd = useCallback(async () => {
     if (!firestore || !game || !currentPlayer) return;
@@ -141,14 +140,6 @@ export function GameBoard({
                     if (pendingHunter?.isAI) runAIHunterShot(firestore, game.id, pendingHunter);
                  }
                 break;
-             case 'role_reveal':
-                 if (isCreator) {
-                    const timer = setTimeout(() => {
-                       handleAcknowledgeRole();
-                    }, 15000);
-                    return () => clearTimeout(timer);
-                 }
-                break;
         }
     }
     
@@ -163,7 +154,7 @@ export function GameBoard({
     
     prevPhaseRef.current = game.phase;
 
-  }, [game?.phase, game?.currentRound, firestore, game?.id, game?.creator, game?.status, game?.players, game?.pendingHunterShot, currentPlayer, events, handleAcknowledgeRole]);
+  }, [game?.phase, game?.currentRound, firestore, game?.id, game?.creator, game?.status, game?.players, game?.pendingHunterShot, currentPlayer, events]);
 
 
   // Effect for phase timer

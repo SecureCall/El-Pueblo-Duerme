@@ -65,8 +65,22 @@ export const unlockAudio = () => {
     unlockAndPause(soundEffectAudio);
     audioUnlocked = true;
     
+    // Once unlocked, immediately try to play the correct music if it was set before.
     if (currentMusicSrc) setMusic(currentMusicSrc);
 };
+
+// Add event listeners to unlock audio on first user interaction
+if (typeof window !== 'undefined') {
+    const unlockOnce = () => {
+        unlockAudio();
+        window.removeEventListener('click', unlockOnce);
+        window.removeEventListener('keydown', unlockOnce);
+        window.removeEventListener('touchstart', unlockOnce);
+    };
+    window.addEventListener('click', unlockOnce, { once: true });
+    window.addEventListener('keydown', unlockOnce, { once: true });
+    window.addEventListener('touchstart', unlockOnce, { once: true });
+}
 
 
 export const playNarration = (narrationFile: string) => {
