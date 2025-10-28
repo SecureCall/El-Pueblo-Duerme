@@ -4,19 +4,15 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /games/{gameId} {
-      // Allow anyone authenticated to create a game.
-      allow create: if request.auth != null;
-      
-      // Read is allowed if the user is in the player list OR if the game is public.
-      allow read: if request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.players || get(/databases/$(database)/documents/games/$(gameId)).data.settings.isPublic == true;
+      // Allow any authenticated user to read game documents.
+      // This is a broad rule to ensure the public games list can be fetched.
+      allow read: if request.auth != null;
 
-      // Update is allowed only if the requesting user is in the player list.
-      allow update: if request.auth.uid in resource.data.players;
-      
-      // Allow listing games only if the query specifically asks for public and waiting games.
-      allow list: if request.auth != null && request.query.filters.size() == 2 &&
-                     'settings.isPublic' in request.query.filters[0] && request.query.filters[0]['settings.isPublic'] == true &&
-                     'status' in request.query.filters[1] && request.query.filters[1]['status'] == 'waiting';
+      // Allow any authenticated user to create a game.
+      allow create: if request.auth != null;
+
+      // Allow a user to update a game only if they are a player in that game.
+      allow update: if request.auth != null && request.auth.uid in resource.data.players;
     }
   }
 }
