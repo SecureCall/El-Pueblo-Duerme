@@ -139,7 +139,9 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
 
     const handleVoteSubmit = async () => {
         if (!selectedPlayerId || !firestore) {
-            toast({ variant: 'destructive', title: 'Debes seleccionar un jugador para votar.' });
+            if (!isCharmed) { // Only show toast if not charmed, as charmed vote is automatic
+                toast({ variant: 'destructive', title: 'Debes seleccionar un jugador para votar.' });
+            }
             return;
         }
 

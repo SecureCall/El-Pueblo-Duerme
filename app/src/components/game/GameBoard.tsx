@@ -8,8 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
-import { processJuryVotes, executeMasterAction } from "@/lib/firebase-actions";
-import { processNight, processVotes } from "@/lib/game-logic";
+import { processJuryVotes, executeMasterAction, runAIActions, triggerAIVote, runAIHunterShot, processNight, processVotes } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { Heart, Moon, Sun, Users2, Wand2, Loader2, UserX, Scale } from "lucide-react";
@@ -32,7 +31,6 @@ import { JuryVote } from "./JuryVote";
 import { MasterActionBar, type MasterActionState } from "./MasterActionBar";
 import { useGameSession } from "@/hooks/use-game-session";
 import { playNarration, playSoundEffect } from '@/lib/sounds';
-import { runAIActions, triggerAIVote, runAIHunterShot } from "@/lib/ai-actions";
 
 interface GameBoardProps {
   game: Game;
@@ -73,12 +71,16 @@ export function GameBoard({
   
   const handleAcknowledgeRole = useCallback(async () => {
     setShowRole(false);
-  }, []);
+     if (game.phase === 'role_reveal' && game.creator === currentPlayer?.userId && firestore) {
+        await processNight(firestore, game.id);
+    }
+  }, [firestore, game, currentPlayer]);
 
   const handlePhaseEnd = useCallback(async () => {
     if (!firestore || !game || !currentPlayer) return;
     if (game.status === 'finished') return;
     
+    // Only the creator triggers the automatic phase progression
     if (game.creator === currentPlayer.userId) {
         if (game.phase === 'day') {
           await processVotes(firestore, game.id);
@@ -141,9 +143,8 @@ export function GameBoard({
                 break;
              case 'role_reveal':
                  if (isCreator) {
-                    const timer = setTimeout(async () => {
-                       // This is the main fix. Creator automatically moves the game forward.
-                       await processNight(firestore, game.id);
+                    const timer = setTimeout(() => {
+                       handleAcknowledgeRole();
                     }, 15000);
                     return () => clearTimeout(timer);
                  }
@@ -162,7 +163,7 @@ export function GameBoard({
     
     prevPhaseRef.current = game.phase;
 
-  }, [game?.phase, game?.currentRound, firestore, game?.id, game?.creator, game?.status, game?.players, game?.pendingHunterShot, currentPlayer, events]);
+  }, [game?.phase, game?.currentRound, firestore, game?.id, game?.creator, game?.status, game?.players, game?.pendingHunterShot, currentPlayer, events, handleAcknowledgeRole]);
 
 
   // Effect for phase timer
