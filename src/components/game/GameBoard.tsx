@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -31,8 +30,7 @@ import { GhostSpectatorChat } from "./GhostSpectatorChat";
 import { JuryVote } from "./JuryVote";
 import { MasterActionBar, type MasterActionState } from "./MasterActionBar";
 import { useGameSession } from "@/hooks/use-game-session";
-import { runAIHunterShot, triggerAIVote, runAIActions } from "@/lib/ai-actions";
-import { playNarration, playSoundEffect } from '@/lib/sounds';
+import { useGameState } from "@/hooks/use-game-state";
 
 interface GameBoardProps {
   game: Game;
@@ -62,102 +60,39 @@ export function GameBoard({
   const { firestore } = useFirebase();
   const { updateStats } = useGameSession();
   
-  const prevPhaseRef = useRef<Game['phase']>();
   const [showRole, setShowRole] = useState(true);
   const [deathCause, setDeathCause] = useState<GameEvent['type'] | 'other' | null>(null);
   const [timeLeft, setTimeLeft] = useState(0);
   const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
-  const nightSoundsPlayedForRound = useRef<number>(0);
 
+  const prevGameStatusRef = useRef<Game['status']>();
 
-  const handlePhaseEnd = useCallback(async () => {
-    if (!firestore || !game || !currentPlayer) return;
-    if (game.status === 'finished') return;
-    
-    // Only the creator is responsible for processing phase ends to avoid race conditions.
-    if (game.creator === currentPlayer.userId) {
-        if (game.phase === 'day') {
-          await processVotes(firestore, game.id);
-        } else if (game.phase === 'night') {
-          await processNight(firestore, game.id);
-        } else if (game.phase === 'jury_voting') {
-          await processJuryVotes(firestore, game.id);
-        }
-    }
-  }, [firestore, game, currentPlayer]);
-
-  const handleAcknowledgeRole = useCallback(() => {
-    setShowRole(false);
-    // After acknowledging, if the user is the creator, they trigger the first night.
-    if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore) {
-        processNight(firestore, game.id);
-    }
-  }, [firestore, game, currentPlayer]);
-
-
+  // Effect for handling game over state change
   useEffect(() => {
     if (!game || !currentPlayer) return;
     
-    if (prevPhaseRef.current !== 'finished' && game.status === 'finished') {
+    if (prevGameStatusRef.current !== 'finished' && game.status === 'finished') {
        const gameOverEvent = events.find(e => e.type === 'game_over');
        if (gameOverEvent?.data?.winners && currentPlayer) {
           const isWinner = gameOverEvent.data.winners.some((p: Player) => p.userId === currentPlayer.userId);
           updateStats(isWinner, currentPlayer, game);
        }
     }
+    prevGameStatusRef.current = game.status;
+  }, [game?.status, events, currentPlayer, game, updateStats]);
 
-    const prevPhase = prevPhaseRef.current;
-    if (prevPhase !== game.phase) {
-      switch (game.phase) {
-        case 'night':
-          if (game.currentRound === 1 && prevPhase === 'role_reveal') {
-             playNarration('intro_epica.mp3');
-             setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 4000);
-          } else {
-            playNarration('noche_pueblo_duerme.mp3');
-          }
-           if (firestore && game.creator === currentPlayer.userId) {
-                runAIActions(firestore, game.id);
-            }
-          break;
-        case 'day':
-          playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
-          setTimeout(() => {
-            playNarration('dia_pueblo_despierta.mp3');
-            setTimeout(() => {
-              playNarration('inicio_debate.mp3');
-              if (firestore && game.creator === currentPlayer.userId) {
-                  triggerAIVote(firestore, game.id);
-              }
-            }, 2000);
-          }, 1500);
-          break;
-        case 'hunter_shot':
-            if (game.creator === currentPlayer.userId) {
-                const pendingHunter = players.find(p => p.userId === game.pendingHunterShot);
-                if (pendingHunter?.isAI) {
-                    runAIHunterShot(firestore, game.id, pendingHunter);
-                }
-            }
-            break;
-      }
-    }
-    
-    const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
-    if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
-        const hasDeaths = (nightEvent.data?.killedPlayerIds?.length || 0) > 0;
-        
+
+  const handleAcknowledgeRole = useCallback(() => {
+    setShowRole(false);
+    // After acknowledging, if the user is the creator, they trigger the first night.
+    if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore) {
+        // This gives a buffer for all players to see their roles before the night starts
         setTimeout(() => {
-            if (hasDeaths) {
-                playNarration('descanse_en_paz.mp3');
-            }
-        }, 3000); 
-        nightSoundsPlayedForRound.current = game.currentRound; 
+            processNight(firestore, game.id);
+        }, 1000);
     }
+  }, [firestore, game, currentPlayer]);
 
-    prevPhaseRef.current = game.status === 'finished' ? 'finished' : game.phase;
-
-  }, [game?.phase, game?.currentRound, firestore, game, currentPlayer, players, events, updateStats]);
 
     const getCauseOfDeath = (playerId: string): GameEvent['type'] | 'other' => {
         const deathEvent = [...events]
@@ -194,15 +129,10 @@ export function GameBoard({
       const endTime = getMillis(game.phaseEndsAt);
       const remaining = Math.max(0, endTime - now);
       setTimeLeft(Math.round(remaining / 1000));
-
-      if (remaining <= 0) {
-        handlePhaseEnd(); 
-        clearInterval(interval); 
-      }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [game?.phaseEndsAt, game?.id, handlePhaseEnd]);
+  }, [game?.phaseEndsAt, game?.id]);
   
   if (!game || !currentPlayer) {
       return null;

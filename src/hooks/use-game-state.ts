@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useReducer, useRef, useCallback } from 'react';
@@ -16,7 +15,8 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { useGameSession } from './use-game-session';
 import { getMillis } from '@/lib/utils';
 import { playNarration, playSoundEffect } from '@/lib/sounds';
-import { runAIActions, triggerAIVote, processNight, processVotes, processJuryVotes } from "@/lib/firebase-actions";
+import { runAIActions, triggerAIVote, runAIHunterShot } from "@/lib/ai-actions";
+import { processNight, processVotes, processJuryVotes } from '@/lib/game-logic';
 
 
 interface GameState {
@@ -94,10 +94,13 @@ export const useGameState = (gameId: string) => {
   const { firestore } = useFirebase();
   const { userId, isSessionLoaded } = useGameSession();
   const gameRef = useRef(firestore ? doc(firestore, 'games', gameId) : null);
+
   const prevPhaseRef = useRef<Game['phase']>();
   const nightSoundsPlayedForRound = useRef<number>(0);
+  const { game, currentPlayer, events } = state;
 
-  // Firestore listener
+
+  // Effect 1: Subscribe to Firestore for state updates
   useEffect(() => {
     if (!firestore || !userId || !isSessionLoaded) return;
     if (!gameRef.current || gameRef.current.path !== `games/${gameId}`) {
@@ -128,12 +131,14 @@ export const useGameState = (gameId: string) => {
   }, [gameId, firestore, userId, isSessionLoaded]);
 
 
-  // Effect for sounds and creator-only AI actions
+  // Effect 2: Handle side effects based on stable state changes (sounds, AI, phase transitions)
   useEffect(() => {
-    const { game, currentPlayer } = state;
-    if (!game || !currentPlayer || game.status === 'finished') return;
+    if (!game || !currentPlayer || !firestore || game.status === 'finished') return;
 
+    const isCreator = game.creator === currentPlayer.userId;
     const prevPhase = prevPhaseRef.current;
+
+    // --- Sound and AI action triggers on phase change ---
     if (prevPhase !== game.phase) {
         switch (game.phase) {
             case 'night':
@@ -143,9 +148,7 @@ export const useGameState = (gameId: string) => {
                 } else {
                     playNarration('noche_pueblo_duerme.mp3');
                 }
-                if (firestore && game.creator === currentPlayer.userId) {
-                    runAIActions(firestore, game.id);
-                }
+                if (isCreator) runAIActions(firestore, game.id);
                 break;
             case 'day':
                 playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
@@ -153,29 +156,50 @@ export const useGameState = (gameId: string) => {
                     playNarration('dia_pueblo_despierta.mp3');
                     setTimeout(() => {
                         playNarration('inicio_debate.mp3');
-                        if (firestore && game.creator === currentPlayer.userId) {
-                            triggerAIVote(firestore, game.id);
-                        }
+                        if (isCreator) triggerAIVote(firestore, game.id);
                     }, 2000);
                 }, 1500);
+                break;
+            case 'hunter_shot':
+                 if (isCreator) {
+                    const pendingHunter = game.players.find(p => p.userId === game.pendingHunterShot);
+                    if (pendingHunter?.isAI) runAIHunterShot(firestore, game.id, pendingHunter);
+                 }
                 break;
         }
     }
 
-    const nightEvent = state.events.find(e => e.type === 'night_result' && e.round === game.currentRound);
+    // --- Night result sound trigger ---
+    const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
     if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
         const hasDeaths = (nightEvent.data?.killedPlayerIds?.length || 0) > 0;
         setTimeout(() => {
-            if (hasDeaths) {
-                playNarration('descanse_en_paz.mp3');
-            }
+            if (hasDeaths) playNarration('descanse_en_paz.mp3');
         }, 3000);
         nightSoundsPlayedForRound.current = game.currentRound;
     }
 
+    // --- Automatic Phase Transition Logic (Creator only) ---
+    const handlePhaseEnd = async () => {
+        if (!isCreator) return;
+        if (game.phase === 'day') await processVotes(firestore, game.id);
+        else if (game.phase === 'night') await processNight(firestore, game.id);
+        else if (game.phase === 'jury_voting') await processJuryVotes(firestore, game.id);
+    };
+
+    const phaseEndsAt = game.phaseEndsAt ? getMillis(game.phaseEndsAt) : 0;
+    const now = Date.now();
+    
+    if (phaseEndsAt > now) {
+        const remaining = phaseEndsAt - now;
+        const timer = setTimeout(handlePhaseEnd, remaining);
+        return () => clearTimeout(timer);
+    }
+    
+    // Update ref for next render
     prevPhaseRef.current = game.phase;
 
-  }, [state.game?.phase, state.game?.currentRound, firestore, state.game?.id, state.game?.creator, state.currentPlayer?.userId]);
+  }, [game?.phase, game?.currentRound, game?.id, currentPlayer?.userId, game?.creator, firestore, events]);
 
 
   return { ...state };
