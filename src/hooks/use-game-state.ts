@@ -161,12 +161,6 @@ export const useGameState = (gameId: string) => {
             }, 2000);
           }, 1500);
           break;
-        case 'hunter_shot':
-            const pendingHunter = players.find(p => p.userId === game.pendingHunterShot);
-            if (pendingHunter?.isAI && game.creator === currentPlayer.userId) {
-                runAIHunterShot(firestore, game.id, pendingHunter);
-            }
-            break;
       }
     }
     

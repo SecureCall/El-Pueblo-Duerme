@@ -31,6 +31,7 @@ import { GhostSpectatorChat } from "./GhostSpectatorChat";
 import { JuryVote } from "./JuryVote";
 import { MasterActionBar, type MasterActionState } from "./MasterActionBar";
 import { useGameSession } from "@/hooks/use-game-session";
+import { runAIHunterShot } from "@/lib/ai-actions";
 
 interface GameBoardProps {
   game: Game;
@@ -184,6 +185,24 @@ export function GameBoard({
 
 
 function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, currentPlayer, getCauseOfDeath, timeLeft, masterActionState, setMasterActionState }: { game: Game, players: Player[], currentPlayer: Player, events: GameEvent[], messages: ChatMessage[], wolfMessages: ChatMessage[], fairyMessages: ChatMessage[], twinMessages: ChatMessage[], loversMessages: ChatMessage[], ghostMessages: ChatMessage[], getCauseOfDeath: (playerId: string) => GameEvent['type'] | 'other', timeLeft: number; masterActionState: MasterActionState; setMasterActionState: React.Dispatch<React.SetStateAction<MasterActionState>> }) {
+  const { firestore } = useFirebase();
+  const prevPhaseRef = useRef<Game['phase']>();
+  
+  useEffect(() => {
+    if (!game || !currentPlayer || !firestore) return;
+
+    const prevPhase = prevPhaseRef.current;
+    if (prevPhase !== game.phase) {
+        if (game.phase === 'hunter_shot' && game.creator === currentPlayer.userId) {
+            const pendingHunter = players.find(p => p.userId === game.pendingHunterShot);
+            if (pendingHunter?.isAI) {
+                runAIHunterShot(firestore, game.id, pendingHunter);
+            }
+        }
+    }
+
+    prevPhaseRef.current = game.phase;
+  }, [game, currentPlayer, firestore, players]);
 
   const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
   const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
@@ -406,3 +425,5 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
+
+    

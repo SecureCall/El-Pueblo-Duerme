@@ -203,3 +203,5 @@ export function GameChat({ game, gameId, currentPlayer, messages, players }: Gam
         </Card>
     );
 }
+
+    
