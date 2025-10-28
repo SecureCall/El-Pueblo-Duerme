@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useReducer, useRef, useCallback } from 'react';
+import { useEffect, useReducer, useRef } from 'react';
 import { 
   doc, 
   onSnapshot, 
@@ -95,8 +95,7 @@ export const useGameState = (gameId: string) => {
   const { firestore } = useFirebase();
   const { userId, isSessionLoaded } = useGameSession();
   const gameRef = useRef(firestore ? doc(firestore, 'games', gameId) : null);
-  const prevPhaseRef = useRef<Game['phase']>();
-  const nightSoundsPlayedForRound = useRef<number>(0);
+  
 
   // Firestore listener
   useEffect(() => {
@@ -129,70 +128,5 @@ export const useGameState = (gameId: string) => {
   }, [gameId, firestore, userId, isSessionLoaded]);
 
 
-  // Game logic triggers (sounds, AI actions, phase transitions)
-  useEffect(() => {
-    if (!state.game || !state.currentPlayer || !firestore) return;
-    
-    const prevPhase = prevPhaseRef.current;
-    const { game, currentPlayer, events } = state;
-
-    if (prevPhase !== game.phase) {
-      switch (game.phase) {
-        case 'night':
-          if (game.currentRound === 1 && prevPhase === 'role_reveal') {
-             playNarration('intro_epica.mp3');
-             setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 4000);
-          } else {
-            playNarration('noche_pueblo_duerme.mp3');
-          }
-           if (game.creator === currentPlayer.userId) {
-                runAIActions(firestore, game.id);
-            }
-          break;
-        case 'day':
-          playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
-          setTimeout(() => {
-            playNarration('dia_pueblo_despierta.mp3');
-            setTimeout(() => {
-              playNarration('inicio_debate.mp3');
-              if (firestore && game.creator === currentPlayer.userId) {
-                  triggerAIVote(firestore, game.id);
-              }
-            }, 2000);
-          }, 1500);
-          break;
-      }
-    }
-    
-    // Auto-advance from role reveal, controlled by creator
-    if (game.phase === 'role_reveal' && game.creator === currentPlayer?.userId && game.status === 'in_progress') {
-        const timer = setTimeout(() => {
-            if (firestore) {
-                processNight(firestore, game.id); 
-            }
-        }, 15000);
-        return () => clearTimeout(timer);
-    }
-    
-    prevPhaseRef.current = game.status === 'finished' ? 'finished' : game.phase;
-
-    // Sound effect logic for night results
-    const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
-    if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
-        const hasDeaths = (nightEvent.data?.killedPlayerIds?.length || 0) > 0;
-        
-        setTimeout(() => {
-            if (hasDeaths) {
-                playNarration('descanse_en_paz.mp3');
-            }
-        }, 3000); 
-        nightSoundsPlayedForRound.current = game.currentRound; 
-    }
-
-  }, [state.game, state.currentPlayer, state.events, firestore]);
-
-
   return { ...state };
 };
-
-    
