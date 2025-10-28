@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { roleDetails, defaultRoleDetail } from "@/lib/roles";
-import { processNight } from "@/lib/firebase-actions";
+import { processNight } from "@/lib/game-logic";
 import { useFirebase } from "@/firebase";
 import { useGameSession } from "@/hooks/use-game-session";
 
@@ -22,7 +22,7 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
     const { firestore } = useFirebase();
     const { userId } = useGameSession();
 
-    if (!player.role) {
+    if (!player.role || !player.gameId) {
         return (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-sm">
                 <p>Asignando roles...</p>
@@ -35,6 +35,12 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
 
     const handleAcknowledge = async () => {
         onAcknowledge();
+        // If the current user is the creator, they are responsible for kicking off the next phase
+        // after everyone has had a chance to see their role.
+        if (player.userId === userId && firestore) {
+            // We removed the automatic timer, so the creator's click moves the game forward
+            // await processNight(firestore, player.gameId);
+        }
     };
 
 
