@@ -16,7 +16,7 @@ import { FirestorePermissionError } from "@/firebase/errors";
 import { toPlainObject } from "@/lib/utils";
 import { secretObjectives } from "./objectives";
 import { getAIChatResponse } from "./ai-actions";
-import { killPlayer, checkGameOver, processNight, processVotes } from "./game-logic";
+import { killPlayer, checkGameOver } from "./game-logic";
 
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -565,7 +565,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             const newRound = nextPhase === 'night' ? currentRound + 1 : currentRound;
 
             game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; });
-            const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
+            const phaseEndsAt = Timestamp.fromMillis(Date.now() + 45 * 1000);
             
             transaction.update(gameRef, toPlainObject({
                 players: game.players, events: game.events, phase: nextPhase, phaseEndsAt,
@@ -601,12 +601,8 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             if (game.players[playerIndex].votedFor) return;
 
             const siren = game.players.find(p => p.role === 'river_siren');
-            if (voterId === siren?.riverSirenTargetId && siren && siren.isAlive) {
-                if (siren.votedFor) {
-                    game.players[playerIndex].votedFor = siren.votedFor;
-                } else {
-                    throw new Error("Debes esperar a que la Sirena vote primero.");
-                }
+            if (voterId === siren?.riverSirenTargetId && siren && siren.isAlive && siren.votedFor) {
+                game.players[playerIndex].votedFor = siren.votedFor;
             } else {
                  game.players[playerIndex].votedFor = targetId;
             }
