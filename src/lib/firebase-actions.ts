@@ -1,5 +1,5 @@
 
-'use client';
+'use server';
 import { 
   doc,
   setDoc,
@@ -17,9 +17,7 @@ import { toPlainObject } from "@/lib/utils";
 import { secretObjectives } from "./objectives";
 import { getAIChatResponse, getDeterministicAIAction } from "./ai-actions";
 import { roleDetails } from "@/lib/roles";
-import { killPlayer, checkGameOver } from "./game-logic";
-
-const PHASE_DURATION_SECONDS = 45;
+import { killPlayer, checkGameOver, processNight, processVotes } from "./game-logic";
 
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -933,64 +931,6 @@ export async function submitJuryVote(db: Firestore, gameId: string, voterId: str
     }
 }
 
-export async function processJuryVotes(db: Firestore, gameId: string) {
-     const gameRef = doc(db, 'games', gameId);
-     // This function will be similar to processVotes but for the jury.
-     // It should be implemented based on the game's specific jury rules.
-     // For now, it will just transition to the next phase.
-      try {
-        await runTransaction(db, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error("Game not found");
-            let game = gameDoc.data() as Game;
-
-            const juryVotes = game.juryVotes || {};
-            const voteCounts: Record<string, number> = {};
-            Object.values(juryVotes).forEach(vote => {
-                voteCounts[vote] = (voteCounts[vote] || 0) + 1;
-            });
-            
-            let maxVotes = 0;
-            let mostVotedPlayerIds: string[] = [];
-            for (const playerId in voteCounts) {
-                if (voteCounts[playerId] > maxVotes) {
-                    maxVotes = voteCounts[playerId];
-                    mostVotedPlayerIds = [playerId];
-                } else if (voteCounts[playerId] === maxVotes && maxVotes > 0) {
-                    mostVotedPlayerIds.push(playerId);
-                }
-            }
-
-            const lynchedPlayerId = mostVotedPlayerIds.length === 1 ? mostVotedPlayerIds[0] : null;
-
-            if (lynchedPlayerId) {
-                 const { updatedGame } = await killPlayer(transaction, gameRef, game, lynchedPlayerId, 'vote_result');
-                 game = updatedGame;
-            } else {
-                 game.events.push({ id: `evt_jury_tie_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: "El jurado no ha llegado a un acuerdo. Nadie es linchado.", data: { lynchedPlayerId: null, final: true }, createdAt: Timestamp.now() });
-            }
-
-            // After jury vote, always proceed to night
-            const newRound = game.currentRound + 1;
-            game.players.forEach(p => { 
-                p.votedFor = null;
-                p.usedNightAbility = false; 
-            });
-            const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
-            
-            transaction.update(gameRef, toPlainObject({
-                players: game.players, events: game.events, phase: 'night', phaseEndsAt,
-                currentRound: newRound, pendingHunterShot: null, silencedPlayerId: null,
-                exiledPlayerId: null, juryVotes: {}
-            }));
-        });
-        return { success: true };
-      } catch (error: any) {
-        console.error("Error processing jury votes:", error);
-        return { error: error.message };
-    }
-}
-
 
 export async function masterKillPlayer(db: Firestore, gameId: string, targetId: string) {
     const gameRef = doc(db, 'games', gameId);
@@ -1034,4 +974,11 @@ export async function executeMasterAction(db: Firestore, gameId: string, actionI
             transaction.update(gameRef, toPlainObject(game));
         });
         return { success: true };
-     } catch (error: any
+     } catch (error: any) {
+        console.error("Error executing master action:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+export { runAIActions, triggerAIVote, runAIHunterShot } from './ai-actions';
+export { processNight, processVotes, processJuryVotes } from './game-logic';
