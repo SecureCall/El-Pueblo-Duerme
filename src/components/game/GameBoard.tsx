@@ -379,6 +379,7 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
             </div>
              <div className="w-full md:w-96">
                 <GameChat 
+                    game={game}
                     gameId={game.id} 
                     currentPlayer={currentPlayer} 
                     messages={messages} 
@@ -405,5 +406,3 @@ function SpectatorGameBoard({ game, players, events, messages, wolfMessages, fai
     </div>
   );
 }
-
-    

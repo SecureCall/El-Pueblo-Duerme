@@ -299,5 +299,3 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
         </Card>
     );
 }
-
-    
