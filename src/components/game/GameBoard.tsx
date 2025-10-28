@@ -74,6 +74,7 @@ export function GameBoard({
     if (!firestore || !game || !currentPlayer) return;
     if (game.status === 'finished') return;
     
+    // Only the creator is responsible for processing phase ends to avoid race conditions.
     if (game.creator === currentPlayer.userId) {
         if (game.phase === 'day') {
           await processVotes(firestore, game.id);
@@ -82,6 +83,14 @@ export function GameBoard({
         } else if (game.phase === 'jury_voting') {
           await processJuryVotes(firestore, game.id);
         }
+    }
+  }, [firestore, game, currentPlayer]);
+
+  const handleAcknowledgeRole = useCallback(() => {
+    setShowRole(false);
+    // After acknowledging, if the user is the creator, they trigger the first night.
+    if (game.phase === 'role_reveal' && game.creator === currentPlayer.userId && firestore) {
+        processNight(firestore, game.id);
     }
   }, [firestore, game, currentPlayer]);
 
@@ -205,7 +214,7 @@ export function GameBoard({
   }
 
   if (currentPlayer.role && game.phase === 'role_reveal' && showRole) {
-      return <RoleReveal player={currentPlayer} onAcknowledge={() => setShowRole(false)} />;
+      return <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />;
   }
 
   if (!currentPlayer.isAlive && game.status === 'in_progress') {
@@ -491,4 +500,3 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
     </div>
   );
 }
-

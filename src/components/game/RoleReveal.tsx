@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useEffect } from 'react';
 import type { Player } from "@/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -15,6 +16,16 @@ interface RoleRevealProps {
 }
 
 export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
+    
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            onAcknowledge();
+        }, 15000); // Automatically acknowledge after 15 seconds
+
+        return () => clearTimeout(timer);
+    }, [onAcknowledge]);
+
+
     if (!player.role) {
         return (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-sm">
@@ -25,11 +36,6 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
 
     const details = roleDetails[player.role] ?? defaultRoleDetail;
     const bgImage = PlaceHolderImages.find((img) => img.id === details.bgImageId);
-
-    const handleAcknowledge = async () => {
-        onAcknowledge();
-    };
-
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center animate-in fade-in">
@@ -72,7 +78,7 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
                 </p>
             </CardContent>
             <CardFooter>
-                <Button className="w-full text-lg" onClick={handleAcknowledge}>Entendido</Button>
+                <Button className="w-full text-lg" onClick={onAcknowledge}>Entendido</Button>
             </CardFooter>
         </Card>
     </div>

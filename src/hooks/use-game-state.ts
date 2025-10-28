@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useReducer, useRef } from 'react';
+import { useEffect, useReducer, useRef, useCallback } from 'react';
 import { 
   doc, 
   onSnapshot, 
@@ -16,8 +16,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { useGameSession } from './use-game-session';
 import { getMillis } from '@/lib/utils';
 import { playNarration, playSoundEffect } from '@/lib/sounds';
-import { runAIActions, triggerAIVote } from "@/lib/ai-actions";
-import { processNight } from '@/lib/game-logic';
+import { runAIActions, triggerAIVote, processNight, processVotes, processJuryVotes } from "@/lib/firebase-actions";
 
 
 interface GameState {
@@ -95,7 +94,8 @@ export const useGameState = (gameId: string) => {
   const { firestore } = useFirebase();
   const { userId, isSessionLoaded } = useGameSession();
   const gameRef = useRef(firestore ? doc(firestore, 'games', gameId) : null);
-  
+  const prevPhaseRef = useRef<Game['phase']>();
+  const nightSoundsPlayedForRound = useRef<number>(0);
 
   // Firestore listener
   useEffect(() => {
@@ -126,6 +126,56 @@ export const useGameState = (gameId: string) => {
       unsubscribeGame();
     };
   }, [gameId, firestore, userId, isSessionLoaded]);
+
+
+  // Effect for sounds and creator-only AI actions
+  useEffect(() => {
+    const { game, currentPlayer } = state;
+    if (!game || !currentPlayer || game.status === 'finished') return;
+
+    const prevPhase = prevPhaseRef.current;
+    if (prevPhase !== game.phase) {
+        switch (game.phase) {
+            case 'night':
+                if (game.currentRound === 1 && prevPhase === 'role_reveal') {
+                    playNarration('intro_epica.mp3');
+                    setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 4000);
+                } else {
+                    playNarration('noche_pueblo_duerme.mp3');
+                }
+                if (firestore && game.creator === currentPlayer.userId) {
+                    runAIActions(firestore, game.id);
+                }
+                break;
+            case 'day':
+                playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
+                setTimeout(() => {
+                    playNarration('dia_pueblo_despierta.mp3');
+                    setTimeout(() => {
+                        playNarration('inicio_debate.mp3');
+                        if (firestore && game.creator === currentPlayer.userId) {
+                            triggerAIVote(firestore, game.id);
+                        }
+                    }, 2000);
+                }, 1500);
+                break;
+        }
+    }
+
+    const nightEvent = state.events.find(e => e.type === 'night_result' && e.round === game.currentRound);
+    if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
+        const hasDeaths = (nightEvent.data?.killedPlayerIds?.length || 0) > 0;
+        setTimeout(() => {
+            if (hasDeaths) {
+                playNarration('descanse_en_paz.mp3');
+            }
+        }, 3000);
+        nightSoundsPlayedForRound.current = game.currentRound;
+    }
+
+    prevPhaseRef.current = game.phase;
+
+  }, [state.game?.phase, state.game?.currentRound, firestore, state.game?.id, state.game?.creator, state.currentPlayer?.userId]);
 
 
   return { ...state };
