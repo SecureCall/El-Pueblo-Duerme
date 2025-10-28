@@ -3,30 +3,19 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if a user is a player in the game.
-    function isPlayer(gameId, userId) {
-      return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p => p.userId == userId);
-    }
-    
-    // Rules for the 'games' collection
     match /games/{gameId} {
       
-      // ANYONE can CREATE a game.
+      // Reglas para documentos individuales
+      allow read: if request.auth != null && (resource.data.settings.isPublic == true || request.auth.uid in resource.data.players.map(p => p.userId));
       allow create: if request.auth != null;
+      allow update: if request.auth != null && request.auth.uid in resource.data.players.map(p => p.userId);
+      allow delete: if request.auth != null && request.auth.uid == resource.data.creator;
 
-      // A player can GET a game if they are a player in it OR if the game is public.
-      allow get: if request.auth != null && (isPlayer(gameId, request.auth.uid) || resource.data.settings.isPublic == true);
-
-      // A player can UPDATE a game if they are a player in it.
-      // This covers joining, leaving, voting, and other in-game actions.
-      allow update: if request.auth != null && isPlayer(gameId, request.auth.uid);
-      
-      // Users can LIST public games that are in the "waiting" status.
-      // This is crucial for the "Public Rooms" feature.
-      allow list: if request.auth != null && resource.data.settings.isPublic == true;
-      
-      // No one can delete a game document directly. Deletion should be handled by a server-side process if needed.
-      allow delete: if false;
+      // Reglas para la colección
+      match /{allPaths=**} {
+        // La consulta para salas públicas debe filtrar por isPublic == true
+        allow list: if request.auth != null && request.query.get("settings.isPublic") == true;
+      }
     }
   }
 }
