@@ -74,12 +74,6 @@ export const playNarration = (narrationFile: string) => {
     
     const audioSrc = `/audio/voz/${narrationFile}`;
     
-    // If it's already playing the requested audio, do nothing.
-    if (!narrationAudio.paused && narrationAudio.src.endsWith(audioSrc)) {
-        return;
-    }
-
-    // Stop current narration before starting a new one
     if (!narrationAudio.paused) {
         narrationAudio.pause();
         narrationAudio.currentTime = 0;
@@ -87,19 +81,24 @@ export const playNarration = (narrationFile: string) => {
     
     narrationAudio.src = audioSrc;
     narrationAudio.load();
-    narrationAudio.play().catch(e => {
-        console.error(`Could not play narration ${narrationFile}`, e);
-    });
+    const playPromise = narrationAudio.play();
+    if(playPromise !== undefined){
+        playPromise.catch(e => {
+            console.error(`Could not play narration ${narrationFile}`, e);
+        });
+    }
 };
 
 export const playSoundEffect = (soundFile: string) => {
     if (!soundEffectAudio || !audioUnlocked) return;
     
-    const effectSrc = `/audio/effects/${soundFile}`;
     // Create a new instance for each effect to allow overlaps
-    const effectAudio = new Audio(effectSrc);
+    const effectAudio = new Audio(soundFile);
     effectAudio.volume = 0.5;
-    effectAudio.play().catch(e => console.warn(`Could not play sound effect ${soundFile}`, e));
+    const playPromise = effectAudio.play();
+    if(playPromise !== undefined){
+        playPromise.catch(e => console.warn(`Could not play sound effect ${soundFile}`, e));
+    }
 };
 
 export const setMusic = (musicFile: string | null) => {
@@ -120,7 +119,10 @@ export const setMusic = (musicFile: string | null) => {
         }
         if (audioUnlocked) {
             musicAudio.volume = narrationAudio && !narrationAudio.paused ? 0.1 : 0.3;
-            musicAudio.play().catch(e => console.warn(`Could not play music ${musicFile}`, e));
+            const playPromise = musicAudio.play();
+            if(playPromise !== undefined){
+                playPromise.catch(e => console.warn(`Could not play music ${musicFile}`, e));
+            }
         }
     } else {
         musicAudio.pause();

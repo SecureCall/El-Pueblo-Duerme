@@ -94,20 +94,22 @@ export const useGameState = (gameId: string) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const { firestore } = useFirebase();
   const { userId, isSessionLoaded } = useGameSession();
-  const gameRef = useRef(firestore ? doc(firestore, 'games', gameId) : null);
   const prevPhaseRef = useRef<Game['phase']>();
   const nightSoundsPlayedForRound = useRef<number>(0);
 
-  // Firestore listener
   useEffect(() => {
-    if (!firestore || !userId || !isSessionLoaded) return;
-    if (!gameRef.current || gameRef.current.path !== `games/${gameId}`) {
-        gameRef.current = doc(firestore, 'games', gameId);
-    }
+    if (!firestore || !userId || !isSessionLoaded || !gameId) {
+        if(!gameId) {
+            dispatch({ type: 'SET_ERROR', payload: "No game ID provided." });
+        }
+        return;
+    };
 
     dispatch({ type: 'SET_LOADING', payload: true });
 
-    const unsubscribeGame = onSnapshot(gameRef.current, (snapshot: DocumentSnapshot<DocumentData>) => {
+    const gameRef = doc(firestore, 'games', gameId);
+
+    const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
         const gameData = { ...snapshot.data() as Game, id: snapshot.id };
         dispatch({ type: 'SET_GAME_DATA', payload: { game: gameData, userId } });
@@ -117,7 +119,7 @@ export const useGameState = (gameId: string) => {
     }, (err: FirestoreError) => {
         const contextualError = new FirestorePermissionError({
             operation: 'get',
-            path: gameRef.current!.path,
+            path: gameRef.path,
         });
         dispatch({ type: 'SET_ERROR', payload: "Error al cargar la partida. Permisos insuficientes." });
         errorEmitter.emit('permission-error', contextualError);
@@ -164,19 +166,17 @@ export const useGameState = (gameId: string) => {
       }
     }
     
-    // Auto-advance from role reveal, controlled by creator
     if (game.phase === 'role_reveal' && game.creator === currentPlayer?.userId && game.status === 'in_progress') {
         const timer = setTimeout(() => {
-            if (firestore) { // Ensure firestore is available
+            if (firestore) {
                 processNight(firestore, game.id); 
             }
-        }, 15000); // 15 seconds to read role
+        }, 15000);
         return () => clearTimeout(timer);
     }
     
     prevPhaseRef.current = game.status === 'finished' ? 'finished' : game.phase;
 
-    // Sound effect logic for night results
     const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
     if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
         const hasDeaths = (nightEvent.data?.killedPlayerIds?.length || 0) > 0;
@@ -190,7 +190,6 @@ export const useGameState = (gameId: string) => {
     }
 
   }, [state.game, state.currentPlayer, state.events, firestore]);
-
 
   return { ...state };
 };
