@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -80,6 +79,7 @@ export function GameBoard({
     if (!firestore || !game || !currentPlayer) return;
     if (game.status === 'finished') return;
     
+    // Only the creator triggers the automatic phase progression
     if (game.creator === currentPlayer.userId) {
         if (game.phase === 'day') {
           await processVotes(firestore, game.id);
@@ -507,5 +507,3 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
     </div>
   );
 }
-
-    

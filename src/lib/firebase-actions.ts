@@ -15,8 +15,11 @@ import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { toPlainObject } from "@/lib/utils";
 import { secretObjectives } from "./objectives";
-import { getAIChatResponse } from "./ai-actions";
+import { getAIChatResponse, getDeterministicAIAction } from "./ai-actions";
 import { roleDetails } from "@/lib/roles";
+import { killPlayer, checkGameOver } from "./game-logic";
+
+const PHASE_DURATION_SECONDS = 45;
 
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -808,6 +811,103 @@ export async function resetGame(db: Firestore, gameId: string) {
     }
 }
 
+export async function sendGhostMessage(db: Firestore, gameId: string, ghostId: string, targetId: string, message: string) {
+    const gameRef = doc(db, 'games', gameId);
+    try {
+        await runTransaction(db, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error("Game not found");
+            const game = gameDoc.data() as Game;
+            const playerIndex = game.players.findIndex(p => p.userId === ghostId);
+
+            if (playerIndex === -1) throw new Error("Player not found.");
+            const player = game.players[playerIndex];
+
+            if (player.role !== 'ghost' || player.isAlive || player.ghostMessageSent) {
+                throw new Error("No tienes permiso para realizar esta acción.");
+            }
+
+            const ghostEvent: GameEvent = {
+                id: `evt_ghost_${Date.now()}`, gameId, round: game.currentRound, type: 'special',
+                message: `Has recibido un misterioso mensaje desde el más allá: "${message}"`,
+                createdAt: Timestamp.now(), data: { targetId: targetId, originalMessage: message },
+            };
+
+            game.players[playerIndex].ghostMessageSent = true;
+            game.events.push(ghostEvent);
+
+            transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events }));
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error sending ghost message:", error);
+         if (error.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
+            errorEmitter.emit('permission-error', permissionError);
+            return { error: "Permiso denegado para enviar el mensaje." };
+        }
+        return { success: false, error: error.message || "No se pudo enviar el mensaje." };
+    }
+}
+
+export async function submitTroublemakerAction(db: Firestore, gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
+  const gameRef = doc(db, 'games', gameId);
+
+  try {
+    await runTransaction(db, async (transaction) => {
+      const gameSnap = await transaction.get(gameRef);
+      if (!gameSnap.exists()) throw new Error("Partida no encontrada");
+      let game = gameSnap.data() as Game;
+
+      if (game.status === 'finished') return;
+
+      const player = game.players.find(p => p.userId === troublemakerId);
+      if (!player || player.role !== 'troublemaker' || game.troublemakerUsed) {
+        throw new Error("No puedes realizar esta acción.");
+      }
+
+      const target1 = game.players.find(p => p.userId === target1Id);
+      const target2 = game.players.find(p => p.userId === target2Id);
+
+      if (!target1 || !target2 || !target1.isAlive || !target2.isAlive) {
+        throw new Error("Los objetivos seleccionados no son válidos.");
+      }
+      
+      let { updatedGame } = await killPlayer(transaction, gameRef, game, target1Id, 'troublemaker_duel');
+      game = updatedGame;
+      let finalResult = await killPlayer(transaction, gameRef, game, target2Id, 'troublemaker_duel');
+      game = finalResult.updatedGame;
+
+      game.events.push({
+        id: `evt_trouble_${Date.now()}`, gameId, round: game.currentRound, type: 'special',
+        message: `${player.displayName} ha provocado una pelea mortal. ${target1.displayName} y ${target2.displayName} han sido eliminados.`,
+        createdAt: Timestamp.now(), data: { killedPlayerIds: [target1Id, target2Id] }
+      });
+
+      const gameOverInfo = await checkGameOver(game);
+      if (gameOverInfo.isGameOver) {
+        game.status = "finished";
+        game.phase = "finished";
+        game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
+        transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: game.players, events: game.events, troublemakerUsed: true }));
+        return;
+      }
+
+      transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, troublemakerUsed: true }));
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    if ((error as any).code === 'permission-denied') {
+      const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
+      errorEmitter.emit('permission-error', permissionError);
+      return { error: 'Permiso denegado para usar esta habilidad.' };
+    }
+    console.error("Error submitting troublemaker action:", error);
+    return { error: error.message || "No se pudo realizar la acción." };
+  }
+}
+
 export async function submitJuryVote(db: Firestore, gameId: string, voterId: string, targetId: string) {
     const gameRef = doc(db, 'games', gameId);
     try {
@@ -830,6 +930,64 @@ export async function submitJuryVote(db: Firestore, gameId: string, voterId: str
     } catch (error: any) {
         console.error("Error submitting jury vote:", error);
         return { success: false, error: error.message };
+    }
+}
+
+export async function processJuryVotes(db: Firestore, gameId: string) {
+     const gameRef = doc(db, 'games', gameId);
+     // This function will be similar to processVotes but for the jury.
+     // It should be implemented based on the game's specific jury rules.
+     // For now, it will just transition to the next phase.
+      try {
+        await runTransaction(db, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error("Game not found");
+            let game = gameDoc.data() as Game;
+
+            const juryVotes = game.juryVotes || {};
+            const voteCounts: Record<string, number> = {};
+            Object.values(juryVotes).forEach(vote => {
+                voteCounts[vote] = (voteCounts[vote] || 0) + 1;
+            });
+            
+            let maxVotes = 0;
+            let mostVotedPlayerIds: string[] = [];
+            for (const playerId in voteCounts) {
+                if (voteCounts[playerId] > maxVotes) {
+                    maxVotes = voteCounts[playerId];
+                    mostVotedPlayerIds = [playerId];
+                } else if (voteCounts[playerId] === maxVotes && maxVotes > 0) {
+                    mostVotedPlayerIds.push(playerId);
+                }
+            }
+
+            const lynchedPlayerId = mostVotedPlayerIds.length === 1 ? mostVotedPlayerIds[0] : null;
+
+            if (lynchedPlayerId) {
+                 const { updatedGame } = await killPlayer(transaction, gameRef, game, lynchedPlayerId, 'vote_result');
+                 game = updatedGame;
+            } else {
+                 game.events.push({ id: `evt_jury_tie_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: "El jurado no ha llegado a un acuerdo. Nadie es linchado.", data: { lynchedPlayerId: null, final: true }, createdAt: Timestamp.now() });
+            }
+
+            // After jury vote, always proceed to night
+            const newRound = game.currentRound + 1;
+            game.players.forEach(p => { 
+                p.votedFor = null;
+                p.usedNightAbility = false; 
+            });
+            const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
+            
+            transaction.update(gameRef, toPlainObject({
+                players: game.players, events: game.events, phase: 'night', phaseEndsAt,
+                currentRound: newRound, pendingHunterShot: null, silencedPlayerId: null,
+                exiledPlayerId: null, juryVotes: {}
+            }));
+        });
+        return { success: true };
+      } catch (error: any) {
+        console.error("Error processing jury votes:", error);
+        return { error: error.message };
     }
 }
 
@@ -870,16 +1028,10 @@ export async function executeMasterAction(db: Firestore, gameId: string, actionI
             if (!gameDoc.exists()) throw new Error("Game not found");
             let game = gameDoc.data() as Game;
 
+            // Placeholder for future master actions, for now, we just update.
+            // In a real scenario, you'd have a switch or a map to call the correct action logic.
+
             transaction.update(gameRef, toPlainObject(game));
         });
         return { success: true };
-     } catch (error: any) {
-        console.error(`Error executing master action ${actionId}:`, error);
-        return { success: false, error: error.message };
-    }
-}
-
-// Re-export logic functions
-export * from './game-logic';
-
-    
+     } catch (error: any
