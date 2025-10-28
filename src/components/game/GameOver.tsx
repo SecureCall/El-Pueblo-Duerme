@@ -13,7 +13,10 @@ import { useGameSession } from '@/hooks/use-game-session';
 import { useFirebase } from '@/firebase';
 import { resetGame } from '@/lib/firebase-actions';
 import { useToast } from '@/hooks/use-toast';
-
+import { ScrollArea } from '../ui/scroll-area';
+import { Users, Shield, Wand2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import Image from 'next/image';
 
 interface GameOverProps {
     game: Game;
@@ -90,16 +93,36 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
         );
     }
 
-    const werewolves = players.filter(p => p.role === 'werewolf' || p.role === 'wolf_cub' || p.role === 'cursed');
-    const villagers = players.filter(p => p.role !== 'werewolf' && p.role !== 'wolf_cub' && p.role !== 'cursed');
+    const wolfTeamRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed', 'witch', 'seeker_fairy'];
+    const villageTeam = players.filter(p => !wolfTeamRoles.includes(p.role) && !roleDetails[p.role!]?.color.includes('pink') && !roleDetails[p.role!]?.color.includes('purple'));
+    const wolfTeam = players.filter(p => wolfTeamRoles.includes(p.role));
+    const specialTeam = players.filter(p => !wolfTeamRoles.includes(p.role) && (roleDetails[p.role!]?.color.includes('pink') || roleDetails[p.role!]?.color.includes('purple')));
 
-    const getRoleName = (role: Player['role']) => {
-        if (!role) return 'Desconocido';
-        return roleDetails[role]?.name || role;
-    }
+    const getRoleInfo = (player: Player) => {
+        return roleDetails[player.role!] ?? { name: 'Desconocido', image: '/roles/villager.png', color: 'text-white' };
+    };
+
+    const RoleListSection = ({ title, players, icon }: { title: string, players: Player[], icon: React.ReactNode }) => (
+         <div>
+            <h3 className="text-2xl font-bold flex items-center justify-center gap-2 mb-2">{icon}{title}</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-left">
+                {players.map(p => (
+                    <div key={p.userId} className="flex items-center gap-2 p-2 bg-muted/30 rounded-md">
+                        <div className="relative h-8 w-8">
+                            <Image src={getRoleInfo(p).image} alt={getRoleInfo(p).name} fill className="object-contain" unoptimized/>
+                        </div>
+                        <div>
+                            <p className={cn("font-semibold", getRoleInfo(p).color)}>{p.displayName}</p>
+                            <p className="text-xs text-muted-foreground">{getRoleInfo(p).name}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
 
     return (
-        <Card className="w-full max-w-2xl mx-auto text-center bg-card/90">
+        <Card className="w-full max-w-4xl mx-auto text-center bg-card/90">
             <CardHeader>
                 <CardTitle className="font-headline text-5xl flex items-center justify-center gap-4">
                     <Milestone className="h-10 w-10 text-yellow-400" />
@@ -110,22 +133,14 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-                <div>
-                    <h3 className="text-2xl font-bold flex items-center justify-center gap-2"><BotIcon /> Hombres Lobo</h3>
-                    <ul className="list-none p-0">
-                        {werewolves.map(p => (
-                            <li key={p.userId} className="text-lg text-muted-foreground">{p.displayName} ({getRoleName(p.role)})</li>
-                        ))}
-                    </ul>
-                </div>
-                 <div>
-                    <h3 className="text-2xl font-bold flex items-center justify-center gap-2"><User /> Pueblo</h3>
-                    <ul className="list-none p-0">
-                        {villagers.map(p => (
-                             <li key={p.userId} className="text-lg text-muted-foreground">{p.displayName} ({getRoleName(p.role)})</li>
-                        ))}
-                    </ul>
-                </div>
+                 <ScrollArea className="h-64">
+                    <div className="space-y-6 p-4">
+                        {villageTeam.length > 0 && <RoleListSection title="El Pueblo" players={villageTeam} icon={<Shield className="text-blue-400"/>} />}
+                        {wolfTeam.length > 0 && <RoleListSection title="Los Lobos" players={wolfTeam} icon={<BotIcon className="text-destructive"/>} />}
+                        {specialTeam.length > 0 && <RoleListSection title="Roles Especiales" players={specialTeam} icon={<Wand2 className="text-purple-400"/>} />}
+                    </div>
+                 </ScrollArea>
+
                 <div className='flex items-center justify-center gap-4 pt-6'>
                     <Button asChild size="lg">
                         <Link href="/">Volver al Inicio</Link>
@@ -145,3 +160,5 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
         </Card>
     )
 }
+
+    
