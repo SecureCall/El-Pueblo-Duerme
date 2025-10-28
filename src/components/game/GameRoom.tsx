@@ -73,7 +73,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
   const bgImage = PlaceHolderImages.find((img) => img.id === bgImageId);
 
   const renderContent = () => {
-    if (loading || !isSessionLoaded || !avatarUrl || (gameId && !game)) {
+    if (loading || !isSessionLoaded || !avatarUrl || (gameId && !game && !gameStateError)) {
       return (
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -91,15 +91,18 @@ export function GameRoom({ gameId }: { gameId: string }) {
     }
 
     if (!game || !currentPlayer) {
-      if (game && game.status !== 'waiting') {
-        return <p className="text-destructive text-xl">Esta partida ya ha comenzado o está llena.</p>;
-      }
-      return (
-        <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-16 w-16 animate-spin text-primary" />
-            <p className="text-xl text-primary-foreground/80">Uniéndote como {displayName}...</p>
-        </div>
-      );
+        if (game && game.status !== 'waiting') {
+            return <p className="text-destructive text-xl">Esta partida ya ha comenzado o está llena.</p>;
+        }
+         if (game && players.length >= game.maxPlayers) {
+            return <p className="text-destructive text-xl">Esta partida está llena.</p>;
+        }
+        return (
+            <div className="flex flex-col items-center gap-4">
+                <Loader2 className="h-16 w-16 animate-spin text-primary" />
+                <p className="text-xl text-primary-foreground/80">Uniéndote como {displayName}...</p>
+            </div>
+        );
     }
     
     switch (game.status) {

@@ -1,4 +1,3 @@
-
 import type { Timestamp } from 'firebase/firestore';
 import { z } from 'zod';
 import type { GameSchema, PlayerSchema } from './zod';
