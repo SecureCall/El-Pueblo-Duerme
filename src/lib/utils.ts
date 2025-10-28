@@ -1,3 +1,4 @@
+
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { Timestamp } from "firebase/firestore";
@@ -14,8 +15,7 @@ export function toPlainObject<T>(obj: T): T {
         return obj;
     }
     if (obj instanceof Timestamp) {
-        // Convert to Date object instead of ISO string
-        return obj.toDate() as any;
+        return obj as any; // Keep Timestamp objects as they are
     }
     if (obj instanceof Date) {
         // Already a Date object, return as is
@@ -29,10 +29,7 @@ export function toPlainObject<T>(obj: T): T {
     for (const key in obj) {
         if (Object.prototype.hasOwnProperty.call(obj, key)) {
             const value = (obj as any)[key];
-            // Firestore increment is an object, we need to handle it.
-            if (typeof value === 'object' && value !== null && 'operand' in value && typeof (value as any)._methodName === 'string' && (value as any)._methodName.includes('increment')) {
-                 newObj[key] = value;
-            } else if (value !== undefined) {
+             if (value !== undefined) {
                 newObj[key] = toPlainObject(value);
             }
         }
