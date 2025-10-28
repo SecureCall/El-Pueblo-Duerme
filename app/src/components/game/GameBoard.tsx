@@ -31,8 +31,8 @@ import { GhostSpectatorChat } from "./GhostSpectatorChat";
 import { JuryVote } from "./JuryVote";
 import { MasterActionBar, type MasterActionState } from "./MasterActionBar";
 import { useGameSession } from "@/hooks/use-game-session";
-import { runAIHunterShot, triggerAIVote, runAIActions } from "@/lib/ai-actions";
 import { playNarration, playSoundEffect } from '@/lib/sounds';
+import { runAIActions, triggerAIVote, runAIHunterShot } from "@/lib/ai-actions";
 
 interface GameBoardProps {
   game: Game;
@@ -62,13 +62,18 @@ export function GameBoard({
   const { firestore } = useFirebase();
   const { updateStats } = useGameSession();
   
-  const prevPhaseRef = useRef<Game['phase']>();
   const [showRole, setShowRole] = useState(true);
   const [deathCause, setDeathCause] = useState<GameEvent['type'] | 'other' | null>(null);
   const [timeLeft, setTimeLeft] = useState(0);
   const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
-  const nightSoundsPlayedForRound = useRef<number>(0);
 
+  const prevGameStatusRef = useRef<Game['status']>();
+  const prevPhaseRef = useRef<Game['phase']>();
+  const nightSoundsPlayedForRound = useRef<number>(0);
+  
+  const handleAcknowledgeRole = useCallback(async () => {
+    setShowRole(false);
+  }, []);
 
   const handlePhaseEnd = useCallback(async () => {
     if (!firestore || !game || !currentPlayer) return;
@@ -83,80 +88,105 @@ export function GameBoard({
           await processJuryVotes(firestore, game.id);
         }
     }
-  }, [firestore, game, currentPlayer]);
+  }, [firestore, game?.id, game?.phase, game?.status, game?.creator, currentPlayer?.userId]);
 
-
+  // Effect for handling game over state change
   useEffect(() => {
     if (!game || !currentPlayer) return;
     
-    if (prevPhaseRef.current !== 'finished' && game.status === 'finished') {
+    if (prevGameStatusRef.current !== 'finished' && game.status === 'finished') {
        const gameOverEvent = events.find(e => e.type === 'game_over');
        if (gameOverEvent?.data?.winners && currentPlayer) {
           const isWinner = gameOverEvent.data.winners.some((p: Player) => p.userId === currentPlayer.userId);
           updateStats(isWinner, currentPlayer, game);
        }
     }
+    prevGameStatusRef.current = game.status;
+  }, [game?.status, events, currentPlayer, game, updateStats]);
 
+
+  // Effect for side effects like sounds and AI actions
+  useEffect(() => {
+    if (!game || !currentPlayer || !firestore || game.status === 'finished') return;
+
+    const isCreator = game.creator === currentPlayer.userId;
     const prevPhase = prevPhaseRef.current;
+    
     if (prevPhase !== game.phase) {
-      switch (game.phase) {
-        case 'night':
-          if (game.currentRound === 1 && prevPhase === 'role_reveal') {
-             playNarration('intro_epica.mp3');
-             setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 4000);
-          } else {
-            playNarration('noche_pueblo_duerme.mp3');
-          }
-           if (firestore && game.creator === currentPlayer.userId) {
-                runAIActions(firestore, game.id);
-            }
-          break;
-        case 'day':
-          playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
-          setTimeout(() => {
-            playNarration('dia_pueblo_despierta.mp3');
-            setTimeout(() => {
-              playNarration('inicio_debate.mp3');
-              if (firestore && game.creator === currentPlayer.userId) {
-                  triggerAIVote(firestore, game.id);
-              }
-            }, 2000);
-          }, 1500);
-          break;
-        case 'hunter_shot':
-            if (game.creator === currentPlayer.userId) {
-                const pendingHunter = players.find(p => p.userId === game.pendingHunterShot);
-                if (pendingHunter?.isAI) {
-                    runAIHunterShot(firestore, game.id, pendingHunter);
+        switch (game.phase) {
+            case 'night':
+                if (game.currentRound === 1 && prevPhase === 'role_reveal') {
+                    playNarration('intro_epica.mp3');
+                    setTimeout(() => playNarration('noche_pueblo_duerme.mp3'), 4000);
+                } else {
+                    playNarration('noche_pueblo_duerme.mp3');
                 }
-            }
-            break;
-      }
+                if (isCreator) runAIActions(firestore, game.id);
+                break;
+            case 'day':
+                playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
+                setTimeout(() => {
+                    playNarration('dia_pueblo_despierta.mp3');
+                    setTimeout(() => {
+                        playNarration('inicio_debate.mp3');
+                        if (isCreator) triggerAIVote(firestore, game.id);
+                    }, 2000);
+                }, 1500);
+                break;
+            case 'hunter_shot':
+                 if (isCreator) {
+                    const pendingHunter = game.players.find(p => p.userId === game.pendingHunterShot);
+                    if (pendingHunter?.isAI) runAIHunterShot(firestore, game.id, pendingHunter);
+                 }
+                break;
+             case 'role_reveal':
+                 if (isCreator) {
+                    const timer = setTimeout(async () => {
+                       // This is the main fix. Creator automatically moves the game forward.
+                       await processNight(firestore, game.id);
+                    }, 15000);
+                    return () => clearTimeout(timer);
+                 }
+                break;
+        }
     }
     
     const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
     if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
         const hasDeaths = (nightEvent.data?.killedPlayerIds?.length || 0) > 0;
-        
         setTimeout(() => {
-            if (hasDeaths) {
-                playNarration('descanse_en_paz.mp3');
-            }
-        }, 3000); 
-        nightSoundsPlayedForRound.current = game.currentRound; 
+            if (hasDeaths) playNarration('descanse_en_paz.mp3');
+        }, 3000);
+        nightSoundsPlayedForRound.current = game.currentRound;
+    }
+    
+    prevPhaseRef.current = game.phase;
+
+  }, [game?.phase, game?.currentRound, firestore, game?.id, game?.creator, game?.status, game?.players, game?.pendingHunterShot, currentPlayer, events]);
+
+
+  // Effect for phase timer
+  useEffect(() => {
+    if (!game?.phaseEndsAt || game.status === 'finished') {
+      setTimeLeft(0);
+      return;
     }
 
-    prevPhaseRef.current = game.status === 'finished' ? 'finished' : game.phase;
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const endTime = getMillis(game.phaseEndsAt);
+      const remaining = Math.max(0, endTime - now);
+      setTimeLeft(Math.round(remaining / 1000));
 
-    // Failsafe for role_reveal phase
-    if (game.phase === 'role_reveal' && game.creator === currentPlayer?.userId && firestore && game.status === 'in_progress') {
-        const timer = setTimeout(() => {
-            processNight(firestore, game.id);
-        }, 15000);
-        return () => clearTimeout(timer);
-    }
+      if (remaining <= 0) {
+        handlePhaseEnd(); 
+        clearInterval(interval); 
+      }
+    }, 1000);
 
-  }, [game?.phase, game?.currentRound, firestore, game, currentPlayer, players, events, updateStats]);
+    return () => clearInterval(interval);
+  }, [game?.phaseEndsAt, game?.id, handlePhaseEnd, game?.status]);
+
 
     const getCauseOfDeath = (playerId: string): GameEvent['type'] | 'other' => {
         const deathEvent = [...events]
@@ -181,28 +211,6 @@ export function GameBoard({
         setDeathCause(getCauseOfDeath(currentPlayer.userId));
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
   
-  
-  useEffect(() => {
-    if (!game?.phaseEndsAt || game.status === 'finished') {
-      setTimeLeft(0);
-      return;
-    }
-
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const endTime = getMillis(game.phaseEndsAt);
-      const remaining = Math.max(0, endTime - now);
-      setTimeLeft(Math.round(remaining / 1000));
-
-      if (remaining <= 0) {
-        handlePhaseEnd(); 
-        clearInterval(interval); 
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [game?.phaseEndsAt, game?.id, handlePhaseEnd]);
-  
   if (!game || !currentPlayer) {
       return null;
   }
@@ -213,7 +221,7 @@ export function GameBoard({
   }
 
   if (currentPlayer.role && game.phase === 'role_reveal' && showRole) {
-      return <RoleReveal player={currentPlayer} onAcknowledge={() => setShowRole(false)} />;
+      return <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />;
   }
 
   if (!currentPlayer.isAlive && game.status === 'in_progress') {
