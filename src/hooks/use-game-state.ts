@@ -1,7 +1,7 @@
 
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { 
   doc, 
   onSnapshot, 
@@ -153,5 +153,3 @@ export const useGameState = (gameId: string) => {
 
   return { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, loading, error };
 };
-
-    
