@@ -24,7 +24,7 @@ const PHASE_DURATION_SECONDS = 45;
 
 
 // ===============================================================================================
-// AI ACTIONS LOGIC (Previously in ai-actions.ts)
+// AI ACTIONS LOGIC
 // ===============================================================================================
 
 export async function runAIActions(db: Firestore, gameId: string) {
@@ -311,7 +311,7 @@ export const getDeterministicAIAction = (
 };
 
 // ===============================================================================================
-// GAME LOGIC (Previously in game-logic.ts)
+// GAME LOGIC
 // ===============================================================================================
 
 export async function killPlayer(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, playerIdToKill: string | null, cause: GameEvent['type']): Promise<{ updatedGame: Game; triggeredHunterId: string | null; }> {
@@ -726,7 +726,6 @@ export async function createGame(
   maxPlayers: number,
   settings: Game['settings']
 ) {
-  // Defensive type checking
   if (typeof displayName !== 'string' || typeof gameName !== 'string') {
       return { error: "El nombre del jugador y de la partida deben ser texto." };
   }
@@ -739,6 +738,7 @@ export async function createGame(
 
   const gameId = generateGameId();
   const gameRef = doc(db, "games", gameId);
+  const creatorPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
       
   const werewolfCount = Math.max(1, Math.floor(maxPlayers / 4));
 
@@ -747,7 +747,7 @@ export async function createGame(
       status: "waiting",
       phase: "waiting", 
       creator: userId,
-      players: [], 
+      players: [creatorPlayer], 
       events: [],
       chatMessages: [],
       wolfChatMessages: [],
@@ -785,13 +785,6 @@ export async function createGame(
   
   try {
     await setDoc(gameRef, toPlainObject(gameData));
-    
-    const joinResult = await joinGame(db, gameId, userId, displayName, avatarUrl);
-    if (joinResult.error) {
-      console.error(`Game created (${gameId}), but creator failed to join:`, joinResult.error);
-      return { error: `La partida se creó, pero no se pudo unir: ${joinResult.error}` };
-    }
-
     return { gameId };
   } catch (error: any) {
     if (error.code === 'permission-denied') {
@@ -1640,3 +1633,5 @@ export async function executeMasterAction(db: Firestore, gameId: string, actionI
          return { success: false, error: error.message };
      }
 }
+
+    
