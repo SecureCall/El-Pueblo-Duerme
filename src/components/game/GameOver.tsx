@@ -6,7 +6,7 @@ import type { GameEvent, Game, Player } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import Link from 'next/link';
-import { Milestone, User, BotIcon, Loader2, Play } from 'lucide-react';
+import { Milestone, Loader2, Play, Users, BotIcon } from 'lucide-react';
 import { playNarration } from '@/lib/sounds';
 import { roleDetails } from '@/lib/roles';
 import { useGameSession } from '@/hooks/use-game-session';
@@ -14,7 +14,7 @@ import { useFirebase } from '@/firebase';
 import { resetGame } from '@/lib/firebase-actions';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '../ui/scroll-area';
-import { Users, Shield, Wand2 } from 'lucide-react';
+import { Shield, Wand2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 
@@ -61,10 +61,8 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
                     playNarration('victoria_el_berdugo.mp3');
                     break;
                 case 'banshee':
-                    // No specific sound provided for banshee, can be added here
                     break;
                 case 'draw':
-                    // No specific sound provided for a draw, can be added here
                     break;
             }
         }
@@ -94,9 +92,11 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
     }
 
     const wolfTeamRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed', 'witch', 'seeker_fairy'];
-    const villageTeam = players.filter(p => !wolfTeamRoles.includes(p.role) && !roleDetails[p.role!]?.color.includes('pink') && !roleDetails[p.role!]?.color.includes('purple'));
-    const wolfTeam = players.filter(p => wolfTeamRoles.includes(p.role));
-    const specialTeam = players.filter(p => !wolfTeamRoles.includes(p.role) && (roleDetails[p.role!]?.color.includes('pink') || roleDetails[p.role!]?.color.includes('purple')));
+    const specialTeamRoles: Player['role'][] = ['cupid', 'shapeshifter', 'drunk_man', 'cult_leader', 'fisherman', 'vampire', 'banshee', 'executioner', 'sleeping_fairy'];
+
+    const villageTeam = players.filter(p => p.role && !wolfTeamRoles.includes(p.role) && !specialTeamRoles.includes(p.role));
+    const wolfTeam = players.filter(p => p.role && wolfTeamRoles.includes(p.role));
+    const specialTeam = players.filter(p => p.role && specialTeamRoles.includes(p.role));
 
     const getRoleInfo = (player: Player) => {
         return roleDetails[player.role!] ?? { name: 'Desconocido', image: '/roles/villager.png', color: 'text-white' };
@@ -158,7 +158,6 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
                 </div>
             </CardContent>
         </Card>
-    )
+    );
 }
 
-    

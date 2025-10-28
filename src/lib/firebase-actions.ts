@@ -9,8 +9,6 @@ import {
   Timestamp,
   runTransaction,
   type Firestore,
-  type Transaction,
-  type DocumentReference,
 } from "firebase/firestore";
 import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage, AIPlayerPerspective } from "@/types";
 import { errorEmitter } from "@/firebase/error-emitter";
@@ -19,9 +17,10 @@ import { toPlainObject } from "@/lib/utils";
 import { secretObjectives, getObjectiveLogic } from "./objectives";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { roleDetails } from "@/lib/roles";
+import { PlayerRoleEnum } from "@/types";
+
 
 const PHASE_DURATION_SECONDS = 45;
-
 
 // ===============================================================================================
 // AI ACTIONS LOGIC
@@ -40,12 +39,12 @@ export async function runAIActions(db: Firestore, gameId: string) {
         const deadPlayers = game.players.filter(p => !p.isAlive);
 
         for (const ai of aiPlayers) {
+            await new Promise(resolve => setTimeout(resolve, Math.random() * 1500 + 500)); // Stagger AI actions
             const { actionType, targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
 
-            if (!actionType || actionType === 'NONE' || !targetId || actionType === 'VOTE' || actionType === 'SHOOT') continue;
-
-            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
-            await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
+            if (actionType && actionType !== 'NONE' && targetId) {
+                await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType as NightActionType, targetId });
+            }
         }
     } catch(e) {
         console.error("Error in AI Actions:", e);
@@ -726,11 +725,11 @@ export async function createGame(
   maxPlayers: number,
   settings: Game['settings']
 ) {
-  if (typeof displayName !== 'string' || typeof gameName !== 'string') {
-      return { error: "El nombre del jugador y de la partida deben ser texto." };
+  if (typeof displayName !== 'string' || typeof gameName !== 'string' || !displayName.trim() || !gameName.trim()) {
+      return { error: "El nombre del jugador y de la partida no pueden estar vacíos." };
   }
-  if (!userId || !displayName.trim() || !gameName.trim()) {
-    return { error: "Datos incompletos para crear la partida." };
+  if (!userId) {
+    return { error: "ID de usuario no válido." };
   }
   if (maxPlayers < 3 || maxPlayers > 32) {
     return { error: "El número de jugadores debe ser entre 3 y 32." };
@@ -1057,32 +1056,29 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         if (!gameSnap.exists()) throw new Error("Game not found");
         
         let game = gameSnap.data() as Game;
-        if (game.phase !== 'night' || game.status === 'finished') return;
+        if (game.phase !== 'night' || game.status === 'finished') throw new Error("No es la fase nocturna o la partida ha terminado.");
 
         const player = game.players.find(p => p.userId === playerId);
         if (!player || !player.isAlive) throw new Error("Jugador no válido o muerto.");
         if (game.exiledPlayerId === playerId) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
-        if (player.usedNightAbility) return;
+        if (player.usedNightAbility) return; // Fail silently if already acted
         
         let players = [...game.players];
         const playerIndex = players.findIndex(p => p.userId === action.playerId);
         
         if (playerIndex === -1) {
-            console.error(`Critical error: Player ${action.playerId} not found in game ${gameId} during night action.`);
-            return;
+            throw new Error(`Jugador ${action.playerId} no encontrado en la partida ${gameId}.`);
         }
         
         switch (actionType) {
             case 'doctor_heal':
             case 'guardian_protect':
                 const targetPlayer = players.find(p => p.userId === targetId);
-                if (!targetPlayer) break;
+                if (!targetPlayer) throw new Error("Objetivo no encontrado.");
                 if (targetPlayer.lastHealedRound === game.currentRound - 1 && game.currentRound > 1) throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
                 
                 const targetPlayerIndex = players.findIndex(p => p.userId === targetId);
-                if (targetPlayerIndex !== -1) {
-                    players[targetPlayerIndex].lastHealedRound = game.currentRound;
-                }
+                if (targetPlayerIndex !== -1) players[targetPlayerIndex].lastHealedRound = game.currentRound;
 
                 if(actionType === 'guardian_protect' && targetId === playerId) {
                     if ((player.guardianSelfProtects || 0) >= 1) throw new Error("Solo puedes protegerte a ti mismo una vez.");
@@ -1131,13 +1127,8 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
     return { success: true };
 
   } catch (error: any) {
-    if (error.code === 'permission-denied') {
-        const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update', requestResourceData: { nightActions: '...' }});
-        errorEmitter.emit('permission-error', permissionError);
-        return { error: "Permiso denegado al realizar la acción nocturna." };
-    }
     console.error("Error submitting night action: ", error);
-    return { success: false, error: error.message || "No se pudo registrar tu acción." };
+    return { success: false, error: error.message };
   }
 }
 
@@ -1175,15 +1166,14 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             let game = gameSnap.data() as Game;
 
             if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId || game.status === 'finished') {
-                return;
+                throw new Error("No puedes disparar ahora.");
             }
             
             const hunterPlayer = game.players.find(p => p.userId === hunterId);
             const targetPlayer = game.players.find(p => p.userId === targetId);
             
             if (!hunterPlayer || !targetPlayer) {
-                console.error("Hunter or target not found for shot.");
-                return;
+                throw new Error("Cazador o objetivo no encontrado.");
             }
             
             let { updatedGame, triggeredHunterId } = await killPlayer(transaction, gameRef, game, targetId, 'hunter_shot');
@@ -1227,12 +1217,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
         return { success: true };
     } catch (error: any) {
         console.error("CRITICAL ERROR in submitHunterShot: ", error);
-        if (error.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
-            errorEmitter.emit('permission-error', permissionError);
-            return { error: "Permiso denegado al disparar." };
-        }
-        return { success: false, error: error.message || "No se pudo registrar el disparo." };
+        return { success: false, error: error.message };
     }
 }
 
@@ -1245,10 +1230,10 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             if (!gameSnap.exists()) throw new Error("Game not found");
             
             let game = gameSnap.data() as Game;
-            if (game.phase !== 'day' || game.status === 'finished') return;
+            if (game.phase !== 'day' || game.status === 'finished') throw new Error("No es la fase de votación o la partida ha terminado.");
             
             const playerIndex = game.players.findIndex(p => p.userId === voterId && p.isAlive);
-            if (playerIndex === -1) throw new Error("Player not found or is not alive");
+            if (playerIndex === -1) throw new Error("Jugador no encontrado o no está vivo.");
             
             if (game.players[playerIndex].votedFor) return;
 
@@ -1272,11 +1257,6 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
 
     } catch (error: any) {
         console.error("Error submitting vote: ", error);
-        if (error.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
-            errorEmitter.emit('permission-error', permissionError);
-            return { error: "Permiso denegado al votar." };
-        }
         return { error: `No se pudo registrar tu voto: ${error.message}` };
     }
 }
@@ -1285,8 +1265,7 @@ export async function sendChatMessage(
     gameId: string,
     senderId: string,
     senderName: string,
-    text: string,
-    isFromAI: boolean = false
+    text: string
 ) {
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
@@ -1322,16 +1301,11 @@ export async function sendChatMessage(
 
     } catch (error: any) {
         console.error("Error sending chat message: ", error);
-        if (error.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update', requestResourceData: { chatMessages: '...' } });
-            errorEmitter.emit('permission-error', permissionError);
-            return { error: 'Permiso denegado para enviar mensaje.' };
-        }
         return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
     }
 }
 
-async function sendSpecialChatMessage(
+export async function sendSpecialChatMessage(
     db: Firestore,
     gameId: string,
     senderId: string,
@@ -1410,11 +1384,6 @@ async function sendSpecialChatMessage(
 
     } catch (error: any) {
         console.error(`Error sending ${chatType} chat message: `, error);
-        if (error.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
-            errorEmitter.emit('permission-error', permissionError);
-            return { error: 'Permiso denegado para enviar mensaje.' };
-        }
         return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
     }
 }
@@ -1457,11 +1426,6 @@ export async function resetGame(db: Firestore, gameId: string) {
         return { success: true };
     } catch (e: any) {
         console.error("Error resetting game:", e);
-        if (e.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
-            errorEmitter.emit('permission-error', permissionError);
-            return { error: "Permiso denegado para reiniciar la partida." };
-        }
         return { error: e.message || 'No se pudo reiniciar la partida.' };
     }
 }
@@ -1496,11 +1460,6 @@ export async function sendGhostMessage(db: Firestore, gameId: string, ghostId: s
         return { success: true };
     } catch (error: any) {
         console.error("Error sending ghost message:", error);
-         if (error.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
-            errorEmitter.emit('permission-error', permissionError);
-            return { error: "Permiso denegado para enviar el mensaje." };
-        }
         return { success: false, error: error.message || "No se pudo enviar el mensaje." };
     }
 }
@@ -1553,11 +1512,6 @@ export async function submitTroublemakerAction(db: Firestore, gameId: string, tr
 
     return { success: true };
   } catch (error: any) {
-    if ((error as any).code === 'permission-denied') {
-      const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
-      errorEmitter.emit('permission-error', permissionError);
-      return { error: 'Permiso denegado para usar esta habilidad.' };
-    }
     console.error("Error submitting troublemaker action:", error);
     return { error: error.message || "No se pudo realizar la acción." };
   }
@@ -1571,7 +1525,7 @@ export async function submitJuryVote(db: Firestore, gameId: string, voterId: str
             if (!gameDoc.exists()) throw new Error("Game not found");
             const game = gameDoc.data() as Game;
 
-            if (game.phase !== 'jury_voting' || game.players.find(p => p.userId === voterId)?.isAlive) {
+            if (game.phase !== 'jury_voting' || (game.players.find(p => p.userId === voterId)?.isAlive)) {
                 throw new Error("No puedes votar en este momento.");
             }
             if(game.juryVotes?.[voterId]) {
@@ -1634,4 +1588,3 @@ export async function executeMasterAction(db: Firestore, gameId: string, actionI
      }
 }
 
-    
