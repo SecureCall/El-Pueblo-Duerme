@@ -18,7 +18,6 @@ import { FirestorePermissionError } from "@/firebase/errors";
 import { secretObjectives, getObjectiveLogic } from "./objectives";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { roleDetails } from "@/lib/roles";
-import { toPlainObject } from "@/lib/utils";
 
 const PHASE_DURATION_SECONDS = 45;
 
@@ -108,10 +107,10 @@ export async function getAIChatResponse(db: Firestore, gameId: string, aiPlayer:
         if (game.status === 'finished') return null;
 
         const perspective: AIPlayerPerspective = {
-            game: toPlainObject(game),
-            aiPlayer: toPlainObject(aiPlayer),
+            game: game as any, // This is safe because genkit sanitizes it
+            aiPlayer: aiPlayer as any,
             trigger: triggerMessage,
-            players: toPlainObject(game.players),
+            players: game.players as any,
             chatType,
         };
 
@@ -644,7 +643,7 @@ async function processJuryVotes(db: Firestore, gameId: string) {
             const lynchedPlayerId = mostVotedPlayerIds.length === 1 ? mostVotedPlayerIds[0] : null;
 
             if (lynchedPlayerId) {
-                 const { updatedGame } = await killPlayer(transaction, gameRef as DocumentReference, game, lynchedPlayerId, 'vote_result');
+                 const { updatedGame } = await killPlayer(transaction, gameRef as any, game, lynchedPlayerId, 'vote_result');
                  game = updatedGame;
             } else {
                  game.events.push({ id: `evt_jury_tie_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: "El jurado no ha llegado a un acuerdo. Nadie es linchado.", data: { lynchedPlayerId: null, final: true }, createdAt: Timestamp.now() });
@@ -658,7 +657,7 @@ async function processJuryVotes(db: Firestore, gameId: string) {
             const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
             
             transaction.update(gameRef, {
-                players: toPlainObject(game.players), events: toPlainObject(game.events), phase: 'night', phaseEndsAt: phaseEndsAt,
+                players: game.players, events: game.events, phase: 'night', phaseEndsAt,
                 currentRound: newRound, pendingHunterShot: null, silencedPlayerId: null,
                 exiledPlayerId: null, juryVotes: {}
             });
@@ -715,7 +714,6 @@ export async function createGame(
   maxPlayers: number,
   settings: Game['settings']
 ) {
-  // Defensive type checking
   if (typeof displayName !== 'string' || typeof gameName !== 'string') {
       return { error: "El nombre del jugador y de la partida deben ser texto." };
   }
@@ -774,7 +772,7 @@ export async function createGame(
   };
   
   try {
-    await setDoc(gameRef, toPlainObject(gameData));
+    await setDoc(gameRef, gameData);
     return { gameId };
   } catch (error: any) {
     if (error.code === 'permission-denied') {
@@ -829,7 +827,7 @@ export async function joinGame(
                 changed = true;
             }
             if(changed) {
-                transaction.update(gameRef, { players: toPlainObject(currentPlayers), lastActiveAt: Timestamp.now() });
+                transaction.update(gameRef, { players: currentPlayers, lastActiveAt: Timestamp.now() });
             }
         }
         return;
@@ -846,7 +844,7 @@ export async function joinGame(
       
       const newPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
       transaction.update(gameRef, {
-        players: arrayUnion(toPlainObject(newPlayer)),
+        players: arrayUnion(newPlayer),
         lastActiveAt: Timestamp.now(),
       });
     });
@@ -883,7 +881,7 @@ export async function updatePlayerAvatar(db: Firestore, gameId: string, userId: 
             const updatedPlayers = [...gameData.players];
             updatedPlayers[playerIndex].avatarUrl = newAvatarUrl;
 
-            transaction.update(gameRef, { players: toPlainObject(updatedPlayers), lastActiveAt: Timestamp.now() });
+            transaction.update(gameRef, { players: updatedPlayers, lastActiveAt: Timestamp.now() });
         });
         return { success: true };
     } catch (error: any) {
@@ -1014,7 +1012,7 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
             const twinUserIds = assignedPlayers.filter(p => p.role === 'twin').map(p => p.userId);
             
             transaction.update(gameRef, {
-                players: toPlainObject(assignedPlayers),
+                players: assignedPlayers,
                 twins: twinUserIds.length === 2 ? [twinUserIds[0], twinUserIds[1]] as [string, string] : null,
                 status: 'in_progress',
                 phase: 'role_reveal',
@@ -1111,7 +1109,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
         
         const newAction: NightAction = { ...action, createdAt: Timestamp.now() };
         const updatedNightActions = [...(game.nightActions || []), newAction];
-        transaction.update(gameRef, { nightActions: toPlainObject(updatedNightActions), players: toPlainObject(players) });
+        transaction.update(gameRef, { nightActions: updatedNightActions, players: players });
 
     });
 
@@ -1168,7 +1166,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 throw new Error("Cazador o objetivo no encontrado.");
             }
             
-            let { updatedGame, triggeredHunterId } = await killPlayer(transaction, gameRef as DocumentReference, game, targetId, 'hunter_shot');
+            let { updatedGame, triggeredHunterId } = await killPlayer(transaction, gameRef as any, game, targetId, 'hunter_shot');
             game = updatedGame;
             
             game.events.push({
@@ -1179,7 +1177,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             
             if (triggeredHunterId) {
                 game.pendingHunterShot = triggeredHunterId;
-                transaction.update(gameRef, { players: toPlainObject(game.players), events: toPlainObject(game.events), phase: 'hunter_shot', pendingHunterShot: triggeredHunterId });
+                transaction.update(gameRef, { players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: triggeredHunterId });
                 return;
             }
 
@@ -1188,11 +1186,11 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 game.status = "finished";
                 game.phase = "finished";
                 game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
-                transaction.update(gameRef, { status: 'finished', phase: 'finished', players: toPlainObject(game.players), events: toPlainObject(game.events) });
+                transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: game.events });
                 return;
             }
             
-            const hunterDeathEvent = [...game.events].sort((a, b) => toPlainObject(b.createdAt) - toPlainObject(a.createdAt)).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
+            const hunterDeathEvent = [...game.events].sort((a, b) => (b.createdAt as any).toMillis() - (a.createdAt as any).toMillis()).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
             
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
             const currentRound = game.currentRound;
@@ -1202,7 +1200,7 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
             const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
             
             transaction.update(gameRef, {
-                players: toPlainObject(game.players), events: toPlainObject(game.events), phase: nextPhase, phaseEndsAt: phaseEndsAt,
+                players: game.players, events: game.events, phase: nextPhase, phaseEndsAt: phaseEndsAt,
                 currentRound: newRound, pendingHunterShot: null
             });
         });
@@ -1242,7 +1240,7 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
                  game.players[playerIndex].votedFor = targetId;
             }
             
-            transaction.update(gameRef, { players: toPlainObject(game.players) });
+            transaction.update(gameRef, { players: game.players });
         });
 
         return { success: true };
@@ -1287,7 +1285,7 @@ export async function sendChatMessage(
                 createdAt: Timestamp.now(), mentionedPlayerIds,
             };
 
-            transaction.update(gameRef, { chatMessages: arrayUnion(toPlainObject(messageData)) });
+            transaction.update(gameRef, { chatMessages: arrayUnion(messageData) });
         });
 
         return { success: true };
@@ -1375,7 +1373,7 @@ async function sendSpecialChatMessage(
                 round: game.currentRound, createdAt: Timestamp.now(),
             };
 
-            transaction.update(gameRef, { [chatField]: arrayUnion(toPlainObject(messageData)) });
+            transaction.update(gameRef, { [chatField]: arrayUnion(messageData) });
         });
 
         return { success: true };
@@ -1420,7 +1418,7 @@ export async function resetGame(db: Firestore, gameId: string) {
                 events: [], chatMessages: [], wolfChatMessages: [], fairyChatMessages: [],
                 twinChatMessages: [], loversChatMessages: [], ghostChatMessages: [], nightActions: [],
                 twins: null, lovers: null, phaseEndsAt: Timestamp.now(), pendingHunterShot: null,
-                wolfCubRevengeRound: 0, players: toPlainObject(resetHumanPlayers), vampireKills: 0, boat: [],
+                wolfCubRevengeRound: 0, players: resetHumanPlayers, vampireKills: 0, boat: [],
                 leprosaBlockedRound: 0, witchFoundSeer: false, seerDied: false,
                 silencedPlayerId: null, exiledPlayerId: null, troublemakerUsed: false,
                 fairiesFound: false, fairyKillUsed: false,
@@ -1463,7 +1461,7 @@ export async function sendGhostMessage(db: Firestore, gameId: string, ghostId: s
             game.players[playerIndex].ghostMessageSent = true;
             game.events.push(ghostEvent);
 
-            transaction.update(gameRef, { players: toPlainObject(game.players), events: toPlainObject(game.events) });
+            transaction.update(gameRef, { players: game.players, events: game.events });
         });
         return { success: true };
     } catch (error: any) {
@@ -1500,9 +1498,9 @@ export async function submitTroublemakerAction(db: Firestore, gameId: string, tr
         throw new Error("Los objetivos seleccionados no son válidos.");
       }
       
-      let { updatedGame } = await killPlayer(transaction, gameRef as DocumentReference, game, target1Id, 'troublemaker_duel');
+      let { updatedGame } = await killPlayer(transaction, gameRef as any, game, target1Id, 'troublemaker_duel');
       game = updatedGame;
-      let finalResult = await killPlayer(transaction, gameRef as DocumentReference, game, target2Id, 'troublemaker_duel');
+      let finalResult = await killPlayer(transaction, gameRef as any, game, target2Id, 'troublemaker_duel');
       game = finalResult.updatedGame;
 
       game.events.push({
@@ -1516,11 +1514,11 @@ export async function submitTroublemakerAction(db: Firestore, gameId: string, tr
         game.status = "finished";
         game.phase = "finished";
         game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
-        transaction.update(gameRef, { status: 'finished', phase: 'finished', players: toPlainObject(game.players), events: toPlainObject(game.events), troublemakerUsed: true });
+        transaction.update(gameRef, { status: 'finished', phase: 'finished', players: game.players, events: game.events, troublemakerUsed: true });
         return;
       }
 
-      transaction.update(gameRef, { players: toPlainObject(game.players), events: toPlainObject(game.events), troublemakerUsed: true });
+      transaction.update(gameRef, { players: game.players, events: game.events, troublemakerUsed: true });
     });
 
     return { success: true };
@@ -1570,7 +1568,7 @@ export async function masterKillPlayer(db: Firestore, gameId: string, targetId: 
             let game = gameDoc.data() as Game;
             if(game.masterKillUsed) throw new Error("El Zarpazo del Destino ya fue utilizado.");
             
-            const { updatedGame } = await killPlayer(transaction, gameRef as DocumentReference, game, targetId, 'special');
+            const { updatedGame } = await killPlayer(transaction, gameRef as any, game, targetId, 'special');
             game = updatedGame;
 
             const gameOverInfo = await checkGameOver(game);
@@ -1580,7 +1578,7 @@ export async function masterKillPlayer(db: Firestore, gameId: string, targetId: 
                 game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
             }
 
-            transaction.update(gameRef, { ...toPlainObject(game), masterKillUsed: true });
+            transaction.update(gameRef, { ...game, masterKillUsed: true });
         });
         return { success: true };
      } catch (error: any) {
@@ -1597,7 +1595,7 @@ export async function executeMasterAction(db: Firestore, gameId: string, actionI
             if (!gameDoc.exists()) throw new Error("Game not found");
             let game = gameDoc.data() as Game;
 
-            transaction.update(gameRef, toPlainObject(game));
+            transaction.update(gameRef, game);
         });
         return { success: true };
      } catch (error: any) {
@@ -1605,5 +1603,7 @@ export async function executeMasterAction(db: Firestore, gameId: string, actionI
          return { success: false, error: error.message };
      }
 }
+
+    
 
     
