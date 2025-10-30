@@ -1134,7 +1134,8 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
 
 export async function getSeerResult(db: Firestore, gameId: string, seerId: string, targetId: string) {
   try {
-    const gameDoc = await getDoc(doc(db, 'games', gameId));
+    const gameRef = doc(db, 'games', gameId);
+    const gameDoc = await getDoc(gameRef);
     if (!gameDoc.exists()) throw new Error("Game not found");
     const game = gameDoc.data() as Game;
 
@@ -1613,4 +1614,3 @@ export async function executeMasterAction(db: Firestore, gameId: string, actionI
          return { success: false, error: error.message };
      }
 }
-
