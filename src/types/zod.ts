@@ -138,7 +138,9 @@ export const GameSchema = z.object({
   loversChatMessages: z.array(ChatMessageSchema),
   ghostChatMessages: z.array(ChatMessageSchema),
   maxPlayers: z.number(),
-  createdAt: z.union([TimestampSchema, z.string()]).refine((val): val is NonNullable<typeof val> => val !== null),
+  createdAt: z.union([TimestampSchema, z.string()]).refine((val): val is { seconds: number; nanoseconds: number } | Date | string => val !== null, {
+    message: "createdAt cannot be null",
+  }),
   lastActiveAt: z.union([TimestampSchema, z.string()]).refine((val): val is NonNullable<typeof val> => val !== null),
   currentRound: z.number(),
   settings: GameSettingsSchema,

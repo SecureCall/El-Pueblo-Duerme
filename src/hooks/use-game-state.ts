@@ -17,7 +17,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { useGameSession } from './use-game-session';
 import { getMillis } from '@/lib/utils';
 
-// This function is now the single source of truth for converting Firestore data to plain objects.
+// This function is the single source of truth for converting Firestore data to plain objects.
 // It's crucial for preventing the "Maximum call stack size exceeded" error.
 const toPlainObject = <T>(obj: T): T => {
     if (obj === undefined || obj === null) {
