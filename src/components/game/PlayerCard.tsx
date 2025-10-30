@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -135,6 +134,9 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
                {player.isLover && currentPlayer.isLover && player.userId !== currentPlayer.userId && (
                  <Heart className="absolute -top-2 -right-2 z-10 h-5 w-5 text-pink-400" />
               )}
+               {currentPlayer.role === 'executioner' && player.userId === currentPlayer.executionerTargetId && (
+                 <Swords className="absolute -top-2 -right-2 z-10 h-5 w-5 text-gray-400" />
+               )}
               <CardContent className="p-0">
                 <Avatar className="h-20 w-20 border-2 border-border">
                   <AvatarImage src={player.avatarUrl} alt={player.displayName} />
@@ -161,9 +163,12 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
                 <p>Tu enamorado/a.</p>
               </TooltipContent>
          )}
+         {currentPlayer.role === 'executioner' && player.userId === currentPlayer.executionerTargetId && (
+              <TooltipContent>
+                <p>Tu objetivo. Debes convencer al pueblo para que lo linchen.</p>
+              </TooltipContent>
+         )}
       </Tooltip>
     </TooltipProvider>
   );
 });
-
-    
