@@ -14,7 +14,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     // ==== Equipo del Pueblo ====
     villager: {
         name: "Aldeano",
-        description: "No tienes poderes ni habilidades especiales. Tu única misión es observar, razonar y participar en los juicios del día para intentar descubrir quiénes son los hombres lobo y proteger al pueblo.",
+        description: "No tienes poderes especiales. Tu única misión es observar, debatir y votar para linchar a los Hombres Lobo y salvar al pueblo.",
         atmosphere: "Tu ingenio y tu voz son tus únicas armas. Sobrevive.",
         image: "/roles/villager.png",
         color: "text-white",
@@ -22,7 +22,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     seer: {
         name: "Vidente",
-        description: "Cada noche te despiertas y eliges a un jugador para investigar. El máster te revelará si esa persona es un lobo o no.",
+        description: "Cada noche, eliges a un jugador para investigar. Se te revelará si es un Hombre Lobo o no. (Los Licántropos también son vistos como lobos).",
         atmosphere: "Ves más allá de las apariencias. La verdad te será revelada.",
         image: "/roles/seer.png",
         color: "text-blue-400",
@@ -30,7 +30,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     doctor: {
         name: "Doctor",
-        description: "Cada noche, puedes elegir a un jugador para protegerlo del ataque de los lobos. No puedes proteger a la misma persona dos noches seguidas.",
+        description: "Cada noche, eliges a un jugador (o a ti mismo) para protegerlo del ataque de los lobos. No puedes proteger a la misma persona dos noches seguidas.",
         atmosphere: "En tus manos está el poder de dar una noche más de vida.",
         image: "/roles/Doctor.png",
         color: "text-green-400",
@@ -38,15 +38,15 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     hunter: {
         name: "Cazador",
-        description: "Si mueres, podrás llevarte a alguien contigo a la tumba. Elige con cuidado en ese último instante: puede ser tu última venganza… o un gran error.",
-        atmosphere: "Tu pulso es firme. Incluso en la muerte, tu puntería será certera.",
+        description: "Si mueres, ya sea de noche o linchado de día, tendrás un último disparo. Deberás elegir a otro jugador para que muera contigo. Tu disparo es ineludible.",
+        atmosphere: "Incluso en la muerte, tu puntería será certera.",
         image: "/roles/hunter.png",
         color: "text-yellow-500",
         bgImageId: "role-bg-hunter"
     },
     guardian: {
         name: "Guardián",
-        description: "Cada noche, eliges a un jugador para proteger. Ese jugador no podrá ser asesinado por los lobos. Solo una vez por partida, puedes elegir protegerte a ti mismo.",
+        description: "Cada noche, eliges a un jugador para protegerlo del ataque de los lobos. No puedes proteger a la misma persona dos noches seguidas, y solo puedes protegerte a ti mismo una vez por partida.",
         atmosphere: "Tu escudo es la última esperanza para los inocentes.",
         image: "/roles/Guardian.png",
         color: "text-gray-300",
@@ -54,7 +54,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     priest: {
         name: "Sacerdote",
-        description: "Cada noche, otorgas una bendición a un jugador, protegiéndolo de cualquier tipo de ataque nocturno (lobos, venenos, etc.). Puedes rezar por ti mismo una sola vez en toda la partida.",
+        description: "Cada noche, otorgas una bendición a un jugador, protegiéndolo de cualquier ataque nocturno (lobos, venenos, etc.). Puedes bendecirte a ti mismo una sola vez por partida.",
         atmosphere: "Tu fe es un escudo impenetrable contra la oscuridad.",
         image: "/roles/priest.png",
         color: "text-yellow-200",
@@ -62,7 +62,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     prince: {
         name: "Príncipe",
-        description: "Si el pueblo vota para lincharte, revelarás tu identidad y sobrevivirás. No puedes ser eliminado por votación, pero solo puedes usar esta habilidad una vez.",
+        description: "Si el pueblo vota para lincharte, revelarás tu identidad y sobrevivirás, anulando la votación. Esta habilidad solo se puede usar una vez por partida.",
         atmosphere: "Tu sangre real te protege del juicio de la plebe.",
         image: "/roles/Prince.png",
         color: "text-yellow-300",
@@ -70,7 +70,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     lycanthrope: {
         name: "Licántropo",
-        description: "Eres del equipo del pueblo, pero si la Vidente te investiga, te verá como si fueras un Hombre Lobo, sembrando la confusión.",
+        description: "Perteneces al equipo del pueblo, pero tienes sangre de lobo. Si la Vidente te investiga, te verá como si fueras un Hombre Lobo, sembrando la confusión.",
         atmosphere: "Marcado por la luna, pero fiel al pueblo. ¿Podrás convencerlos?",
         image: "/roles/lycanthrope.png",
         color: "text-orange-400",
@@ -78,7 +78,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     twin: {
         name: "Gemela",
-        description: "Al inicio de la partida, conocerás la identidad de tu gemelo/a. Si uno de los dos muere, el otro morirá de pena al instante.",
+        description: "En la primera noche, tú y tu gemelo/a os reconoceréis. A partir de entonces, podréis hablar en un chat privado. Si uno muere, el otro morirá de pena al instante.",
         atmosphere: "Un vínculo inquebrantable en medio del caos.",
         image: "/roles/twin.png",
         color: "text-blue-300",
@@ -86,7 +86,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     hechicera: {
         name: "Hechicera",
-        description: "Posees dos pociones de un solo uso: una de veneno para eliminar a un jugador y una de vida para salvar al objetivo de los lobos. Actúas después de los lobos.",
+        description: "Posees dos pociones de un solo uso: una de veneno para eliminar a un jugador durante la noche, y una de vida para salvar al objetivo de los lobos. No puedes salvarte a ti misma.",
         atmosphere: "El poder de la vida y la muerte está en tus manos.",
         image: "/roles/Enchantress.png",
         color: "text-purple-400",
@@ -102,7 +102,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     virginia_woolf: {
         name: "Virginia Woolf",
-        description: "En la primera noche, eliges a un jugador. Si tú mueres en cualquier momento, el jugador que elegiste morirá contigo por un vínculo misterioso.",
+        description: "En la primera noche, eliges a un jugador para vincular tu destino. Si tú mueres en cualquier momento de la partida, la persona que elegiste también morirá automáticamente contigo.",
         atmosphere: "Un destino trágico te une a otra alma.",
         image: "/roles/Virginia Woolf.png",
         color: "text-rose-300",
@@ -126,15 +126,15 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     lookout: {
         name: "Vigía",
-        description: "Una vez por partida, puedes arriesgarte a espiar a los lobos. Tienes un 60% de éxito para descubrir sus identidades. Si fallas (40%), mueres en el intento.",
+        description: "Una vez por partida, en la noche, puedes elegir espiar a un jugador para ver quién lo visita. Si los lobos te eligen como víctima esa noche, morirás antes de ver nada.",
         atmosphere: "El conocimiento exige un gran riesgo.",
         image: "/roles/Watcher.png",
         color: "text-gray-400",
         bgImageId: "role-bg-seer"
     },
     troublemaker: {
-        name: "Alborotador",
-        description: "Una vez por partida, durante el día, puedes elegir a dos jugadores para que luchen entre sí. Ambos morirán instantáneamente.",
+        name: "Alborotadora",
+        description: "Una vez por partida, durante el día, puedes elegir a dos jugadores para que luchen entre sí. Ambos morirán instantáneamente al final de la fase de votación.",
         atmosphere: "Siembras el caos y la discordia.",
         image: "/roles/Troublemaker.png",
         color: "text-amber-500",
@@ -142,7 +142,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     silencer: {
         name: "Silenciador",
-        description: "Cada noche, eliges a un jugador para que no pueda hablar durante el debate y la votación del día siguiente.",
+        description: "Cada noche, eliges a un jugador. Esa persona no podrá hablar (enviar mensajes en el chat) durante todo el día siguiente.",
         atmosphere: "El silencio es tu arma más poderosa.",
         image: "/roles/Silencer.png",
         color: "text-indigo-300",
@@ -167,7 +167,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     resurrector_angel: {
         name: "Ángel Resucitador",
         description: "Una vez por partida, durante la noche, puedes elegir a un jugador muerto para devolverlo a la vida. El jugador resucitado volverá al juego con su rol original.",
-        atmosphere: "Un destello de esperanza en la oscuridad. La muerte no es el final.",
+        atmosphere: "Un destello de esperanza en la oscuridad. La muerte no siempre es el final.",
         image: "/roles/angel resucitador.png",
         color: "text-yellow-200",
         bgImageId: "role-bg-seer"
@@ -183,7 +183,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     wolf_cub: {
         name: "Cría de Lobo",
-        description: "Eres un lobo joven. Si mueres, la manada se enfurecerá y podrá realizar dos asesinatos en la misma noche de tu muerte.",
+        description: "Eres un lobo joven. Si mueres, la manada se enfurecerá y podrá realizar dos asesinatos en la noche siguiente a tu muerte.",
         atmosphere: "Tu muerte desata la furia de la manada.",
         image: "/roles/wolf_cub.png",
         color: "text-red-400",
@@ -199,7 +199,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     witch: {
         name: "Bruja",
-        description: "Eres aliada de los lobos. Cada noche, eliges a un jugador. Si eliges a la Vidente, la descubrirás, y los lobos serán informados de quién es. Desde ese momento, los lobos no podrán matarte.",
+        description: "Eres aliada de los lobos. Cada noche, eliges a un jugador. Si eliges a la Vidente, la descubrirás y los lobos serán informados. Desde ese momento, los lobos no podrán matarte.",
         atmosphere: "Tu magia oscura busca apagar la única luz del pueblo.",
         image: "/roles/Witch.png",
         color: "text-purple-500",
@@ -216,7 +216,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     // ==== Roles Especiales / Neutrales ====
     cupid: {
         name: "Cupido",
-        description: "Solo en la primera noche, eliges a dos jugadores para que se enamoren. Si uno de ellos muere, el otro morirá también. Tu trabajo termina ahí.",
+        description: "Solo en la primera noche, eliges a dos jugadores para que se enamoren. Si uno de ellos muere, el otro morirá también. Su objetivo es sobrevivir juntos, por encima de todo.",
         atmosphere: "Una de tus flechas puede cambiar el destino del pueblo para siempre.",
         image: "/roles/cupid.png",
         color: "text-pink-400",
@@ -224,8 +224,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     shapeshifter: {
         name: "Cambiaformas",
-        description: "En la primera noche, eliges a un jugador. Si esa persona muere, adoptarás su rol y su equipo, transformándote completamente en ella.",
-        atmosphere: "Tu identidad es fluida, tu lealtad es incierta.",
+        description: "En la primera noche, eliges a un jugador. Si esa persona muere, adoptarás su rol y su equipo, transformándote completamente. Tu lealtad es incierta.",
+        atmosphere: "Tu identidad es fluida, tu destino está ligado a otro.",
         image: "/roles/Shapeshifter.png",
         color: "text-teal-300",
         bgImageId: "role-bg-villager"
@@ -240,7 +240,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     cult_leader: {
         name: "Líder del Culto",
-        description: "Cada noche, conviertes a un jugador a tu culto. Ganas si todos los jugadores vivos se han unido a tu culto. Juegas solo.",
+        description: "Cada noche, conviertes a un jugador a tu culto. Ganas si todos los jugadores vivos se han unido a tu culto. Juegas solo contra todos.",
         atmosphere: "Tus susurros son más peligrosos que los colmillos de un lobo.",
         image: "/roles/Cult Leader.png",
         color: "text-violet-500",
@@ -248,7 +248,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     fisherman: {
         name: "Pescador",
-        description: "Cada noche, subes a un jugador a tu barco. Si logras tener a todos los aldeanos vivos en tu barco, ganas. Pero si pescas a un lobo, mueres.",
+        description: "Cada noche, subes a un jugador a tu barco. Ganas si logras tener a todos los aldeanos vivos en tu barco. Pero si pescas a un lobo, mueres.",
         atmosphere: "Un arca en medio de la tormenta, o una tumba acuática.",
         image: "/roles/Fisherman.png",
         color: "text-sky-600",
@@ -264,7 +264,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     banshee: {
         name: "Banshee",
-        description: "Cada noche, predices la muerte de un jugador. Si ese jugador muere esa misma noche (por cualquier causa), ganas un punto. Si acumulas 2 puntos, ganas la partida.",
+        description: "Cada noche, predices la muerte de un jugador. Si ese jugador muere esa misma noche (por cualquier causa), ganas un punto. Ganas la partida si acumulas 2 puntos.",
         atmosphere: "Tu lamento no es de tristeza, es de victoria.",
         image: "/roles/Banshee.png",
         color: "text-indigo-400",
@@ -272,7 +272,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     executioner: {
         name: "Verdugo",
-        description: "Al inicio de la partida se te asigna un objetivo. Tu única misión es convencer al pueblo para que lo linchen. Si lo consigues, ganas la partida en solitario.",
+        description: "Al inicio se te asigna un objetivo secreto. Tu única misión es convencer al pueblo para que lo linchen. Si lo consigues, ganas la partida en solitario.",
         atmosphere: "La justicia, por tus manos, es ciega y caprichosa.",
         image: "/roles/verdugo.png",
         color: "text-gray-400",
@@ -280,7 +280,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     sleeping_fairy: {
         name: "Hada Durmiente",
-        description: "Empiezas como Neutral. Si el Hada Buscadora te encuentra, os unís y formáis un equipo con un poder de asesinato de un solo uso. Vuestro objetivo es ser las últimas en pie.",
+        description: "Empiezas como Neutral. Si el Hada Buscadora (del equipo de los lobos) te encuentra, os unís. Vuestro objetivo es ser las últimas en pie.",
         atmosphere: "Duermes, esperando una conexión mágica que decidirá tu bando.",
         image: "/roles/Sleeping Faerie.png",
         color: "text-emerald-400",

@@ -393,11 +393,33 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                         {(!isLookout && currentPlayer.role !== 'sleeping_fairy') && (
                             <PlayerGrid 
                                 game={game}
-                                players={playersForGrid}
-                                currentPlayer={currentPlayer}
+                                players={playersForGrid.filter(p => {
+                                    if (isResurrectorAngel) return true; // Show all dead players
+                                    if (isWerewolfTeam) {
+                                        // A witch who found the seer is an ally
+                                        if (game.witchFoundSeer && p.role === 'witch') return false;
+                                        return !['werewolf', 'wolf_cub'].includes(p.role || '');
+                                    }
+                                    if (isCupidFirstNight) return true; // Cupid can target anyone
+                                    if (canFairiesKill && ['seeker_fairy', 'sleeping_fairy'].includes(p.role || '')) return false;
+                                    if (isVampire) return p.role !== 'vampire';
+                                    if (isCultLeader) return p.userId !== currentPlayer.userId && !p.isCultMember;
+                                    if (isFisherman) return p.userId !== currentPlayer.userId && !game.boat?.includes(p.userId);
+                                    if (isSilencer || isElderLeader) return p.userId !== currentPlayer.userId;
+                                    if (p.userId === currentPlayer.userId) {
+                                        if (currentPlayer.role === 'priest' && !currentPlayer.priestSelfHealUsed) return true;
+                                        if (currentPlayer.role === 'guardian' && (currentPlayer.guardianSelfProtects || 0) < 1) return true;
+                                        // Hechicera cannot save self
+                                        if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save') return false;
+                                        // By default, cannot target self unless specified above.
+                                        return false; 
+                                    }
+                                    return true;
+                                })}
                                 onPlayerClick={handlePlayerSelect}
                                 clickable={true}
                                 selectedPlayerIds={selectedPlayerIds}
+                                currentPlayer={currentPlayer}
                                 masterActionState={masterActionState}
                                 setMasterActionState={setMasterActionState}
                             />
@@ -436,3 +458,4 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         </Card>
     );
 }
+
