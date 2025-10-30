@@ -32,4 +32,30 @@ export const getMillis = (timestamp: any): number => {
     return 0;
 };
 
-    
+
+// This function is the single source of truth for converting Firestore data to plain objects.
+// It's crucial for preventing the "Maximum call stack size exceeded" error.
+export const toPlainObject = (data: any): any => {
+    if (data === undefined || data === null) {
+        return data;
+    }
+    if (data instanceof Timestamp) {
+        return data.toDate().toISOString();
+    }
+    if (data instanceof Date) {
+        return data.toISOString();
+    }
+    if (Array.isArray(data)) {
+        return data.map(item => toPlainObject(item));
+    }
+    if (typeof data === 'object') {
+        const newObj: { [key: string]: any } = {};
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                newObj[key] = toPlainObject(data[key]);
+            }
+        }
+        return newObj;
+    }
+    return data;
+};

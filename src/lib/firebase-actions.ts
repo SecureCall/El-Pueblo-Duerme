@@ -18,31 +18,7 @@ import { FirestorePermissionError } from "@/firebase/errors";
 import { secretObjectives, getObjectiveLogic } from "./objectives";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { roleDetails } from "@/lib/roles";
-
-const toPlainObject = (data: any): any => {
-    if (data === undefined || data === null) {
-        return data;
-    }
-    if (data instanceof Timestamp) {
-        return data.toDate().toISOString();
-    }
-    if (data instanceof Date) {
-        return data.toISOString();
-    }
-    if (Array.isArray(data)) {
-        return data.map(item => toPlainObject(item));
-    }
-    if (typeof data === 'object') {
-        const newObj: { [key: string]: any } = {};
-        for (const key in data) {
-            if (Object.prototype.hasOwnProperty.call(data, key)) {
-                newObj[key] = toPlainObject(data[key]);
-            }
-        }
-        return newObj;
-    }
-    return data;
-};
+import { toPlainObject } from "./utils";
 
 
 const PHASE_DURATION_SECONDS = 45;
@@ -1639,4 +1615,3 @@ export async function executeMasterAction(db: Firestore, gameId: string, actionI
      }
 }
 
-    
