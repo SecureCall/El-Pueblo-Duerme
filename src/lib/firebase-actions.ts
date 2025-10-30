@@ -60,7 +60,7 @@ export async function triggerAIVote(db: Firestore, gameId: string) {
 
         const aiPlayersToVote = game.players.filter(p => p.isAI && p.isAlive && !p.votedFor);
         const alivePlayers = game.players.filter(p => p.isAlive);
-        const deadPlayers = game.players.filter(p => !p.isAlive);
+        const deadPlayers = game.players.filter(p => p.isAlive);
 
         for (const ai of aiPlayersToVote) {
             const { targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
@@ -719,7 +719,6 @@ export async function createGame(
   db: Firestore,
   userId: string,
   displayName: string,
-  avatarUrl: string,
   gameName: string,
   maxPlayers: number,
   settings: Game['settings']
@@ -737,7 +736,6 @@ export async function createGame(
 
   const gameId = generateGameId();
   const gameRef = doc(db, "games", gameId);
-  const creatorPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
       
   const werewolfCount = Math.max(1, Math.floor(maxPlayers / 4));
 
@@ -746,7 +744,7 @@ export async function createGame(
       status: "waiting",
       phase: "waiting", 
       creator: userId,
-      players: [creatorPlayer], 
+      players: [], 
       events: [],
       chatMessages: [],
       wolfChatMessages: [],

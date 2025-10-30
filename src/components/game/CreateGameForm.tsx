@@ -197,7 +197,6 @@ export function CreateGameForm() {
       firestore,
       userId,
       trimmedDisplayName,
-      avatarUrl,
       trimmedGameName,
       maxPlayers,
       gameSettings
