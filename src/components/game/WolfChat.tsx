@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { Timestamp } from 'firebase/firestore';
+import { getMillis } from '@/lib/utils';
 
 interface WolfChatProps {
     gameId: string;
@@ -50,17 +50,6 @@ export function WolfChat({ gameId, currentPlayer, messages }: WolfChatProps) {
         }
     };
     
-    const getDateFromTimestamp = (timestamp: Timestamp | { seconds: number; nanoseconds: number; } | string) => {
-        if (!timestamp) return new Date();
-        if (typeof timestamp === 'string') {
-            return new Date(timestamp);
-        }
-        if ('toDate' in timestamp && typeof timestamp.toDate === 'function') {
-            return timestamp.toDate();
-        }
-        return new Date(timestamp.seconds * 1000);
-    }
-
     return (
         <Card className="bg-destructive/10 border-destructive/30 flex flex-col h-full max-h-96">
             <CardHeader className='pb-2'>
@@ -87,7 +76,7 @@ export function WolfChat({ gameId, currentPlayer, messages }: WolfChatProps) {
                                         <p className="text-base break-words">{msg.text}</p>
                                     </div>
                                     <p className="text-xs text-muted-foreground mt-1">
-                                        {formatDistanceToNow(getDateFromTimestamp(msg.createdAt), { addSuffix: true, locale: es })}
+                                        {formatDistanceToNow(new Date(getMillis(msg.createdAt)), { addSuffix: true, locale: es })}
                                     </p>
                                 </div>
                             )})
