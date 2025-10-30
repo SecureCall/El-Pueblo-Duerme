@@ -1,5 +1,4 @@
-
-"use client";
+'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { useGameSession } from '@/hooks/use-game-session';
