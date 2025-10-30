@@ -101,6 +101,7 @@ export interface Player {
   joinedAt: Timestamp | Date | string | null;
   lastHealedRound: number;
   isAI: boolean;
+  isExiled?: boolean; // Added for Elder Leader ability
   potions?: {
     poison?: number | null;
     save?: number | null;

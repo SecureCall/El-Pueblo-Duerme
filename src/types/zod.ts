@@ -28,6 +28,7 @@ export const PlayerSchema = z.object({
   joinedAt: z.union([TimestampSchema, z.string()]).nullable(),
   lastHealedRound: z.number(),
   isAI: z.boolean(),
+  isExiled: z.boolean().optional(),
   potions: z.object({
     poison: z.number().nullable().optional(),
     save: z.number().nullable().optional(),

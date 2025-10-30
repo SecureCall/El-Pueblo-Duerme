@@ -576,16 +576,124 @@ async function processNight(db: Firestore, gameId: string) {
   const gameRef = doc(db, 'games', gameId);
   try {
     await runTransaction(db, async (transaction) => {
-      const gameDoc = await transaction.get(gameRef);
-      if (!gameDoc.exists()) throw new Error("Game not found.");
-      let game = gameDoc.data() as Game;
-      if (game.phase !== 'night' && game.phase !== 'role_reveal') return;
+        const gameSnap = await transaction.get(gameRef as DocumentReference<Game>);
+        if (!gameSnap.exists()) throw new Error("Game not found!");
+        
+        let game = gameSnap.data()!;
+        if (game.phase !== 'night' || game.status === 'finished') {
+            return;
+        }
+        
+        const initialPlayerState = JSON.parse(JSON.stringify(game.players));
+        const actions = game.nightActions?.filter(a => a.round === game.currentRound) || [];
 
-       const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
-        transaction.update(gameRef, {
-            phase: 'day',
-            phaseEndsAt
-        });
+        // Define action priorities
+        const actionPriority: Record<NightActionType, number> = {
+            elder_leader_exile: 1, silencer_silence: 1,
+            cupid_love: 2, shapeshifter_select: 2, virginia_woolf_link: 2, river_siren_charm: 2,
+            priest_bless: 3, guardian_protect: 4, doctor_heal: 5,
+            seer_check: 6, witch_hunt: 6, lookout_spy: 6, fairy_find: 6,
+            werewolf_kill: 7, hechicera_poison: 7, vampire_bite: 7, fairy_kill: 7, banshee_scream: 7,
+            cult_recruit: 8, fisherman_catch: 8,
+            hechicera_save: 9, resurrect: 10,
+        };
+
+        actions.sort((a, b) => (actionPriority[a.actionType] || 99) - (actionPriority[b.actionType] || 99));
+
+        const killedThisNight = new Set<string>();
+        const protectedThisNight = new Set<string>();
+        const blessedThisNight = new Set<string>();
+        let hechiceraSaveTarget: string | null = null;
+        
+        // Execute actions in order
+        for (const action of actions) {
+             const player = game.players.find(p => p.userId === action.playerId);
+             if (!player || !player.isAlive || player.isExiled) continue;
+
+             switch (action.actionType) {
+                // PHASE 1 & 2: MANIPULATION & PRE-ATTACK
+                case 'silencer_silence': game.silencedPlayerId = action.targetId; break;
+                case 'elder_leader_exile': 
+                    const targetPlayer = game.players.find(p=>p.userId === action.targetId);
+                    if(targetPlayer) targetPlayer.isExiled = true;
+                    break;
+                case 'cupid_love': 
+                    if (game.currentRound === 1) {
+                         const loverIds = action.targetId.split('|') as [string, string];
+                         if(loverIds.length === 2) {
+                            game.lovers = loverIds;
+                            game.players.forEach(p => { if (loverIds.includes(p.userId)) p.isLover = true; });
+                         }
+                    }
+                    break;
+                 // ... other phase 1/2 actions ...
+
+                // PHASE 3: PROTECTION
+                case 'priest_bless': blessedThisNight.add(action.targetId); break;
+                case 'guardian_protect':
+                case 'doctor_heal': protectedThisNight.add(action.targetId); break;
+                case 'hechicera_save': hechiceraSaveTarget = action.targetId; break;
+                
+                // PHASE 4-8: ATTACK & RECRUIT
+                case 'werewolf_kill':
+                case 'hechicera_poison':
+                case 'vampire_bite':
+                case 'fairy_kill':
+                    if (!blessedThisNight.has(action.targetId) && !protectedThisNight.has(action.targetId)) {
+                        killedThisNight.add(action.targetId);
+                        if(action.actionType === 'vampire_bite') game.vampireKills = (game.vampireKills || 0) + 1;
+                        if(action.actionType === 'fairy_kill') game.fairyKillUsed = true;
+                    }
+                    break;
+
+                 // ... other actions
+             }
+        }
+        
+        // PHASE 9: HECHICERA SAVE
+        if(hechiceraSaveTarget && killedThisNight.has(hechiceraSaveTarget)){
+            killedThisNight.delete(hechiceraSaveTarget);
+        }
+
+        // --- RESOLVE DEATHS ---
+        let triggeredHunterId: string | null = null;
+        for (const killedId of killedThisNight) {
+            const { updatedGame, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, killedId, 'werewolf_kill'); // Cause is generic here, could be improved
+            game = updatedGame;
+            if(newHunterId) triggeredHunterId = newHunterId;
+        }
+
+        // --- CHECK GAME OVER & TRANSITION ---
+        let gameOverInfo = await checkGameOver(game);
+        if (gameOverInfo.isGameOver) {
+            game.status = "finished";
+            game.phase = "finished";
+            game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
+            transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: game.players, events: game.events }));
+            return;
+        }
+
+        if (triggeredHunterId) {
+            game.pendingHunterShot = triggeredHunterId;
+            transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot }));
+            return;
+        }
+        
+        const newlyKilledPlayers = game.players.filter(p => !p.isAlive && initialPlayerState.find(ip => ip.userId === p.userId)?.isAlive);
+        let nightMessage = newlyKilledPlayers.length > 0 
+            ? `Anoche, el pueblo perdió a ${newlyKilledPlayers.map(p => p.displayName).join(', ')}.`
+            : "La noche transcurre en un inquietante silencio. Nadie ha muerto.";
+        
+        game.events.push({ id: `evt_night_${game.currentRound}`, gameId, round: game.currentRound, type: 'night_result', message: nightMessage, data: { killedPlayerIds: newlyKilledPlayers.map(p => p.userId), savedPlayerIds: Array.from(protectedThisNight) }, createdAt: Timestamp.now() });
+
+        game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; p.isExiled = false; });
+        const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
+        
+        transaction.update(gameRef, toPlainObject({
+            ...game,
+            phase: 'day', phaseEndsAt,
+            pendingHunterShot: null, silencedPlayerId: null, exiledPlayerId: null,
+        }));
     });
     return { success: true };
   } catch (error: any) {
@@ -598,9 +706,9 @@ async function processVotes(db: Firestore, gameId: string) {
   const gameRef = doc(db, 'games', gameId);
   try {
     await runTransaction(db, async (transaction) => {
-      const gameDoc = await transaction.get(gameRef);
+      const gameDoc = await transaction.get(gameRef as DocumentReference<Game>);
       if (!gameDoc.exists()) throw new Error("Game not found.");
-      let game = gameDoc.data() as Game;
+      let game = gameDoc.data()!;
       if (game.phase !== 'day') return;
 
       const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
@@ -713,6 +821,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     lookoutUsed: false,
     executionerTargetId: null,
     secretObjectiveId: null,
+    isExiled: false,
 });
 
 
@@ -1060,7 +1169,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
 
         const player = game.players.find(p => p.userId === playerId);
         if (!player || !player.isAlive) throw new Error("Jugador no válido o muerto.");
-        if (game.exiledPlayerId === playerId) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
+        if (player.isExiled) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
         if (player.usedNightAbility) return; // Fail silently if already acted
         
         let players = [...game.players];
