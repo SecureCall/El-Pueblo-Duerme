@@ -19,7 +19,6 @@ import { secretObjectives, getObjectiveLogic } from "./objectives";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { roleDetails } from "@/lib/roles";
 
-// THIS IS THE ONLY FUNCTION THAT SHOULD CONVERT TIMESTAMPS
 const toPlainObject = (data: any): any => {
     if (data === undefined || data === null) {
         return data;
@@ -1175,7 +1174,7 @@ export async function getSeerResult(db: Firestore, gameId: string, seerId: strin
     const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed', 'witch'];
     const isWerewolf = (targetPlayer.role && wolfRoles.includes(targetPlayer.role)) || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope);
 
-    return { success: true, isWerewolf, targetName: targetPlayer.displayName };
+    return toPlainObject({ success: true, isWerewolf, targetName: targetPlayer.displayName });
   } catch (error: any) {
     console.error("Error getting seer result: ", error);
     return { success: false, error: error.message };
@@ -1639,5 +1638,7 @@ export async function executeMasterAction(db: Firestore, gameId: string, actionI
          return { success: false, error: error.message };
      }
 }
+
+    
 
     
