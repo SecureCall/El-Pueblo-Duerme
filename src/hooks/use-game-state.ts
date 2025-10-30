@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useReducer, useRef } from 'react';
@@ -19,32 +18,29 @@ import { getMillis } from '@/lib/utils';
 
 // This function is the single source of truth for converting Firestore data to plain objects.
 // It's crucial for preventing the "Maximum call stack size exceeded" error.
-const toPlainObject = (obj: any): any => {
-    if (obj === undefined || obj === null) {
-        return obj;
+const toPlainObject = (data: any): any => {
+    if (data === undefined || data === null) {
+        return data;
     }
-    // Convert Timestamps to ISO strings for safe serialization
-    if (obj instanceof Timestamp) {
-        return obj.toDate().toISOString();
+    if (data instanceof Timestamp) {
+        return data.toDate().toISOString();
     }
-    // Also handle regular Date objects, just in case
-    if (obj instanceof Date) {
-        return obj.toISOString();
+    if (data instanceof Date) {
+        return data.toISOString();
     }
-    if (Array.isArray(obj)) {
-        return obj.map(item => toPlainObject(item));
+    if (Array.isArray(data)) {
+        return data.map(item => toPlainObject(item));
     }
-    if (typeof obj === 'object') {
+    if (typeof data === 'object') {
         const newObj: { [key: string]: any } = {};
-        for (const key in obj) {
-            // We only assign the property if it's not undefined to avoid serialization issues
-            if (Object.prototype.hasOwnProperty.call(obj, key) && obj[key] !== undefined) {
-                newObj[key] = toPlainObject(obj[key]);
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                newObj[key] = toPlainObject(data[key]);
             }
         }
         return newObj;
     }
-    return obj;
+    return data;
 };
 
 
@@ -142,9 +138,9 @@ export const useGameState = (gameId: string) => {
     
     const unsubscribeGame = onSnapshot(gameRef.current, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
-        const rawData = { ...snapshot.data() as Game, id: snapshot.id };
+        const rawData = { ...snapshot.data(), id: snapshot.id };
         // CRITICAL: Sanitize data immediately upon receipt from Firestore.
-        const gameData = toPlainObject(rawData);
+        const gameData = toPlainObject(rawData) as Game;
         
         dispatch({ type: 'SET_GAME_DATA', payload: { game: gameData, userId } });
       } else {
@@ -164,5 +160,3 @@ export const useGameState = (gameId: string) => {
 
   return state;
 };
-
-    
