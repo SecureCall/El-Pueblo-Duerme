@@ -42,15 +42,17 @@ export const unlockAudio = () => {
     console.log("Attempting to unlock audio contexts...");
 
     const unlockAndPause = (audio: HTMLAudioElement | null) => {
-        if (!audio) return;
+        if (!audio || audio.played.length > 0 || !audio.paused) return;
+        
         const promise = audio.play();
         if (promise !== undefined) {
             promise.then(() => {
                 audio.pause();
-                if (audio.loop) {
+                 if (audio.loop) {
                     audio.currentTime = 0;
                 }
             }).catch(error => {
+                // NotAllowedError is expected if user hasn't interacted yet.
                 if (error.name !== 'NotAllowedError') {
                     console.warn(`Audio unlock for one channel failed unexpectedly.`, error);
                 }
@@ -63,7 +65,7 @@ export const unlockAudio = () => {
     
     audioUnlocked = true;
     
-    // If a music track was set before unlocking, play it now.
+    // Once unlocked, immediately try to play the correct music if it was set before.
     if (currentMusicSrc) {
         setMusic(currentMusicSrc);
     }
@@ -73,13 +75,12 @@ export const unlockAudio = () => {
 export const playNarration = (narrationFile: string) => {
     if (!narrationAudio) return;
     if (!audioUnlocked) {
-        console.warn("Audio not unlocked. Narration will not play until user interacts.");
+        // Silently fail if audio not unlocked, as unlockAudio will be called on first interaction.
         return;
     }
     
     const audioSrc = `/audio/voz/${narrationFile}`;
     
-    // If the same narration is requested, don't restart it unless it's finished.
     if (narrationAudio.src.endsWith(audioSrc) && !narrationAudio.paused) {
         return;
     }
@@ -118,17 +119,14 @@ export const setMusic = (musicFile: string | null) => {
 
     const newSrc = musicFile ? new URL(musicFile, window.location.origin).href : null;
     
-    // Store the desired music source regardless of unlock state
     currentMusicSrc = newSrc;
 
     if (!audioUnlocked) {
-        // If audio isn't unlocked, we just wait. unlockAudio() will handle playing it.
         return;
     }
 
-    // Avoid unnecessary reloads if the source is the same and it's already playing/paused
     if (musicAudio.src === newSrc && newSrc !== null) {
-        if (musicAudio.paused) { // If it's the right song but paused, just play it.
+        if (musicAudio.paused) {
              musicAudio.play().catch(e => console.warn(`Could not resume music ${musicFile}`, e));
         }
         return;
@@ -147,7 +145,7 @@ export const setMusic = (musicFile: string | null) => {
         }
     } else {
         musicAudio.pause();
-        musicAudio.removeAttribute('src'); // Clean up src
+        musicAudio.removeAttribute('src'); 
     }
 };
 
