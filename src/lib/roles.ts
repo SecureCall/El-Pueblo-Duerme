@@ -22,7 +22,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     seer: {
         name: "Vidente",
-        description: "Cada noche te despiertas y eliges a un jugador para investigar. El máster te revelará si esa persona es un aldeano o un lobo.",
+        description: "Cada noche te despiertas y eliges a un jugador para investigar. El máster te revelará si esa persona es un lobo o no.",
         atmosphere: "Ves más allá de las apariencias. La verdad te será revelada.",
         image: "/roles/seer.png",
         color: "text-blue-400",

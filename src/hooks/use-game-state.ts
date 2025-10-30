@@ -71,7 +71,7 @@ type GameAction =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null };
 
-const initialState: GameState = {
+const initialReducerState: GameState = {
     game: null,
     players: [],
     currentPlayer: null,
@@ -111,7 +111,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             return { ...state, loading: action.payload };
         case 'SET_ERROR':
              return { 
-                ...initialState,
+                ...initialReducerState,
                 loading: false,
                 error: action.payload,
             };
@@ -122,9 +122,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
 
 export const useGameState = (gameId: string) => {
-  const [state, dispatch] = useReducer(gameReducer, initialState);
   const { firestore } = useFirebase();
   const { userId } = useGameSession();
+  
+  const [state, dispatch] = useReducer(gameReducer, initialReducerState);
   
   useEffect(() => {
     if (!firestore || !userId || !gameId) {
@@ -141,6 +142,7 @@ export const useGameState = (gameId: string) => {
     const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
         const rawData = { ...snapshot.data() as Game, id: snapshot.id };
+        // CRITICAL: Sanitize data immediately upon receipt from Firestore.
         const gameData = toPlainObject(rawData);
         
         dispatch({ type: 'SET_GAME_DATA', payload: { game: gameData, userId } });
