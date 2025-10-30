@@ -59,7 +59,9 @@ export function HunterShot({ game, players, currentPlayer }: HunterShotProps) {
             </CardHeader>
             <CardContent>
                 <PlayerGrid 
+                    game={game}
                     players={players}
+                    currentPlayer={currentPlayer}
                     onPlayerClick={handlePlayerSelect}
                     clickable={true}
                     selectedPlayerIds={selectedPlayerId ? [selectedPlayerId] : []}
