@@ -725,7 +725,6 @@ export async function createGame(
   maxPlayers: number,
   settings: Game['settings']
 ) {
-  // Defensive type checking
   if (typeof displayName !== 'string' || typeof gameName !== 'string') {
       return { error: "El nombre del jugador y de la partida deben ser texto." };
   }
@@ -747,7 +746,7 @@ export async function createGame(
       status: "waiting",
       phase: "waiting", 
       creator: userId,
-      players: [creatorPlayer],
+      players: [creatorPlayer], 
       events: [],
       chatMessages: [],
       wolfChatMessages: [],
@@ -1614,7 +1613,5 @@ export async function executeMasterAction(db: Firestore, gameId: string, actionI
          return { success: false, error: error.message };
      }
 }
-
-    
 
     

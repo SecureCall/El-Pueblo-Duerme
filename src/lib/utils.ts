@@ -39,7 +39,8 @@ export const toPlainObject = (data: any): any => {
     if (data === undefined || data === null) {
         return data;
     }
-    if (data instanceof Timestamp) {
+    // Firestore Timestamps have a toDate method
+    if (typeof data.toDate === 'function') {
         return data.toDate().toISOString();
     }
     if (data instanceof Date) {
@@ -51,11 +52,13 @@ export const toPlainObject = (data: any): any => {
     if (typeof data === 'object') {
         const newObj: { [key: string]: any } = {};
         for (const key in data) {
+            // Ensure we are not iterating over prototype properties
             if (Object.prototype.hasOwnProperty.call(data, key)) {
                 newObj[key] = toPlainObject(data[key]);
             }
         }
         return newObj;
     }
+    // Return primitives directly
     return data;
 };

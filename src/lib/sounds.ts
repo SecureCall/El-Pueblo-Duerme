@@ -42,7 +42,7 @@ export const unlockAudio = () => {
     console.log("Attempting to unlock audio contexts...");
 
     const unlockAndPause = (audio: HTMLAudioElement | null) => {
-        if (!audio || audio.played.length > 0 || !audio.paused) return;
+        if (!audio || (audio.played.length > 0 && !audio.paused)) return;
         
         const promise = audio.play();
         if (promise !== undefined) {
@@ -148,5 +148,3 @@ export const setMusic = (musicFile: string | null) => {
         musicAudio.removeAttribute('src'); 
     }
 };
-
-    

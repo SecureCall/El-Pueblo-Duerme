@@ -160,4 +160,3 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
         </Card>
     );
 }
-

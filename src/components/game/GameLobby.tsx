@@ -14,6 +14,7 @@ import { useGameSession } from "@/hooks/use-game-session";
 import { useFirebase } from "@/firebase";
 import { updatePlayerAvatar } from "@/lib/firebase-actions";
 import { PlayerGrid } from "./PlayerGrid";
+import type { MasterActionState } from "./MasterActionBar";
 
 interface GameLobbyProps {
   game: Game;
@@ -28,6 +29,7 @@ export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobby
   const { userId } = useGameSession();
   const [canShare, setCanShare] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+  const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
 
   useEffect(() => {
     if (typeof navigator !== 'undefined' && navigator.share) {
@@ -131,6 +133,8 @@ export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobby
                     setIsAvatarModalOpen(true);
                 }
             }}
+            masterActionState={masterActionState}
+            setMasterActionState={setMasterActionState}
         />
 
         {isCreator && (
@@ -142,5 +146,3 @@ export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobby
     </>
   );
 }
-
-    
