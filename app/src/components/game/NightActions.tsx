@@ -8,14 +8,14 @@ import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
 import { submitNightAction, getSeerResult } from '@/lib/firebase-actions';
-import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, BotIcon, Eye, Wand2 } from 'lucide-react';
+import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, BotIcon, Eye, Wand2, UserX } from 'lucide-react';
 import { SeerResult } from './SeerResult';
-import { useNightActions } from '@/hooks/use-night-actions';
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { useFirebase } from '@/firebase';
 import { WolfChat } from './WolfChat';
 import { FairyChat } from './FairyChat';
+import type { MasterActionState } from './MasterActionBar';
 
 interface NightActionsProps {
     game: Game;
@@ -33,9 +33,10 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     const [seerResult, setSeerResult] = useState<{ targetName: string; isWerewolf: boolean; } | null>(null);
     const [hechiceraAction, setHechiceraAction] = useState<HechiceraAction>('poison');
     const { firestore } = useFirebase();
+    const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
     
     const { toast } = useToast();
-    const { hasSubmitted } = useNightActions(game.id, game.currentRound, currentPlayer.userId);
+    const hasSubmitted = !!currentPlayer.usedNightAbility;
 
     const isExecutioner = currentPlayer.role === 'executioner';
     const isCupidFirstNight = currentPlayer.role === 'cupid' && game.currentRound === 1;
@@ -75,7 +76,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     let selectionLimit = 1;
     if (isWerewolfTeam && wolfCubRevengeActive) selectionLimit = 2;
     if (isCupidFirstNight) selectionLimit = 2;
-    if (isLookout) selectionLimit = 0;
+    if (isLookout || currentPlayer.role === 'sleeping_fairy') selectionLimit = 0;
 
 
     const handlePlayerSelect = (player: Player) => {
@@ -101,8 +102,8 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             toast({ variant: 'destructive', title: 'Regla del Vampiro', description: 'Esta persona ya no tiene más sangre que dar.' });
             return;
         }
-        if (currentPlayer.role === 'doctor' && player.lastHealedRound === game.currentRound - 1) {
-            toast({ variant: 'destructive', title: 'Regla del Doctor', description: 'No puedes proteger a la misma persona dos noches seguidas.' });
+        if ((currentPlayer.role === 'doctor' || currentPlayer.role === 'guardian') && player.lastHealedRound === game.currentRound - 1 && game.currentRound > 1) {
+            toast({ variant: 'destructive', title: 'Regla de Protección', description: 'No puedes proteger a la misma persona dos noches seguidas.' });
             return;
         }
         if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save' && player.userId === currentPlayer.userId) {
@@ -197,13 +198,9 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             targetId: selectedPlayerIds.join('|'),
         });
         
-        if (!result.success) {
-             toast({ variant: 'destructive', title: 'Error', description: result.error });
-             setIsSubmitting(false);
-        } else {
-            toast({ title: 'Acción registrada.', description: 'Tu decisión ha sido guardada.' });
-            if (currentPlayer.role === 'seer' || (currentPlayer.role === 'seer_apprentice' && game.seerDied)) {
-                const seerResultData = await getSeerResult(firestore, game.id, currentPlayer.userId, selectedPlayerIds[0]);
+        if (result.success) {
+            if (actionType === 'seer_check') {
+                 const seerResultData = await getSeerResult(firestore, game.id, currentPlayer.userId, selectedPlayerIds[0]);
                 if (seerResultData.success) {
                     setSeerResult({
                         targetName: seerResultData.targetName!,
@@ -212,8 +209,12 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                 } else {
                      toast({ variant: 'destructive', title: 'Error del Vidente', description: seerResultData.error });
                 }
+            } else {
+                toast({ title: 'Acción registrada.', description: 'Tu decisión ha sido guardada.' });
             }
-            // Do not set isSubmitting to false here. The hasSubmitted state will take care of the UI.
+        } else {
+             toast({ variant: 'destructive', title: 'Error', description: result.error });
+             setIsSubmitting(false); // Only re-enable on error
         }
     };
     
@@ -352,6 +353,26 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         return <SeerResult targetName={seerResult.targetName} isWerewolf={seerResult.isWerewolf} />;
     }
 
+    if (hasSubmitted) {
+        return (
+             <Card className="mt-8 bg-card/80">
+                <CardHeader>
+                    <CardTitle className="font-headline text-2xl">Acciones Nocturnas</CardTitle>
+                </CardHeader>
+                <CardContent className="text-center py-8">
+                    <p className="text-lg text-primary">Has realizado tu acción. Espera a que amanezca.</p>
+                      {(isWerewolfTeam || (game.fairiesFound && isFairyTeam)) && (
+                        <div className="mt-6">
+                           {isWerewolfTeam && <WolfChat gameId={game.id} currentPlayer={currentPlayer} messages={wolfMessages} />}
+                           {game.fairiesFound && isFairyTeam && <FairyChat gameId={game.id} currentPlayer={currentPlayer} messages={fairyMessages} />}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        )
+    }
+
+
     const playersForGrid = isResurrectorAngel ? game.players.filter(p => !p.isAlive) : players.filter(p=>p.isAlive);
 
     return (
@@ -363,11 +384,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             <CardContent>
                 {renderWerewolfInfo()}
                 {renderHechiceraInfo()}
-                {hasSubmitted ? (
-                     <div className="text-center py-8">
-                        <p className="text-lg text-primary">Has realizado tu acción. Espera a que amanezca.</p>
-                    </div>
-                ) : isExecutioner ? (
+                {isExecutioner ? (
                      <div className="text-center py-8">
                         <p className="text-lg text-muted-foreground">No tienes acciones esta noche. Tu trabajo empieza durante el día.</p>
                     </div>
@@ -375,32 +392,14 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                     <>
                         {(!isLookout && currentPlayer.role !== 'sleeping_fairy') && (
                             <PlayerGrid 
-                                players={playersForGrid.filter(p => {
-                                    if (isResurrectorAngel) return true; // Show all dead players
-                                    if (isWerewolfTeam) {
-                                        // A witch who found the seer is an ally
-                                        if (game.witchFoundSeer && p.role === 'witch') return false;
-                                        return !['werewolf', 'wolf_cub'].includes(p.role || '');
-                                    }
-                                    if (isCupidFirstNight) return true; // Cupid can target anyone
-                                    if (canFairiesKill && ['seeker_fairy', 'sleeping_fairy'].includes(p.role || '')) return false;
-                                    if (isVampire) return p.role !== 'vampire';
-                                    if (isCultLeader) return p.userId !== currentPlayer.userId && !p.isCultMember;
-                                    if (isFisherman) return p.userId !== currentPlayer.userId && !game.boat?.includes(p.userId);
-                                    if (isSilencer || isElderLeader) return p.userId !== currentPlayer.userId;
-                                    if (p.userId === currentPlayer.userId) {
-                                        if (currentPlayer.role === 'priest' && !currentPlayer.priestSelfHealUsed) return true;
-                                        if (currentPlayer.role === 'guardian' && (currentPlayer.guardianSelfProtects || 0) < 1) return true;
-                                        // Hechicera cannot save self
-                                        if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save') return false;
-                                        // By default, cannot target self unless specified above.
-                                        return false; 
-                                    }
-                                    return true;
-                                })}
+                                game={game}
+                                players={playersForGrid}
+                                currentPlayer={currentPlayer}
                                 onPlayerClick={handlePlayerSelect}
                                 clickable={true}
                                 selectedPlayerIds={selectedPlayerIds}
+                                masterActionState={masterActionState}
+                                setMasterActionState={setMasterActionState}
                             />
                         )}
                          { (isWerewolfTeam && wolfCubRevengeActive) || isCupidFirstNight ? (
@@ -437,4 +436,3 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         </Card>
     );
 }
-
