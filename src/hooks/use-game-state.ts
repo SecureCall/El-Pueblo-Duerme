@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useReducer } from 'react';
 import { 
   doc, 
   onSnapshot, 
@@ -66,6 +66,11 @@ interface GameState {
     error: string | null;
 }
 
+type GameAction =
+  | { type: 'SET_GAME_DATA'; payload: { game: Game; userId: string; } }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string | null };
+
 const initialState: GameState = {
     game: null,
     players: [],
@@ -81,54 +86,73 @@ const initialState: GameState = {
     error: null,
 };
 
+function gameReducer(state: GameState, action: GameAction): GameState {
+    switch (action.type) {
+        case 'SET_GAME_DATA': {
+            const { game, userId } = action.payload;
+            const sortedPlayers = [...game.players].sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
+            return {
+                ...state,
+                game,
+                players: sortedPlayers,
+                currentPlayer: sortedPlayers.find(p => p.userId === userId) || null,
+                events: [...(game.events || [])].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)),
+                messages: (game.chatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                wolfMessages: (game.wolfChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                fairyMessages: (game.fairyChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                twinMessages: (game.twinChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                loversMessages: (game.loversChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                ghostMessages: (game.ghostChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                loading: false,
+                error: null,
+            };
+        }
+        case 'SET_LOADING':
+            return { ...state, loading: action.payload };
+        case 'SET_ERROR':
+             return { 
+                ...initialState,
+                loading: false,
+                error: action.payload,
+            };
+        default:
+            return state;
+    }
+}
+
+
 export const useGameState = (gameId: string) => {
-  const [state, setState] = useState<GameState>(initialState);
+  const [state, dispatch] = useReducer(gameReducer, initialState);
   const { firestore } = useFirebase();
   const { userId } = useGameSession();
   
   useEffect(() => {
     if (!firestore || !userId || !gameId) {
-        setState(prev => ({ 
-            ...prev, 
-            loading: false, 
-            error: !gameId ? "No se ha proporcionado un ID de partida." : prev.error 
-        }));
+        dispatch({ 
+            type: 'SET_ERROR', 
+            payload: !gameId ? "No se ha proporcionado un ID de partida." : "Cargando sesión de Firebase..." 
+        });
         return;
     };
 
-    setState(prev => ({ ...prev, loading: true }));
+    dispatch({ type: 'SET_LOADING', payload: true });
     const gameRef = doc(firestore, 'games', gameId);
 
     const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
-        // The magic happens here: convert the entire data object to a plain, serializable object.
-        const gameData = toPlainObject({ ...snapshot.data() as Game, id: snapshot.id });
+        const rawData = { ...snapshot.data() as Game, id: snapshot.id };
+        const gameData = toPlainObject(rawData);
         
-        const sortedPlayers = [...gameData.players].sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
-        
-        setState({
-          game: gameData,
-          players: sortedPlayers,
-          currentPlayer: sortedPlayers.find(p => p.userId === userId) || null,
-          events: [...(gameData.events || [])].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)),
-          messages: (gameData.chatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
-          wolfMessages: (gameData.wolfChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
-          fairyMessages: (gameData.fairyChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
-          twinMessages: (gameData.twinChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
-          loversMessages: (gameData.loversChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
-          ghostMessages: (gameData.ghostChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
-          loading: false,
-          error: null,
-        });
+        dispatch({ type: 'SET_GAME_DATA', payload: { game: gameData, userId } });
       } else {
-        setState({ ...initialState, loading: false, error: 'Partida no encontrada.' });
+        dispatch({ type: 'SET_ERROR', payload: 'Partida no encontrada.' });
       }
     }, (err: FirestoreError) => {
         const contextualError = new FirestorePermissionError({
             operation: 'get',
             path: gameRef.path,
         });
-        setState({ ...initialState, loading: false, error: "Error al cargar la partida. Permisos insuficientes." });
+        dispatch({ type: 'SET_ERROR', payload: "Error al cargar la partida. Permisos insuficientes." });
         errorEmitter.emit('permission-error', contextualError);
     });
 
@@ -137,5 +161,3 @@ export const useGameState = (gameId: string) => {
 
   return state;
 };
-
-    

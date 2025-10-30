@@ -18,6 +18,8 @@ import { FirestorePermissionError } from "@/firebase/errors";
 import { secretObjectives, getObjectiveLogic } from "./objectives";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { roleDetails } from "@/lib/roles";
+import { PlayerRoleEnum } from "@/types";
+
 
 const PHASE_DURATION_SECONDS = 45;
 
@@ -107,14 +109,14 @@ export async function getAIChatResponse(db: Firestore, gameId: string, aiPlayer:
         if (game.status === 'finished') return null;
 
         const perspective: AIPlayerPerspective = {
-            game: game as any, // This is safe because genkit sanitizes it
-            aiPlayer: aiPlayer as any,
+            game: game,
+            aiPlayer: aiPlayer,
             trigger: triggerMessage,
-            players: game.players as any,
+            players: game.players,
             chatType,
         };
 
-        const result = await generateAIChatMessage(perspective);
+        const result = await generateAIChatMessage(perspective, chatType);
         
         if (result && result.shouldSend && result.message) {
             return result.message;
@@ -674,6 +676,15 @@ async function processJuryVotes(db: Firestore, gameId: string) {
 // FIREBASE ACTIONS
 // ===============================================================================================
 
+function generateGameId(length = 5) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
 const createPlayerObject = (userId: string, gameId: string, displayName: string, avatarUrl: string, isAI: boolean = false): Player => ({
     userId,
     gameId,
@@ -714,6 +725,7 @@ export async function createGame(
   maxPlayers: number,
   settings: Game['settings']
 ) {
+  // Defensive type checking
   if (typeof displayName !== 'string' || typeof gameName !== 'string') {
       return { error: "El nombre del jugador y de la partida deben ser texto." };
   }
@@ -1603,7 +1615,3 @@ export async function executeMasterAction(db: Firestore, gameId: string, actionI
          return { success: false, error: error.message };
      }
 }
-
-    
-
-    
