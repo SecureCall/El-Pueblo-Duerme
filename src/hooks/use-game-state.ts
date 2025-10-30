@@ -19,33 +19,33 @@ import { getMillis } from '@/lib/utils';
 
 // This function is the single source of truth for converting Firestore data to plain objects.
 // It's crucial for preventing the "Maximum call stack size exceeded" error.
-const toPlainObject = <T>(obj: T): T => {
+const toPlainObject = (obj: any): any => {
     if (obj === undefined || obj === null) {
         return obj;
     }
     // Convert Timestamps to ISO strings for safe serialization
     if (obj instanceof Timestamp) {
-        return obj.toDate().toISOString() as any;
+        return obj.toDate().toISOString();
     }
     // Also handle regular Date objects, just in case
     if (obj instanceof Date) {
-        return obj.toISOString() as any;
+        return obj.toISOString();
     }
     if (Array.isArray(obj)) {
-        return obj.map(item => toPlainObject(item)) as any;
+        return obj.map(item => toPlainObject(item));
     }
     if (typeof obj === 'object') {
         const newObj: { [key: string]: any } = {};
         for (const key in obj) {
             if (Object.prototype.hasOwnProperty.call(obj, key)) {
-                const value = (obj as any)[key];
+                const value = obj[key];
                 // We only assign the property if it's not undefined to avoid serialization issues
                 if (value !== undefined) {
                     newObj[key] = toPlainObject(value);
                 }
             }
         }
-        return newObj as T;
+        return newObj;
     }
     return obj;
 };

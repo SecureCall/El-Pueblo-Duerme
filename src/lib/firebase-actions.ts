@@ -18,7 +18,6 @@ import { FirestorePermissionError } from "@/firebase/errors";
 import { secretObjectives, getObjectiveLogic } from "./objectives";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { roleDetails } from "@/lib/roles";
-import { PlayerRoleEnum } from "@/types";
 
 
 const PHASE_DURATION_SECONDS = 45;
@@ -116,7 +115,7 @@ export async function getAIChatResponse(db: Firestore, gameId: string, aiPlayer:
             chatType,
         };
 
-        const result = await generateAIChatMessage(perspective, chatType);
+        const result = await generateAIChatMessage(perspective);
         
         if (result && result.shouldSend && result.message) {
             return result.message;
@@ -584,7 +583,7 @@ async function processNight(db: Firestore, gameId: string) {
        const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
         transaction.update(gameRef, {
             phase: 'day',
-            phaseEndsAt: phaseEndsAt
+            phaseEndsAt
         });
     });
     return { success: true };
@@ -607,7 +606,7 @@ async function processVotes(db: Firestore, gameId: string) {
         transaction.update(gameRef, {
             phase: 'night',
             currentRound: game.currentRound + 1,
-            phaseEndsAt: phaseEndsAt
+            phaseEndsAt
         });
     });
     return { success: true };
@@ -1135,8 +1134,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
 
 export async function getSeerResult(db: Firestore, gameId: string, seerId: string, targetId: string) {
   try {
-    const gameRef = doc(db, 'games', gameId);
-    const gameDoc = await getDoc(gameRef);
+    const gameDoc = await getDoc(doc(db, 'games', gameId));
     if (!gameDoc.exists()) throw new Error("Game not found");
     const game = gameDoc.data() as Game;
 

@@ -3,7 +3,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import type { AIPlayerPerspective, GenerateAIChatMessageOutput, NightAction, Player, PlayerRole } from '@/types';
+import type { AIPlayerPerspective, GenerateAIChatMessageOutput, NightAction, PlayerRole } from '@/types';
 import { AIPlayerPerspectiveSchema, GenerateAIChatMessageOutputSchema } from '@/types/zod';
 
 // Helper function to sanitize any object and replace undefined with null recursively.
@@ -84,10 +84,10 @@ Now, generate your response for the current situation.
 const generateAiChatMessageFlow = ai.defineFlow(
     {
         name: 'generateAiChatMessageFlow',
-        inputSchema: z.object({ perspective: AIPlayerPerspectiveSchema, chatType: z.enum(['public', 'wolf', 'twin', 'lovers', 'ghost']) }),
+        inputSchema: AIPlayerPerspectiveSchema,
         outputSchema: GenerateAIChatMessageOutputSchema,
     },
-    async ({ perspective, chatType }) => {
+    async (perspective) => {
         const isSeerOrApprentice = perspective.aiPlayer.role === 'seer' || (perspective.aiPlayer.role === 'seer_apprentice' && perspective.game.seerDied);
         if (isSeerOrApprentice && perspective.game.phase === 'day' && perspective.trigger.toLowerCase().includes('voted')) {
             const seerActions = perspective.game.nightActions?.filter(
@@ -127,14 +127,13 @@ const generateAiChatMessageFlow = ai.defineFlow(
             }
         }
         
-        let targetForExecutioner: Player | undefined;
+        let targetForExecutioner: any;
         if(perspective.aiPlayer.role === 'executioner' && perspective.aiPlayer.executionerTargetId) {
             targetForExecutioner = perspective.players.find(p => p.userId === perspective.aiPlayer.executionerTargetId);
         }
 
         const promptInput = {
             ...perspective,
-            chatType,
             objetivo_verdugo: targetForExecutioner?.displayName || "nadie",
              // Hide roles of other players before sending to the prompt, except for own role
             players: perspective.players.map(p => ({
@@ -150,13 +149,12 @@ const generateAiChatMessageFlow = ai.defineFlow(
 
 
 export async function generateAIChatMessage(
-    perspective: AIPlayerPerspective, 
-    chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost'
+    perspective: AIPlayerPerspective
 ): Promise<GenerateAIChatMessageOutput> {
     try {
         const sanitizedPerspective = sanitizeObject(perspective);
 
-        const result = await generateAiChatMessageFlow({ perspective: sanitizedPerspective, chatType });
+        const result = await generateAiChatMessageFlow(sanitizedPerspective);
         return result;
     } catch (error) {
         console.error("Critical Error in generateAIChatMessage flow:", error);
