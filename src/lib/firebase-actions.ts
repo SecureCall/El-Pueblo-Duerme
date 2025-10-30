@@ -19,6 +19,31 @@ import { secretObjectives, getObjectiveLogic } from "./objectives";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { roleDetails } from "@/lib/roles";
 
+const toPlainObject = (data: any): any => {
+    if (data === undefined || data === null) {
+        return data;
+    }
+    if (data instanceof Timestamp) {
+        return data.toDate().toISOString();
+    }
+    if (data instanceof Date) {
+        return data.toISOString();
+    }
+    if (Array.isArray(data)) {
+        return data.map(item => toPlainObject(item));
+    }
+    if (typeof data === 'object') {
+        const newObj: { [key: string]: any } = {};
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                newObj[key] = toPlainObject(data[key]);
+            }
+        }
+        return newObj;
+    }
+    return data;
+};
+
 
 const PHASE_DURATION_SECONDS = 45;
 
@@ -719,6 +744,7 @@ export async function createGame(
   db: Firestore,
   userId: string,
   displayName: string,
+  avatarUrl: string,
   gameName: string,
   maxPlayers: number,
   settings: Game['settings']
@@ -736,6 +762,7 @@ export async function createGame(
 
   const gameId = generateGameId();
   const gameRef = doc(db, "games", gameId);
+  const creatorPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
       
   const werewolfCount = Math.max(1, Math.floor(maxPlayers / 4));
 
@@ -744,7 +771,7 @@ export async function createGame(
       status: "waiting",
       phase: "waiting", 
       creator: userId,
-      players: [], 
+      players: [creatorPlayer], 
       events: [],
       chatMessages: [],
       wolfChatMessages: [],

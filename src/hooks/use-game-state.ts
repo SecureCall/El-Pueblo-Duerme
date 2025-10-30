@@ -140,7 +140,7 @@ export const useGameState = (gameId: string) => {
     const unsubscribeGame = onSnapshot(gameRef.current, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
         const rawData = { ...snapshot.data(), id: snapshot.id };
-        // CRITICAL: Sanitize data immediately upon receipt from Firestore.
+        // CRITICAL: Sanitize data immediately upon receipt from Firebase.
         const gameData = toPlainObject(rawData) as Game;
         
         dispatch({ type: 'SET_GAME_DATA', payload: { game: gameData, userId } });
@@ -161,5 +161,3 @@ export const useGameState = (gameId: string) => {
 
   return state;
 };
-
-    
