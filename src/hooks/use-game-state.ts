@@ -1,7 +1,7 @@
 
-"use client";
+'use client';
 
-import { useEffect, useReducer } from 'react';
+import { useEffect, useReducer, useRef } from 'react';
 import { 
   doc, 
   onSnapshot, 
@@ -37,12 +37,9 @@ const toPlainObject = (obj: any): any => {
     if (typeof obj === 'object') {
         const newObj: { [key: string]: any } = {};
         for (const key in obj) {
-            if (Object.prototype.hasOwnProperty.call(obj, key)) {
-                const value = obj[key];
-                // We only assign the property if it's not undefined to avoid serialization issues
-                if (value !== undefined) {
-                    newObj[key] = toPlainObject(value);
-                }
+            // We only assign the property if it's not undefined to avoid serialization issues
+            if (Object.prototype.hasOwnProperty.call(obj, key) && obj[key] !== undefined) {
+                newObj[key] = toPlainObject(obj[key]);
             }
         }
         return newObj;
@@ -126,6 +123,7 @@ export const useGameState = (gameId: string) => {
   const { userId } = useGameSession();
   
   const [state, dispatch] = useReducer(gameReducer, initialReducerState);
+  const gameRef = useRef<DocumentData | null>(null);
   
   useEffect(() => {
     if (!firestore || !userId || !gameId) {
@@ -137,9 +135,12 @@ export const useGameState = (gameId: string) => {
     };
 
     dispatch({ type: 'SET_LOADING', payload: true });
-    const gameRef = doc(firestore, 'games', gameId);
 
-    const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
+    if (!gameRef.current) {
+      gameRef.current = doc(firestore, 'games', gameId);
+    }
+    
+    const unsubscribeGame = onSnapshot(gameRef.current, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
         const rawData = { ...snapshot.data() as Game, id: snapshot.id };
         // CRITICAL: Sanitize data immediately upon receipt from Firestore.
@@ -152,7 +153,7 @@ export const useGameState = (gameId: string) => {
     }, (err: FirestoreError) => {
         const contextualError = new FirestorePermissionError({
             operation: 'get',
-            path: gameRef.path,
+            path: (gameRef.current as any)?.path || `games/${gameId}`,
         });
         dispatch({ type: 'SET_ERROR', payload: "Error al cargar la partida. Permisos insuficientes." });
         errorEmitter.emit('permission-error', contextualError);
