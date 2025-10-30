@@ -725,7 +725,6 @@ export async function createGame(
   maxPlayers: number,
   settings: Game['settings']
 ) {
-  // Defensive type checking
   if (typeof displayName !== 'string' || typeof gameName !== 'string') {
       return { error: "El nombre del jugador y de la partida deben ser texto." };
   }
@@ -1615,3 +1614,4 @@ export async function executeMasterAction(db: Firestore, gameId: string, actionI
      }
 }
 
+    
