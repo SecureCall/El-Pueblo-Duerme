@@ -60,7 +60,7 @@ export async function triggerAIVote(db: Firestore, gameId: string) {
 
         const aiPlayersToVote = game.players.filter(p => p.isAI && p.isAlive && !p.votedFor);
         const alivePlayers = game.players.filter(p => p.isAlive);
-        const deadPlayers = game.players.filter(p => p.isAlive);
+        const deadPlayers = game.players.filter(p => !p.isAlive);
 
         for (const ai of aiPlayersToVote) {
             const { targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
@@ -1612,3 +1612,5 @@ export async function executeMasterAction(db: Firestore, gameId: string, actionI
          return { success: false, error: error.message };
      }
 }
+
+    
