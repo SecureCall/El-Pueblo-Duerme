@@ -19,6 +19,7 @@ import { secretObjectives, getObjectiveLogic } from "./objectives";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { roleDetails } from "@/lib/roles";
 
+// THIS IS THE ONLY FUNCTION THAT SHOULD CONVERT TIMESTAMPS
 const toPlainObject = (data: any): any => {
     if (data === undefined || data === null) {
         return data;
@@ -133,10 +134,10 @@ export async function getAIChatResponse(db: Firestore, gameId: string, aiPlayer:
         if (game.status === 'finished') return null;
 
         const perspective: AIPlayerPerspective = {
-            game: game,
-            aiPlayer: aiPlayer,
+            game: toPlainObject(game),
+            aiPlayer: toPlainObject(aiPlayer),
             trigger: triggerMessage,
-            players: game.players,
+            players: toPlainObject(game.players),
             chatType,
         };
 
@@ -1159,8 +1160,7 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
 
 export async function getSeerResult(db: Firestore, gameId: string, seerId: string, targetId: string) {
   try {
-    const gameRef = doc(db, 'games', gameId);
-    const gameDoc = await getDoc(gameRef);
+    const gameDoc = await getDoc(doc(db, 'games', gameId));
     if (!gameDoc.exists()) throw new Error("Game not found");
     const game = gameDoc.data() as Game;
 
@@ -1639,3 +1639,5 @@ export async function executeMasterAction(db: Firestore, gameId: string, actionI
          return { success: false, error: error.message };
      }
 }
+
+    
