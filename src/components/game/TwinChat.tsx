@@ -49,7 +49,7 @@ export function TwinChat({ gameId, currentPlayer, messages }: TwinChatProps) {
             });
         }
     };
-
+    
     return (
         <Card className="bg-blue-900/20 border-blue-400/40 flex flex-col h-full max-h-80">
             <CardHeader className='pb-2'>
