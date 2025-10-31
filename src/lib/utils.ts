@@ -17,6 +17,7 @@ export const toPlainObject = (data: any): any => {
     if (typeof data.toDate === 'function') {
         return data.toDate().toISOString();
     }
+    // Handle native Date objects
     if (data instanceof Date) {
         return data.toISOString();
     }
@@ -64,3 +65,5 @@ export const getMillis = (timestamp: any): number => {
     console.warn("Could not convert timestamp to milliseconds:", timestamp);
     return 0;
 };
+
+    

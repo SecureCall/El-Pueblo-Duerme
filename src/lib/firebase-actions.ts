@@ -137,11 +137,16 @@ export const getDeterministicAIAction = (
     deadPlayers: Player[],
 ): { actionType: NightActionType | 'VOTE' | 'SHOOT' | 'NONE', targetId: string } => {
     const { role, userId } = aiPlayer;
-    const { currentRound, nightActions = [] } = game;
+    
+    // CRITICAL: Sanitize the game object to prevent passing complex objects (like Timestamps)
+    // to functions that don't expect them, which can cause call stack errors.
+    const sanitizedGame = toPlainObject(game);
+    const { currentRound, nightActions = [] } = sanitizedGame;
+
     const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
-    const wolfCubRevengeActive = game.wolfCubRevengeRound === game.currentRound;
-    const apprenticeIsActive = role === 'seer_apprentice' && game.seerDied;
-    const canFairiesKill = game.fairiesFound && !game.fairyKillUsed && (role === 'seeker_fairy' || role === 'sleeping_fairy');
+    const wolfCubRevengeActive = sanitizedGame.wolfCubRevengeRound === currentRound;
+    const apprenticeIsActive = role === 'seer_apprentice' && sanitizedGame.seerDied;
+    const canFairiesKill = sanitizedGame.fairiesFound && !sanitizedGame.fairyKillUsed && (role === 'seeker_fairy' || role === 'sleeping_fairy');
 
     const potentialTargets = alivePlayers.filter(p => p.userId !== userId);
 
@@ -159,7 +164,7 @@ export const getDeterministicAIAction = (
         return selectedTargets.join('|');
     };
 
-    if (game.phase === 'day') {
+    if (sanitizedGame.phase === 'day') {
         if (aiPlayer.role === 'executioner' && aiPlayer.executionerTargetId) {
             const targetIsAlive = alivePlayers.some(p => p.userId === aiPlayer.executionerTargetId);
             if (targetIsAlive && Math.random() < 0.75) {
@@ -169,11 +174,11 @@ export const getDeterministicAIAction = (
         return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
     }
 
-    if (game.phase === 'hunter_shot' && game.pendingHunterShot === userId) {
+    if (sanitizedGame.phase === 'hunter_shot' && sanitizedGame.pendingHunterShot === userId) {
         return { actionType: 'SHOOT', targetId: randomTarget(potentialTargets) };
     }
 
-    if (game.phase !== 'night' || aiPlayer.isExiled) {
+    if (sanitizedGame.phase !== 'night' || aiPlayer.isExiled) {
         return { actionType: 'NONE', targetId: '' };
     }
 
@@ -185,7 +190,7 @@ export const getDeterministicAIAction = (
     switch (role) {
         case 'werewolf':
         case 'wolf_cub': {
-             const wolfActions = nightActions.filter(a => a.round === currentRound && a.actionType === 'werewolf_kill' && a.playerId !== userId && wolfRoles.includes(game.players.find(p=>p.userId === a.playerId)?.role || null));
+             const wolfActions = nightActions.filter(a => a.round === currentRound && a.actionType === 'werewolf_kill' && a.playerId !== userId && wolfRoles.includes(sanitizedGame.players.find(p=>p.userId === a.playerId)?.role || null));
              if (wolfActions.length > 0 && Math.random() < 0.8) { 
                  const leaderAction = wolfActions[0];
                  if (leaderAction && leaderAction.targetId) {
@@ -195,7 +200,7 @@ export const getDeterministicAIAction = (
 
             const nonWolves = potentialTargets.filter(p => {
                 if (p.role && wolfRoles.includes(p.role)) return false;
-                if (game.witchFoundSeer && p.role === 'witch') return false; 
+                if (sanitizedGame.witchFoundSeer && p.role === 'witch') return false; 
                 return true;
             });
             const killCount = wolfCubRevengeActive ? 2 : 1;
@@ -204,7 +209,7 @@ export const getDeterministicAIAction = (
         case 'seer':
         case 'seer_apprentice':
             if (role === 'seer' || apprenticeIsActive) {
-                const lastVoteEvent = game.events.find(e => e.type === 'vote_result' && e.round === currentRound - 1);
+                const lastVoteEvent = sanitizedGame.events.find(e => e.type === 'vote_result' && e.round === currentRound - 1);
                 
                 const suspicionMap: Record<string, number> = {};
                 alivePlayers.forEach(p => {
@@ -213,9 +218,9 @@ export const getDeterministicAIAction = (
                 
                 if(lastVoteEvent?.data) {
                     const lynchedPlayerId = lastVoteEvent.data.lynchedPlayerId;
-                    const lynchedPlayer = game.players.find(p => p.userId === lynchedPlayerId);
+                    const lynchedPlayer = sanitizedGame.players.find(p => p.userId === lynchedPlayerId);
                     if(lynchedPlayer?.role === 'villager') {
-                         game.players.filter(p => p.votedFor === lynchedPlayerId).forEach(voter => {
+                         sanitizedGame.players.filter(p => p.votedFor === lynchedPlayerId).forEach(voter => {
                             if (suspicionMap[voter.userId]) suspicionMap[voter.userId] += 10;
                          });
                     }
@@ -257,14 +262,14 @@ export const getDeterministicAIAction = (
             return { actionType: 'cult_recruit', targetId: randomTarget(nonCultMembers) };
         }
         case 'fisherman': {
-            const nonBoatTargets = potentialTargets.filter(p => !game.boat?.includes(p.userId));
+            const nonBoatTargets = potentialTargets.filter(p => !sanitizedGame.boat?.includes(p.userId));
             return { actionType: 'fisherman_catch', targetId: randomTarget(nonBoatTargets) };
         }
         case 'silencer':
         case 'elder_leader':
              return { actionType: role === 'silencer' ? 'silencer_silence' : 'elder_leader_exile', targetId: randomTarget(potentialTargets) };
         case 'seeker_fairy':
-            if (!game.fairiesFound) {
+            if (!sanitizedGame.fairiesFound) {
                  const sleepingFairy = alivePlayers.find(p => p.role === 'sleeping_fairy');
                  if (sleepingFairy && Math.random() < 0.25) {
                      return { actionType: 'fairy_find', targetId: sleepingFairy.userId };
@@ -273,7 +278,7 @@ export const getDeterministicAIAction = (
             }
             return { actionType: 'NONE', targetId: '' };
         case 'witch':
-            if (!game.witchFoundSeer) {
+            if (!sanitizedGame.witchFoundSeer) {
                 return { actionType: 'witch_hunt', targetId: randomTarget(potentialTargets) };
             }
             return { actionType: 'NONE', targetId: '' };
@@ -813,6 +818,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     votedFor: null,
     joinedAt: Timestamp.now(),
     isAI,
+    isExiled: false,
     lastHealedRound: 0,
     potions: { poison: null, save: null },
     priestSelfHealUsed: false,
@@ -831,7 +837,6 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     lookoutUsed: false,
     executionerTargetId: null,
     secretObjectiveId: null,
-    isExiled: false,
 });
 
 
@@ -957,7 +962,7 @@ export async function joinGame(
                 changed = true;
             }
             if(changed) {
-                transaction.update(gameRef, { players: currentPlayers, lastActiveAt: Timestamp.now() });
+                transaction.update(gameRef, { players: toPlainObject(currentPlayers), lastActiveAt: Timestamp.now() });
             }
         }
         return;
@@ -974,7 +979,7 @@ export async function joinGame(
       
       const newPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
       transaction.update(gameRef, {
-        players: arrayUnion(newPlayer),
+        players: arrayUnion(toPlainObject(newPlayer)),
         lastActiveAt: Timestamp.now(),
       });
     });
@@ -996,5 +1001,6 @@ export async function joinGame(
   }
 }
 //... (rest of the file remains the same)
+
 
     
