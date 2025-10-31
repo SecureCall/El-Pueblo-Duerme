@@ -223,7 +223,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         : [];
     
     const getActionPrompt = () => {
-        if (game.exiledPlayerId === currentPlayer.userId) {
+        if (currentPlayer.isExiled) {
             return 'Has sido exiliado por la Anciana Líder esta noche. No puedes usar tu habilidad.';
         }
         if (canFairiesKill) {
@@ -346,7 +346,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             isSeekerFairy ||
             canFairiesKill ||
             isResurrectorAngel
-        ) && game.exiledPlayerId !== currentPlayer.userId
+        ) && !currentPlayer.isExiled
     );
 
     if (seerResult) {

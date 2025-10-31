@@ -104,7 +104,7 @@ export function GameChat({ game, gameId, currentPlayer, messages, players }: Gam
         }
     };
 
-    const isSilenced = game?.silencedPlayerId === currentPlayer.userId;
+    const isSilenced = game.phase === 'day' && game.silencedPlayerId === currentPlayer.userId;
     const canChat = currentPlayer.isAlive && !isSilenced;
     
     return (
