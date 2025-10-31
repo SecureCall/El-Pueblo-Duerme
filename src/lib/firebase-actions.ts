@@ -866,6 +866,3 @@ async function processVotes(db: Firestore, gameId: string) {
   }
 }
 //... (rest of the file remains the same)
-      
-
-    

@@ -70,5 +70,3 @@ export const getMillis = (timestamp: any): number => {
     console.warn("Could not convert timestamp to milliseconds:", timestamp);
     return 0;
 };
-
-    
