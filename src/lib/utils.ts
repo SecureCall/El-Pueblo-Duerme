@@ -29,7 +29,12 @@ export const toPlainObject = (data: any): any => {
         for (const key in data) {
             // Ensure we are not iterating over prototype properties
             if (Object.prototype.hasOwnProperty.call(data, key)) {
-                newObj[key] = toPlainObject(data[key]);
+                 const value = data[key];
+                // Firestore does not allow 'undefined' values.
+                // We shouldn't have them, but this prevents errors if they sneak in.
+                if (value !== undefined) {
+                    newObj[key] = toPlainObject(value);
+                }
             }
         }
         return newObj;
@@ -47,16 +52,16 @@ export const getMillis = (timestamp: any): number => {
     if (timestamp instanceof Timestamp) {
         return timestamp.toMillis();
     }
-    // Handle the object format that Timestamps become after toPlainObject
+    // Handle the object format that Timestamps become after JSON serialization (not toPlainObject)
+    if (typeof timestamp === 'object' && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
+        return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
+    }
+     // Handle the ISO string format from toPlainObject
     if (typeof timestamp === 'string') {
         const date = new Date(timestamp);
         if (!isNaN(date.getTime())) {
             return date.getTime();
         }
-    }
-    // Fallback for serialized timestamp objects that might not be strings
-    if (typeof timestamp === 'object' && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
-        return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
     }
     if (typeof timestamp === 'number') {
         return timestamp; // It might already be in milliseconds
@@ -66,4 +71,4 @@ export const getMillis = (timestamp: any): number => {
     return 0;
 };
 
-      
+    

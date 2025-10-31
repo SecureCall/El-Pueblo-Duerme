@@ -266,13 +266,9 @@ export const getDeterministicAIAction = (
     alivePlayers: Player[],
     deadPlayers: Player[],
 ): { actionType: NightActionType | 'VOTE' | 'SHOOT' | 'NONE', targetId: string } => {
-    const { role, userId } = aiPlayer;
-    
-    // CRITICAL: Sanitize the game object to prevent passing complex objects (like Timestamps)
-    // to functions that don't expect them, which can cause call stack errors.
     const sanitizedGame = toPlainObject(game) as Game;
+    const { role, userId } = aiPlayer;
     const { currentRound, nightActions = [] } = sanitizedGame;
-
     const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
     const wolfCubRevengeActive = sanitizedGame.wolfCubRevengeRound === currentRound;
     const apprenticeIsActive = role === 'seer_apprentice' && sanitizedGame.seerDied;
@@ -869,59 +865,7 @@ async function processVotes(db: Firestore, gameId: string) {
     return { success: false, error: error.message };
   }
 }
-
-async function processJuryVotes(db: Firestore, gameId: string) {
-     const gameRef = doc(db, 'games', gameId);
-      try {
-        await runTransaction(db, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error("Game not found");
-            let game = gameDoc.data() as Game;
-
-            const juryVotes = game.juryVotes || {};
-            const voteCounts: Record<string, number> = {};
-            Object.values(juryVotes).forEach(vote => {
-                voteCounts[vote] = (voteCounts[vote] || 0) + 1;
-            });
-            
-            let maxVotes = 0;
-            let mostVotedPlayerIds: string[] = [];
-            for (const playerId in voteCounts) {
-                if (voteCounts[playerId] > maxVotes) {
-                    maxVotes = voteCounts[playerId];
-                    mostVotedPlayerIds = [playerId];
-                } else if (voteCounts[playerId] === maxVotes && maxVotes > 0) {
-                    mostVotedPlayerIds.push(playerId);
-                }
-            }
-
-            const lynchedPlayerId = mostVotedPlayerIds.length === 1 ? mostVotedPlayerIds[0] : null;
-
-            if (lynchedPlayerId) {
-                 const { updatedGame } = await killPlayer(transaction, gameRef as any, game, lynchedPlayerId, 'vote_result');
-                 game = updatedGame;
-            } else {
-                 game.events.push({ id: `evt_jury_tie_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: "El jurado no ha llegado a un acuerdo. Nadie es linchado.", data: { lynchedPlayerId: null, final: true }, createdAt: Timestamp.now() });
-            }
-
-            const newRound = game.currentRound + 1;
-            game.players.forEach(p => { 
-                p.votedFor = null;
-                p.usedNightAbility = false; 
-            });
-            const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
-            
-            transaction.update(gameRef, toPlainObject({
-                players: game.players, events: game.events, phase: 'night', phaseEndsAt,
-                currentRound: newRound, pendingHunterShot: null, silencedPlayerId: null,
-                exiledPlayerId: null, juryVotes: {}
-            }));
-        });
-        return { success: true };
-      } catch (error: any) {
-        console.error("Error processing jury votes:", error);
-        return { error: error.message };
-    }
-}
 //... (rest of the file remains the same)
       
+
+    
