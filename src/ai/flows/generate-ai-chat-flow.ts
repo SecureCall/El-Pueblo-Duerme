@@ -5,29 +5,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import type { AIPlayerPerspective, GenerateAIChatMessageOutput, NightAction, PlayerRole } from '@/types';
 import { AIPlayerPerspectiveSchema, GenerateAIChatMessageOutputSchema } from '@/types/zod';
-
-// Helper function to sanitize any object and replace undefined with null recursively.
-const sanitizeObject = (obj: any): any => {
-    if (obj === undefined || obj === null) {
-        return null;
-    }
-    if (typeof obj !== 'object') {
-        return obj;
-    }
-
-    if (Array.isArray(obj)) {
-        return obj.map(item => sanitizeObject(item));
-    }
-
-    const newObj: { [key: string]: any } = {};
-    for (const key in obj) {
-        if (Object.prototype.hasOwnProperty.call(obj, key)) {
-            const value = obj[key];
-            newObj[key] = sanitizeObject(value);
-        }
-    }
-    return newObj;
-};
+import { toPlainObject } from '@/lib/utils';
 
 
 const prompt = ai.definePrompt({
@@ -152,7 +130,7 @@ export async function generateAIChatMessage(
     perspective: AIPlayerPerspective
 ): Promise<GenerateAIChatMessageOutput> {
     try {
-        const sanitizedPerspective = sanitizeObject(perspective);
+        const sanitizedPerspective = toPlainObject(perspective);
 
         const result = await generateAiChatMessageFlow(sanitizedPerspective);
         return result;
