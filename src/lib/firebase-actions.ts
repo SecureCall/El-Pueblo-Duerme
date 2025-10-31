@@ -42,6 +42,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     votedFor: null,
     joinedAt: Timestamp.now(),
     isAI,
+    isExiled: false,
     lastHealedRound: 0,
     potions: { poison: null, save: null },
     priestSelfHealUsed: false,
@@ -60,7 +61,6 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     lookoutUsed: false,
     executionerTargetId: null,
     secretObjectiveId: null,
-    isExiled: false,
 });
 
 
