@@ -1,5 +1,5 @@
 
-'use client';
+"use client";
 
 import { useEffect, useReducer, useRef } from 'react';
 import { 
@@ -26,7 +26,7 @@ interface GameState {
     wolfMessages: ChatMessage[];
     fairyMessages: ChatMessage[];
     twinMessages: ChatMessage[];
-    loversMessages: ChatMessage[];
+    loversChatMessages: ChatMessage[];
     ghostMessages: ChatMessage[];
     loading: boolean;
     error: string | null;
@@ -46,7 +46,7 @@ const initialReducerState: GameState = {
     wolfMessages: [],
     fairyMessages: [],
     twinMessages: [],
-    loversMessages: [],
+    loversChatMessages: [],
     ghostMessages: [],
     loading: true,
     error: null,
@@ -67,7 +67,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
                 wolfMessages: (game.wolfChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
                 fairyMessages: (game.fairyChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
                 twinMessages: (game.twinChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
-                loversMessages: (game.loversChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                loversChatMessages: (game.loversChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
                 ghostMessages: (game.ghostChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
                 loading: false,
                 error: null,
