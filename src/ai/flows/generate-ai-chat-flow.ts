@@ -130,6 +130,7 @@ export async function generateAIChatMessage(
     perspective: AIPlayerPerspective
 ): Promise<GenerateAIChatMessageOutput> {
     try {
+        // AI Flow requires a plain object, so we ensure it's sanitized before calling.
         const sanitizedPerspective = toPlainObject(perspective);
 
         const result = await generateAiChatMessageFlow(sanitizedPerspective);
@@ -140,3 +141,5 @@ export async function generateAIChatMessage(
         return { message: '', shouldSend: false };
     }
 }
+
+      

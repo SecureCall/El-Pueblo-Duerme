@@ -143,7 +143,7 @@ export async function createGame(
         const permissionError = new FirestorePermissionError({
             path: gameRef.path,
             operation: 'create',
-            requestResourceData: gameData,
+            requestResourceData: toPlainObject(gameData),
         });
         errorEmitter.emit('permission-error', permissionError);
         return { error: "Permiso denegado al crear la partida." };
@@ -235,14 +235,16 @@ export async function getAIChatResponse(db: Firestore, gameId: string, aiPlayer:
     try {
         const gameDoc = await getDoc(doc(db, 'games', gameId));
         if (!gameDoc.exists()) return null;
-        const game = gameDoc.data() as Game;
+        
+        const game = toPlainObject(gameDoc.data()) as Game;
+
         if (game.status === 'finished') return null;
 
         const perspective: AIPlayerPerspective = {
-            game: toPlainObject(game),
+            game: game,
             aiPlayer: toPlainObject(aiPlayer),
             trigger: triggerMessage,
-            players: toPlainObject(game.players),
+            players: game.players, // Now using the already sanitized players from the game object
             chatType,
         };
 
@@ -866,3 +868,5 @@ async function processVotes(db: Firestore, gameId: string) {
   }
 }
 //... (rest of the file remains the same)
+
+      
