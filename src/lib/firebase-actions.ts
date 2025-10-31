@@ -23,6 +23,136 @@ import { toPlainObject } from "./utils";
 
 const PHASE_DURATION_SECONDS = 45;
 
+function generateGameId(length = 5) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+const createPlayerObject = (userId: string, gameId: string, displayName: string, avatarUrl: string, isAI: boolean = false): Player => ({
+    userId,
+    gameId,
+    displayName: displayName.trim(),
+    avatarUrl,
+    role: null,
+    isAlive: true,
+    votedFor: null,
+    joinedAt: Timestamp.now(),
+    isAI,
+    lastHealedRound: 0,
+    potions: { poison: null, save: null },
+    priestSelfHealUsed: false,
+    princeRevealed: false,
+    guardianSelfProtects: 0,
+    biteCount: 0,
+    isCultMember: false,
+    isLover: false,
+    usedNightAbility: false,
+    shapeshifterTargetId: null,
+    virginiaWoolfTargetId: null,
+    riverSirenTargetId: null,
+    ghostMessageSent: false,
+    resurrectorAngelUsed: false,
+    bansheeScreams: {},
+    lookoutUsed: false,
+    executionerTargetId: null,
+    secretObjectiveId: null,
+    isExiled: false,
+});
+
+
+export async function createGame(
+  db: Firestore,
+  userId: string,
+  displayName: string,
+  avatarUrl: string,
+  gameName: string,
+  maxPlayers: number,
+  settings: Game['settings']
+) {
+  if (typeof displayName !== 'string' || typeof gameName !== 'string') {
+      return { error: "El nombre del jugador y de la partida deben ser texto." };
+  }
+  if (!userId || !displayName.trim() || !gameName.trim()) {
+    return { error: "Datos incompletos para crear la partida." };
+  }
+  if (maxPlayers < 3 || maxPlayers > 32) {
+    return { error: "El número de jugadores debe ser entre 3 y 32." };
+  }
+
+  const gameId = generateGameId();
+  const gameRef = doc(db, "games", gameId);
+      
+  const werewolfCount = Math.max(1, Math.floor(maxPlayers / 4));
+
+  const gameData: Game = {
+      id: gameId,
+      name: gameName.trim(),
+      status: "waiting",
+      phase: "waiting", 
+      creator: userId,
+      players: [], 
+      events: [],
+      chatMessages: [],
+      wolfChatMessages: [],
+      fairyChatMessages: [],
+      twinChatMessages: [],
+      loversChatMessages: [],
+      ghostChatMessages: [],
+      maxPlayers: maxPlayers,
+      createdAt: Timestamp.now(),
+      lastActiveAt: Timestamp.now(),
+      currentRound: 0,
+      settings: {
+          ...settings,
+          werewolves: werewolfCount,
+      },
+      phaseEndsAt: Timestamp.now(),
+      pendingHunterShot: null,
+      twins: null,
+      lovers: null,
+      wolfCubRevengeRound: 0,
+      nightActions: [],
+      vampireKills: 0,
+      boat: [],
+      leprosaBlockedRound: 0,
+      witchFoundSeer: false,
+      seerDied: false,
+      silencedPlayerId: null,
+      exiledPlayerId: null,
+      troublemakerUsed: false,
+      fairiesFound: false,
+      fairyKillUsed: false,
+  };
+  
+  try {
+    await setDoc(gameRef, toPlainObject(gameData));
+    
+    const joinResult = await joinGame(db, gameId, userId, displayName, avatarUrl);
+    if (joinResult.error) {
+      console.error(`Game created (${gameId}), but creator failed to join:`, joinResult.error);
+      return { error: `La partida se creó, pero no se pudo unir: ${joinResult.error}` };
+    }
+
+    return { gameId };
+  } catch (error: any) {
+    if (error.code === 'permission-denied') {
+        const permissionError = new FirestorePermissionError({
+            path: gameRef.path,
+            operation: 'create',
+            requestResourceData: gameData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        return { error: "Permiso denegado al crear la partida." };
+    }
+    console.error("Error creating game:", error);
+    return { error: `Error al crear la partida: ${error.message || 'Error desconocido'}` };
+  }
+}
+
 // ===============================================================================================
 // AI ACTIONS LOGIC
 // ===============================================================================================
@@ -794,5 +924,4 @@ async function processJuryVotes(db: Firestore, gameId: string) {
     }
 }
 //... (rest of the file remains the same)
-
       
