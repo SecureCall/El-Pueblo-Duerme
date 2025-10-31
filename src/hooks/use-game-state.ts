@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useReducer, useRef } from 'react';
@@ -112,7 +111,7 @@ export const useGameState = (gameId: string) => {
     const unsubscribeGame = onSnapshot(gameRef.current, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
         const rawData = { ...snapshot.data(), id: snapshot.id };
-        // CRITICAL: Sanitize the object immediately upon receipt from Firestore.
+        // CRITICAL: Sanitize the object immediately upon receipt from Firestore to prevent serialization issues.
         const gameData = toPlainObject(rawData) as Game;
         
         dispatch({ type: 'SET_GAME_DATA', payload: { game: gameData, userId } });
