@@ -1,43 +1,13 @@
+
 import { z } from 'zod';
 
-export enum PlayerRoleEnum {
-  VILLAGER = "villager",
-  SEER = "seer",
-  DOCTOR = "doctor",
-  HUNTER = "hunter",
-  GUARDIAN = "guardian",
-  PRIEST = "priest",
-  PRINCE = "prince",
-  LYCANTHROPE = "lycanthrope",
-  TWIN = "twin",
-  HECHICERA = "hechicera",
-  GHOST = "ghost",
-  VIRGINIA_WOOLF = "virginia_woolf",
-  LEPROSA = "leprosa",
-  RIVER_SIREN = "river_siren",
-  LOOKOUT = "lookout",
-  TROUBLEMAKER = "troublemaker",
-  SILENCER = "silencer",
-  SEER_APPRENTICE = "seer_apprentice",
-  ELDER_LEADER = "elder_leader",
-  RESURRECTOR_ANGEL = "resurrector_angel",
-  WEREWOLF = "werewolf",
-  WOLF_CUB = "wolf_cub",
-  CURSED = "cursed",
-  WITCH = "witch",
-  SEEKER_FAIRY = "seeker_fairy",
-  SHAPESHIFTER = "shapeshifter",
-  DRUNK_MAN = "drunk_man",
-  CULT_LEADER = "cult_leader",
-  FISHERMAN = "fisherman",
-  VAMPIRE = "vampire",
-  BANSHEE = "banshee",
-  CUPID = "cupid",
-  EXECUTIONER = "executioner",
-  SLEEPING_FAIRY = "sleeping_fairy",
-}
-
-export const PlayerRoleEnumSchema = z.nativeEnum(PlayerRoleEnum).nullable();
+export const PlayerRoleEnum = z.enum([
+  "villager", "seer", "doctor", "hunter", "guardian", "priest", "prince", "lycanthrope", "twin",
+  "hechicera", "ghost", "virginia_woolf", "leprosa", "river_siren", "lookout", "troublemaker",
+  "silencer", "seer_apprentice", "elder_leader", "werewolf", "wolf_cub", "cursed", "seeker_fairy",
+  "sleeping_fairy", "shapeshifter", "drunk_man", "cult_leader", "fisherman", "vampire", "witch", "banshee",
+  "resurrector_angel", "cupid", "executioner"
+]);
 
 
 const TimestampSchema = z.union([
@@ -55,7 +25,7 @@ const TimestampSchema = z.union([
 export const PlayerSchema = z.object({
   userId: z.string(),
   gameId: z.string(),
-  role: PlayerRoleEnumSchema,
+  role: PlayerRoleEnum.nullable(),
   isAlive: z.boolean(),
   votedFor: z.string().nullable(),
   displayName: z.string(),
@@ -202,7 +172,7 @@ export const GameSchema = z.object({
 });
 
 export const RoleDataSchema = z.object({
-  name: PlayerRoleEnumSchema,
+  name: PlayerRoleEnum.nullable(),
   description: z.string(),
   team: z.enum(['Aldeanos', 'Lobos', 'Neutral']),
   alliance: z.enum(['Aldeanos', 'Lobos', 'Neutral']),

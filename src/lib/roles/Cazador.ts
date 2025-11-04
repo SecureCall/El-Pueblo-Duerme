@@ -1,8 +1,9 @@
+
 import type { GameContext, GameStateChange, IRole, RoleData, Player } from "@/types";
-import { PlayerRoleEnum } from "@/types/zod";
+import { PlayerRoleEnum } from "@/types";
 
 export class Cazador implements IRole {
-  readonly name = PlayerRoleEnum.HUNTER;
+  readonly name = PlayerRoleEnum.enum.hunter;
   readonly description = "Si mueres, ya sea de noche o linchado de día, tendrás un último disparo. Deberás elegir a otro jugador para que muera contigo. Tu disparo es ineludible.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';

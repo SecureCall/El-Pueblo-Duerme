@@ -1,9 +1,9 @@
 
-import { GameStateChange, IRole, RoleData } from "@/types";
+import { GameStateChange, IRole, RoleData, Player } from "@/types";
 import { PlayerRoleEnum } from "@/types/zod";
 
 export class Alborotadora implements IRole {
-  readonly name = PlayerRoleEnum.TROUBLEMAKER;
+  readonly name = PlayerRoleEnum.enum.troublemaker;
   readonly description = "Una vez por partida, puedes provocar una pelea mortal entre dos jugadores, lo que causará que ambos sean eliminados inmediatamente.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
@@ -22,7 +22,7 @@ export class Alborotadora implements IRole {
     return false;
   }
 
-  getWinMessage() {
+  getWinMessage(player: Player): string {
       return "El pueblo ha ganado.";
   }
 

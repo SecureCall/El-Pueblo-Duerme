@@ -1,6 +1,12 @@
 import type { Timestamp } from 'firebase/firestore';
 import { z } from 'zod';
-import { GameSchema, PlayerSchema, NightActionSchema, PlayerRoleEnumSchema, RoleDataSchema, PlayerRoleEnum } from './zod';
+import { 
+    GameSchema, 
+    PlayerSchema, 
+    NightActionSchema, 
+    PlayerRoleEnum,
+    RoleDataSchema,
+} from './zod';
 
 export { PlayerRoleEnum };
 
@@ -8,7 +14,7 @@ export { PlayerRoleEnum };
 export type Game = z.infer<typeof GameSchema>;
 export type Player = z.infer<typeof PlayerSchema>;
 export type NightAction = z.infer<typeof NightActionSchema>;
-export type PlayerRole = z.infer<typeof PlayerRoleEnumSchema>;
+export type PlayerRole = z.infer<typeof PlayerRoleEnum>;
 
 // Interfaces that are not directly represented by a Zod schema but are used in the application logic
 export interface GameEvent {

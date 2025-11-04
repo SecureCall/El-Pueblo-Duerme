@@ -1,9 +1,10 @@
+
 import type { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
 import { PlayerRoleEnum } from "@/types/zod";
 
 
 export class AncianaLider implements IRole {
-  readonly name = PlayerRoleEnum.ELDER_LEADER;
+  readonly name = PlayerRoleEnum.enum.elder_leader;
   readonly description = "Cada noche eliges a un jugador para exiliarlo la próxima noche (no podrá usar habilidades).";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
