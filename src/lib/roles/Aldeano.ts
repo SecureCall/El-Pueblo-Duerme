@@ -1,5 +1,6 @@
 
-import type { IRole, RoleData, GameStateChange, PlayerRoleEnum } from "@/types";
+import type { IRole, RoleData, GameStateChange, Player } from "@/types";
+import { PlayerRoleEnum } from "@/types";
 
 export class Aldeano implements IRole {
   readonly name = PlayerRoleEnum.VILLAGER;
@@ -19,7 +20,7 @@ export class Aldeano implements IRole {
     return false;
   }
 
-  getWinMessage(player: import("@/types").Player): string {
+  getWinMessage(player: Player): string {
     return "El pueblo ha ganado.";
   }
   

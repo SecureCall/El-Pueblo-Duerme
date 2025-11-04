@@ -1,5 +1,5 @@
 
-import { IRole, RoleData, GameStateChange } from "@/types";
+import { IRole, RoleData, GameStateChange, Player } from "@/types";
 
 export class Principe implements IRole {
   readonly name = 'prince';
@@ -18,6 +18,10 @@ export class Principe implements IRole {
 
   checkWinCondition(): boolean {
     return false;
+  }
+  
+  getWinMessage(player: Player): string {
+    return "El pueblo ha ganado.";
   }
   
   toJSON(): RoleData {

@@ -1,5 +1,5 @@
 
-import { IRole, RoleData, RoleName, Team } from "@/types";
+import { IRole, RoleData, Player } from "@/types";
 
 export class Licantropo implements IRole {
   readonly name = 'lycanthrope';
@@ -7,7 +7,7 @@ export class Licantropo implements IRole {
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
 
-  onNightAction() {
+  performNightAction() {
     return null;
   }
 
@@ -17,6 +17,10 @@ export class Licantropo implements IRole {
 
   checkWinCondition() {
     return false;
+  }
+  
+  getWinMessage(player: Player): string {
+    return "El pueblo ha ganado.";
   }
   
   toJSON(): RoleData {

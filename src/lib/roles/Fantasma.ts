@@ -7,6 +7,10 @@ export class Fantasma implements IRole {
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
 
+  performNightAction(): GameStateChange | null {
+    return null;
+  }
+
   toJSON(): RoleData {
     return {
       name: this.name,
@@ -16,10 +20,6 @@ export class Fantasma implements IRole {
     };
   }
 
-  onNightAction(): GameStateChange | null {
-    return null;
-  }
-
   onDeath(): GameStateChange | null {
     return null;
   }
@@ -27,6 +27,8 @@ export class Fantasma implements IRole {
   checkWinCondition(): boolean {
     return false;
   }
-}
 
-    
+  getWinMessage(player: import("@/types").Player): string {
+    return "El pueblo ha ganado.";
+  }
+}

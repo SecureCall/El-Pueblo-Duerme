@@ -1,5 +1,6 @@
 
-import type { GameContext, GameStateChange, IRole, RoleData, PlayerRoleEnum } from "@/types";
+import type { GameContext, GameStateChange, IRole, RoleData, Player } from "@/types";
+import { PlayerRoleEnum } from "@/types";
 
 export class Cazador implements IRole {
   readonly name = PlayerRoleEnum.HUNTER;
@@ -23,7 +24,7 @@ export class Cazador implements IRole {
     return false;
   }
 
-  getWinMessage(player: import("@/types").Player): string {
+  getWinMessage(player: Player): string {
     return "El pueblo ha ganado.";
   }
   

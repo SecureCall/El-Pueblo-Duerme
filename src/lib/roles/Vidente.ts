@@ -1,5 +1,7 @@
 
-import type { GameContext, GameStateChange, IRole, NightAction, RoleData, PlayerRoleEnum } from "@/types";
+import type { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
+import { PlayerRoleEnum } from "@/types";
+
 
 export class Vidente implements IRole {
   readonly name = PlayerRoleEnum.SEER;
@@ -43,7 +45,7 @@ export class Vidente implements IRole {
     return false;
   }
 
-  getWinMessage(player: import("@/types").Player): string {
+  getWinMessage(player: Player): string {
     return "El pueblo ha ganado.";
   }
 

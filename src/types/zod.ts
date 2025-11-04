@@ -38,6 +38,9 @@ export enum PlayerRoleEnum {
   SLEEPING_FAIRY = "sleeping_fairy",
 }
 
+export const PlayerRoleEnumSchema = z.nativeEnum(PlayerRoleEnum).nullable();
+
+
 const TimestampSchema = z.union([
   z.object({
     seconds: z.number(),
@@ -48,18 +51,6 @@ const TimestampSchema = z.union([
   }),
   z.date(),
 ]).nullable();
-
-
-export const PlayerRoleEnumSchema = z.nativeEnum(PlayerRoleEnum).nullable();
-export type PlayerRoleName = z.infer<typeof PlayerRoleEnumSchema>;
-
-export const RoleDataSchema = z.object({
-  name: PlayerRoleEnumSchema,
-  description: z.string(),
-  team: z.enum(['Aldeanos', 'Lobos', 'Neutral']),
-  alliance: z.enum(['Aldeanos', 'Lobos', 'Neutral']),
-});
-export type RoleData = z.infer<typeof RoleDataSchema>;
 
 
 export const PlayerSchema = z.object({
@@ -222,4 +213,11 @@ export const AIPlayerPerspectiveSchema = z.object({
 export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
+});
+
+export const RoleDataSchema = z.object({
+  name: PlayerRoleEnumSchema,
+  description: z.string(),
+  team: z.enum(['Aldeanos', 'Lobos', 'Neutral']),
+  alliance: z.enum(['Aldeanos', 'Lobos', 'Neutral']),
 });

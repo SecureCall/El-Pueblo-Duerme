@@ -1,5 +1,5 @@
 
-import { IRole, PlayerRoleEnum } from "@/types";
+import { IRole, PlayerRoleEnum, PlayerRole } from "@/types";
 import { Aldeano } from "./Aldeano";
 import { Medico } from "./Medico";
 import { Vidente } from "./Vidente";
@@ -72,11 +72,11 @@ const roleMap: Record<PlayerRoleEnum, new () => IRole> = {
   [PlayerRoleEnum.EXECUTIONER]: Verdugo,
 };
 
-export function createRoleInstance(roleName?: PlayerRoleEnum | null): IRole {
-  if (!roleName || !roleMap[roleName]) {
+export function createRoleInstance(roleName?: PlayerRole | null): IRole {
+  if (!roleName || !roleMap[roleName as PlayerRoleEnum]) {
     // Return a default role if the roleName is not found or is null/undefined
     return new Aldeano();
   }
-  const RoleClass = roleMap[roleName];
+  const RoleClass = roleMap[roleName as PlayerRoleEnum];
   return new RoleClass();
 }
