@@ -19,6 +19,7 @@ import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { roleDetails } from "@/lib/roles";
 import { toPlainObject } from "./utils";
 import { masterActions } from "./master-actions";
+import { createRoleInstance } from "./roles/role-factory";
 
 
 const PHASE_DURATION_SECONDS = 45;

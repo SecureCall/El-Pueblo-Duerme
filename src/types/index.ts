@@ -192,3 +192,50 @@ export interface GenerateAIChatMessageOutput {
     message: string;
     shouldSend: boolean;
 };
+
+// ===============================================================================================
+// Role-specific logic interfaces
+// ===============================================================================================
+
+export interface IRole {
+  readonly name: PlayerRole;
+  readonly description: string;
+  readonly team: 'Aldeanos' | 'Lobos' | 'Neutral';
+  readonly alliance: 'Aldeanos' | 'Lobos' | 'Neutral';
+
+  performNightAction(context: GameContext, action: NightAction): GameStateChange | null;
+  onDeath(context: GameContext): GameStateChange | null;
+  checkWinCondition(context: GameContext): boolean;
+  
+  toJSON(): RoleData;
+}
+
+export interface RoleData {
+  name: PlayerRole;
+  description: string;
+  team: 'Aldeanos' | 'Lobos' | 'Neutral';
+  alliance: 'Aldeanos' | 'Lobos' | 'Neutral';
+}
+
+export interface GameContext {
+  game: Game;
+  players: Player[];
+  player: Player; // The player instance this role belongs to
+}
+
+export interface GameStateChange {
+  game?: Partial<Game>;
+  players?: Player[]; // Full replacement of players array
+  playerUpdates?: Partial<Player>[]; // Updates to specific players by userId
+  events?: GameEvent[];
+  pendingDeaths?: { playerId: string; cause: GameEvent['type'] }[];
+}
+
+// Action sent from the client
+export interface PlayerAction {
+    type: NightActionType;
+    payload: {
+        targetId?: string | string[];
+        [key: string]: any;
+    };
+}
