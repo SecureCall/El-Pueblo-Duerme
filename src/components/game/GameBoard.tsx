@@ -32,6 +32,7 @@ import { MasterActionBar, type MasterActionState } from "./MasterActionBar";
 import { useGameSession } from "@/hooks/use-game-session";
 import { playNarration, playSoundEffect } from '@/lib/sounds';
 import { useGameState } from "@/hooks/use-game-state";
+import { RoleManual } from "./RoleManual";
 
 export function GameBoard({ gameId }: { gameId: string }) {
     const { firestore } = useFirebase();
@@ -377,7 +378,10 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
             <Card className="text-center bg-card/80 sticky top-4 z-30 shadow-lg">
                 <CardHeader className="p-4 relative pb-6">
                     <div className="flex justify-between items-start">
-                        <GameChronicle events={events} currentPlayerId={currentPlayer.userId} />
+                        <div className="flex items-center gap-1">
+                            <GameChronicle events={events} currentPlayerId={currentPlayer.userId} />
+                            <RoleManual settings={game.settings} />
+                        </div>
                         <div className="flex-1 text-center">
                             <CardTitle className="font-headline text-3xl flex items-center justify-center gap-3">
                                 {getPhaseIcon()}
@@ -385,7 +389,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                             </CardTitle>
                             <CardDescription className="text-base mt-1">{getPhaseDescription()}</CardDescription>
                         </div>
-                        <div className="w-12 h-12 flex items-center justify-center">
+                        <div className="w-24 flex items-center justify-end">
                             {isMaster && <MasterActionBar game={game} setMasterActionState={setMasterActionState} />}
                         </div>
                     </div>
