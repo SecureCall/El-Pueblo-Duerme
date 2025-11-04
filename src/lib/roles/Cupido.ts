@@ -1,9 +1,10 @@
 
 import { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
+import { PlayerRoleEnum } from "@/types";
 
 export class Cupido implements IRole {
-  readonly name = 'cupid';
-  readonly description = "Solo te despiertas la primera noche. Eliges a dos jugadores para que se enamoren. Si uno de ellos muere, el otro morirá también. El amor no entiende de bandos.";
+  readonly name = PlayerRoleEnum.CUPID;
+  readonly description = "Solo en la primera noche, eliges a dos jugadores para que se enamoren. Si uno de ellos muere, el otro morirá también. Su objetivo es sobrevivir juntos, por encima de todo.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos'; // Gana con el pueblo si los enamorados no ganan
 
@@ -22,6 +23,18 @@ export class Cupido implements IRole {
         lovers: loverIds as [string, string],
       },
       playerUpdates,
+       events: [{
+          id: `evt_cupid_love_${Date.now()}`,
+          gameId: context.game.id,
+          round: context.game.currentRound,
+          type: 'special',
+          message: `Una flecha ha atravesado la noche, uniendo dos destinos para siempre.`,
+          data: { 
+            targetId: loverIds[0], // Event directed to both lovers
+            secondaryTargetId: loverIds[1],
+           },
+          createdAt: new Date(),
+        }]
     };
   }
 
@@ -30,14 +43,13 @@ export class Cupido implements IRole {
   }
 
   checkWinCondition(): boolean {
-    // El objetivo principal de Cupido es que ganen los enamorados.
-    // Si los enamorados ganan, Cupido no gana.
-    // Si los enamorados mueren y Cupido sobrevive, gana con los aldeanos.
+    // La victoria de los enamorados se comprueba en `checkGameOver`
     return false;
   }
 
   getWinMessage(player: Player): string {
-      return "El pueblo ha ganado."
+      // Si Cupido es un enamorado y gana, este mensaje podría usarse, pero la lógica principal está en checkGameOver
+      return "El amor ha triunfado.";
   }
 
   toJSON(): RoleData {
