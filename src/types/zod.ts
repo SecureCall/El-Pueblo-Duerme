@@ -1,6 +1,8 @@
 
+
 import { z } from 'zod';
 
+// PlayerRoleEnum is now a static list, breaking the circular dependency.
 export const PlayerRoleEnum = z.enum([
   "villager", "seer", "doctor", "hunter", "guardian", "priest", "prince", "lycanthrope", "twin",
   "hechicera", "ghost", "virginia_woolf", "leprosa", "river_siren", "lookout", "troublemaker",
