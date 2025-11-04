@@ -1,18 +1,18 @@
 
-import { GameContext, GameStateChange, IRole, NightAction, RoleData, RoleName, Team } from "@/types";
+import { GameContext, GameStateChange, IRole, NightAction, RoleData, PlayerRoleEnum } from "@/types";
 import { Vidente } from "./Vidente";
 
 export class AprendizVidente implements IRole {
-  readonly name = 'seer_apprentice';
+  readonly name = PlayerRoleEnum.SEER_APPRENTICE;
   readonly description = "Mientras la vidente siga con vida, no tienes acciones especiales. Pero si la vidente muere, tomarás su lugar y comenzarás a investigar cada noche.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
   private videnteLogic = new Vidente();
 
-  onNightAction(context: GameContext, action: NightAction): GameStateChange | null {
+  performNightAction(context: GameContext, action: NightAction): GameStateChange | null {
     // Solo actúa si la vidente original ha muerto
     if (context.game.seerDied) {
-      return this.videnteLogic.onNightAction(context, action);
+      return this.videnteLogic.performNightAction(context, action);
     }
     return null;
   }
