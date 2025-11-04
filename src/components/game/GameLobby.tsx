@@ -4,7 +4,7 @@
 import type { Game, Player } from "@/types";
 import { StartGameButton } from "./StartGameButton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
-import { Copy, Share2, Edit } from "lucide-react";
+import { Copy, Share2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
@@ -125,7 +125,7 @@ export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobby
         </Card>
       
         <PlayerGrid 
-            creatorId={game.creator}
+            game={game}
             players={players}
             currentPlayer={currentPlayer}
             onPlayerClick={(player) => {
@@ -146,5 +146,3 @@ export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobby
     </>
   );
 }
-
-    

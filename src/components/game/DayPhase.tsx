@@ -15,11 +15,7 @@ import { useFirebase } from '@/firebase';
 import type { MasterActionState } from './MasterActionBar';
 
 interface DayPhaseProps {
-    gameId: string;
-    creatorId: string;
-    phase: Game['phase'];
-    currentRound: number;
-    troublemakerUsed: boolean;
+    game: Game;
     players: Player[];
     currentPlayer: Player;
     nightEvent?: GameEvent;
@@ -28,7 +24,7 @@ interface DayPhaseProps {
     behaviorClueEvent?: GameEvent;
 }
 
-function TroublemakerPanel({ gameId, creatorId, currentRound, currentPlayer, players }: { gameId: string, creatorId: string, currentRound: number, currentPlayer: Player, players: Player[] }) {
+function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, currentPlayer: Player, players: Player[] }) {
     const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { firestore } = useFirebase();
@@ -57,7 +53,7 @@ function TroublemakerPanel({ gameId, creatorId, currentRound, currentPlayer, pla
         if (!firestore) return;
 
         setIsSubmitting(true);
-        const result = await submitTroublemakerAction(firestore, gameId, currentPlayer.userId, selectedPlayerIds[0], selectedPlayerIds[1]);
+        const result = await submitTroublemakerAction(firestore, game.id, currentPlayer.userId, selectedPlayerIds[0], selectedPlayerIds[1]);
         if (result.success) {
             toast({ title: '¡Caos desatado!', description: 'Has provocado una pelea mortal.' });
         } else {
@@ -82,7 +78,7 @@ function TroublemakerPanel({ gameId, creatorId, currentRound, currentPlayer, pla
             <CardContent>
                 <p className="text-center mb-4 text-muted-foreground">Selecciona a dos jugadores para que se peleen.</p>
                 <PlayerGrid 
-                    creatorId={creatorId}
+                    game={game}
                     players={players.filter(p => p.isAlive && p.userId !== currentPlayer.userId)}
                     currentPlayer={currentPlayer}
                     onPlayerClick={handlePlayerSelect}
@@ -107,12 +103,13 @@ function TroublemakerPanel({ gameId, creatorId, currentRound, currentPlayer, pla
     );
 }
 
-export function DayPhase({ gameId, creatorId, phase, currentRound, troublemakerUsed, players, currentPlayer, nightEvent, loverDeathEvents = [], voteEvent, behaviorClueEvent }: DayPhaseProps) {
+export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathEvents = [], voteEvent, behaviorClueEvent }: DayPhaseProps) {
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
     const { firestore } = useFirebase();
     const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
+
 
     const siren = players.find(p => p.role === 'river_siren');
     const isCharmed = siren?.riverSirenTargetId === currentPlayer.userId;
@@ -121,7 +118,7 @@ export function DayPhase({ gameId, creatorId, phase, currentRound, troublemakerU
 
     const canPlayerVote = !isCharmed || (isCharmed && isSirenAlive && hasSirenVoted);
     const hasVoted = !!currentPlayer.votedFor;
-    const isTroublemaker = currentPlayer.role === 'troublemaker' && currentPlayer.isAlive && !troublemakerUsed;
+    const isTroublemaker = currentPlayer.role === 'troublemaker' && currentPlayer.isAlive && !game.troublemakerUsed;
 
     const tieData = voteEvent?.data?.tiedPlayerIds;
     const isTiebreaker = Array.isArray(tieData) && tieData.length > 0 && !voteEvent.data?.final;
@@ -147,7 +144,7 @@ export function DayPhase({ gameId, creatorId, phase, currentRound, troublemakerU
         }
 
         setIsSubmitting(true);
-        const result = await submitVote(firestore, gameId, currentPlayer.userId, selectedPlayerId);
+        const result = await submitVote(firestore, game.id, currentPlayer.userId, selectedPlayerId);
 
         if (result.error) {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
@@ -234,7 +231,7 @@ export function DayPhase({ gameId, creatorId, phase, currentRound, troublemakerU
                                 Has votado por {votedForPlayer?.displayName || 'alguien'}. Esperando al resto de jugadores...
                             </p>
                             <PlayerGrid 
-                                creatorId={creatorId}
+                                game={game}
                                 players={players.filter(p => p.isAlive)}
                                 currentPlayer={currentPlayer}
                                 votesByPlayer={votesByPlayer}
@@ -263,7 +260,7 @@ export function DayPhase({ gameId, creatorId, phase, currentRound, troublemakerU
 
                             <p className="text-center mb-4 text-muted-foreground">{isTiebreaker ? "Debes elegir a uno de los empatados." : "Selecciona al jugador que crees que es un Hombre Lobo."}</p>
                             <PlayerGrid 
-                                creatorId={creatorId}
+                                game={game}
                                 players={votablePlayers.filter(p => p.userId !== currentPlayer.userId)}
                                 currentPlayer={currentPlayer}
                                 onPlayerClick={handlePlayerSelect}
@@ -286,7 +283,7 @@ export function DayPhase({ gameId, creatorId, phase, currentRound, troublemakerU
                     <div className="text-center py-4 space-y-4">
                         <p className="text-lg">Observas el debate desde el más allá...</p>
                         <PlayerGrid 
-                            creatorId={creatorId}
+                            game={game}
                             players={players.filter(p => p.isAlive)}
                             currentPlayer={currentPlayer}
                             votesByPlayer={votesByPlayer}
@@ -296,7 +293,7 @@ export function DayPhase({ gameId, creatorId, phase, currentRound, troublemakerU
                     </div>
                 )}
                 
-                {isTroublemaker && !isTiebreaker && <TroublemakerPanel gameId={gameId} creatorId={creatorId} currentRound={currentRound} currentPlayer={currentPlayer} players={players} />}
+                {isTroublemaker && !isTiebreaker && <TroublemakerPanel game={game} currentPlayer={currentPlayer} players={players} />}
 
             </CardContent>
         </Card>

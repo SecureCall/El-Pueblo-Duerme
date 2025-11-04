@@ -302,7 +302,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
             case 'night':
                 if (!currentPlayer.isAlive) return 'Observas desde el más allá...';
                 if (currentPlayer?.usedNightAbility) return 'Has actuado. Espera al amanecer.';
-                if (game.exiledPlayerId === currentPlayer?.userId) return <> <UserX className="inline-block h-4 w-4" /> ¡Exiliado! No puedes actuar esta noche. </>;
+                if (currentPlayer?.isExiled) return <> <UserX className="inline-block h-4 w-4" /> ¡Exiliado! No puedes actuar esta noche. </>;
                 if (currentPlayer?.role && ['werewolf', 'wolf_cub', 'seer', 'seer_apprentice', 'doctor', 'hechicera', 'guardian', 'priest', 'vampire', 'cult_leader', 'fisherman', 'shapeshifter', 'virginia_woolf', 'river_siren', 'silencer', 'elder_leader', 'witch', 'banshee', 'lookout', 'seeker_fairy', 'resurrector_angel', 'cupid'].includes(currentPlayer.role)) {
                     return "Es tu turno de actuar.";
                 }
@@ -399,7 +399,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
             </Card>
 
             <PlayerGrid
-                creatorId={game.creator}
+                game={game}
                 players={playersWithDeathCause}
                 currentPlayer={currentPlayer}
                 highlightedPlayers={highlightedPlayers}
@@ -453,10 +453,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                     <div className="flex-1 flex flex-col gap-4">
                         {game.phase === 'day' && (
                             <DayPhase
-                                gameId={game.id}
-                                phase={game.phase}
-                                currentRound={game.currentRound}
-                                troublemakerUsed={game.troublemakerUsed}
+                                game={game}
                                 players={players}
                                 currentPlayer={currentPlayer}
                                 nightEvent={nightEvent}
@@ -482,9 +479,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                     </div>
                     <div className="w-full md:w-96">
                         <GameChat
-                            gameId={game.id}
-                            phase={game.phase}
-                            silencedPlayerId={game.silencedPlayerId}
+                            game={game}
                             currentPlayer={currentPlayer}
                             messages={messages}
                             players={players}
@@ -510,5 +505,3 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
         </div>
     );
 }
-
-    

@@ -18,9 +18,7 @@ import { playSoundEffect } from '@/lib/sounds';
 import { getMillis } from '@/lib/utils';
 
 interface GameChatProps {
-    gameId: string;
-    phase: Game['phase'];
-    silencedPlayerId: string | null;
+    game: Game;
     currentPlayer: Player;
     messages: ChatMessage[];
     players: Player[];
@@ -36,7 +34,7 @@ const QUICK_MESSAGES = [
     "Esto es un caos.",
 ];
 
-export function GameChat({ gameId, phase, silencedPlayerId, currentPlayer, messages, players }: GameChatProps) {
+export function GameChat({ game, currentPlayer, messages, players }: GameChatProps) {
     const [newMessage, setNewMessage] = useState('');
     const { firestore } = useFirebase();
     const { toast } = useToast();
@@ -73,7 +71,7 @@ export function GameChat({ gameId, phase, silencedPlayerId, currentPlayer, messa
         const messageText = text || newMessage;
         if (!messageText.trim() || !firestore) return;
         
-        const res = await sendChatMessage(firestore, gameId, currentPlayer.userId, currentPlayer.displayName, messageText);
+        const res = await sendChatMessage(firestore, game.id, currentPlayer.userId, currentPlayer.displayName, messageText);
 
         if (res.success) {
             setNewMessage('');
@@ -105,7 +103,7 @@ export function GameChat({ gameId, phase, silencedPlayerId, currentPlayer, messa
         }
     };
 
-    const isSilenced = phase === 'day' && silencedPlayerId === currentPlayer.userId;
+    const isSilenced = game.phase === 'day' && game.silencedPlayerId === currentPlayer.userId;
     const canChat = currentPlayer.isAlive && !isSilenced;
     
     return (
@@ -192,5 +190,3 @@ export function GameChat({ gameId, phase, silencedPlayerId, currentPlayer, messa
         </Card>
     );
 }
-
-    

@@ -114,6 +114,12 @@ export const PlayerCard = React.memo(function PlayerCard({
 
   const cardStyle = highlightColor ? { boxShadow: `0 0 15px 4px ${highlightColor}` } : {};
   
+  const handleCardClick = () => {
+    if (onClick) {
+        onClick(player);
+    }
+  }
+
   return (
     <TooltipProvider>
       <Tooltip>
@@ -125,11 +131,11 @@ export const PlayerCard = React.memo(function PlayerCard({
                 isClickable && "cursor-pointer hover:scale-105 hover:bg-card/100",
                 isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
               )}
-              onClick={() => onClick?.(player)}
+              onClick={handleCardClick}
               style={cardStyle}
             >
               {isSelf && (
-                <div className="absolute top-1 right-1 bg-secondary/80 rounded-full p-1 cursor-pointer hover:bg-secondary" onClick={() => onClick?.(player)}>
+                <div className="absolute top-1 right-1 bg-secondary/80 rounded-full p-1 cursor-pointer hover:bg-secondary" onClick={handleCardClick}>
                   <Edit className="h-4 w-4 text-secondary-foreground" />
                   <span className="sr-only">Cambiar avatar</span>
                 </div>

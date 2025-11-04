@@ -57,7 +57,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         case 'SET_GAME_DATA': {
             const { game, userId } = action.payload;
             
-            // Perform necessary data processing here, not in the hook body
             const sortedPlayers = [...game.players].sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
             const currentPlayer = sortedPlayers.find(p => p.userId === userId) || null;
             const sortedEvents = [...(game.events || [])].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt));
@@ -105,12 +104,9 @@ export const useGameState = (gameId: string) => {
   const [state, dispatch] = useReducer(gameReducer, initialReducerState);
   
   useEffect(() => {
-    if (!firestore || !userId || !gameId || !isSessionLoaded) {
+    if (!firestore || !gameId) {
         if (!state.game) {
-            dispatch({ 
-                type: 'SET_LOADING', 
-                payload: true 
-            });
+            dispatch({ type: 'SET_LOADING', payload: true });
         }
         return;
     };
@@ -120,7 +116,11 @@ export const useGameState = (gameId: string) => {
     const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
         const gameData = { ...snapshot.data(), id: snapshot.id } as Game;
-        dispatch({ type: 'SET_GAME_DATA', payload: { game: gameData, userId } });
+        // userId and isSessionLoaded might change, so we read the latest value inside the listener
+        const currentUserId = auth.currentUser?.uid;
+        if(currentUserId) {
+            dispatch({ type: 'SET_GAME_DATA', payload: { game: gameData, userId: currentUserId } });
+        }
       } else {
         dispatch({ type: 'SET_ERROR', payload: 'Partida no encontrada.' });
       }
@@ -133,10 +133,19 @@ export const useGameState = (gameId: string) => {
         errorEmitter.emit('permission-error', contextualError);
     });
 
-    return () => unsubscribeGame();
-  // We ONLY want this effect to re-run if these fundamental IDs change.
-  // The state updates are handled inside the snapshot listener via the reducer.
-  }, [gameId, firestore, userId, isSessionLoaded]);
+    const auth = useAuth();
+    const authUnsubscribe = onAuthStateChanged(auth, (user) => {
+        if (user && state.game) {
+            // If the user changes, re-dispatch the game data with the new user ID
+            dispatch({ type: 'SET_GAME_DATA', payload: { game: state.game, userId: user.uid } });
+        }
+    });
+
+    return () => {
+        unsubscribeGame();
+        authUnsubscribe();
+    }
+  }, [gameId, firestore]);
 
   return state;
 };

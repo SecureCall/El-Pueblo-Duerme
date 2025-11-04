@@ -2,12 +2,12 @@
 "use client";
 
 import React from 'react';
-import type { Player, GameEvent } from "@/types";
+import type { Game, Player, GameEvent } from "@/types";
 import { PlayerCard } from "./PlayerCard";
 import type { MasterActionState } from './MasterActionBar';
 
 interface PlayerGridProps {
-    creatorId: string;
+    game: Game;
     players: (Player & { causeOfDeath?: GameEvent['type'] | 'other' })[];
     currentPlayer: Player;
     onPlayerClick?: (player: Player) => void;
@@ -20,7 +20,7 @@ interface PlayerGridProps {
 }
 
 export const PlayerGrid = React.memo(function PlayerGrid({ 
-    creatorId,
+    game,
     players, 
     currentPlayer,
     onPlayerClick, 
@@ -36,7 +36,7 @@ export const PlayerGrid = React.memo(function PlayerGrid({
         return (
             <div key={player.userId} className="aspect-[3/4]">
                 <PlayerCard 
-                    isCreator={creatorId === player.userId}
+                    isCreator={game.creator === player.userId}
                     isSelf={currentPlayer.userId === player.userId}
                     isLover={currentPlayer.isLover && player.isLover && currentPlayer.userId !== player.userId}
                     isExecutionerTarget={currentPlayer.role === 'executioner' && player.userId === currentPlayer.executionerTargetId}
