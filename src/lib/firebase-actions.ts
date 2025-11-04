@@ -1,5 +1,4 @@
 
-
 'use server';
 import { 
   doc,
@@ -16,12 +15,12 @@ import {
 import { 
   type Game, 
   type Player, 
-  NightAction, 
-  GameEvent, 
-  PlayerRole, 
-  NightActionType, 
-  ChatMessage,
-  AIPlayerPerspective
+  type NightAction, 
+  type GameEvent, 
+  type PlayerRole, 
+  type NightActionType, 
+  type ChatMessage,
+  type AIPlayerPerspective
 } from "@/types";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";

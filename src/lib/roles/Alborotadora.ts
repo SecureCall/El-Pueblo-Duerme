@@ -8,7 +8,7 @@ export class Alborotadora implements IRole {
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
 
-  performNightAction(): GameStateChange | null {
+  performNightAction(context: GameContext): GameStateChange | null {
     // La Alborotadora no actúa de noche
     return null;
   }

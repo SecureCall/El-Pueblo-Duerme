@@ -1,5 +1,5 @@
 
-import type { IRole, RoleData, GameStateChange, Player } from "@/types";
+import type { IRole, RoleData, GameStateChange, Player, GameContext } from "@/types";
 import { PlayerRoleEnum } from "@/types/zod";
 
 export class Aldeano implements IRole {
@@ -8,15 +8,15 @@ export class Aldeano implements IRole {
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
 
-  performNightAction(): GameStateChange | null {
+  performNightAction(context: GameContext): GameStateChange | null {
     return null;
   }
 
-  onDeath(): GameStateChange | null {
+  onDeath(context: GameContext): GameStateChange | null {
     return null;
   }
 
-  checkWinCondition(): boolean {
+  checkWinCondition(context: GameContext): boolean {
     return false;
   }
 
