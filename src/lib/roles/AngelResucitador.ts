@@ -1,9 +1,8 @@
-
 import type { GameContext, GameStateChange, IRole, NightAction, Player } from "@/types";
 import { PlayerRoleEnum } from "@/types";
 
 export class AngelResucitador implements IRole {
-  readonly name = PlayerRoleEnum.enum.resurrector_angel;
+  readonly name = PlayerRoleEnum.RESURRECTOR_ANGEL;
   readonly description = "Una vez por partida, durante la noche, puedes elegir a un jugador muerto para devolverlo a la vida. El jugador resucitado volverá al juego con su rol original.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
@@ -17,14 +16,15 @@ export class AngelResucitador implements IRole {
     if (targetPlayerIndex === -1 || context.players[targetPlayerIndex].isAlive) {
       return null; // Target not found or is alive
     }
+    
+    const playerUpdates: Partial<Player>[] = [];
 
-    const playerUpdates = [...context.game.players];
-    const currentPlayerIndex = playerUpdates.findIndex((p: Player) => p.userId === context.player.userId);
+    const currentPlayerIndex = context.players.findIndex((p: Player) => p.userId === context.player.userId);
     if(currentPlayerIndex !== -1) {
-        playerUpdates[currentPlayerIndex].resurrectorAngelUsed = true;
+        playerUpdates.push({ userId: context.player.userId, resurrectorAngelUsed: true });
     }
-    playerUpdates[targetPlayerIndex].isAlive = true;
-
+    playerUpdates.push({ userId: action.targetId, isAlive: true });
+    
     return {
       playerUpdates,
       events: [{

@@ -1,4 +1,3 @@
-
 import { IRole, PlayerRole, PlayerRoleEnum } from "@/types";
 import { Aldeano } from "./Aldeano";
 import { Medico } from "./Medico";
