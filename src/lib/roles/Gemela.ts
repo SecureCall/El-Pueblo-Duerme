@@ -1,10 +1,9 @@
 
-
 import { GameContext, GameStateChange, IRole, NightAction, Player, RoleData, Team } from "@/types";
-import { PlayerRoleEnum } from "@/types/zod";
+import { PlayerRoleEnum } from "@/types";
 
 export class Gemela implements IRole {
-  readonly name = PlayerRoleEnum.enum.twin;
+  readonly name = PlayerRoleEnum.TWIN;
   readonly description = "En la primera noche, tú y tu gemelo/a os reconoceréis. A partir de entonces, podréis hablar en un chat privado. Si uno muere, el otro morirá de pena al instante.";
   readonly team: Team = 'Aldeanos';
   readonly alliance: Team = 'Aldeanos';

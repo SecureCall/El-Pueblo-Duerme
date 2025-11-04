@@ -1,10 +1,9 @@
 
-
 import { IRole, RoleData, Team } from "@/types";
-import { PlayerRoleEnum } from "@/types/zod";
+import { PlayerRoleEnum } from "@/types";
 
 export class Maldito implements IRole {
-  readonly name = PlayerRoleEnum.enum.cursed;
+  readonly name = PlayerRoleEnum.CURSED;
   readonly description = "Empiezas como un aldeano, pero si los lobos te atacan, no mueres. En su lugar, te conviertes en uno de ellos.";
   readonly team: Team = 'Aldeanos';
   readonly alliance: Team = 'Aldeanos'; // Starts as villager
