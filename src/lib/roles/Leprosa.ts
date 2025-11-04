@@ -1,5 +1,5 @@
 
-import { GameContext, GameStateChange, IRole, RoleData, Player } from "@/types";
+import { GameContext, GameStateChange, IRole, Player } from "@/types";
 import { PlayerRoleEnum } from "@/types/zod";
 
 export class Leprosa implements IRole {
@@ -30,7 +30,7 @@ export class Leprosa implements IRole {
       return "El pueblo ha ganado.";
   }
 
-  toJSON(): RoleData {
+  toJSON() {
     return {
       name: this.name,
       description: this.description,

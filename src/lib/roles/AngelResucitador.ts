@@ -1,5 +1,5 @@
 
-import type { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
+import type { GameContext, GameStateChange, IRole, NightAction, Player } from "@/types";
 import { PlayerRoleEnum } from "@/types";
 
 export class AngelResucitador implements IRole {
@@ -19,15 +19,14 @@ export class AngelResucitador implements IRole {
     }
 
     const playerUpdates = [...context.game.players];
-    playerUpdates[context.game.players.findIndex((p: Player) => p.userId === context.player.userId)].resurrectorAngelUsed = true;
+    const currentPlayerIndex = playerUpdates.findIndex((p: Player) => p.userId === context.player.userId);
+    if(currentPlayerIndex !== -1) {
+        playerUpdates[currentPlayerIndex].resurrectorAngelUsed = true;
+    }
     playerUpdates[targetPlayerIndex].isAlive = true;
 
-
     return {
-      playerUpdates: [
-        { userId: context.player.userId, resurrectorAngelUsed: true },
-        { userId: action.targetId, isAlive: true },
-      ],
+      playerUpdates,
       events: [{
         id: `evt_resurrect_${Date.now()}`,
         gameId: context.game.id,
@@ -40,11 +39,11 @@ export class AngelResucitador implements IRole {
     };
   }
 
-  onDeath(): GameStateChange | null {
+  onDeath(context: GameContext): GameStateChange | null {
     return null;
   }
 
-  checkWinCondition(): boolean {
+  checkWinCondition(context: GameContext): boolean {
     return false;
   }
 
@@ -52,7 +51,7 @@ export class AngelResucitador implements IRole {
       return "El pueblo ha ganado.";
   }
 
-  toJSON(): RoleData {
+  toJSON() {
     return {
       name: this.name,
       description: this.description,

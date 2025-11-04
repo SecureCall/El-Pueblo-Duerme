@@ -1,5 +1,5 @@
 
-import { GameStateChange, IRole, RoleData, Player } from "@/types";
+import { GameContext, GameStateChange, IRole, Player } from "@/types";
 import { PlayerRoleEnum } from "@/types/zod";
 
 export class Alborotadora implements IRole {
@@ -13,11 +13,11 @@ export class Alborotadora implements IRole {
     return null;
   }
 
-  onDeath(): GameStateChange | null {
+  onDeath(context: GameContext): GameStateChange | null {
     return null;
   }
 
-  checkWinCondition(): boolean {
+  checkWinCondition(context: GameContext): boolean {
     // Gana con los aldeanos
     return false;
   }
@@ -26,7 +26,7 @@ export class Alborotadora implements IRole {
       return "El pueblo ha ganado.";
   }
 
-  toJSON(): RoleData {
+  toJSON() {
     return {
       name: this.name,
       description: this.description,

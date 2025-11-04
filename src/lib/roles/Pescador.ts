@@ -1,5 +1,5 @@
 
-import { GameContext, GameStateChange, IRole, NightAction, RoleData, Player, PlayerRole, Team, Alliance } from "@/types";
+import { GameContext, GameStateChange, IRole, NightAction, Player, PlayerRole, Team, Alliance } from "@/types";
 import { PlayerRoleEnum } from "@/types/zod";
 
 export class Pescador implements IRole {
@@ -30,7 +30,7 @@ export class Pescador implements IRole {
     };
   }
 
-  onDeath(): GameStateChange | null {
+  onDeath(context: GameContext): GameStateChange | null {
     return null;
   }
 
@@ -53,7 +53,7 @@ export class Pescador implements IRole {
     return "¡El Pescador ha ganado!";
   }
   
-  toJSON(): RoleData {
+  toJSON() {
     return {
       name: this.name,
       description: this.description,

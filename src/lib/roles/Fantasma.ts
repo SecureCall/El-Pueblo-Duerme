@@ -1,5 +1,5 @@
 
-import { GameStateChange, IRole, RoleData, Player } from "@/types";
+import { GameStateChange, IRole, Player } from "@/types";
 import { PlayerRoleEnum } from "@/types";
 
 export class Fantasma implements IRole {
@@ -12,7 +12,7 @@ export class Fantasma implements IRole {
     return null;
   }
 
-  toJSON(): RoleData {
+  toJSON() {
     return {
       name: this.name,
       description: this.description,
