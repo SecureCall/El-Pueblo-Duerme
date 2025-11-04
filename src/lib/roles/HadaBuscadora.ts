@@ -1,13 +1,14 @@
 
-import { GameContext, GameStateChange, IRole, NightAction, RoleData, RoleName, Team } from "@/types";
+import { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
+import { PlayerRoleEnum } from "@/types/zod";
 
 export class HadaBuscadora implements IRole {
-  readonly name = 'seeker_fairy';
+  readonly name = PlayerRoleEnum.SEEKER_FAIRY;
   readonly description = "Equipo de los Lobos. Cada noche, buscas al Hada Durmiente. Si la encuentras, ambas despertáis un poder de un solo uso para matar a un jugador.";
   readonly team = 'Lobos';
   readonly alliance = 'Lobos';
 
-  onNightAction(context: GameContext, action: NightAction): GameStateChange | null {
+  performNightAction(context: GameContext, action: NightAction): GameStateChange | null {
     if (context.game.fairiesFound) {
       if (action.actionType === 'fairy_kill' && !context.game.fairyKillUsed) {
         return {
@@ -22,14 +23,13 @@ export class HadaBuscadora implements IRole {
       return null;
     }
 
-    const targetPlayer = context.players.find(p => p.userId === action.targetId);
+    const targetPlayer = context.players.find((p: Player) => p.userId === action.targetId);
     if (targetPlayer?.role === 'sleeping_fairy') {
-      const sleepingFairyIndex = context.players.findIndex(p => p.userId === targetPlayer.userId);
-      const seekerFairyIndex = context.players.findIndex(p => p.userId === context.player.userId);
+      const sleepingFairyIndex = context.players.findIndex((p:Player) => p.userId === targetPlayer.userId);
+      const seekerFairyIndex = context.players.findIndex((p:Player) => p.userId === context.player.userId);
 
-      const playerUpdates = [...context.players];
-      if (sleepingFairyIndex > -1) playerUpdates[sleepingFairyIndex].alliance = 'Lobos';
-      if (seekerFairyIndex > -1) playerUpdates[seekerFairyIndex].alliance = 'Lobos';
+      const playerUpdates: Partial<Player>[] = [];
+      if (sleepingFairyIndex > -1) playerUpdates.push({ userId: targetPlayer.userId, alliance: 'Lobos' });
       
       return {
         game: {
@@ -67,11 +67,11 @@ export class HadaBuscadora implements IRole {
 
   checkWinCondition(context: GameContext): boolean {
     const { game, player } = context;
-    const otherFairy = game.players.find(p => p.role === 'sleeping_fairy');
+    const otherFairy = game.players.find((p: Player) => p.role === 'sleeping_fairy');
     
     // Si las hadas se encontraron y ambas están vivas al final
     if (game.fairiesFound && player.isAlive && otherFairy?.isAlive) {
-      const alivePlayers = game.players.filter(p => p.isAlive);
+      const alivePlayers = game.players.filter((p: Player) => p.isAlive);
       // Ganan si son las únicas que quedan
       if (alivePlayers.length === 2) {
         return true;
@@ -80,6 +80,10 @@ export class HadaBuscadora implements IRole {
     return false;
   }
   
+  getWinMessage(player: Player): string {
+    return "Las Hadas han ganado.";
+  }
+
   toJSON(): RoleData {
     return {
       name: this.name,

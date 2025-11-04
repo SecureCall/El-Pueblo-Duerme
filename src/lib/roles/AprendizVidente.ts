@@ -1,5 +1,5 @@
 
-import { GameContext, GameStateChange, IRole, NightAction, RoleData, PlayerRoleEnum } from "@/types";
+import { GameContext, GameStateChange, IRole, NightAction, RoleData, Player, PlayerRoleEnum } from "@/types";
 import { Vidente } from "./Vidente";
 
 export class AprendizVidente implements IRole {
@@ -25,7 +25,7 @@ export class AprendizVidente implements IRole {
     return false;
   }
 
-  getWinMessage(player: import("@/types").Player): string {
+  getWinMessage(player: Player): string {
       return "El pueblo ha ganado.";
   }
   

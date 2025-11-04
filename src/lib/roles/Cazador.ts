@@ -1,5 +1,5 @@
 import type { GameContext, GameStateChange, IRole, RoleData, Player } from "@/types";
-import { PlayerRoleEnum } from "@/types";
+import { PlayerRoleEnum } from "@/types/zod";
 
 export class Cazador implements IRole {
   readonly name = PlayerRoleEnum.HUNTER;

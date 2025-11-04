@@ -1,8 +1,9 @@
 
-import { GameContext, GameStateChange, IRole, NightAction, RoleData, RoleName, Team } from "@/types";
+import { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
+import { PlayerRoleEnum } from "@/types/zod";
 
 export class Guardian implements IRole {
-  readonly name = 'guardian';
+  readonly name = PlayerRoleEnum.GUARDIAN;
   readonly description = "Cada noche, eliges a un jugador para protegerlo del ataque de los lobos. No puedes proteger a la misma persona dos noches seguidas, y solo puedes protegerte a ti mismo una vez por partida.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
@@ -27,7 +28,7 @@ export class Guardian implements IRole {
         ],
       };
     } else {
-      if (game.players.find(p => p.userId === targetId)?.lastHealedRound === game.currentRound - 1) {
+      if (game.players.find((p: Player) => p.userId === targetId)?.lastHealedRound === game.currentRound - 1) {
         return null;
       }
       return {
@@ -47,6 +48,10 @@ export class Guardian implements IRole {
     return false;
   }
   
+  getWinMessage(player: Player): string {
+    return "El pueblo ha ganado.";
+  }
+
   toJSON(): RoleData {
     return {
       name: this.name,

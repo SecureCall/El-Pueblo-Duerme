@@ -1,13 +1,14 @@
 
-import { GameContext, GameStateChange, IRole, RoleData, RoleName, Team } from "@/types";
+import { GameContext, GameStateChange, IRole, RoleData, Player } from "@/types";
+import { PlayerRoleEnum } from "@/types/zod";
 
 export class Leprosa implements IRole {
-  readonly name = 'leprosa';
+  readonly name = PlayerRoleEnum.LEPROSA;
   readonly description = "Si los lobos te matan durante la noche, tu enfermedad se propaga a la manada, impidiéndoles atacar en la noche siguiente.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
 
-  onNightAction() {
+  performNightAction() {
     return null;
   }
 
@@ -23,6 +24,10 @@ export class Leprosa implements IRole {
 
   checkWinCondition() {
     return false;
+  }
+
+  getWinMessage(player: Player): string {
+      return "El pueblo ha ganado.";
   }
 
   toJSON(): RoleData {

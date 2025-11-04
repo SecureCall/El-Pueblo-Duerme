@@ -1,18 +1,19 @@
 
-import { GameContext, GameStateChange, IRole, NightAction, RoleData, RoleName, Team } from "@/types";
+import { GameContext, GameStateChange, IRole, NightAction, Player } from "@/types";
+import { PlayerRoleEnum } from "@/types/zod";
 
 export class Bruja implements IRole {
-  readonly name = 'witch';
+  readonly name = PlayerRoleEnum.WITCH;
   readonly description = "Cada noche te despiertas para cazar a la Vidente. Si la encuentras, el máster te revelará su identidad y podrás entregarla a los lobos. Desde ese momento, los lobos sabrán quién eres y no te atacarán.";
   readonly team = 'Lobos';
   readonly alliance = 'Lobos';
 
-  onNightAction(context: GameContext, action: NightAction): GameStateChange | null {
+  performNightAction(context: GameContext, action: NightAction): GameStateChange | null {
     if (action.actionType !== 'witch_hunt' || !action.targetId) {
       return null;
     }
 
-    const targetPlayer = context.players.find(p => p.userId === action.targetId);
+    const targetPlayer = context.players.find((p: Player) => p.userId === action.targetId);
     if (targetPlayer?.role === 'seer') {
       return {
         game: {
@@ -51,8 +52,12 @@ export class Bruja implements IRole {
     // Gana con los lobos
     return false;
   }
+  
+  getWinMessage(player: Player): string {
+    return "Los lobos han ganado.";
+  }
 
-  toJSON(): RoleData {
+  toJSON() {
     return {
       name: this.name,
       description: this.description,

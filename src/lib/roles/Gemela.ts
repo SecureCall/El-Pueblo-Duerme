@@ -1,8 +1,9 @@
 
-import { GameContext, GameStateChange, IRole, NightAction, RoleData, RoleName, Team } from "@/types";
+import { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
+import { PlayerRoleEnum } from "@/types/zod";
 
 export class Gemela implements IRole {
-  readonly name = 'twin';
+  readonly name = PlayerRoleEnum.TWIN;
   readonly description = "En la primera noche, tú y tu gemelo/a os reconoceréis. A partir de entonces, podréis hablar en un chat privado. Si uno muere, el otro morirá de pena al instante.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
@@ -15,7 +16,7 @@ export class Gemela implements IRole {
   onDeath(context: GameContext): GameStateChange | null {
     const { game, player } = context;
     if (game.twins && game.twins.includes(player.userId)) {
-      const otherTwinId = game.twins.find(id => id !== player.userId);
+      const otherTwinId = game.twins.find((id: string) => id !== player.userId);
       if (otherTwinId) {
         return {
           pendingDeaths: [{ playerId: otherTwinId, cause: 'special' }]
@@ -30,6 +31,10 @@ export class Gemela implements IRole {
     return false;
   }
   
+  getWinMessage(player: Player): string {
+    return "El pueblo ha ganado.";
+  }
+
   toJSON(): RoleData {
     return {
       name: this.name,

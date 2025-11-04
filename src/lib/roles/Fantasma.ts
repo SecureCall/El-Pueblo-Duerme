@@ -1,8 +1,9 @@
 
-import { GameStateChange, IRole, RoleData } from "@/types";
+import { GameStateChange, IRole, RoleData, Player } from "@/types";
+import { PlayerRoleEnum } from "@/types/zod";
 
 export class Fantasma implements IRole {
-  readonly name = 'ghost';
+  readonly name = PlayerRoleEnum.GHOST;
   readonly description = "Si mueres, puedes enviar un único mensaje anónimo a un jugador vivo para intentar guiarlo desde el más allá.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
@@ -28,7 +29,7 @@ export class Fantasma implements IRole {
     return false;
   }
 
-  getWinMessage(player: import("@/types").Player): string {
+  getWinMessage(player: Player): string {
     return "El pueblo ha ganado.";
   }
 }

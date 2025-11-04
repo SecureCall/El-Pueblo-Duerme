@@ -1,5 +1,5 @@
 
-import { GameContext, GameStateChange, IRole, RoleData, PlayerRoleEnum } from "@/types";
+import { GameContext, GameStateChange, IRole, RoleData, PlayerRoleEnum, Player } from "@/types";
 
 export class CriaLobo implements IRole {
   readonly name = PlayerRoleEnum.WOLF_CUB;
@@ -25,7 +25,7 @@ export class CriaLobo implements IRole {
     return false;
   }
 
-  getWinMessage(player: import("@/types").Player): string {
+  getWinMessage(player: Player): string {
     return "Los lobos han ganado.";
   }
 

@@ -1,22 +1,14 @@
 
-import { GameStateChange, IRole, RoleData, RoleName, Team } from "@/types";
+import { GameStateChange, IRole, RoleData } from "@/types";
+import { PlayerRoleEnum } from "@/types/zod";
 
 export class Alborotadora implements IRole {
-  readonly name = 'troublemaker';
+  readonly name = PlayerRoleEnum.TROUBLEMAKER;
   readonly description = "Una vez por partida, puedes provocar una pelea mortal entre dos jugadores, lo que causará que ambos sean eliminados inmediatamente.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
 
-  toJSON(): RoleData {
-    return {
-      name: this.name,
-      description: this.description,
-      team: this.team,
-      alliance: this.alliance,
-    };
-  }
-
-  onNightAction(): GameStateChange | null {
+  performNightAction(): GameStateChange | null {
     // La Alborotadora no actúa de noche
     return null;
   }
@@ -28,5 +20,18 @@ export class Alborotadora implements IRole {
   checkWinCondition(): boolean {
     // Gana con los aldeanos
     return false;
+  }
+
+  getWinMessage() {
+      return "El pueblo ha ganado.";
+  }
+
+  toJSON(): RoleData {
+    return {
+      name: this.name,
+      description: this.description,
+      team: this.team,
+      alliance: this.alliance,
+    };
   }
 }

@@ -1,5 +1,5 @@
-import type { GameContext, GameStateChange, IRole, NightAction, RoleData } from "@/types";
-import { PlayerRoleEnum } from "@/types";
+import type { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
+import { PlayerRoleEnum } from "@/types/zod";
 
 export class Medico implements IRole {
   readonly name = PlayerRoleEnum.DOCTOR;
@@ -15,7 +15,7 @@ export class Medico implements IRole {
     const { game, player } = context;
     const targetId = action.targetId as string;
     
-    if (game.players.find(p => p.userId === targetId)?.lastHealedRound === game.currentRound - 1) {
+    if (game.players.find((p: Player) => p.userId === targetId)?.lastHealedRound === game.currentRound - 1) {
       // This check should also be on the client to provide immediate feedback
       return null;
     }
@@ -36,7 +36,7 @@ export class Medico implements IRole {
     return false;
   }
 
-  getWinMessage(player: import("@/types").Player): string {
+  getWinMessage(player: Player): string {
     return "El pueblo ha ganado.";
   }
 

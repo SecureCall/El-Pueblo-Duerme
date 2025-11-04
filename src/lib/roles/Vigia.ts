@@ -1,13 +1,14 @@
 
-import { GameContext, GameStateChange, IRole, NightAction, RoleData } from "@/types";
+import { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
+import { PlayerRoleEnum } from "@/types/zod";
 
 export class Vigia implements IRole {
-  readonly name = 'lookout';
+  readonly name = PlayerRoleEnum.LOOKOUT;
   readonly description = "Una vez por partida, puedes espiar a un jugador por la noche. Descubrirás a todos los que lo visiten, pero si los lobos te atacan esa misma noche, morirás antes de ver nada.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
 
-  onNightAction(context: GameContext, action: NightAction): GameStateChange | null {
+  performNightAction(context: GameContext, action: NightAction): GameStateChange | null {
     if (action.actionType !== 'lookout_spy') {
       return null;
     }
@@ -26,6 +27,10 @@ export class Vigia implements IRole {
     return false;
   }
 
+  getWinMessage(player: Player): string {
+      return "El pueblo ha ganado.";
+  }
+
   toJSON(): RoleData {
     return {
       name: this.name,
@@ -35,5 +40,3 @@ export class Vigia implements IRole {
     };
   }
 }
-
-    

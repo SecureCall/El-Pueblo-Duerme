@@ -77,7 +77,6 @@ export interface GameContext {
 
 export interface GameStateChange {
   game?: Partial<Game>;
-  players?: Player[]; // Full replacement of players array
   playerUpdates?: Partial<Player>[]; // Updates to specific players by userId
   events?: GameEvent[];
   pendingDeaths?: { playerId: string; cause: GameEvent['type'] }[];

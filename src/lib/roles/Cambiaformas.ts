@@ -7,7 +7,7 @@ export class Cambiaformas implements IRole {
   readonly team = 'Neutral';
   readonly alliance = 'Neutral';
 
-  onNightAction(context: GameContext, action: NightAction): GameStateChange | null {
+  performNightAction(context: GameContext, action: NightAction): GameStateChange | null {
     if (context.game.currentRound !== 1 || action.actionType !== 'shapeshifter_select' || !action.targetId) {
       return null;
     }
@@ -29,6 +29,10 @@ export class Cambiaformas implements IRole {
     return false;
   }
 
+  getWinMessage() {
+      return "El Cambiaformas ha ganado de una forma misteriosa...";
+  }
+
   toJSON(): RoleData {
     return {
       name: this.name,
@@ -38,5 +42,3 @@ export class Cambiaformas implements IRole {
     };
   }
 }
-
-    

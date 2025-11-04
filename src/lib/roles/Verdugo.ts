@@ -1,13 +1,13 @@
 
-import { GameContext, IRole, RoleData, RoleName, Team } from "@/types";
+import { GameContext, IRole, RoleData, Player, PlayerRoleEnum } from "@/types";
 
 export class Verdugo implements IRole {
-  readonly name = 'executioner';
+  readonly name = PlayerRoleEnum.EXECUTIONER;
   readonly description = "Al inicio se te asigna un objetivo secreto. Tu única misión es convencer al pueblo para que lo linchen. Si lo consigues, ganas la partida en solitario.";
   readonly team = 'Neutral';
   readonly alliance = 'Neutral';
 
-  onNightAction() {
+  performNightAction() {
     return null;
   }
 
@@ -19,6 +19,10 @@ export class Verdugo implements IRole {
     // La victoria del Verdugo se concede en `checkGameOver`
     // cuando se procesa el linchamiento de su objetivo.
     return false;
+  }
+
+  getWinMessage(player: Player): string {
+      return "¡El Verdugo ha ganado!";
   }
 
   toJSON(): RoleData {

@@ -1,4 +1,5 @@
-import { IRole, PlayerRoleEnum, PlayerRole } from "@/types";
+import { IRole, PlayerRole } from "@/types";
+import { PlayerRoleEnum } from "@/types/zod";
 import { Aldeano } from "./Aldeano";
 import { Medico } from "./Medico";
 import { Vidente } from "./Vidente";

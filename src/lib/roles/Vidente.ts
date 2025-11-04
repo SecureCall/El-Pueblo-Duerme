@@ -1,5 +1,5 @@
 import type { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
-import { PlayerRoleEnum } from "@/types";
+import { PlayerRoleEnum } from "@/types/zod";
 
 export class Vidente implements IRole {
   readonly name = PlayerRoleEnum.SEER;

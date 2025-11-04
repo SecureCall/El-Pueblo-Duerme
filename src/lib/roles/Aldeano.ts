@@ -1,5 +1,5 @@
 import type { IRole, RoleData, GameStateChange, Player } from "@/types";
-import { PlayerRoleEnum } from "@/types";
+import { PlayerRoleEnum } from "@/types/zod";
 
 export class Aldeano implements IRole {
   readonly name = PlayerRoleEnum.VILLAGER;

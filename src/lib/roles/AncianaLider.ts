@@ -1,5 +1,5 @@
-import type { GameContext, GameStateChange, IRole, NightAction, RoleData } from "@/types";
-import { PlayerRoleEnum } from "@/types";
+import type { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
+import { PlayerRoleEnum } from "@/types/zod";
 
 
 export class AncianaLider implements IRole {
@@ -28,7 +28,7 @@ export class AncianaLider implements IRole {
     return false;
   }
 
-  getWinMessage(player: import("@/types").Player): string {
+  getWinMessage(player: Player): string {
       return "El pueblo ha ganado.";
   }
   

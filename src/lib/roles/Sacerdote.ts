@@ -1,8 +1,9 @@
 
-import { GameContext, GameStateChange, IRole, NightAction, RoleData, RoleName, Team } from "@/types";
+import { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
+import { PlayerRoleEnum } from "@/types/zod";
 
 export class Sacerdote implements IRole {
-  readonly name = 'priest';
+  readonly name = PlayerRoleEnum.PRIEST;
   readonly description = "Cada noche, otorgas una bendición a un jugador, protegiéndolo de cualquier ataque nocturno (lobos, venenos, etc.). Puedes bendecirte a ti mismo una sola vez por partida.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
@@ -37,6 +38,10 @@ export class Sacerdote implements IRole {
     return false;
   }
   
+  getWinMessage(player: Player): string {
+      return "El pueblo ha ganado.";
+  }
+
   toJSON(): RoleData {
     return {
       name: this.name,

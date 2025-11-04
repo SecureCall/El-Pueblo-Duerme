@@ -1,13 +1,14 @@
 
-import { GameContext, GameStateChange, IRole, NightAction, RoleData, RoleName, Team } from "@/types";
+import { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
+import { PlayerRoleEnum } from "@/types/zod";
 
 export class Hechicera implements IRole {
-  readonly name = 'hechicera';
+  readonly name = PlayerRoleEnum.HECHICERA;
   readonly description = "Posees dos pociones de un solo uso: una de veneno para eliminar a un jugador durante la noche, y una de vida para salvar al objetivo de los lobos. No puedes salvarte a ti misma.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
 
-  onNightAction(context: GameContext, action: NightAction): GameStateChange | null {
+  performNightAction(context: GameContext, action: NightAction): GameStateChange | null {
     const { player, game } = context;
     const { actionType, targetId } = action;
 
@@ -36,6 +37,10 @@ export class Hechicera implements IRole {
     return false;
   }
   
+  getWinMessage(player: Player): string {
+    return "El pueblo ha ganado.";
+  }
+
   toJSON(): RoleData {
     return {
       name: this.name,
