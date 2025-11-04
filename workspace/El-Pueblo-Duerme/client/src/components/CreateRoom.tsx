@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from 'next/navigation';
 import { useGameStore } from "@/store/useGameStore";
 import { socket } from "@/lib/socket";
@@ -7,19 +7,23 @@ import { socket } from "@/lib/socket";
 export function CreateRoom() {
   const [userName, setUserName] = useState("");
   const router = useRouter();
-  const setRoom = useGameStore(state => state.setRoom);
+
+  useEffect(() => {
+    function onRoomCreated(data: { roomId: string }) {
+      console.log('Server created room, redirecting to:', data.roomId);
+      router.push(`/room/${data.roomId}`);
+    }
+
+    socket.on('roomCreated', onRoomCreated);
+
+    return () => {
+      socket.off('roomCreated', onRoomCreated);
+    };
+  }, [router]);
 
   const handleCreateRoom = () => {
     if (userName.trim()) {
-      socket.emit("createRoom", { userName }, (response: { success: boolean; room: any; error?: string }) => {
-        if (response.success) {
-          // The SocketManager will handle updating the store
-          // We just need to navigate
-          router.push(`/room/${response.room.id}`);
-        } else {
-          console.error("Failed to create room:", response.error);
-        }
-      });
+      socket.emit("createRoom", { userName });
     }
   };
 

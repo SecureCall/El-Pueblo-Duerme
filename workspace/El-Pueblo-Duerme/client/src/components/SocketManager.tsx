@@ -4,9 +4,11 @@ import { useEffect } from 'react';
 import { socket } from '@/lib/socket';
 import { useGameStore } from '@/store/useGameStore';
 import toast from 'react-hot-toast';
-import { Player, Room, GameState, ChatMessage } from '@/types';
+import { Player, Room, GameState, ChatMessage, Role } from '@/types';
+import { useRouter } from 'next/navigation';
 
 export function SocketManager() {
+  const router = useRouter();
   const { 
     setRoom, 
     setPlayers, 
@@ -42,6 +44,11 @@ export function SocketManager() {
       setRoom(room);
       setPlayers(room.players);
       setGameState(room.gameState);
+    }
+    
+    function onRoomCreated(data: { roomId: string }) {
+      console.log('Server created room, redirecting to:', data.roomId);
+      router.push(`/room/${data.roomId}`);
     }
 
     function onPlayerJoined(player: Player) {
@@ -83,6 +90,7 @@ export function SocketManager() {
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('roomUpdate', onRoomUpdate);
+    socket.on('roomCreated', onRoomCreated);
     socket.on('playerJoined', onPlayerJoined);
     socket.on('playerLeft', onPlayerLeft);
     socket.on('playerStateUpdate', onPlayerStateUpdate);
@@ -96,6 +104,7 @@ export function SocketManager() {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
       socket.off('roomUpdate', onRoomUpdate);
+      socket.off('roomCreated', onRoomCreated);
       socket.off('playerJoined', onPlayerJoined);
       socket.off('playerLeft', onPlayerLeft);
       socket.off('playerStateUpdate', onPlayerStateUpdate);
@@ -107,7 +116,7 @@ export function SocketManager() {
       // Disconnect when the main component unmounts (e.g., user closes tab)
       socket.disconnect();
     };
-  }, [setRoom, setPlayers, addPlayer, removePlayer, updatePlayer, setGameState, addChatMessage, setMyRole, setError]);
+  }, [setRoom, setPlayers, addPlayer, removePlayer, updatePlayer, setGameState, addChatMessage, setMyRole, setError, router]);
 
   // This component doesn't render anything
   return null;
