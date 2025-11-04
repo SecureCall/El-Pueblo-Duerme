@@ -3,8 +3,8 @@ import { GameContext, GameStateChange, IRole, NightAction, Player } from "@/type
 import { PlayerRoleEnum } from "@/types/zod";
 
 export class Bruja implements IRole {
-  readonly name = PlayerRoleEnum.WITCH;
-  readonly description = "Cada noche te despiertas para cazar a la Vidente. Si la encuentras, el máster te revelará su identidad y podrás entregarla a los lobos. Desde ese momento, los lobos sabrán quién eres y no te atacarán.";
+  readonly name = PlayerRoleEnum.enum.witch;
+  readonly description = "Eres aliada de los lobos. Cada noche, eliges a un jugador. Si eliges a la Vidente, la descubrirás y los lobos serán informados. Desde ese momento, los lobos no podrán matarte.";
   readonly team = 'Lobos';
   readonly alliance = 'Lobos';
 

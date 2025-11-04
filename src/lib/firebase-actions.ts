@@ -12,7 +12,16 @@ import {
   type Transaction,
   DocumentReference,
 } from "firebase/firestore";
-import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage, AIPlayerPerspective } from "@/types";
+import { 
+  type Game, 
+  type Player, 
+  type NightAction, 
+  type GameEvent, 
+  type PlayerRole, 
+  type NightActionType, 
+  type ChatMessage,
+  type AIPlayerPerspective
+} from "@/types";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
@@ -166,9 +175,9 @@ export async function runAIActions(db: Firestore, gameId: string) {
 
         if(game.phase !== 'night' || game.status === 'finished') return;
 
-        const aiPlayers = game.players.filter(p => p.isAI && p.isAlive && !p.usedNightAbility);
-        const alivePlayers = game.players.filter(p => p.isAlive);
-        const deadPlayers = game.players.filter(p => !p.isAlive);
+        const aiPlayers = game.players.filter((p: Player) => p.isAI && p.isAlive && !p.usedNightAbility);
+        const alivePlayers = game.players.filter((p: Player) => p.isAlive);
+        const deadPlayers = game.players.filter((p: Player) => !p.isAlive);
 
         for (const ai of aiPlayers) {
             await new Promise(resolve => setTimeout(resolve, Math.random() * 1500 + 500)); // Stagger AI actions
@@ -190,9 +199,9 @@ export async function triggerAIVote(db: Firestore, gameId: string) {
         const game = gameDoc.data() as Game;
         if (game.status === 'finished' || game.phase !== 'day') return;
 
-        const aiPlayersToVote = game.players.filter(p => p.isAI && p.isAlive && !p.votedFor);
-        const alivePlayers = game.players.filter(p => p.isAlive);
-        const deadPlayers = game.players.filter(p => !p.isAlive);
+        const aiPlayersToVote = game.players.filter((p: Player) => p.isAI && p.isAlive && !p.votedFor);
+        const alivePlayers = game.players.filter((p: Player) => p.isAlive);
+        const deadPlayers = game.players.filter((p: Player) => !p.isAlive);
 
         for (const ai of aiPlayersToVote) {
             const { targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
@@ -215,7 +224,7 @@ export async function runAIHunterShot(db: Firestore, gameId: string, hunter: Pla
 
         if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunter.userId) return;
 
-        const alivePlayers = game.players.filter(p => p.isAlive && p.userId !== hunter.userId);
+        const alivePlayers = game.players.filter((p: Player) => p.isAlive && p.userId !== hunter.userId);
         
         const { targetId } = getDeterministicAIAction(hunter, game, alivePlayers, []);
 
@@ -462,7 +471,7 @@ export async function killPlayer(transaction: Transaction, gameRef: DocumentRefe
             continue;
         }
 
-        const playerIndex = newGameData.players.findIndex(p => p.userId === currentIdToKill);
+        const playerIndex = newGameData.players.findIndex((p: Player) => p.userId === currentIdToKill);
         if (playerIndex === -1 || !newGameData.players[playerIndex].isAlive) {
             continue;
         }
@@ -571,7 +580,7 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
                 }
                 if (p.role === 'twin' && gameData.twins?.includes(p.userId)) { // Los gemelos ganan con su alianza
                     const playerInstance = createRoleInstance(p.role!);
-                    const twinInstance = createRoleInstance(p_win.role);
+                    const twinInstance = createRoleInstance(p_win.role!);
                     return playerInstance.alliance === twinInstance.alliance;
                 }
                  return p_win.role && createRoleInstance(p_win.role).alliance === roleInstance.alliance
@@ -724,7 +733,7 @@ export async function processNight(db: Firestore, gameId: string) {
 
         let triggeredHunterId: string | null = null;
         for (const death of pendingDeaths) {
-            const { updatedGame, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, death.playerId, death.cause);
+            const { updatedGame, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef as DocumentReference, game, death.playerId, death.cause);
             game = updatedGame;
             if(newHunterId) triggeredHunterId = newHunterId;
         }

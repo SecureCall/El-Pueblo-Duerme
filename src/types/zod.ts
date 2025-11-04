@@ -56,17 +56,19 @@ export const PlayerSchema = z.object({
   secretObjectiveId: z.string().nullable(),
 });
 
-export const NightActionSchema = z.object({
-  gameId: z.string(),
-  round: z.number(),
-  playerId: z.string(),
-  actionType: z.enum([
+export const NightActionTypeSchema = z.enum([
     "werewolf_kill", "seer_check", "doctor_heal", "hechicera_poison", 
     "hechicera_save", "guardian_protect", "priest_bless", "vampire_bite", "cult_recruit", 
     "fisherman_catch", "shapeshifter_select", "virginia_woolf_link", "river_siren_charm",
     "silencer_silence", "elder_leader_exile", "witch_hunt", "banshee_scream", "lookout_spy",
     "fairy_find", "fairy_kill", "resurrect", "cupid_love"
-  ]),
+  ]);
+
+export const NightActionSchema = z.object({
+  gameId: z.string(),
+  round: z.number(),
+  playerId: z.string(),
+  actionType: NightActionTypeSchema,
   targetId: z.string(),
   createdAt: z.union([TimestampSchema, z.string()]).refine((v): v is NonNullable<typeof v> => v !== null),
 });

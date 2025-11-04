@@ -1,6 +1,6 @@
 
 import { GameStateChange, IRole, RoleData, Player } from "@/types";
-import { PlayerRoleEnum } from "@/types/zod";
+import { PlayerRoleEnum } from "@/types";
 
 export class Fantasma implements IRole {
   readonly name = PlayerRoleEnum.GHOST;

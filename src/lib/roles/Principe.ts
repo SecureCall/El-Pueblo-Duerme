@@ -1,5 +1,6 @@
 
-import { IRole, RoleData, GameStateChange, Player, PlayerRoleEnum } from "@/types";
+import { IRole, RoleData, GameStateChange, Player } from "@/types";
+import { PlayerRoleEnum } from "@/types";
 
 export class Principe implements IRole {
   readonly name = PlayerRoleEnum.enum.prince;

@@ -1,5 +1,6 @@
 
-import { IRole, RoleData, Player, PlayerRoleEnum } from "@/types";
+import { IRole, RoleData, Player } from "@/types";
+import { PlayerRoleEnum } from "@/types";
 
 export class Licantropo implements IRole {
   readonly name = PlayerRoleEnum.enum.lycanthrope;
