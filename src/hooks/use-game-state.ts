@@ -96,10 +96,12 @@ export const useGameState = (gameId: string) => {
   
   useEffect(() => {
     if (!firestore || !userId || !gameId || !isSessionLoaded) {
-        dispatch({ 
-            type: 'SET_ERROR', 
-            payload: !gameId ? "No se ha proporcionado un ID de partida." : "Cargando sesión de Firebase..." 
-        });
+        if (!initialState) {
+            dispatch({ 
+                type: 'SET_ERROR', 
+                payload: !gameId ? "No se ha proporcionado un ID de partida." : "Cargando sesión de Firebase..." 
+            });
+        }
         return;
     };
 
