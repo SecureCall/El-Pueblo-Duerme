@@ -1,14 +1,49 @@
 
 import type { Timestamp } from 'firebase/firestore';
 import { z } from 'zod';
-import type { GameSchema, PlayerSchema, RoleData, RoleName } from './zod';
-import type { GameStateChange } from './game-logic';
-
-export * from './zod';
+import type { GameSchema, PlayerSchema } from './zod';
 
 export type GameStatus = "waiting" | "in_progress" | "finished";
 export type GamePhase = "waiting" | "role_reveal" | "night" | "day" | "voting" | "hunter_shot" | "jury_voting" | "finished";
-export type Team = 'Aldeanos' | 'Lobos' | 'Neutral';
+
+export enum PlayerRoleEnum {
+  VILLAGER = "villager",
+  SEER = "seer",
+  DOCTOR = "doctor",
+  HUNTER = "hunter",
+  GUARDIAN = "guardian",
+  PRIEST = "priest",
+  PRINCE = "prince",
+  LYCANTHROPE = "lycanthrope",
+  TWIN = "twin",
+  HECHICERA = "hechicera",
+  GHOST = "ghost",
+  VIRGINIA_WOOLF = "virginia_woolf",
+  LEPROSA = "leprosa",
+  RIVER_SIREN = "river_siren",
+  LOOKOUT = "lookout",
+  TROUBLEMAKER = "troublemaker",
+  SILENCER = "silencer",
+  SEER_APPRENTICE = "seer_apprentice",
+  ELDER_LEADER = "elder_leader",
+  RESURRECTOR_ANGEL = "resurrector_angel",
+  WEREWOLF = "werewolf",
+  WOLF_CUB = "wolf_cub",
+  CURSED = "cursed",
+  WITCH = "witch",
+  SEEKER_FAIRY = "seeker_fairy",
+  SHAPESHIFTER = "shapeshifter",
+  DRUNK_MAN = "drunk_man",
+  CULT_LEADER = "cult_leader",
+  FISHERMAN = "fisherman",
+  VAMPIRE = "vampire",
+  BANSHEE = "banshee",
+  CUPID = "cupid",
+  EXECUTIONER = "executioner",
+  SLEEPING_FAIRY = "sleeping_fairy",
+}
+
+export type PlayerRole = z.infer<typeof z.nativeEnum<typeof PlayerRoleEnum>> | null;
 
 export interface Game {
   id: string;
@@ -58,7 +93,7 @@ export interface Game {
 export interface Player {
   userId: string;
   gameId: string;
-  role: RoleName | null;
+  role: PlayerRole;
   isAlive: boolean;
   votedFor: string | null;
   displayName: string;
@@ -152,36 +187,8 @@ export interface AIPlayerPerspective {
   chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost';
 };
 
+
 export interface GenerateAIChatMessageOutput {
     message: string;
     shouldSend: boolean;
 };
-
-
-// Interfaz para la lógica de roles (Patrón Strategy)
-export interface IRole {
-  readonly name: RoleName;
-  readonly description: string;
-  readonly team: Team;
-  readonly alliance: Team;
-
-  // Devuelve los cambios de estado si el rol actúa en la noche
-  onNightAction(context: GameContext, action: NightAction): GameStateChange | null;
-
-  // Devuelve los cambios de estado si la muerte de este rol tiene un efecto
-  onDeath(context: GameContext): GameStateChange | null;
-
-  // Comprueba si este rol cumple una condición de victoria especial
-  checkWinCondition(context: GameContext): boolean;
-
-  // Convierte la clase a un objeto de datos simple para enviar al cliente
-  toJSON(): RoleData;
-}
-
-
-// Contexto del juego pasado a los métodos de los roles
-export interface GameContext {
-  game: Game;
-  player: Player;
-  players: Player[];
-}
