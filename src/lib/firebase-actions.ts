@@ -15,12 +15,12 @@ import {
 import { 
   type Game, 
   type Player, 
-  type NightAction, 
-  type GameEvent, 
-  type PlayerRole, 
-  type NightActionType, 
-  type ChatMessage,
-  type AIPlayerPerspective
+  NightAction, 
+  GameEvent, 
+  PlayerRole, 
+  NightActionType, 
+  ChatMessage,
+  AIPlayerPerspective
 } from "@/types";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
@@ -29,6 +29,7 @@ import { roleDetails } from "@/lib/roles";
 import { toPlainObject } from "./utils";
 import { masterActions } from "./master-actions";
 import { createRoleInstance } from "./roles/role-factory";
+import { initializeFirebase } from "@/firebase";
 
 
 const PHASE_DURATION_SECONDS = 45;
@@ -75,7 +76,6 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
 
 
 export async function createGame(
-  db: Firestore,
   userId: string,
   displayName: string,
   avatarUrl: string,
@@ -83,6 +83,7 @@ export async function createGame(
   maxPlayers: number,
   settings: Game['settings']
 ) {
+  const { firestore } = initializeFirebase();
   try {
     if (typeof displayName !== 'string' || typeof gameName !== 'string') {
         return { error: "El nombre del jugador y de la partida deben ser texto." };
@@ -95,7 +96,7 @@ export async function createGame(
     }
 
     const gameId = generateGameId();
-    const gameRef = doc(db, "games", gameId);
+    const gameRef = doc(firestore, "games", gameId);
         
     const werewolfCount = Math.max(1, Math.floor(maxPlayers / 4));
 
@@ -141,7 +142,7 @@ export async function createGame(
     
     await setDoc(gameRef, toPlainObject(gameData));
     
-    const joinResult = await joinGame(db, gameId, userId, displayName, avatarUrl);
+    const joinResult = await joinGame(firestore, gameId, userId, displayName, avatarUrl);
     if (joinResult.error) {
       console.error(`Game created (${gameId}), but creator failed to join:`, joinResult.error);
       return { error: `La partida se creó, pero no se pudo unir: ${joinResult.error}` };
@@ -163,6 +164,106 @@ export async function createGame(
   }
 }
 
+export async function joinGame(
+  db: Firestore,
+  gameId: string,
+  userId: string,
+  displayName: string,
+  avatarUrl: string
+) {
+  const gameRef = doc(db, "games", gameId);
+  
+  try {
+    await runTransaction(db, async (transaction) => {
+      const gameSnap = await transaction.get(gameRef);
+
+      if (!gameSnap.exists()) {
+        throw new Error("Partida no encontrada.");
+      }
+
+      const game = gameSnap.data() as Game;
+
+      if (game.status !== "waiting") {
+        throw new Error("Esta partida ya ha comenzado.");
+      }
+      
+      const playerExists = game.players.some(p => p.userId === userId);
+      if (playerExists) {
+        const currentPlayers = game.players;
+        const playerIndex = currentPlayers.findIndex(p => p.userId === userId);
+        if (playerIndex !== -1) {
+            let changed = false;
+            if(currentPlayers[playerIndex].displayName !== displayName.trim()) {
+                currentPlayers[playerIndex].displayName = displayName.trim();
+                changed = true;
+            }
+             if(currentPlayers[playerIndex].avatarUrl !== avatarUrl) {
+                currentPlayers[playerIndex].avatarUrl = avatarUrl;
+                changed = true;
+            }
+            if(changed) {
+                transaction.update(gameRef, { players: toPlainObject(currentPlayers) });
+            }
+        }
+        return;
+      }
+      
+      const nameExists = game.players.some(p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase());
+      if (nameExists) {
+        throw new Error("Ese nombre ya está en uso en esta partida.");
+      }
+
+      if (game.players.length >= game.maxPlayers) {
+        throw new Error("Esta partida está llena.");
+      }
+      
+      const newPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
+      transaction.update(gameRef, {
+        players: arrayUnion(toPlainObject(newPlayer)),
+        lastActiveAt: Timestamp.now(),
+      });
+    });
+
+    return { success: true };
+
+  } catch(error: any) {
+    if (error.code === 'permission-denied') {
+        const permissionError = new FirestorePermissionError({
+            path: gameRef.path,
+            operation: 'update',
+            requestResourceData: { players: '...' },
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        return { error: "Permiso denegado al unirse a la partida." };
+    }
+    console.error("Error joining game:", error);
+    return { error: `No se pudo unir a la partida: ${error.message}` };
+  }
+}
+
+export async function updatePlayerAvatar(db: Firestore, gameId: string, userId: string, newAvatarUrl: string) {
+    const gameRef = doc(db, 'games', gameId);
+    try {
+        await runTransaction(db, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error("Game not found.");
+
+            const gameData = gameDoc.data() as Game;
+            const playerIndex = gameData.players.findIndex(p => p.userId === userId);
+
+            if (playerIndex === -1) throw new Error("Player not found in game.");
+
+            const updatedPlayers = [...gameData.players];
+            updatedPlayers[playerIndex].avatarUrl = newAvatarUrl;
+
+            transaction.update(gameRef, { players: toPlainObject(updatedPlayers), lastActiveAt: Timestamp.now() });
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error updating player avatar:", error);
+        return { success: false, error: error.message };
+    }
+}
 // ===============================================================================================
 // AI ACTIONS LOGIC
 // ===============================================================================================
