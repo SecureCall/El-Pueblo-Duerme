@@ -51,5 +51,3 @@ export const PlayerGrid = React.memo(function PlayerGrid({
     </div>
   );
 });
-
-    

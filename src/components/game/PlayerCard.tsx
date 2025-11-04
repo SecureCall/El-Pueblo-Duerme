@@ -180,5 +180,3 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
     </TooltipProvider>
   );
 });
-
-    
