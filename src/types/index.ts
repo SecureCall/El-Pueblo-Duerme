@@ -1,4 +1,3 @@
-
 // Este archivo es la única fuente de verdad para los tipos compartidos
 // entre el cliente (Next.js) y el servidor (Socket.IO).
 

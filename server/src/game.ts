@@ -1,6 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { rooms } from './server';
-import { Room, Player, GameState, PlayerAction } from './types'; // Import from shared types
+import { Room, Player, GameState, PlayerAction } from '../../src/types'; // Import from shared types
 import { assignRoles } from './roles';
 import { ROLES } from './roles';
 

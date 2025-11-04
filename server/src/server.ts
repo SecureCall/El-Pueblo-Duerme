@@ -2,7 +2,7 @@ import express from 'express';
 import http from 'http';
 import { Server, Socket } from 'socket.io';
 import { handleConnection } from './game';
-import type { Room, Player } from './types';
+import type { Room, Player } from '../../src/types';
 
 const app = express();
 const server = http.createServer(app);
