@@ -335,7 +335,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
     if (otherTwin) highlightedPlayers.push({ userId: otherTwin.userId, color: 'rgba(135, 206, 250, 0.7)' });
     if (otherLover) highlightedPlayers.push({ userId: otherLover.userId, color: 'rgba(244, 114, 182, 0.7)' });
 
-    const playersWithDeathCause = players.map(p => ({
+    const playersWithDeathCause = players.map((p: Player) => ({
         ...p,
         causeOfDeath: !p.isAlive ? getCauseOfDeath(p.userId) : undefined,
     }));
