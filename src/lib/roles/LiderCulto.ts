@@ -1,12 +1,12 @@
 
-import { GameContext, GameStateChange, IRole, NightAction, Player } from "@/types";
+import { GameContext, GameStateChange, IRole, NightAction, Player, RoleData, Team } from "@/types";
 import { PlayerRoleEnum } from "@/types/zod";
 
 export class LiderCulto implements IRole {
   readonly name = PlayerRoleEnum.enum.cult_leader;
   readonly description = "Cada noche, conviertes a un jugador a tu culto. Ganas si todos los jugadores vivos se han unido a tu culto. Juegas solo contra todos.";
-  readonly team = 'Neutral';
-  readonly alliance = 'Neutral';
+  readonly team: Team = 'Neutral';
+  readonly alliance: Team = 'Neutral';
 
   performNightAction(context: GameContext, action: NightAction): GameStateChange | null {
     if (action.actionType !== 'cult_recruit' || !action.targetId) {
@@ -15,7 +15,7 @@ export class LiderCulto implements IRole {
 
     return {
       playerUpdates: [{
-        userId: action.targetId,
+        userId: action.targetId as string,
         isCultMember: true,
       }]
     };

@@ -1,5 +1,4 @@
 
-
 import { z } from 'zod';
 
 // PlayerRoleEnum is now a static list, breaking the circular dependency.
@@ -178,4 +177,17 @@ export const RoleDataSchema = z.object({
   description: z.string(),
   team: z.enum(['Aldeanos', 'Lobos', 'Neutral']),
   alliance: z.enum(['Aldeanos', 'Lobos', 'Neutral']),
+});
+
+export const AIPlayerPerspectiveSchema = z.object({
+  game: GameSchema,
+  aiPlayer: PlayerSchema,
+  trigger: z.string(),
+  players: z.array(PlayerSchema),
+  chatType: z.enum(['public', 'wolf', 'twin', 'lovers', 'ghost']),
+});
+
+export const GenerateAIChatMessageOutputSchema = z.object({
+  message: z.string(),
+  shouldSend: z.boolean(),
 });

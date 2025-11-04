@@ -1,12 +1,13 @@
 
-import { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
+
+import { GameContext, GameStateChange, IRole, NightAction, Player, RoleData, Team } from "@/types";
 import { PlayerRoleEnum } from "@/types/zod";
 
 export class Gemela implements IRole {
-  readonly name = PlayerRoleEnum.TWIN;
+  readonly name = PlayerRoleEnum.enum.twin;
   readonly description = "En la primera noche, tú y tu gemelo/a os reconoceréis. A partir de entonces, podréis hablar en un chat privado. Si uno muere, el otro morirá de pena al instante.";
-  readonly team = 'Aldeanos';
-  readonly alliance = 'Aldeanos';
+  readonly team: Team = 'Aldeanos';
+  readonly alliance: Team = 'Aldeanos';
 
   performNightAction(context: GameContext, action: NightAction): GameStateChange | null {
     // La lógica de los gemelos se maneja al inicio del juego, no tienen acción nocturna.

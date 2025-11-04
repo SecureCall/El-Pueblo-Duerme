@@ -1,11 +1,13 @@
 
-import { GameContext, IRole, RoleData, Player, PlayerRoleEnum } from "@/types";
+
+import { GameContext, IRole, Player, RoleData, Team } from "@/types";
+import { PlayerRoleEnum } from "@/types";
 
 export class HombreEbrio implements IRole {
-  readonly name = PlayerRoleEnum.DRUNK_MAN;
+  readonly name = PlayerRoleEnum.enum.drunk_man;
   readonly description = "Ganas la partida en solitario si consigues que el pueblo te linche. No tienes acciones nocturnas; tu habilidad es la manipulación social.";
-  readonly team = 'Neutral';
-  readonly alliance = 'Neutral';
+  readonly team: Team = 'Neutral';
+  readonly alliance: Team = 'Neutral';
 
   performNightAction() {
     return null;

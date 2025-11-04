@@ -1,12 +1,13 @@
 
-import type { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
+
+import type { GameContext, GameStateChange, IRole, NightAction, Player, RoleData, Team } from "@/types";
 import { PlayerRoleEnum } from "@/types/zod";
 
 export class VirginiaWoolf implements IRole {
-  readonly name = PlayerRoleEnum.VIRGINIA_WOOLF;
+  readonly name = PlayerRoleEnum.enum.virginia_woolf;
   readonly description = "En la primera noche, eliges a un jugador para vincular tu destino. Si tú mueres en cualquier momento de la partida, la persona que elegiste también morirá automáticamente contigo.";
-  readonly team = 'Aldeanos';
-  readonly alliance = 'Aldeanos';
+  readonly team: Team = 'Aldeanos';
+  readonly alliance: Team = 'Aldeanos';
 
   performNightAction(context: GameContext, action: NightAction): GameStateChange | null {
     if (context.game.currentRound !== 1 || action.actionType !== 'virginia_woolf_link' || !action.targetId) {
@@ -15,7 +16,7 @@ export class VirginiaWoolf implements IRole {
     return {
       playerUpdates: [{
         userId: context.player.userId,
-        virginiaWoolfTargetId: action.targetId,
+        virginiaWoolfTargetId: action.targetId as string,
       }]
     };
   }

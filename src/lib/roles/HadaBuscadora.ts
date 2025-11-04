@@ -1,12 +1,13 @@
 
-import { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
+
+import { GameContext, GameStateChange, IRole, NightAction, Player, RoleData, Team } from "@/types";
 import { PlayerRoleEnum } from "@/types/zod";
 
 export class HadaBuscadora implements IRole {
-  readonly name = PlayerRoleEnum.SEEKER_FAIRY;
+  readonly name = PlayerRoleEnum.enum.seeker_fairy;
   readonly description = "Equipo de los Lobos. Cada noche, buscas al Hada Durmiente. Si la encuentras, ambas despertáis un poder de un solo uso para matar a un jugador.";
-  readonly team = 'Lobos';
-  readonly alliance = 'Lobos';
+  readonly team: Team = 'Lobos';
+  readonly alliance: Team = 'Lobos';
 
   performNightAction(context: GameContext, action: NightAction): GameStateChange | null {
     if (context.game.fairiesFound) {
@@ -26,8 +27,7 @@ export class HadaBuscadora implements IRole {
     const targetPlayer = context.players.find((p: Player) => p.userId === action.targetId);
     if (targetPlayer?.role === 'sleeping_fairy') {
       const sleepingFairyIndex = context.players.findIndex((p:Player) => p.userId === targetPlayer.userId);
-      const seekerFairyIndex = context.players.findIndex((p:Player) => p.userId === context.player.userId);
-
+      
       const playerUpdates: Partial<Player>[] = [];
       if (sleepingFairyIndex > -1) playerUpdates.push({ userId: targetPlayer.userId, alliance: 'Lobos' });
       

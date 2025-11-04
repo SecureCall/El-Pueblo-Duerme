@@ -35,7 +35,7 @@ import { Banshee } from "./Banshee";
 import { Cupido } from "./Cupido";
 import { Verdugo } from "./Verdugo";
 
-const roleMap: Record<PlayerRoleEnum, new () => IRole> = {
+const roleMap: Record<PlayerRole, new () => IRole> = {
   [PlayerRoleEnum.enum.villager]: Aldeano,
   [PlayerRoleEnum.enum.seer]: Vidente,
   [PlayerRoleEnum.enum.doctor]: Medico,

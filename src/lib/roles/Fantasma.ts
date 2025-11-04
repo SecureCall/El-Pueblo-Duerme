@@ -1,9 +1,10 @@
 
+
 import { GameStateChange, IRole, Player } from "@/types";
 import { PlayerRoleEnum } from "@/types";
 
 export class Fantasma implements IRole {
-  readonly name = PlayerRoleEnum.GHOST;
+  readonly name = PlayerRoleEnum.enum.ghost;
   readonly description = "Si mueres, puedes enviar un único mensaje anónimo a un jugador vivo para intentar guiarlo desde el más allá.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';

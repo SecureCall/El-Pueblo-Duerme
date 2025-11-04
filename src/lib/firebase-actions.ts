@@ -1,3 +1,4 @@
+
 'use server';
 import { 
   doc,
@@ -627,8 +628,8 @@ export async function killPlayer(transaction: Transaction, gameRef: DocumentRefe
             const otherId = linkedIds.find(id => id !== deadPlayer.userId);
             const otherPlayer = otherId ? newGameData.players.find(p => p.userId === otherId) : undefined;
             
-            if (otherPlayer && otherPlayer.isAlive && !alreadyProcessed.has(otherId) && !killQueue.includes(otherId)) {
-                killQueue.push(otherId);
+            if (otherPlayer && otherPlayer.isAlive && !alreadyProcessed.has(otherId!) && !killQueue.includes(otherId!)) {
+                killQueue.push(otherId!);
                  newGameData.events.push({
                     id: `evt_chain_death_${Date.now()}_${otherId}`,
                     gameId: newGameData.id!, round: newGameData.currentRound, type: eventType,
@@ -833,7 +834,7 @@ export async function processNight(db: Firestore, gameId: string) {
 
         let triggeredHunterId: string | null = null;
         for (const death of pendingDeaths) {
-            const { updatedGame, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, death.playerId, death.cause);
+            const { updatedGame, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, death.playerId, death.cause);
             game = updatedGame;
             if(newHunterId) triggeredHunterId = newHunterId;
         }

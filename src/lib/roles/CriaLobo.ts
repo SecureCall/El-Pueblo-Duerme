@@ -1,8 +1,10 @@
 
-import { GameContext, GameStateChange, IRole, RoleData, PlayerRoleEnum, Player } from "@/types";
+
+import { GameContext, GameStateChange, IRole, Player, RoleData } from "@/types";
+import { PlayerRoleEnum } from "@/types/zod";
 
 export class CriaLobo implements IRole {
-  readonly name = PlayerRoleEnum.WOLF_CUB;
+  readonly name = PlayerRoleEnum.enum.wolf_cub;
   readonly description = "Si eres eliminado, la noche siguiente a tu muerte, los lobos devorarán a dos personas en lugar de una.";
   readonly team = 'Lobos';
   readonly alliance = 'Lobos';

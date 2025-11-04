@@ -1,12 +1,13 @@
 
-import type { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
+
+import type { GameContext, GameStateChange, IRole, NightAction, Player, RoleData, Team } from "@/types";
 import { PlayerRoleEnum } from "@/types/zod";
 
 export class SirenaRio implements IRole {
-  readonly name = PlayerRoleEnum.RIVER_SIREN;
+  readonly name = PlayerRoleEnum.enum.river_siren;
   readonly description = "En la primera noche, hechizas a un jugador. A partir de entonces, esa persona está obligada a votar por el mismo objetivo que tú durante el día.";
-  readonly team = 'Aldeanos';
-  readonly alliance = 'Aldeanos';
+  readonly team: Team = 'Aldeanos';
+  readonly alliance: Team = 'Aldeanos';
 
   performNightAction(context: GameContext, action: NightAction): GameStateChange | null {
     if (context.game.currentRound !== 1 || action.actionType !== 'river_siren_charm' || !action.targetId) {
@@ -16,7 +17,7 @@ export class SirenaRio implements IRole {
     return {
       playerUpdates: [{
         userId: context.player.userId,
-        riverSirenTargetId: action.targetId,
+        riverSirenTargetId: action.targetId as string,
       }]
     };
   }

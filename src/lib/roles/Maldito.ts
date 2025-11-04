@@ -1,12 +1,13 @@
 
-import { GameContext, GameStateChange, IRole, RoleData, Player } from "@/types";
+
+import { IRole, RoleData, Team } from "@/types";
 import { PlayerRoleEnum } from "@/types/zod";
 
 export class Maldito implements IRole {
-  readonly name = PlayerRoleEnum.CURSED;
+  readonly name = PlayerRoleEnum.enum.cursed;
   readonly description = "Empiezas como un aldeano, pero si los lobos te atacan, no mueres. En su lugar, te conviertes en uno de ellos.";
-  readonly team = 'Aldeanos';
-  readonly alliance = 'Aldeanos'; // Starts as villager
+  readonly team: Team = 'Aldeanos';
+  readonly alliance: Team = 'Aldeanos'; // Starts as villager
 
   toJSON(): RoleData {
     return {
@@ -17,20 +18,20 @@ export class Maldito implements IRole {
     };
   }
 
-  performNightAction(): GameStateChange | null {
+  performNightAction() {
     return null;
   }
 
-  onDeath(): GameStateChange | null {
+  onDeath() {
     return null;
   }
 
-  checkWinCondition(): boolean {
+  checkWinCondition() {
     // Check win condition based on current alliance
     return false;
   }
 
-  getWinMessage(player: Player): string {
+  getWinMessage() {
       return "El pueblo ha ganado.";
   }
 }

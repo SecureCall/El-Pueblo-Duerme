@@ -1,11 +1,13 @@
 
-import { GameContext, IRole, RoleData, Player, PlayerRoleEnum } from "@/types";
+
+import { GameContext, IRole, Player, RoleData, Team } from "@/types";
+import { PlayerRoleEnum } from "@/types";
 
 export class Verdugo implements IRole {
-  readonly name = PlayerRoleEnum.EXECUTIONER;
+  readonly name = PlayerRoleEnum.enum.executioner;
   readonly description = "Al inicio se te asigna un objetivo secreto. Tu única misión es convencer al pueblo para que lo linchen. Si lo consigues, ganas la partida en solitario.";
-  readonly team = 'Neutral';
-  readonly alliance = 'Neutral';
+  readonly team: Team = 'Neutral';
+  readonly alliance: Team = 'Neutral';
 
   performNightAction() {
     return null;

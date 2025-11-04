@@ -1,5 +1,6 @@
 
-import type { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
+
+import type { GameContext, GameStateChange, IRole, NightAction, Player, RoleData } from "@/types";
 import { PlayerRoleEnum } from "@/types";
 
 export class Vidente implements IRole {

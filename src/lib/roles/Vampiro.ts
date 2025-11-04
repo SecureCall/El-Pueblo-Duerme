@@ -1,13 +1,15 @@
 
-import { GameContext, GameStateChange, IRole, NightAction, RoleData, RoleName, Team } from "@/types";
+
+import { GameContext, GameStateChange, IRole, NightAction, RoleData, Team } from "@/types";
+import { PlayerRoleEnum } from "@/types";
 
 export class Vampiro implements IRole {
-  readonly name = 'vampire';
+  readonly name = PlayerRoleEnum.enum.vampire;
   readonly description = "Juegas solo. Cada noche, muerdes a un jugador. Un jugador mordido 3 veces, muere. Si consigues 3 muertes por mordisco, ganas la partida.";
   readonly team = 'Neutral';
   readonly alliance = 'Neutral';
 
-  onNightAction(context: GameContext, action: NightAction): GameStateChange | null {
+  performNightAction(context: GameContext, action: NightAction): GameStateChange | null {
     if (action.actionType !== 'vampire_bite' || !action.targetId) {
       return null;
     }
@@ -49,5 +51,9 @@ export class Vampiro implements IRole {
       team: this.team,
       alliance: this.alliance,
     };
+  }
+
+  getWinMessage() {
+      return "¡El Vampiro ha ganado! Ha reclamado sus tres víctimas y ahora reina en la oscuridad.";
   }
 }
