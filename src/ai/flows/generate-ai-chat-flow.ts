@@ -1,11 +1,32 @@
-
 'use server';
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import type { AIPlayerPerspective, GenerateAIChatMessageOutput, NightAction, PlayerRole } from '@/types';
 import { AIPlayerPerspectiveSchema, GenerateAIChatMessageOutputSchema } from '@/types/zod';
-import { toPlainObject } from '@/lib/utils';
+
+// Helper function to sanitize any object and replace undefined with null recursively.
+const sanitizeObject = (obj: any): any => {
+    if (obj === undefined) {
+        return null;
+    }
+    if (obj === null || typeof obj !== 'object') {
+        return obj;
+    }
+
+    if (Array.isArray(obj)) {
+        return obj.map(item => sanitizeObject(item));
+    }
+
+    const newObj: { [key: string]: any } = {};
+    for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            const value = obj[key];
+            newObj[key] = sanitizeObject(value);
+        }
+    }
+    return newObj;
+};
 
 
 const prompt = ai.definePrompt({
@@ -66,6 +87,8 @@ const generateAiChatMessageFlow = ai.defineFlow(
         outputSchema: GenerateAIChatMessageOutputSchema,
     },
     async (perspective) => {
+        // The input is now expected to be fully sanitized by the wrapper function.
+        
         const isSeerOrApprentice = perspective.aiPlayer.role === 'seer' || (perspective.aiPlayer.role === 'seer_apprentice' && perspective.game.seerDied);
         if (isSeerOrApprentice && perspective.game.phase === 'day' && perspective.trigger.toLowerCase().includes('voted')) {
             const seerActions = perspective.game.nightActions?.filter(
@@ -131,7 +154,7 @@ export async function generateAIChatMessage(
 ): Promise<GenerateAIChatMessageOutput> {
     try {
         // AI Flow requires a plain object, so we ensure it's sanitized before calling.
-        const sanitizedPerspective = toPlainObject(perspective);
+        const sanitizedPerspective = sanitizeObject(perspective);
 
         const result = await generateAiChatMessageFlow(sanitizedPerspective);
         return result;
@@ -141,4 +164,3 @@ export async function generateAIChatMessage(
         return { message: '', shouldSend: false };
     }
 }
-      

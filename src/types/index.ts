@@ -1,4 +1,3 @@
-
 import type { Timestamp } from 'firebase/firestore';
 import { z } from 'zod';
 import type { GameSchema, PlayerSchema } from './zod';
@@ -197,15 +196,20 @@ export interface GenerateAIChatMessageOutput {
 // Role-specific logic interfaces
 // ===============================================================================================
 
+export type Team = 'Aldeanos' | 'Lobos' | 'Neutral';
+export type Alliance = Team;
+
+
 export interface IRole {
   readonly name: PlayerRole;
   readonly description: string;
-  readonly team: 'Aldeanos' | 'Lobos' | 'Neutral';
-  readonly alliance: 'Aldeanos' | 'Lobos' | 'Neutral';
+  readonly team: Team;
+  readonly alliance: Alliance;
 
   performNightAction(context: GameContext, action: NightAction): GameStateChange | null;
   onDeath(context: GameContext): GameStateChange | null;
   checkWinCondition(context: GameContext): boolean;
+  getWinMessage(player: Player): string;
   
   toJSON(): RoleData;
 }
@@ -213,8 +217,8 @@ export interface IRole {
 export interface RoleData {
   name: PlayerRole;
   description: string;
-  team: 'Aldeanos' | 'Lobos' | 'Neutral';
-  alliance: 'Aldeanos' | 'Lobos' | 'Neutral';
+  team: Team;
+  alliance: Alliance;
 }
 
 export interface GameContext {

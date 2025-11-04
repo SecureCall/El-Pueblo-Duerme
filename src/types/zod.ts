@@ -1,5 +1,5 @@
-
 import { z } from 'zod';
+import { PlayerRoleEnum } from '.';
 
 const TimestampSchema = z.union([
   z.object({
@@ -13,14 +13,7 @@ const TimestampSchema = z.union([
 ]).nullable();
 
 
-export const RoleNameSchema = z.enum([
-  "villager", "seer", "doctor", "hunter", "guardian", "priest", "prince", "lycanthrope", "twin",
-  "hechicera", "ghost", "virginia_woolf", "leprosa", "river_siren", "lookout", "troublemaker",
-  "silencer", "seer_apprentice", "elder_leader", "werewolf", "wolf_cub", "cursed", "seeker_fairy",
-  "sleeping_fairy", "shapeshifter", "drunk_man", "cult_leader", "fisherman", "vampire", "witch", "banshee",
-  "resurrector_angel", "cupid", "executioner"
-]).nullable();
-
+export const RoleNameSchema = z.nativeEnum(PlayerRoleEnum).nullable();
 export type RoleName = z.infer<typeof RoleNameSchema>;
 
 export const RoleDataSchema = z.object({
