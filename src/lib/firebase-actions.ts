@@ -1,4 +1,5 @@
 
+
 'use server';
 import { 
   doc,
@@ -834,7 +835,7 @@ export async function processNight(db: Firestore, gameId: string) {
 
         let triggeredHunterId: string | null = null;
         for (const death of pendingDeaths) {
-            const { updatedGame, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef as DocumentReference, game, death.playerId, death.cause);
+            const { updatedGame, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, death.playerId, death.cause);
             game = updatedGame;
             if(newHunterId) triggeredHunterId = newHunterId;
         }
@@ -913,5 +914,3 @@ export async function executeMasterAction(db: Firestore, gameId: string, actionI
     // Placeholder for master action logic
     return { success: true };
 }
-
-```
