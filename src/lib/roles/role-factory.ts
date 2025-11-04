@@ -1,5 +1,5 @@
 
-import { IRole, RoleName } from "@/types";
+import { IRole, PlayerRoleEnum, RoleData } from "@/types";
 import { Aldeano } from "./Aldeano";
 import { Medico } from "./Medico";
 import { Vidente } from "./Vidente";
@@ -35,47 +35,49 @@ import { Banshee } from "./Banshee";
 import { Cupido } from "./Cupido";
 import { Verdugo } from "./Verdugo";
 
-const roleMap: Record<RoleName, new () => IRole> = {
-  villager: Aldeano,
-  seer: Vidente,
-  doctor: Medico,
-  werewolf: Lobo,
-  hunter: Cazador,
-  prince: Principe,
-  priest: Sacerdote,
-  guardian: Guardian,
-  lycanthrope: Licantropo,
-  twin: Gemela,
-  hechicera: Hechicera,
-  ghost: Fantasma,
-  virginia_woolf: VirginiaWoolf,
-  leprosa: Leprosa,
-  river_siren: SirenaRio,
-  lookout: Vigia,
-  troublemaker: Alborotadora,
-  silencer: Silenciador,
-  seer_apprentice: AprendizVidente,
-  elder_leader: AncianaLider,
-  resurrector_angel: AngelResucitador,
-  wolf_cub: CriaLobo,
-  cursed: Maldito,
-  witch: Bruja,
-  seeker_fairy: HadaBuscadora,
-  sleeping_fairy: HadaDurmiente,
-  shapeshifter: Cambiaformas,
-  drunk_man: HombreEbrio,
-  cult_leader: LiderCulto,
-  fisherman: Pescador,
-  vampire: Vampiro,
-  banshee: Banshee,
-  cupid: Cupido,
-  executioner: Verdugo,
+const roleMap: Record<PlayerRoleEnum, new () => IRole> = {
+  [PlayerRoleEnum.VILLAGER]: Aldeano,
+  [PlayerRoleEnum.SEER]: Vidente,
+  [PlayerRoleEnum.DOCTOR]: Medico,
+  [PlayerRoleEnum.WEREWOLF]: Lobo,
+  [PlayerRoleEnum.HUNTER]: Cazador,
+  [PlayerRoleEnum.PRINCE]: Principe,
+  [PlayerRoleEnum.PRIEST]: Sacerdote,
+  [PlayerRoleEnum.GUARDIAN]: Guardian,
+  [PlayerRoleEnum.LYCANTHROPE]: Licantropo,
+  [PlayerRoleEnum.TWIN]: Gemela,
+  [PlayerRoleEnum.HECHICERA]: Hechicera,
+  [PlayerRoleEnum.GHOST]: Fantasma,
+  [PlayerRoleEnum.VIRGINIA_WOOLF]: VirginiaWoolf,
+  [PlayerRoleEnum.LEPROSA]: Leprosa,
+  [PlayerRoleEnum.RIVER_SIREN]: SirenaRio,
+  [PlayerRoleEnum.LOOKOUT]: Vigia,
+  [PlayerRoleEnum.TROUBLEMAKER]: Alborotadora,
+  [PlayerRoleEnum.SILENCER]: Silenciador,
+  [PlayerRoleEnum.SEER_APPRENTICE]: AprendizVidente,
+  [PlayerRoleEnum.ELDER_LEADER]: AncianaLider,
+  [PlayerRoleEnum.RESURRECTOR_ANGEL]: AngelResucitador,
+  [PlayerRoleEnum.WOLF_CUB]: CriaLobo,
+  [PlayerRoleEnum.CURSED]: Maldito,
+  [PlayerRoleEnum.WITCH]: Bruja,
+  [PlayerRoleEnum.SEEKER_FAIRY]: HadaBuscadora,
+  [PlayerRoleEnum.SLEEPING_FAIRY]: HadaDurmiente,
+  [PlayerRoleEnum.SHAPESHIFTER]: Cambiaformas,
+  [PlayerRoleEnum.DRUNK_MAN]: HombreEbrio,
+  [PlayerRoleEnum.CULT_LEADER]: LiderCulto,
+  [PlayerRoleEnum.FISHERMAN]: Pescador,
+  [PlayerRoleEnum.VAMPIRE]: Vampiro,
+  [PlayerRoleEnum.BANSHEE]: Banshee,
+  [PlayerRoleEnum.CUPID]: Cupido,
+  [PlayerRoleEnum.EXECUTIONER]: Verdugo,
 };
 
-export function createRoleInstance(roleName?: RoleName | null): IRole {
+export function createRoleInstance(roleName?: PlayerRoleEnum | null): IRole {
   if (!roleName || !roleMap[roleName]) {
     return new Aldeano();
   }
   const RoleClass = roleMap[roleName];
   return new RoleClass();
 }
+
+    

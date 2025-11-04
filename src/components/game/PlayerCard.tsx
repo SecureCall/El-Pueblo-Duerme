@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -99,6 +100,7 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
 }
 
   const cardStyle = highlightColor ? { boxShadow: `0 0 15px 4px ${highlightColor}` } : {};
+  const isSelf = player.userId === currentPlayer.userId;
 
   return (
     <TooltipProvider>
@@ -114,9 +116,10 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
               onClick={() => onClick?.(player)}
               style={cardStyle}
             >
-              {player.userId === currentPlayer.userId && (
+              {isSelf && (
                 <div className="absolute top-1 right-1 bg-secondary/80 rounded-full p-1 cursor-pointer hover:bg-secondary" onClick={() => onClick?.(player)}>
                   <Edit className="h-4 w-4 text-secondary-foreground" />
+                  <span className="sr-only">Cambiar avatar</span>
                 </div>
               )}
               {game && player.userId === game.creator && (
@@ -168,7 +171,14 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
                 <p>Tu objetivo. Debes convencer al pueblo para que lo linchen.</p>
               </TooltipContent>
          )}
+         {isSelf && (
+            <TooltipContent>
+                <p>¡Eres tú! Haz clic para cambiar tu avatar.</p>
+            </TooltipContent>
+         )}
       </Tooltip>
     </TooltipProvider>
   );
 });
+
+    

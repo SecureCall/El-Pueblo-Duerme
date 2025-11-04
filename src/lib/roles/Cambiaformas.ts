@@ -1,8 +1,8 @@
 
-import { GameContext, GameStateChange, IRole, NightAction, RoleData, RoleName, Team } from "@/types";
+import { GameContext, GameStateChange, IRole, NightAction, RoleData, PlayerRoleEnum } from "@/types";
 
 export class Cambiaformas implements IRole {
-  readonly name = 'shapeshifter';
+  readonly name = PlayerRoleEnum.SHAPESHIFTER;
   readonly description = "Te despiertas solo la primera noche para elegir a una persona. Si esa persona muere, adoptarás su rol y su equipo, transformándote completamente en ella.";
   readonly team = 'Neutral';
   readonly alliance = 'Neutral';
@@ -25,6 +25,7 @@ export class Cambiaformas implements IRole {
   }
 
   checkWinCondition(): boolean {
+    // The win condition depends on the role they transform into.
     return false;
   }
 
@@ -37,3 +38,5 @@ export class Cambiaformas implements IRole {
     };
   }
 }
+
+    

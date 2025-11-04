@@ -1,19 +1,18 @@
 
-import { GameContext, GameStateChange, IRole, NightAction, RoleData, RoleName, Team } from "@/types";
+import { GameContext, GameStateChange, IRole, NightAction, RoleData } from "@/types";
 
 export class Vigia implements IRole {
   readonly name = 'lookout';
-  readonly description = "Una vez por partida, en la noche, puedes elegir espiar a un jugador para ver quién lo visita. Si los lobos te eligen como víctima esa noche, morirás antes de ver nada.";
+  readonly description = "Una vez por partida, puedes espiar a un jugador por la noche. Descubrirás a todos los que lo visiten, pero si los lobos te atacan esa misma noche, morirás antes de ver nada.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
 
   onNightAction(context: GameContext, action: NightAction): GameStateChange | null {
-    if (action.actionType !== 'lookout_spy' || !action.targetId) {
+    if (action.actionType !== 'lookout_spy') {
       return null;
     }
-
-    // La lógica de quién visita se debe calcular en `processNight` después de recoger todas las acciones
-    // Aquí solo marcamos la habilidad como usada
+    
+    // The core logic is handled in processNight. This just marks the ability as used.
     return {
       playerUpdates: [{ userId: context.player.userId, lookoutUsed: true }],
     };
@@ -36,3 +35,5 @@ export class Vigia implements IRole {
     };
   }
 }
+
+    
