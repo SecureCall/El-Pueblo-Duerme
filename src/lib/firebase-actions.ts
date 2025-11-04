@@ -15,7 +15,6 @@ import {
 import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage, AIPlayerPerspective } from "@/types";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
-import { secretObjectives, getObjectiveLogic } from "./objectives";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { roleDetails } from "@/lib/roles";
 import { toPlainObject } from "./utils";
@@ -244,7 +243,7 @@ export async function getAIChatResponse(db: Firestore, gameId: string, aiPlayer:
             game: game,
             aiPlayer: toPlainObject(aiPlayer),
             trigger: triggerMessage,
-            players: game.players, 
+            players: toPlainObject(game.players), 
             chatType,
         };
 
@@ -867,5 +866,3 @@ async function processVotes(db: Firestore, gameId: string) {
     return { success: false, error: error.message };
   }
 }
-
-

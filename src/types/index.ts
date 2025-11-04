@@ -101,7 +101,7 @@ export interface Player {
   joinedAt: Timestamp | Date | string | null;
   lastHealedRound: number;
   isAI: boolean;
-  isExiled?: boolean;
+  isExiled: boolean;
   potions?: {
     poison?: number | null;
     save?: number | null;
@@ -192,5 +192,3 @@ export interface GenerateAIChatMessageOutput {
     message: string;
     shouldSend: boolean;
 };
-
-
