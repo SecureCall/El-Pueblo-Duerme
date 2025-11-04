@@ -1,13 +1,13 @@
-
-import { GameContext, GameStateChange, IRole, NightAction, RoleData, RoleName, Team } from "@/types";
+import { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
+import { PlayerRoleEnum } from "@/types";
 
 export class Banshee implements IRole {
-  readonly name = 'banshee';
+  readonly name = PlayerRoleEnum.BANSHEE;
   readonly description = "Te despiertas una vez por partida para lanzar tu grito y señalar a un jugador. Si muere esa noche o al día siguiente, podrás lanzar un último grito en otra noche. Si aciertas ambas veces, ganas.";
   readonly team = 'Neutral';
   readonly alliance = 'Neutral';
 
-  onNightAction(context: GameContext, action: NightAction): GameStateChange | null {
+  performNightAction(context: GameContext, action: NightAction): GameStateChange | null {
     if (action.actionType !== 'banshee_scream' || !action.targetId) {
       return null;
     }
@@ -38,10 +38,14 @@ export class Banshee implements IRole {
       return false;
     }
 
-    const targets = screams.map(targetId => game.players.find(p => p.userId === targetId));
+    const targets = screams.map(targetId => game.players.find((p: Player) => p.userId === targetId));
     const allTargetsAreDead = targets.every(target => target && !target.isAlive);
 
     return allTargetsAreDead;
+  }
+
+  getWinMessage(player: Player): string {
+    return `¡La Banshee ha ganado! Sus dos gritos han sentenciado a muerte y ha cumplido su objetivo.`;
   }
   
   toJSON(): RoleData {

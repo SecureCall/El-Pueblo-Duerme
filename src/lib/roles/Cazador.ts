@@ -1,4 +1,3 @@
-
 import type { GameContext, GameStateChange, IRole, RoleData, Player } from "@/types";
 import { PlayerRoleEnum } from "@/types";
 

@@ -1,8 +1,8 @@
-
-import type { GameContext, GameStateChange, IRole, NightAction, RoleData } from "@/types";
+import type { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
+import { PlayerRoleEnum } from "@/types";
 
 export class AngelResucitador implements IRole {
-  readonly name = 'resurrector_angel';
+  readonly name = PlayerRoleEnum.RESURRECTOR_ANGEL;
   readonly description = "Una vez por partida, durante la noche, puedes elegir a un jugador muerto para devolverlo a la vida. El jugador resucitado volverá al juego con su rol original.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
@@ -12,13 +12,13 @@ export class AngelResucitador implements IRole {
       return null;
     }
 
-    const targetPlayerIndex = context.players.findIndex(p => p.userId === action.targetId);
+    const targetPlayerIndex = context.players.findIndex((p: Player) => p.userId === action.targetId);
     if (targetPlayerIndex === -1 || context.players[targetPlayerIndex].isAlive) {
       return null; // Target not found or is alive
     }
 
     const playerUpdates = [...context.game.players];
-    playerUpdates[context.game.players.findIndex(p => p.userId === context.player.userId)].resurrectorAngelUsed = true;
+    playerUpdates[context.game.players.findIndex((p: Player) => p.userId === context.player.userId)].resurrectorAngelUsed = true;
     playerUpdates[targetPlayerIndex].isAlive = true;
 
 
@@ -45,6 +45,10 @@ export class AngelResucitador implements IRole {
 
   checkWinCondition(): boolean {
     return false;
+  }
+
+  getWinMessage(player: Player): string {
+      return "El pueblo ha ganado.";
   }
 
   toJSON(): RoleData {

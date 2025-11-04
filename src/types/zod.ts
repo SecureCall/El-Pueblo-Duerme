@@ -1,4 +1,3 @@
-
 import { z } from 'zod';
 
 export enum PlayerRoleEnum {
@@ -200,19 +199,6 @@ export const GameSchema = z.object({
   fairyKillUsed: z.boolean(),
   juryVotes: z.record(z.string()).optional(),
   masterKillUsed: z.boolean().optional(),
-});
-
-export const AIPlayerPerspectiveSchema = z.object({
-  game: GameSchema,
-  aiPlayer: PlayerSchema,
-  trigger: z.string(),
-  players: z.array(PlayerSchema),
-  chatType: z.enum(['public', 'wolf', 'twin', 'lovers', 'ghost']),
-});
-
-export const GenerateAIChatMessageOutputSchema = z.object({
-  message: z.string(),
-  shouldSend: z.boolean(),
 });
 
 export const RoleDataSchema = z.object({

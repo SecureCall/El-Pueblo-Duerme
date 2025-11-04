@@ -1,18 +1,16 @@
-
 import type { Timestamp } from 'firebase/firestore';
 import { z } from 'zod';
-import type { GameSchema, PlayerSchema, PlayerRoleEnumSchema, RoleDataSchema, NightActionSchema } from './zod';
+import { GameSchema, PlayerSchema, NightActionSchema, PlayerRoleEnumSchema, RoleDataSchema, PlayerRoleEnum } from './zod';
 
-export type GameStatus = "waiting" | "in_progress" | "finished";
-export type GamePhase = "waiting" | "role_reveal" | "night" | "day" | "voting" | "hunter_shot" | "jury_voting" | "finished";
-export type PlayerRole = z.infer<typeof PlayerRoleEnumSchema>;
-export { PlayerRoleEnum } from './zod';
+export { PlayerRoleEnum };
 
-// Main data structures
+// Main data structures inferred from Zod schemas
 export type Game = z.infer<typeof GameSchema>;
 export type Player = z.infer<typeof PlayerSchema>;
 export type NightAction = z.infer<typeof NightActionSchema>;
+export type PlayerRole = z.infer<typeof PlayerRoleEnumSchema>;
 
+// Interfaces that are not directly represented by a Zod schema but are used in the application logic
 export interface GameEvent {
     id: string;
     gameId: string;
@@ -40,7 +38,6 @@ export interface AIPlayerPerspective {
   players: Player[];
   chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost';
 };
-
 
 export interface GenerateAIChatMessageOutput {
     message: string;

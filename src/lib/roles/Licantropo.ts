@@ -1,4 +1,3 @@
-
 import { IRole, RoleData, Player } from "@/types";
 
 export class Licantropo implements IRole {

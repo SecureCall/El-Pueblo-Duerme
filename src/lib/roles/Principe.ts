@@ -1,4 +1,3 @@
-
 import { IRole, RoleData, GameStateChange, Player } from "@/types";
 
 export class Principe implements IRole {

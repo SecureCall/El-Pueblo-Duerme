@@ -1,5 +1,5 @@
-
-import { GameContext, GameStateChange, IRole, NightAction, RoleData, PlayerRoleEnum } from "@/types";
+import type { GameContext, GameStateChange, IRole, NightAction, RoleData } from "@/types";
+import { PlayerRoleEnum } from "@/types";
 
 export class Medico implements IRole {
   readonly name = PlayerRoleEnum.DOCTOR;
