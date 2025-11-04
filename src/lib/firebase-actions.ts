@@ -73,62 +73,62 @@ export async function createGame(
   maxPlayers: number,
   settings: Game['settings']
 ) {
-  if (typeof displayName !== 'string' || typeof gameName !== 'string') {
-      return { error: "El nombre del jugador y de la partida deben ser texto." };
-  }
-  if (!userId || !displayName.trim() || !gameName.trim()) {
-    return { error: "Datos incompletos para crear la partida." };
-  }
-  if (maxPlayers < 3 || maxPlayers > 32) {
-    return { error: "El número de jugadores debe ser entre 3 y 32." };
-  }
-
-  const gameId = generateGameId();
-  const gameRef = doc(db, "games", gameId);
-      
-  const werewolfCount = Math.max(1, Math.floor(maxPlayers / 4));
-
-  const gameData: Game = {
-      id: gameId,
-      name: gameName.trim(),
-      status: "waiting",
-      phase: "waiting", 
-      creator: userId,
-      players: [], 
-      events: [],
-      chatMessages: [],
-      wolfChatMessages: [],
-      fairyChatMessages: [],
-      twinChatMessages: [],
-      loversChatMessages: [],
-      ghostChatMessages: [],
-      maxPlayers: maxPlayers,
-      createdAt: Timestamp.now(),
-      lastActiveAt: Timestamp.now(),
-      currentRound: 0,
-      settings: {
-          ...settings,
-          werewolves: werewolfCount,
-      },
-      phaseEndsAt: Timestamp.now(),
-      pendingHunterShot: null,
-      twins: null,
-      lovers: null,
-      wolfCubRevengeRound: 0,
-      nightActions: [],
-      vampireKills: 0,
-      boat: [],
-      leprosaBlockedRound: 0,
-      witchFoundSeer: false,
-      seerDied: false,
-      silencedPlayerId: null,
-      exiledPlayerId: null,
-      troublemakerUsed: false,
-      fairiesFound: false,
-      fairyKillUsed: false,
-  };
-  
   try {
+    if (typeof displayName !== 'string' || typeof gameName !== 'string') {
+        return { error: "El nombre del jugador y de la partida deben ser texto." };
+    }
+    if (!userId || !displayName.trim() || !gameName.trim()) {
+      return { error: "Datos incompletos para crear la partida." };
+    }
+    if (maxPlayers < 3 || maxPlayers > 32) {
+      return { error: "El número de jugadores debe ser entre 3 y 32." };
+    }
+
+    const gameId = generateGameId();
+    const gameRef = doc(db, "games", gameId);
+        
+    const werewolfCount = Math.max(1, Math.floor(maxPlayers / 4));
+
+    const gameData: Game = {
+        id: gameId,
+        name: gameName.trim(),
+        status: "waiting",
+        phase: "waiting", 
+        creator: userId,
+        players: [], 
+        events: [],
+        chatMessages: [],
+        wolfChatMessages: [],
+        fairyChatMessages: [],
+        twinChatMessages: [],
+        loversChatMessages: [],
+        ghostChatMessages: [],
+        maxPlayers: maxPlayers,
+        createdAt: Timestamp.now(),
+        lastActiveAt: Timestamp.now(),
+        currentRound: 0,
+        settings: {
+            ...settings,
+            werewolves: werewolfCount,
+        },
+        phaseEndsAt: Timestamp.now(),
+        pendingHunterShot: null,
+        twins: null,
+        lovers: null,
+        wolfCubRevengeRound: 0,
+        nightActions: [],
+        vampireKills: 0,
+        boat: [],
+        leprosaBlockedRound: 0,
+        witchFoundSeer: false,
+        seerDied: false,
+        silencedPlayerId: null,
+        exiledPlayerId: null,
+        troublemakerUsed: false,
+        fairiesFound: false,
+        fairyKillUsed: false,
+    };
+    
     await setDoc(gameRef, toPlainObject(gameData));
     
     const joinResult = await joinGame(db, gameId, userId, displayName, avatarUrl);
@@ -139,16 +139,16 @@ export async function createGame(
 
     return { gameId };
   } catch (error: any) {
+    console.error("Error creating game:", error);
     if (error.code === 'permission-denied') {
         const permissionError = new FirestorePermissionError({
-            path: gameRef.path,
+            path: `games/some-game-id`, // Generic path
             operation: 'create',
-            requestResourceData: toPlainObject(gameData),
+            requestResourceData: { name: gameName },
         });
         errorEmitter.emit('permission-error', permissionError);
         return { error: "Permiso denegado al crear la partida." };
     }
-    console.error("Error creating game:", error);
     return { error: `Error al crear la partida: ${error.message || 'Error desconocido'}` };
   }
 }
@@ -244,7 +244,7 @@ export async function getAIChatResponse(db: Firestore, gameId: string, aiPlayer:
             game: game,
             aiPlayer: toPlainObject(aiPlayer),
             trigger: triggerMessage,
-            players: game.players, // Now using the already sanitized players from the game object
+            players: game.players, 
             chatType,
         };
 
@@ -867,6 +867,5 @@ async function processVotes(db: Firestore, gameId: string) {
     return { success: false, error: error.message };
   }
 }
-//... (rest of the file remains the same)
 
-      
+
