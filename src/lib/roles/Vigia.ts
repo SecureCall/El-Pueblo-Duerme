@@ -10,11 +10,12 @@ export class Vigia implements IRole {
   readonly alliance = 'Aldeanos';
 
   performNightAction(context: GameContext, action: NightAction): GameStateChange | null {
-    if (action.actionType !== 'lookout_spy') {
+    if (action.actionType !== 'lookout_spy' || context.player.lookoutUsed) {
       return null;
     }
     
     // The core logic is handled in processNight. This just marks the ability as used.
+    // It's important to mark it here so the action isn't considered invalid.
     return {
       playerUpdates: [{ userId: context.player.userId, lookoutUsed: true }],
     };

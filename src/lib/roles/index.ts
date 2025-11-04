@@ -8,6 +8,7 @@ export type RoleDetail = {
     image: string;
     color: string;
     bgImageId: string;
+    team: 'Aldeanos' | 'Lobos' | 'Neutral';
 }
 
 export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> = {
@@ -18,7 +19,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Tu ingenio y tu voz son tus únicas armas. Sobrevive.",
         image: "/roles/villager.png",
         color: "text-white",
-        bgImageId: "role-bg-villager"
+        bgImageId: "role-bg-villager",
+        team: "Aldeanos",
     },
     seer: {
         name: "Vidente",
@@ -26,7 +28,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Ves más allá de las apariencias. La verdad te será revelada.",
         image: "/roles/seer.png",
         color: "text-blue-400",
-        bgImageId: "role-bg-seer"
+        bgImageId: "role-bg-seer",
+        team: "Aldeanos",
     },
     doctor: {
         name: "Doctor",
@@ -34,7 +37,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "En tus manos está el poder de dar una noche más de vida.",
         image: "/roles/Doctor.png",
         color: "text-green-400",
-        bgImageId: "role-bg-doctor"
+        bgImageId: "role-bg-doctor",
+        team: "Aldeanos",
     },
     hunter: {
         name: "Cazador",
@@ -42,7 +46,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Incluso en la muerte, tu puntería será certera.",
         image: "/roles/hunter.png",
         color: "text-yellow-500",
-        bgImageId: "role-bg-hunter"
+        bgImageId: "role-bg-hunter",
+        team: "Aldeanos",
     },
     guardian: {
         name: "Guardián",
@@ -50,7 +55,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Tu escudo es la última esperanza para los inocentes.",
         image: "/roles/Guardian.png",
         color: "text-gray-300",
-        bgImageId: "role-bg-doctor"
+        bgImageId: "role-bg-doctor",
+        team: "Aldeanos",
     },
     priest: {
         name: "Sacerdote",
@@ -58,7 +64,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Tu fe es un escudo impenetrable contra la oscuridad.",
         image: "/roles/priest.png",
         color: "text-yellow-200",
-        bgImageId: "role-bg-seer"
+        bgImageId: "role-bg-seer",
+        team: "Aldeanos",
     },
     prince: {
         name: "Príncipe",
@@ -66,7 +73,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Tu sangre real te protege del juicio de la plebe.",
         image: "/roles/Prince.png",
         color: "text-yellow-300",
-        bgImageId: "role-bg-hunter" 
+        bgImageId: "role-bg-hunter",
+        team: "Aldeanos",
     },
     lycanthrope: {
         name: "Licántropo",
@@ -74,7 +82,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Marcado por la luna, pero fiel al pueblo. ¿Podrás convencerlos?",
         image: "/roles/lycanthrope.png",
         color: "text-orange-400",
-        bgImageId: "role-bg-werewolf" 
+        bgImageId: "role-bg-werewolf",
+        team: "Aldeanos",
     },
     twin: {
         name: "Gemela",
@@ -82,7 +91,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Un vínculo inquebrantable en medio del caos.",
         image: "/roles/twin.png",
         color: "text-blue-300",
-        bgImageId: "role-bg-villager" 
+        bgImageId: "role-bg-villager",
+        team: "Aldeanos",
     },
     hechicera: {
         name: "Hechicera",
@@ -90,7 +100,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "El poder de la vida y la muerte está en tus manos.",
         image: "/roles/Enchantress.png",
         color: "text-purple-400",
-        bgImageId: "role-bg-werewolf" 
+        bgImageId: "role-bg-werewolf",
+        team: "Aldeanos",
     },
     ghost: {
         name: "Fantasma",
@@ -98,7 +109,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "La muerte no es el final de tu influencia.",
         image: "/roles/Ghost.png",
         color: "text-slate-400",
-        bgImageId: "role-bg-villager"
+        bgImageId: "role-bg-villager",
+        team: "Aldeanos",
     },
     virginia_woolf: {
         name: "Virginia Woolf",
@@ -106,7 +118,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Un destino trágico te une a otra alma.",
         image: "/roles/Virginia Woolf.png",
         color: "text-rose-300",
-        bgImageId: "role-bg-villager"
+        bgImageId: "role-bg-villager",
+        team: "Aldeanos",
     },
     leprosa: {
         name: "Leprosa",
@@ -114,7 +127,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Incluso en la muerte, tu maldición es un arma.",
         image: "/roles/Leper.png",
         color: "text-lime-700",
-        bgImageId: "role-bg-villager"
+        bgImageId: "role-bg-villager",
+        team: "Aldeanos",
     },
     river_siren: {
         name: "Sirena del Río",
@@ -122,7 +136,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Tu canto doblega voluntades.",
         image: "/roles/River Siren.png",
         color: "text-cyan-400",
-        bgImageId: "role-bg-seer"
+        bgImageId: "role-bg-seer",
+        team: "Aldeanos",
     },
     lookout: {
         name: "Vigía",
@@ -130,7 +145,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "El conocimiento exige un gran riesgo.",
         image: "/roles/Watcher.png",
         color: "text-gray-400",
-        bgImageId: "role-bg-seer"
+        bgImageId: "role-bg-seer",
+        team: "Aldeanos",
     },
     troublemaker: {
         name: "Alborotadora",
@@ -138,7 +154,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Siembras el caos y la discordia.",
         image: "/roles/Troublemaker.png",
         color: "text-amber-500",
-        bgImageId: "role-bg-villager"
+        bgImageId: "role-bg-villager",
+        team: "Aldeanos",
     },
     silencer: {
         name: "Silenciador",
@@ -146,7 +163,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "El silencio es tu arma más poderosa.",
         image: "/roles/Silencer.png",
         color: "text-indigo-300",
-        bgImageId: "role-bg-seer"
+        bgImageId: "role-bg-seer",
+        team: "Aldeanos",
     },
     seer_apprentice: {
         name: "Aprendiz de Vidente",
@@ -154,7 +172,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "El legado de la luz recae sobre ti.",
         image: "/roles/Apprentice Seer.png",
         color: "text-blue-300",
-        bgImageId: "role-bg-seer"
+        bgImageId: "role-bg-seer",
+        team: "Aldeanos",
     },
     elder_leader: {
         name: "Anciana Líder",
@@ -162,7 +181,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Tu sabiduría ancestral interrumpe los planes de la oscuridad.",
         image: "/roles/Leader Crone.png",
         color: "text-gray-500",
-        bgImageId: "role-bg-villager"
+        bgImageId: "role-bg-villager",
+        team: "Aldeanos",
     },
     resurrector_angel: {
         name: "Ángel Resucitador",
@@ -170,7 +190,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Un destello de esperanza en la oscuridad. La muerte no siempre es el final.",
         image: "/roles/angel resucitador.png",
         color: "text-yellow-200",
-        bgImageId: "role-bg-seer"
+        bgImageId: "role-bg-seer",
+        team: "Aldeanos",
     },
     // ==== Equipo de los Lobos ====
     werewolf: {
@@ -179,7 +200,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "La luna llena es tu guía. La caza ha comenzado.",
         image: "/roles/werewolf.png",
         color: "text-destructive",
-        bgImageId: "role-bg-werewolf"
+        bgImageId: "role-bg-werewolf",
+        team: "Lobos",
     },
     wolf_cub: {
         name: "Cría de Lobo",
@@ -187,7 +209,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Tu muerte desata la furia de la manada.",
         image: "/roles/wolf_cub.png",
         color: "text-red-400",
-        bgImageId: "role-bg-werewolf"
+        bgImageId: "role-bg-werewolf",
+        team: "Lobos",
     },
     cursed: {
         name: "Maldito",
@@ -195,7 +218,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Llevas una oscuridad latente que espera el momento de despertar.",
         image: "/roles/cursed.png",
         color: "text-orange-600",
-        bgImageId: "role-bg-werewolf"
+        bgImageId: "role-bg-werewolf",
+        team: "Lobos",
     },
     witch: {
         name: "Bruja",
@@ -203,7 +227,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Tu magia oscura busca apagar la única luz del pueblo.",
         image: "/roles/Witch.png",
         color: "text-purple-500",
-        bgImageId: "role-bg-werewolf"
+        bgImageId: "role-bg-werewolf",
+        team: "Lobos",
     },
     seeker_fairy: {
         name: "Hada Buscadora",
@@ -211,7 +236,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Una magia oscura que busca a su otra mitad.",
         image: "/roles/Seeker Faerie.png",
         color: "text-fuchsia-400",
-        bgImageId: "role-bg-werewolf"
+        bgImageId: "role-bg-werewolf",
+        team: "Lobos",
     },
     // ==== Roles Especiales / Neutrales ====
     cupid: {
@@ -220,7 +246,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Una de tus flechas puede cambiar el destino del pueblo para siempre.",
         image: "/roles/cupid.png",
         color: "text-pink-400",
-        bgImageId: "role-bg-cupid"
+        bgImageId: "role-bg-cupid",
+        team: "Neutral",
     },
     shapeshifter: {
         name: "Cambiaformas",
@@ -228,7 +255,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Tu identidad es fluida, tu destino está ligado a otro.",
         image: "/roles/Shapeshifter.png",
         color: "text-teal-300",
-        bgImageId: "role-bg-villager"
+        bgImageId: "role-bg-villager",
+        team: "Neutral",
     },
     drunk_man: {
         name: "Hombre Ebrio",
@@ -236,7 +264,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Buscas la gloria en el rechazo del pueblo.",
         image: "/roles/Drunken Man.png",
         color: "text-amber-800",
-        bgImageId: "role-bg-villager"
+        bgImageId: "role-bg-villager",
+        team: "Neutral",
     },
     cult_leader: {
         name: "Líder del Culto",
@@ -244,7 +273,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Tus susurros son más peligrosos que los colmillos de un lobo.",
         image: "/roles/Cult Leader.png",
         color: "text-violet-500",
-        bgImageId: "role-bg-werewolf"
+        bgImageId: "role-bg-werewolf",
+        team: "Neutral",
     },
     fisherman: {
         name: "Pescador",
@@ -252,7 +282,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Un arca en medio de la tormenta, o una tumba acuática.",
         image: "/roles/Fisherman.png",
         color: "text-sky-600",
-        bgImageId: "role-bg-villager"
+        bgImageId: "role-bg-villager",
+        team: "Neutral",
     },
     vampire: {
         name: "Vampiro",
@@ -260,7 +291,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "La sed de sangre es tu única guía.",
         image: "/roles/Vampire.png",
         color: "text-red-700",
-        bgImageId: "role-bg-werewolf"
+        bgImageId: "role-bg-werewolf",
+        team: "Neutral",
     },
     banshee: {
         name: "Banshee",
@@ -268,7 +300,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Tu lamento no es de tristeza, es de victoria.",
         image: "/roles/Banshee.png",
         color: "text-indigo-400",
-        bgImageId: "role-bg-seer"
+        bgImageId: "role-bg-seer",
+        team: "Neutral",
     },
     executioner: {
         name: "Verdugo",
@@ -276,7 +309,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "La justicia, por tus manos, es ciega y caprichosa.",
         image: "/roles/verdugo.png",
         color: "text-gray-400",
-        bgImageId: "role-bg-hunter"
+        bgImageId: "role-bg-hunter",
+        team: "Neutral",
     },
     sleeping_fairy: {
         name: "Hada Durmiente",
@@ -284,7 +318,8 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         atmosphere: "Duermes, esperando una conexión mágica que decidirá tu bando.",
         image: "/roles/Sleeping Faerie.png",
         color: "text-emerald-400",
-        bgImageId: "role-bg-villager"
+        bgImageId: "role-bg-villager",
+        team: "Neutral",
     },
 };
 
@@ -294,5 +329,6 @@ export const defaultRoleDetail: RoleDetail = {
     atmosphere: "El misterio te envuelve...",
     image: "/roles/villager.png",
     color: "text-gray-400",
-    bgImageId: "role-bg-villager"
+    bgImageId: "role-bg-villager",
+    team: "Aldeanos",
 };

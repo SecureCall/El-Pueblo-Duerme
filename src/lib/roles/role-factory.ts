@@ -35,48 +35,48 @@ import { Banshee } from "./Banshee";
 import { Cupido } from "./Cupido";
 import { Verdugo } from "./Verdugo";
 
-const roleMap: Record<PlayerRole, new () => IRole> = {
-  [PlayerRoleEnum.VILLAGER]: Aldeano,
-  [PlayerRoleEnum.SEER]: Vidente,
-  [PlayerRoleEnum.DOCTOR]: Medico,
-  [PlayerRoleEnum.WEREWOLF]: Lobo,
-  [PlayerRoleEnum.HUNTER]: Cazador,
-  [PlayerRoleEnum.PRINCE]: Principe,
-  [PlayerRoleEnum.PRIEST]: Sacerdote,
-  [PlayerRoleEnum.GUARDIAN]: Guardian,
-  [PlayerRoleEnum.LYCANTHROPE]: Licantropo,
-  [PlayerRoleEnum.TWIN]: Gemela,
-  [PlayerRoleEnum.HECHICERA]: Hechicera,
-  [PlayerRoleEnum.GHOST]: Fantasma,
-  [PlayerRoleEnum.VIRGINIA_WOOLF]: VirginiaWoolf,
-  [PlayerRoleEnum.LEPROSA]: Leprosa,
-  [PlayerRoleEnum.RIVER_SIREN]: SirenaRio,
-  [PlayerRoleEnum.LOOKOUT]: Vigia,
-  [PlayerRoleEnum.TROUBLEMAKER]: Alborotadora,
-  [PlayerRoleEnum.SILENCER]: Silenciador,
-  [PlayerRoleEnum.SEER_APPRENTICE]: AprendizVidente,
-  [PlayerRoleEnum.ELDER_LEADER]: AncianaLider,
-  [PlayerRoleEnum.RESURRECTOR_ANGEL]: AngelResucitador,
-  [PlayerRoleEnum.WOLF_CUB]: CriaLobo,
-  [PlayerRoleEnum.CURSED]: Maldito,
-  [PlayerRoleEnum.WITCH]: Bruja,
-  [PlayerRoleEnum.SEEKER_FAIRY]: HadaBuscadora,
-  [PlayerRoleEnum.SLEEPING_FAIRY]: HadaDurmiente,
-  [PlayerRoleEnum.SHAPESHIFTER]: Cambiaformas,
-  [PlayerRoleEnum.DRUNK_MAN]: HombreEbrio,
-  [PlayerRoleEnum.CULT_LEADER]: LiderCulto,
-  [PlayerRoleEnum.FISHERMAN]: Pescador,
-  [PlayerRoleEnum.VAMPIRE]: Vampiro,
-  [PlayerRoleEnum.BANSHEE]: Banshee,
-  [PlayerRoleEnum.CUPID]: Cupido,
-  [PlayerRoleEnum.EXECUTIONER]: Verdugo,
+const roleMap: Record<PlayerRoleEnum, new () => IRole> = {
+  [PlayerRoleEnum.enum.villager]: Aldeano,
+  [PlayerRoleEnum.enum.seer]: Vidente,
+  [PlayerRoleEnum.enum.doctor]: Medico,
+  [PlayerRoleEnum.enum.werewolf]: Lobo,
+  [PlayerRoleEnum.enum.hunter]: Cazador,
+  [PlayerRoleEnum.enum.prince]: Principe,
+  [PlayerRoleEnum.enum.priest]: Sacerdote,
+  [PlayerRoleEnum.enum.guardian]: Guardian,
+  [PlayerRoleEnum.enum.lycanthrope]: Licantropo,
+  [PlayerRoleEnum.enum.twin]: Gemela,
+  [PlayerRoleEnum.enum.hechicera]: Hechicera,
+  [PlayerRoleEnum.enum.ghost]: Fantasma,
+  [PlayerRoleEnum.enum.virginia_woolf]: VirginiaWoolf,
+  [PlayerRoleEnum.enum.leprosa]: Leprosa,
+  [PlayerRoleEnum.enum.river_siren]: SirenaRio,
+  [PlayerRoleEnum.enum.lookout]: Vigia,
+  [PlayerRoleEnum.enum.troublemaker]: Alborotadora,
+  [PlayerRoleEnum.enum.silencer]: Silenciador,
+  [PlayerRoleEnum.enum.seer_apprentice]: AprendizVidente,
+  [PlayerRoleEnum.enum.elder_leader]: AncianaLider,
+  [PlayerRoleEnum.enum.resurrector_angel]: AngelResucitador,
+  [PlayerRoleEnum.enum.wolf_cub]: CriaLobo,
+  [PlayerRoleEnum.enum.cursed]: Maldito,
+  [PlayerRoleEnum.enum.witch]: Bruja,
+  [PlayerRoleEnum.enum.seeker_fairy]: HadaBuscadora,
+  [PlayerRoleEnum.enum.sleeping_fairy]: HadaDurmiente,
+  [PlayerRoleEnum.enum.shapeshifter]: Cambiaformas,
+  [PlayerRoleEnum.enum.drunk_man]: HombreEbrio,
+  [PlayerRoleEnum.enum.cult_leader]: LiderCulto,
+  [PlayerRoleEnum.enum.fisherman]: Pescador,
+  [PlayerRoleEnum.enum.vampire]: Vampiro,
+  [PlayerRoleEnum.enum.banshee]: Banshee,
+  [PlayerRoleEnum.enum.cupid]: Cupido,
+  [PlayerRoleEnum.enum.executioner]: Verdugo,
 };
 
 export function createRoleInstance(roleName: PlayerRole | null): IRole {
-  if (!roleName || !roleMap[roleName]) {
+  if (!roleName || !roleMap[roleName as PlayerRoleEnum]) {
     // Return a default role if the roleName is not found or is null/undefined
     return new Aldeano();
   }
-  const RoleClass = roleMap[roleName];
+  const RoleClass = roleMap[roleName as PlayerRoleEnum];
   return new RoleClass();
 }

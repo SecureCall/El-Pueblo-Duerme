@@ -10,55 +10,34 @@ export class HadaBuscadora implements IRole {
   readonly alliance: Team = 'Lobos';
 
   performNightAction(context: GameContext, action: NightAction): GameStateChange | null {
-    if (context.game.fairiesFound) {
-      if (action.actionType === 'fairy_kill' && !context.game.fairyKillUsed) {
+    if (action.actionType === 'fairy_find' && !context.game.fairiesFound) {
+      const targetPlayer = context.players.find(p => p.userId === action.targetId);
+      if (targetPlayer?.role === 'sleeping_fairy') {
         return {
-          game: { fairyKillUsed: true },
-          pendingDeaths: [{ playerId: action.targetId as string, cause: 'special' }]
+          game: { fairiesFound: true },
+          playerUpdates: [{ userId: targetPlayer.userId, alliance: 'Lobos' }],
+          events: [{
+            id: `evt_fairy_found_${Date.now()}`,
+            gameId: context.game.id,
+            round: context.game.currentRound,
+            type: 'special',
+            message: '¡Las hadas se han encontrado! Un nuevo poder oscuro ha despertado.',
+            data: { targetId: context.player.userId, secondaryTargetId: targetPlayer.userId },
+            createdAt: new Date(),
+          }]
         };
       }
-      return null;
+      return null; // Search continues
     }
 
-    if (action.actionType !== 'fairy_find' || !action.targetId) {
-      return null;
-    }
-
-    const targetPlayer = context.players.find((p: Player) => p.userId === action.targetId);
-    if (targetPlayer?.role === 'sleeping_fairy') {
-      const sleepingFairyIndex = context.players.findIndex((p:Player) => p.userId === targetPlayer.userId);
-      
-      const playerUpdates: Partial<Player>[] = [];
-      if (sleepingFairyIndex > -1) playerUpdates.push({ userId: targetPlayer.userId, alliance: 'Lobos' });
-      
+    if (action.actionType === 'fairy_kill' && context.game.fairiesFound && !context.game.fairyKillUsed) {
       return {
-        game: {
-          fairiesFound: true,
-        },
-        playerUpdates,
-        events: [{
-          id: `evt_fairy_found_${Date.now()}`,
-          gameId: context.game.id,
-          round: context.game.currentRound,
-          type: 'special',
-          message: `¡Las hadas se han encontrado! Un nuevo poder oscuro ha despertado.`,
-          data: { targetId: context.player.userId },
-          createdAt: new Date(),
-        }]
+        game: { fairyKillUsed: true },
+        pendingDeaths: [{ playerId: action.targetId as string, cause: 'special' }]
       };
     }
 
-    return {
-       events: [{
-        id: `evt_fairy_miss_${Date.now()}`,
-        gameId: context.game.id,
-        round: context.game.currentRound,
-        type: 'special',
-        message: `Buscas en vano. ${targetPlayer?.displayName || 'El objetivo'} no es el hada que buscas.`,
-        data: { targetId: context.player.userId },
-        createdAt: new Date(),
-      }]
-    };
+    return null;
   }
 
   onDeath(): GameStateChange | null {
@@ -69,10 +48,8 @@ export class HadaBuscadora implements IRole {
     const { game, player } = context;
     const otherFairy = game.players.find((p: Player) => p.role === 'sleeping_fairy');
     
-    // Si las hadas se encontraron y ambas están vivas al final
     if (game.fairiesFound && player.isAlive && otherFairy?.isAlive) {
       const alivePlayers = game.players.filter((p: Player) => p.isAlive);
-      // Ganan si son las únicas que quedan
       if (alivePlayers.length === 2) {
         return true;
       }
