@@ -18,6 +18,7 @@ import { FirestorePermissionError } from "@/firebase/errors";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { roleDetails } from "@/lib/roles";
 import { toPlainObject } from "./utils";
+import { masterActions } from "./master-actions";
 
 
 const PHASE_DURATION_SECONDS = 45;
@@ -704,7 +705,7 @@ async function checkGameOver(gameData: Game, lynchedPlayer?: Player | null): Pro
 }
 
 
-async function processNight(db: Firestore, gameId: string) {
+export async function processNight(db: Firestore, gameId: string) {
   const gameRef = doc(db, 'games', gameId);
   try {
     await runTransaction(db, async (transaction) => {
@@ -844,7 +845,7 @@ async function processNight(db: Firestore, gameId: string) {
   }
 }
 
-async function processVotes(db: Firestore, gameId: string) {
+export async function processVotes(db: Firestore, gameId: string) {
   const gameRef = doc(db, 'games', gameId);
   try {
     await runTransaction(db, async (transaction) => {
@@ -865,4 +866,14 @@ async function processVotes(db: Firestore, gameId: string) {
     console.error("Error in processVotes:", error);
     return { success: false, error: error.message };
   }
+}
+
+export async function processJuryVotes(db: Firestore, gameId: string) {
+    // Placeholder for jury vote logic
+    return { success: true };
+}
+
+export async function executeMasterAction(db: Firestore, gameId: string, actionId: string, sourceId: string, targetId: string) {
+    // Placeholder for master action logic
+    return { success: true };
 }

@@ -36,7 +36,7 @@ import { useGameState } from "@/hooks/use-game-state";
 export function GameBoard({ gameId }: { gameId: string }) {
     const { firestore } = useFirebase();
     const { updateStats, userId } = useGameSession();
-    const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, loading, error } = useGameState(gameId);
+    const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversChatMessages, ghostMessages, loading, error } = useGameState(gameId);
 
     const [showRole, setShowRole] = useState(true);
     const [deathCause, setDeathCause] = useState<GameEvent['type'] | 'other' | null>(null);
@@ -228,7 +228,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
                     wolfMessages={wolfMessages}
                     fairyMessages={fairyMessages}
                     twinMessages={twinMessages}
-                    loversMessages={loversMessages}
+                    loversMessages={loversChatMessages}
                     ghostMessages={ghostMessages}
                     currentPlayer={currentPlayer}
                     getCauseOfDeath={getCauseOfDeath}
@@ -249,7 +249,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
             wolfMessages={wolfMessages}
             fairyMessages={fairyMessages}
             twinMessages={twinMessages}
-            loversMessages={loversMessages}
+            loversMessages={loversChatMessages}
             ghostMessages={ghostMessages}
             currentPlayer={currentPlayer}
             getCauseOfDeath={getCauseOfDeath}
