@@ -1,8 +1,8 @@
 
-import type { GameContext, GameStateChange, IRole, RoleData } from "@/types";
+import type { GameContext, GameStateChange, IRole, RoleData, PlayerRoleEnum } from "@/types";
 
 export class Cazador implements IRole {
-  readonly name = 'hunter';
+  readonly name = PlayerRoleEnum.HUNTER;
   readonly description = "Si mueres, ya sea de noche o linchado de día, tendrás un último disparo. Deberás elegir a otro jugador para que muera contigo. Tu disparo es ineludible.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
@@ -21,6 +21,10 @@ export class Cazador implements IRole {
 
   checkWinCondition(): boolean {
     return false;
+  }
+
+  getWinMessage(player: import("@/types").Player): string {
+    return "El pueblo ha ganado.";
   }
   
   toJSON(): RoleData {

@@ -1,5 +1,42 @@
+
 import { z } from 'zod';
-import { PlayerRoleEnum } from '.';
+
+export enum PlayerRoleEnum {
+  VILLAGER = "villager",
+  SEER = "seer",
+  DOCTOR = "doctor",
+  HUNTER = "hunter",
+  GUARDIAN = "guardian",
+  PRIEST = "priest",
+  PRINCE = "prince",
+  LYCANTHROPE = "lycanthrope",
+  TWIN = "twin",
+  HECHICERA = "hechicera",
+  GHOST = "ghost",
+  VIRGINIA_WOOLF = "virginia_woolf",
+  LEPROSA = "leprosa",
+  RIVER_SIREN = "river_siren",
+  LOOKOUT = "lookout",
+  TROUBLEMAKER = "troublemaker",
+  SILENCER = "silencer",
+  SEER_APPRENTICE = "seer_apprentice",
+  ELDER_LEADER = "elder_leader",
+  RESURRECTOR_ANGEL = "resurrector_angel",
+  WEREWOLF = "werewolf",
+  WOLF_CUB = "wolf_cub",
+  CURSED = "cursed",
+  WITCH = "witch",
+  SEEKER_FAIRY = "seeker_fairy",
+  SHAPESHIFTER = "shapeshifter",
+  DRUNK_MAN = "drunk_man",
+  CULT_LEADER = "cult_leader",
+  FISHERMAN = "fisherman",
+  VAMPIRE = "vampire",
+  BANSHEE = "banshee",
+  CUPID = "cupid",
+  EXECUTIONER = "executioner",
+  SLEEPING_FAIRY = "sleeping_fairy",
+}
 
 const TimestampSchema = z.union([
   z.object({
@@ -13,11 +50,11 @@ const TimestampSchema = z.union([
 ]).nullable();
 
 
-export const RoleNameSchema = z.nativeEnum(PlayerRoleEnum).nullable();
-export type RoleName = z.infer<typeof RoleNameSchema>;
+export const PlayerRoleEnumSchema = z.nativeEnum(PlayerRoleEnum).nullable();
+export type PlayerRoleName = z.infer<typeof PlayerRoleEnumSchema>;
 
 export const RoleDataSchema = z.object({
-  name: RoleNameSchema,
+  name: PlayerRoleEnumSchema,
   description: z.string(),
   team: z.enum(['Aldeanos', 'Lobos', 'Neutral']),
   alliance: z.enum(['Aldeanos', 'Lobos', 'Neutral']),
@@ -28,7 +65,7 @@ export type RoleData = z.infer<typeof RoleDataSchema>;
 export const PlayerSchema = z.object({
   userId: z.string(),
   gameId: z.string(),
-  role: RoleNameSchema,
+  role: PlayerRoleEnumSchema,
   isAlive: z.boolean(),
   votedFor: z.string().nullable(),
   displayName: z.string(),

@@ -1,8 +1,8 @@
 
-import type { GameContext, GameStateChange, IRole, NightAction, RoleData } from "@/types";
+import type { GameContext, GameStateChange, IRole, NightAction, RoleData, PlayerRoleEnum } from "@/types";
 
 export class Vidente implements IRole {
-  readonly name = 'seer';
+  readonly name = PlayerRoleEnum.SEER;
   readonly description = "Cada noche, eliges a un jugador para investigar. Se te revelará si es un Hombre Lobo o no.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
@@ -41,6 +41,10 @@ export class Vidente implements IRole {
   checkWinCondition(context: GameContext): boolean {
     // Standard villager win condition is handled centrally.
     return false;
+  }
+
+  getWinMessage(player: import("@/types").Player): string {
+    return "El pueblo ha ganado.";
   }
 
   toJSON(): RoleData {

@@ -24,6 +24,10 @@ export class AprendizVidente implements IRole {
   checkWinCondition(): boolean {
     return false;
   }
+
+  getWinMessage(player: import("@/types").Player): string {
+      return "El pueblo ha ganado.";
+  }
   
   toJSON(): RoleData {
     return {

@@ -1,8 +1,8 @@
 
-import type { IRole, RoleData, GameStateChange } from "@/types";
+import type { IRole, RoleData, GameStateChange, PlayerRoleEnum } from "@/types";
 
 export class Aldeano implements IRole {
-  readonly name = 'villager';
+  readonly name = PlayerRoleEnum.VILLAGER;
   readonly description = "No tienes poderes especiales. Tu única misión es observar, debatir y votar para linchar a los Hombres Lobo y salvar al pueblo.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
@@ -17,6 +17,10 @@ export class Aldeano implements IRole {
 
   checkWinCondition(): boolean {
     return false;
+  }
+
+  getWinMessage(player: import("@/types").Player): string {
+    return "El pueblo ha ganado.";
   }
   
   toJSON(): RoleData {

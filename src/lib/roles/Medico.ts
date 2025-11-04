@@ -1,8 +1,8 @@
 
-import { GameContext, GameStateChange, IRole, NightAction, RoleData, RoleName, Team } from "@/types";
+import { GameContext, GameStateChange, IRole, NightAction, RoleData, PlayerRoleEnum } from "@/types";
 
 export class Medico implements IRole {
-  readonly name = 'doctor';
+  readonly name = PlayerRoleEnum.DOCTOR;
   readonly description = "Cada noche, eliges a un jugador (o a ti mismo) para protegerlo del ataque de los lobos. No puedes proteger a la misma persona dos noches seguidas.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
@@ -34,6 +34,10 @@ export class Medico implements IRole {
 
   checkWinCondition(): boolean {
     return false;
+  }
+
+  getWinMessage(player: import("@/types").Player): string {
+    return "El pueblo ha ganado.";
   }
 
   toJSON(): RoleData {

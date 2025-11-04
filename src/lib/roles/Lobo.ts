@@ -1,8 +1,9 @@
 
-import { GameContext, GameStateChange, IRole, NightAction, RoleData, RoleName, Team } from "@/types";
+import { GameContext, GameStateChange, IRole, NightAction, RoleData, PlayerRoleEnum } from "@/types";
+import { createRoleInstance } from "./role-factory";
 
 export class Lobo implements IRole {
-  readonly name = 'werewolf';
+  readonly name = PlayerRoleEnum.WEREWOLF;
   readonly description = "Cada noche, te despiertas con tu manada para elegir a una víctima. Tu objetivo es eliminar a los aldeanos hasta que vuestro número sea igual o superior.";
   readonly team = 'Lobos';
   readonly alliance = 'Lobos';
@@ -29,6 +30,10 @@ export class Lobo implements IRole {
     return aliveWolves.length > 0 && aliveWolves.length >= aliveNonWolves.length;
   }
   
+  getWinMessage(player: import("@/types").Player): string {
+    return "Los lobos han ganado.";
+  }
+
   toJSON(): RoleData {
     return {
       name: this.name,
@@ -38,6 +43,3 @@ export class Lobo implements IRole {
     };
   }
 }
-
-// Helper import, as role-factory will need it.
-import { createRoleInstance } from "./role-factory";
