@@ -48,10 +48,10 @@ export function GameRoom({ gameId }: { gameId: string }) {
   }, [displayName, firestore, gameId, userId, setDisplayName, avatarUrl]);
 
   useEffect(() => {
-    if (game && displayName && !currentPlayer && game.status === 'waiting' && !isJoining) {
+    if (isSessionLoaded && game && displayName && !currentPlayer && game.status === 'waiting' && !isJoining) {
       handleJoinGame();
     }
-  }, [game, displayName, currentPlayer, isJoining, handleJoinGame]);
+  }, [game, displayName, currentPlayer, isJoining, handleJoinGame, isSessionLoaded]);
 
   const getMusicSrc = () => {
     if (!game) return '/audio/lobby-theme.mp3';

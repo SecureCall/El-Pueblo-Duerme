@@ -89,13 +89,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
 export const useGameState = (gameId: string) => {
   const { firestore } = useFirebase();
-  const { userId } = useGameSession();
+  const { userId, isSessionLoaded } = useGameSession();
   
   const [state, dispatch] = useReducer(gameReducer, initialReducerState);
   const gameRef = useRef<DocumentData | null>(null);
   
   useEffect(() => {
-    if (!firestore || !userId || !gameId) {
+    if (!firestore || !userId || !gameId || !isSessionLoaded) {
         dispatch({ 
             type: 'SET_ERROR', 
             payload: !gameId ? "No se ha proporcionado un ID de partida." : "Cargando sesión de Firebase..." 
@@ -128,7 +128,7 @@ export const useGameState = (gameId: string) => {
     });
 
     return () => unsubscribeGame();
-  }, [gameId, firestore, userId]);
+  }, [gameId, firestore, userId, isSessionLoaded]);
 
   return state;
 };
