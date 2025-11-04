@@ -14,7 +14,7 @@ import { useFirebase } from '@/firebase';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useGameSession } from './use-game-session';
-import { getMillis, toPlainObject } from '@/lib/utils';
+import { getMillis } from '@/lib/utils';
 
 
 interface GameState {
@@ -96,7 +96,7 @@ export const useGameState = (gameId: string) => {
   
   useEffect(() => {
     if (!firestore || !userId || !gameId || !isSessionLoaded) {
-        if (!initialState) {
+        if (!state.game) {
             dispatch({ 
                 type: 'SET_ERROR', 
                 payload: !gameId ? "No se ha proporcionado un ID de partida." : "Cargando sesión de Firebase..." 
@@ -113,8 +113,7 @@ export const useGameState = (gameId: string) => {
     
     const unsubscribeGame = onSnapshot(gameRef.current, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
-        const rawData = { ...snapshot.data(), id: snapshot.id };
-        const gameData = toPlainObject(rawData) as Game;
+        const gameData = { ...snapshot.data(), id: snapshot.id } as Game;
         
         dispatch({ type: 'SET_GAME_DATA', payload: { game: gameData, userId } });
       } else {

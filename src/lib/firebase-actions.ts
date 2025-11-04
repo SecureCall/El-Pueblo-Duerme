@@ -1,4 +1,3 @@
-
 'use server';
 import { 
   doc,
@@ -273,7 +272,7 @@ export const getDeterministicAIAction = (
     const { role, userId } = aiPlayer;
     const { currentRound, nightActions = [] } = sanitizedGame;
     const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
-    const wolfCubRevengeActive = sanitizedGame.wolfCubRevengeRound === currentRound;
+    const wolfCubRevengeActive = sanitizedGame.wolfCubRevengeRound === game.currentRound;
     const apprenticeIsActive = role === 'seer_apprentice' && sanitizedGame.seerDied;
     const canFairiesKill = sanitizedGame.fairiesFound && !sanitizedGame.fairyKillUsed && (role === 'seeker_fairy' || role === 'sleeping_fairy');
 
@@ -564,9 +563,13 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
     
     for (const p of alivePlayers) {
         const roleInstance = createRoleInstance(p.role);
-        const hasWon = roleInstance.checkWinCondition({ game: gameData, player: p, players: gameData.players });
-        if(hasWon) {
-             const winners = gameData.players.filter(p_win => roleInstance.alliance === createRoleInstance(p_win.role).alliance);
+        if (roleInstance.checkWinCondition({ game: gameData, player: p, players: gameData.players })) {
+             const winners = gameData.players.filter(p_win => {
+                if (p.role === 'cupid' || p.role === 'twin') { // Special team logic
+                    return p_win.isLover;
+                }
+                 return createRoleInstance(p_win.role).alliance === roleInstance.alliance
+            });
              return { isGameOver: true, message: roleInstance.getWinMessage(p), winnerCode: p.role || 'special', winners };
         }
     }
@@ -678,8 +681,6 @@ export async function processNight(db: Firestore, gameId: string) {
         actions.sort((a, b) => (actionPriority[a.actionType] || 99) - (actionPriority[b.actionType] || 99));
 
         let pendingDeaths: { playerId: string; cause: GameEvent['type']; }[] = [];
-        let protectedThisNight = new Set<string>();
-        let blessedThisNight = new Set<string>();
         let hechiceraSaveTarget: string | null = null;
         let hechiceraSaveUsed = false;
         
@@ -711,7 +712,8 @@ export async function processNight(db: Firestore, gameId: string) {
         }
          const hechiceraIdx = game.players.findIndex(p => p.role === 'hechicera');
          if(hechiceraSaveUsed && hechiceraIdx !== -1) {
-            game.players[hechiceraIdx].potions!.save = game.currentRound;
+            if(game.players[hechiceraIdx].potions)
+                game.players[hechiceraIdx].potions!.save = game.currentRound;
          }
 
         let triggeredHunterId: string | null = null;
@@ -741,6 +743,10 @@ export async function processNight(db: Firestore, gameId: string) {
             ? `Anoche, el pueblo perdió a ${newlyKilledPlayers.map(p => p.displayName).join(', ')}.`
             : "La noche transcurre en un inquietante silencio. Nadie ha muerto.";
         
+        const protectedThisNight = new Set<string>();
+        actions.filter(a => a.actionType === 'doctor_heal' || a.actionType === 'guardian_protect' || a.actionType === 'priest_bless' || (a.actionType === 'hechicera_save' && hechiceraSaveUsed))
+            .forEach(a => protectedThisNight.add(a.targetId));
+
         game.events.push({ id: `evt_night_${game.currentRound}`, gameId, round: game.currentRound, type: 'night_result', message: nightMessage, data: { killedPlayerIds: newlyKilledPlayers.map(p => p.userId), savedPlayerIds: Array.from(protectedThisNight) }, createdAt: Timestamp.now() });
 
         game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; p.isExiled = false; });
