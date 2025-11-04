@@ -125,7 +125,7 @@ export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobby
         </Card>
       
         <PlayerGrid 
-            game={game}
+            creatorId={game.creator}
             players={players}
             currentPlayer={currentPlayer}
             onPlayerClick={(player) => {

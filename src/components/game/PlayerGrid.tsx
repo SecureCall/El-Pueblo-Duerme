@@ -7,7 +7,7 @@ import { PlayerCard } from "./PlayerCard";
 import type { MasterActionState } from './MasterActionBar';
 
 interface PlayerGridProps {
-    game: Game;
+    creatorId: string;
     players: (Player & { causeOfDeath?: GameEvent['type'] | 'other' })[];
     currentPlayer: Player;
     onPlayerClick?: (player: Player) => void;
@@ -20,7 +20,7 @@ interface PlayerGridProps {
 }
 
 export const PlayerGrid = React.memo(function PlayerGrid({ 
-    game,
+    creatorId,
     players, 
     currentPlayer,
     onPlayerClick, 
@@ -36,9 +36,9 @@ export const PlayerGrid = React.memo(function PlayerGrid({
         return (
             <div key={player.userId} className="aspect-[3/4]">
                 <PlayerCard 
-                    game={game}
+                    isCreator={creatorId === player.userId}
+                    isSelf={currentPlayer.userId === player.userId}
                     player={player} 
-                    currentPlayer={currentPlayer}
                     onClick={onPlayerClick}
                     isClickable={clickable && player.isAlive && player.userId !== currentPlayer.userId}
                     isSelected={selectedPlayerIds.includes(player.userId)}
@@ -51,3 +51,5 @@ export const PlayerGrid = React.memo(function PlayerGrid({
     </div>
   );
 });
+
+    

@@ -36,7 +36,7 @@ import { useGameState } from "@/hooks/use-game-state";
 export function GameBoard({ gameId }: { gameId: string }) {
     const { firestore } = useFirebase();
     const { updateStats, userId } = useGameSession();
-    const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversChatMessages, ghostMessages, loading, error } = useGameState(gameId);
+    const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, loading, error } = useGameState(gameId);
 
     const [showRole, setShowRole] = useState(true);
     const [deathCause, setDeathCause] = useState<GameEvent['type'] | 'other' | null>(null);
@@ -228,7 +228,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
                     wolfMessages={wolfMessages}
                     fairyMessages={fairyMessages}
                     twinMessages={twinMessages}
-                    loversMessages={loversChatMessages}
+                    loversMessages={loversMessages}
                     ghostMessages={ghostMessages}
                     currentPlayer={currentPlayer}
                     getCauseOfDeath={getCauseOfDeath}
@@ -249,7 +249,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
             wolfMessages={wolfMessages}
             fairyMessages={fairyMessages}
             twinMessages={twinMessages}
-            loversMessages={loversChatMessages}
+            loversMessages={loversMessages}
             ghostMessages={ghostMessages}
             currentPlayer={currentPlayer}
             getCauseOfDeath={getCauseOfDeath}
@@ -398,7 +398,14 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                 </CardHeader>
             </Card>
 
-            <PlayerGrid game={game} players={playersWithDeathCause} currentPlayer={currentPlayer} highlightedPlayers={highlightedPlayers} masterActionState={masterActionState} setMasterActionState={setMasterActionState} />
+            <PlayerGrid
+                creatorId={game.creator}
+                players={playersWithDeathCause}
+                currentPlayer={currentPlayer}
+                highlightedPlayers={highlightedPlayers}
+                masterActionState={masterActionState}
+                setMasterActionState={setMasterActionState}
+            />
 
             {isTwin && otherTwin && currentPlayer.isAlive && (
                 <Card className="bg-blue-900/30 border-blue-400/50">
@@ -446,7 +453,10 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                     <div className="flex-1 flex flex-col gap-4">
                         {game.phase === 'day' && (
                             <DayPhase
-                                game={game}
+                                gameId={game.id}
+                                phase={game.phase}
+                                currentRound={game.currentRound}
+                                troublemakerUsed={game.troublemakerUsed}
                                 players={players}
                                 currentPlayer={currentPlayer}
                                 nightEvent={nightEvent}
@@ -472,8 +482,9 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                     </div>
                     <div className="w-full md:w-96">
                         <GameChat
-                            game={game}
                             gameId={game.id}
+                            phase={game.phase}
+                            silencedPlayerId={game.silencedPlayerId}
                             currentPlayer={currentPlayer}
                             messages={messages}
                             players={players}

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useReducer, useRef } from 'react';
@@ -25,7 +26,7 @@ interface GameState {
     wolfMessages: ChatMessage[];
     fairyMessages: ChatMessage[];
     twinMessages: ChatMessage[];
-    loversChatMessages: ChatMessage[];
+    loversMessages: ChatMessage[];
     ghostMessages: ChatMessage[];
     loading: boolean;
     error: string | null;
@@ -45,7 +46,7 @@ const initialReducerState: GameState = {
     wolfMessages: [],
     fairyMessages: [],
     twinMessages: [],
-    loversChatMessages: [],
+    loversMessages: [],
     ghostMessages: [],
     loading: true,
     error: null,
@@ -66,7 +67,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
                 wolfMessages: (game.wolfChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
                 fairyMessages: (game.fairyChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
                 twinMessages: (game.twinChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
-                loversChatMessages: (game.loversChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                loversMessages: (game.loversChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
                 ghostMessages: (game.ghostChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
                 loading: false,
                 error: null,
@@ -91,7 +92,6 @@ export const useGameState = (gameId: string) => {
   const { userId, isSessionLoaded } = useGameSession();
   
   const [state, dispatch] = useReducer(gameReducer, initialReducerState);
-  const gameRef = useRef<DocumentData | null>(null);
   
   useEffect(() => {
     if (!firestore || !userId || !gameId || !isSessionLoaded) {
@@ -106,11 +106,9 @@ export const useGameState = (gameId: string) => {
 
     dispatch({ type: 'SET_LOADING', payload: true });
 
-    if (!gameRef.current) {
-      gameRef.current = doc(firestore, 'games', gameId);
-    }
+    const gameRef = doc(firestore, 'games', gameId);
     
-    const unsubscribeGame = onSnapshot(gameRef.current, (snapshot: DocumentSnapshot<DocumentData>) => {
+    const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
         const gameData = { ...snapshot.data(), id: snapshot.id } as Game;
         
@@ -121,7 +119,7 @@ export const useGameState = (gameId: string) => {
     }, (err: FirestoreError) => {
         const contextualError = new FirestorePermissionError({
             operation: 'get',
-            path: (gameRef.current as any)?.path || `games/${gameId}`,
+            path: gameRef.path || `games/${gameId}`,
         });
         dispatch({ type: 'SET_ERROR', payload: "Error al cargar la partida. Permisos insuficientes." });
         errorEmitter.emit('permission-error', contextualError);
@@ -132,3 +130,5 @@ export const useGameState = (gameId: string) => {
 
   return state;
 };
+
+    

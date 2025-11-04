@@ -2,7 +2,7 @@
 "use client";
 
 import React from 'react';
-import type { Game, Player, GameEvent } from "@/types";
+import type { Player, GameEvent } from "@/types";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -14,9 +14,9 @@ import Image from "next/image";
 import { VampireIcon } from "../icons";
 
 interface PlayerCardProps {
-  game: Game;
   player: Player & { causeOfDeath?: GameEvent['type'] | 'other' };
-  currentPlayer: Player;
+  isCreator: boolean;
+  isSelf: boolean;
   onClick?: (player: Player) => void;
   isClickable?: boolean;
   isSelected?: boolean;
@@ -24,7 +24,16 @@ interface PlayerCardProps {
   votes?: string[];
 }
 
-export const PlayerCard = React.memo(function PlayerCard({ game, player, currentPlayer, onClick, isClickable, isSelected, highlightColor, votes }: PlayerCardProps) {
+export const PlayerCard = React.memo(function PlayerCard({ 
+    player,
+    isCreator,
+    isSelf,
+    onClick, 
+    isClickable, 
+    isSelected, 
+    highlightColor, 
+    votes 
+}: PlayerCardProps) {
   if (!player) return null;
 
  if (!player.isAlive) {
@@ -69,7 +78,7 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
             );
         default:
           return (
-             <div className={cn(baseClasses)}>
+             <div className={baseClasses}>
                 <Skull className={cn(iconClasses, "text-gray-400")} />
             </div>
           );
@@ -100,8 +109,7 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
 }
 
   const cardStyle = highlightColor ? { boxShadow: `0 0 15px 4px ${highlightColor}` } : {};
-  const isSelf = player.userId === currentPlayer.userId;
-
+  
   return (
     <TooltipProvider>
       <Tooltip>
@@ -122,7 +130,7 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
                   <span className="sr-only">Cambiar avatar</span>
                 </div>
               )}
-              {game && player.userId === game.creator && (
+              {isCreator && (
                  <Crown className="absolute -top-2 -left-2 h-6 w-6 text-yellow-400 rotate-[-15deg]" />
               )}
               {votes && votes.length > 0 && (
@@ -134,10 +142,10 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
               {player.princeRevealed && (
                  <Crown className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-10 h-5 w-5 text-yellow-400" />
               )}
-               {player.isLover && currentPlayer.isLover && player.userId !== currentPlayer.userId && (
+               {player.isLover && player.isLover && player.userId !== player.userId && (
                  <Heart className="absolute -top-2 -right-2 z-10 h-5 w-5 text-pink-400" />
-              )}
-               {currentPlayer.role === 'executioner' && player.userId === currentPlayer.executionerTargetId && (
+               )}
+               {player.role === 'executioner' && player.userId === player.executionerTargetId && (
                  <Swords className="absolute -top-2 -right-2 z-10 h-5 w-5 text-gray-400" />
                )}
               <CardContent className="p-0">
@@ -161,12 +169,12 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
                 <p>¡Príncipe revelado! Inmune al linchamiento.</p>
             </TooltipContent>
          )}
-         {player.isLover && currentPlayer.isLover && player.userId !== currentPlayer.userId && (
+         {player.isLover && player.isLover && player.userId !== player.userId && (
               <TooltipContent>
                 <p>Tu enamorado/a.</p>
               </TooltipContent>
          )}
-         {currentPlayer.role === 'executioner' && player.userId === currentPlayer.executionerTargetId && (
+         {player.role === 'executioner' && player.userId === player.executionerTargetId && (
               <TooltipContent>
                 <p>Tu objetivo. Debes convencer al pueblo para que lo linchen.</p>
               </TooltipContent>
@@ -180,3 +188,5 @@ export const PlayerCard = React.memo(function PlayerCard({ game, player, current
     </TooltipProvider>
   );
 });
+
+    
