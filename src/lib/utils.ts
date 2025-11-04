@@ -1,3 +1,4 @@
+
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { Timestamp } from "firebase/firestore";
@@ -9,7 +10,10 @@ export function cn(...inputs: ClassValue[]) {
 // This function is the single source of truth for converting Firestore data to plain objects.
 // It's crucial for preventing the "Maximum call stack size exceeded" error.
 export const toPlainObject = (data: any): any => {
-    if (data === undefined || data === null) {
+    if (data === undefined) {
+        return null;
+    }
+    if (data === null || typeof data !== 'object') {
         return data;
     }
     // Firestore Timestamps have a toDate method
@@ -69,3 +73,4 @@ export const getMillis = (timestamp: any): number => {
     console.warn("Could not convert timestamp to milliseconds:", timestamp);
     return 0;
 };
+
