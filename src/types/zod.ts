@@ -9,7 +9,6 @@ export const PlayerRoleEnum = z.enum([
   "resurrector_angel", "cupid", "executioner"
 ]);
 
-
 const TimestampSchema = z.union([
   z.object({
     seconds: z.number(),
@@ -20,7 +19,6 @@ const TimestampSchema = z.union([
   }),
   z.date(),
 ]).nullable();
-
 
 export const PlayerSchema = z.object({
   userId: z.string(),
