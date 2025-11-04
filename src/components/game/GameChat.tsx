@@ -21,7 +21,6 @@ interface GameChatProps {
     game: Game;
     currentPlayer: Player;
     messages: ChatMessage[];
-    players: Player[];
 }
 
 const QUICK_MESSAGES = [
@@ -34,7 +33,7 @@ const QUICK_MESSAGES = [
     "Esto es un caos.",
 ];
 
-export function GameChat({ game, currentPlayer, messages, players }: GameChatProps) {
+export function GameChat({ game, currentPlayer, messages }: GameChatProps) {
     const [newMessage, setNewMessage] = useState('');
     const { firestore } = useFirebase();
     const { toast } = useToast();
@@ -91,7 +90,7 @@ export function GameChat({ game, currentPlayer, messages, players }: GameChatPro
     
     const handleQuickMessage = (template: string) => {
         if (template.includes("{player}")) {
-            const alivePlayers = players.filter(p => p.isAlive && p.userId !== currentPlayer.userId);
+            const alivePlayers = game.players.filter(p => p.isAlive && p.userId !== currentPlayer.userId);
             if(alivePlayers.length > 0) {
                 const randomPlayer = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
                 handleSendMessage(template.replace("{player}", randomPlayer.displayName));

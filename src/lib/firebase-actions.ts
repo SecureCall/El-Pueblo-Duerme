@@ -12,7 +12,7 @@ import {
   type Transaction,
   DocumentReference,
 } from "firebase/firestore";
-import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage } from "@/types";
+import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage, AIPlayerPerspective } from "@/types";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
@@ -570,7 +570,7 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
                     return p_win.isLover;
                 }
                 if (p.role === 'twin' && gameData.twins?.includes(p.userId)) { // Los gemelos ganan con su alianza
-                    const playerInstance = createRoleInstance(p.role);
+                    const playerInstance = createRoleInstance(p.role!);
                     const twinInstance = createRoleInstance(p_win.role);
                     return playerInstance.alliance === twinInstance.alliance;
                 }
@@ -625,7 +625,7 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
             isGameOver: true,
             winnerCode: 'wolves',
             message: "¡Los hombres lobo han ganado! Superan en número a los aldeanos y la oscuridad consume el pueblo.",
-            winners: [...gameData.players.filter(p => p.role && wolfRoles.includes(p.role)), ...sharedWinners]
+            winners: [...gameData.players.filter(p => p.role && wolfRoles.includes(p.role!)), ...sharedWinners]
         };
     }
     

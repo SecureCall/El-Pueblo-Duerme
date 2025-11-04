@@ -303,7 +303,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                 if (!currentPlayer.isAlive) return 'Observas desde el más allá...';
                 if (currentPlayer?.usedNightAbility) return 'Has actuado. Espera al amanecer.';
                 if (currentPlayer?.isExiled) return <> <UserX className="inline-block h-4 w-4" /> ¡Exiliado! No puedes actuar esta noche. </>;
-                if (currentPlayer?.role && ['werewolf', 'wolf_cub', 'seer', 'seer_apprentice', 'doctor', 'hechicera', 'guardian', 'priest', 'vampire', 'cult_leader', 'fisherman', 'shapeshifter', 'virginia_woolf', 'river_siren', 'silencer', 'elder_leader', 'witch', 'banshee', 'lookout', 'seeker_fairy', 'resurrector_angel', 'cupid'].includes(currentPlayer.role)) {
+                if (currentPlayer?.role && ['werewolf', 'wolf_cub', 'seer', 'seer_apprentice', 'doctor', 'hechicera', 'guardian', 'priest', 'vampire', 'cult_leader', 'fisherman', 'shapeshifter', 'virginia_woolf', 'river_siren', 'silencer', 'elder_leader', 'witch', 'banshee', 'lookout', 'seeker_fairy', 'resurrector_angel', 'cupid'].includes(currentPlayer.role as string)) {
                     return "Es tu turno de actuar.";
                 }
                 return 'Duermes profundamente...';
@@ -482,7 +482,6 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                             game={game}
                             currentPlayer={currentPlayer}
                             messages={messages}
-                            players={players}
                         />
                     </div>
                 </div>

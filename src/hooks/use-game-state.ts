@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useReducer, useRef } from 'react';
@@ -89,20 +90,22 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 export const useGameState = (gameId: string) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const { firestore } = useFirebase();
-  const { userId, isSessionLoaded } = useGameSession();
+  const { userId } = useGameSession();
+  const gameRef = useRef<DocumentData | null>(null);
   
-  // Firestore listener
   useEffect(() => {
     if (!firestore || !gameId) {
         dispatch({ type: 'SET_LOADING', payload: false });
         return;
     }
 
-    const gameRef = doc(firestore, 'games', gameId);
-
+    if (!gameRef.current) {
+        gameRef.current = doc(firestore, 'games', gameId);
+    }
+    
     dispatch({ type: 'SET_LOADING', payload: true });
 
-    const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
+    const unsubscribeGame = onSnapshot(gameRef.current as DocumentReference<DocumentData>, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
         const gameData = { ...snapshot.data() as Game, id: snapshot.id };
         if (userId) { // Only dispatch if we have a user to find
@@ -114,7 +117,7 @@ export const useGameState = (gameId: string) => {
     }, (err: FirestoreError) => {
         const contextualError = new FirestorePermissionError({
             operation: 'get',
-            path: gameRef.path,
+            path: (gameRef.current as DocumentReference<DocumentData>).path,
         });
         dispatch({ type: 'SET_ERROR', payload: "Error al cargar la partida. Permisos insuficientes." });
         errorEmitter.emit('permission-error', contextualError);
@@ -123,7 +126,7 @@ export const useGameState = (gameId: string) => {
     return () => {
       unsubscribeGame();
     };
-  }, [gameId, firestore, userId]); // Rerun listener only if gameId or firestore instance changes.
+  }, [gameId, firestore, userId]); 
 
   return { ...state };
 };
