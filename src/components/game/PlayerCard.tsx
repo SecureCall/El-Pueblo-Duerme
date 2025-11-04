@@ -17,6 +17,8 @@ interface PlayerCardProps {
   player: Player & { causeOfDeath?: GameEvent['type'] | 'other' };
   isCreator: boolean;
   isSelf: boolean;
+  isLover: boolean;
+  isExecutionerTarget: boolean;
   onClick?: (player: Player) => void;
   isClickable?: boolean;
   isSelected?: boolean;
@@ -28,6 +30,8 @@ export const PlayerCard = React.memo(function PlayerCard({
     player,
     isCreator,
     isSelf,
+    isLover,
+    isExecutionerTarget,
     onClick, 
     isClickable, 
     isSelected, 
@@ -142,10 +146,10 @@ export const PlayerCard = React.memo(function PlayerCard({
               {player.princeRevealed && (
                  <Crown className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-10 h-5 w-5 text-yellow-400" />
               )}
-               {player.isLover && player.isLover && player.userId !== player.userId && (
+               {isLover && (
                  <Heart className="absolute -top-2 -right-2 z-10 h-5 w-5 text-pink-400" />
                )}
-               {player.role === 'executioner' && player.userId === player.executionerTargetId && (
+               {isExecutionerTarget && (
                  <Swords className="absolute -top-2 -right-2 z-10 h-5 w-5 text-gray-400" />
                )}
               <CardContent className="p-0">
@@ -169,12 +173,12 @@ export const PlayerCard = React.memo(function PlayerCard({
                 <p>¡Príncipe revelado! Inmune al linchamiento.</p>
             </TooltipContent>
          )}
-         {player.isLover && player.isLover && player.userId !== player.userId && (
+         {isLover && (
               <TooltipContent>
                 <p>Tu enamorado/a.</p>
               </TooltipContent>
          )}
-         {player.role === 'executioner' && player.userId === player.executionerTargetId && (
+         {isExecutionerTarget && (
               <TooltipContent>
                 <p>Tu objetivo. Debes convencer al pueblo para que lo linchen.</p>
               </TooltipContent>
@@ -188,5 +192,3 @@ export const PlayerCard = React.memo(function PlayerCard({
     </TooltipProvider>
   );
 });
-
-    

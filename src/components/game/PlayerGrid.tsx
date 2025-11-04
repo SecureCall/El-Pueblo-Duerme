@@ -2,7 +2,7 @@
 "use client";
 
 import React from 'react';
-import type { Game, Player, GameEvent } from "@/types";
+import type { Player, GameEvent } from "@/types";
 import { PlayerCard } from "./PlayerCard";
 import type { MasterActionState } from './MasterActionBar';
 
@@ -38,6 +38,8 @@ export const PlayerGrid = React.memo(function PlayerGrid({
                 <PlayerCard 
                     isCreator={creatorId === player.userId}
                     isSelf={currentPlayer.userId === player.userId}
+                    isLover={currentPlayer.isLover && player.isLover && currentPlayer.userId !== player.userId}
+                    isExecutionerTarget={currentPlayer.role === 'executioner' && player.userId === currentPlayer.executionerTargetId}
                     player={player} 
                     onClick={onPlayerClick}
                     isClickable={clickable && player.isAlive && player.userId !== currentPlayer.userId}
@@ -51,5 +53,3 @@ export const PlayerGrid = React.memo(function PlayerGrid({
     </div>
   );
 });
-
-    

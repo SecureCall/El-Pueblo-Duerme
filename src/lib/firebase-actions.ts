@@ -1,3 +1,4 @@
+
 'use server';
 import { 
   doc,
@@ -11,7 +12,7 @@ import {
   type Transaction,
   DocumentReference,
 } from "firebase/firestore";
-import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage, GameStateChange } from "@/types";
+import type { Game, Player, NightAction, GameEvent, PlayerRole, NightActionType, ChatMessage } from "@/types";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
@@ -241,10 +242,10 @@ export async function getAIChatResponse(db: Firestore, gameId: string, aiPlayer:
         if (game.status === 'finished') return null;
 
         const perspective: AIPlayerPerspective = {
-            game: game,
-            aiPlayer: aiPlayer,
+            game: toPlainObject(game),
+            aiPlayer: toPlainObject(aiPlayer),
             trigger: triggerMessage,
-            players: game.players, 
+            players: toPlainObject(game.players),
             chatType,
         };
 
@@ -561,13 +562,19 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
     const alivePlayers = gameData.players.filter(p => p.isAlive);
     
     for (const p of alivePlayers) {
+        if (!p.role) continue;
         const roleInstance = createRoleInstance(p.role);
         if (roleInstance.checkWinCondition({ game: gameData, player: p, players: gameData.players })) {
              const winners = gameData.players.filter(p_win => {
-                if (p.role === 'cupid' || p.role === 'twin') { // Special team logic
+                if (p.role === 'cupid' && p.isLover) { // Si cupido es un enamorado, gana con los enamorados
                     return p_win.isLover;
                 }
-                 return createRoleInstance(p_win.role).alliance === roleInstance.alliance
+                if (p.role === 'twin' && gameData.twins?.includes(p.userId)) { // Los gemelos ganan con su alianza
+                    const playerInstance = createRoleInstance(p.role);
+                    const twinInstance = createRoleInstance(p_win.role);
+                    return playerInstance.alliance === twinInstance.alliance;
+                }
+                 return p_win.role && createRoleInstance(p_win.role).alliance === roleInstance.alliance
             });
              return { isGameOver: true, message: roleInstance.getWinMessage(p), winnerCode: p.role || 'special', winners };
         }
@@ -618,7 +625,7 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
             isGameOver: true,
             winnerCode: 'wolves',
             message: "¡Los hombres lobo han ganado! Superan en número a los aldeanos y la oscuridad consume el pueblo.",
-            winners: [...aliveWerewolves, ...sharedWinners]
+            winners: [...gameData.players.filter(p => p.role && wolfRoles.includes(p.role)), ...sharedWinners]
         };
     }
     

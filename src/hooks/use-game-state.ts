@@ -1,7 +1,7 @@
 
-'use client';
+"use client";
 
-import { useEffect, useReducer, useRef } from 'react';
+import { useEffect, useReducer } from 'react';
 import { 
   doc, 
   onSnapshot, 
@@ -56,19 +56,30 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     switch (action.type) {
         case 'SET_GAME_DATA': {
             const { game, userId } = action.payload;
+            
+            // Perform necessary data processing here, not in the hook body
             const sortedPlayers = [...game.players].sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
+            const currentPlayer = sortedPlayers.find(p => p.userId === userId) || null;
+            const sortedEvents = [...(game.events || [])].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt));
+            const sortedMessages = (game.chatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt));
+            const sortedWolfMessages = (game.wolfChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt));
+            const sortedFairyMessages = (game.fairyChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt));
+            const sortedTwinMessages = (game.twinChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt));
+            const sortedLoversMessages = (game.loversChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt));
+            const sortedGhostMessages = (game.ghostChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt));
+            
             return {
                 ...state,
                 game,
                 players: sortedPlayers,
-                currentPlayer: sortedPlayers.find(p => p.userId === userId) || null,
-                events: [...(game.events || [])].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)),
-                messages: (game.chatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
-                wolfMessages: (game.wolfChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
-                fairyMessages: (game.fairyChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
-                twinMessages: (game.twinChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
-                loversMessages: (game.loversChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
-                ghostMessages: (game.ghostChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                currentPlayer,
+                events: sortedEvents,
+                messages: sortedMessages,
+                wolfMessages: sortedWolfMessages,
+                fairyMessages: sortedFairyMessages,
+                twinMessages: sortedTwinMessages,
+                loversMessages: sortedLoversMessages,
+                ghostMessages: sortedGhostMessages,
                 loading: false,
                 error: null,
             };
@@ -97,21 +108,18 @@ export const useGameState = (gameId: string) => {
     if (!firestore || !userId || !gameId || !isSessionLoaded) {
         if (!state.game) {
             dispatch({ 
-                type: 'SET_ERROR', 
-                payload: !gameId ? "No se ha proporcionado un ID de partida." : "Cargando sesión de Firebase..." 
+                type: 'SET_LOADING', 
+                payload: true 
             });
         }
         return;
     };
-
-    dispatch({ type: 'SET_LOADING', payload: true });
 
     const gameRef = doc(firestore, 'games', gameId);
     
     const unsubscribeGame = onSnapshot(gameRef, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
         const gameData = { ...snapshot.data(), id: snapshot.id } as Game;
-        
         dispatch({ type: 'SET_GAME_DATA', payload: { game: gameData, userId } });
       } else {
         dispatch({ type: 'SET_ERROR', payload: 'Partida no encontrada.' });
@@ -126,9 +134,9 @@ export const useGameState = (gameId: string) => {
     });
 
     return () => unsubscribeGame();
+  // We ONLY want this effect to re-run if these fundamental IDs change.
+  // The state updates are handled inside the snapshot listener via the reducer.
   }, [gameId, firestore, userId, isSessionLoaded]);
 
   return state;
 };
-
-    
