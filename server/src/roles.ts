@@ -1,4 +1,4 @@
-import { Room, Role, RoleId } from "./types";
+import { Room, Role, RoleId } from "@/types";
 
 export const ROLES: Record<RoleId, Role> = {
     villager: { id: 'villager', name: 'Aldeano', description: 'Tu objetivo es linchar a los lobos.', hasNightAction: false, actionPrompt: '' },

@@ -1,6 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { rooms } from './server';
-import { Room, Player, GameState, PlayerAction } from '../../src/types'; // Import from shared types
+import { Room, Player, GameState, PlayerAction } from '@/types';
 import { assignRoles } from './roles';
 import { ROLES } from './roles';
 
@@ -13,7 +13,7 @@ function updateRoom(io: Server, roomId: string) {
 }
 
 // Validation Middleware (conceptual)
-function validateAction(socketId: string, roomId: string, action: PlayerAction): { valid: boolean; message: string; room: Room | undefined; player: Player | undefined } {
+function validateAction(socketId: string, roomId: string): { valid: boolean; message: string; room: Room | undefined; player: Player | undefined } {
     const room = rooms.get(roomId);
     if (!room) {
         return { valid: false, message: 'La sala no existe.', room: undefined, player: undefined };
@@ -62,8 +62,13 @@ export function handleConnection(io: Server, socket: Socket) {
 
   socket.on('startGame', ({ roomId }: { roomId: string }) => {
     try {
-        const room = rooms.get(roomId);
-        if (room && room.players[0].id === socket.id && room.players.length >= 3) {
+        const { valid, message, room, player } = validateAction(socket.id, roomId);
+        if (!valid || !room || !player) {
+            socket.emit('gameError', message);
+            return;
+        }
+
+        if (room && player.isHost && room.players.length >= 3) {
           assignRoles(room);
           room.gameState.phase = 'night'; // Start the game
           
@@ -82,8 +87,9 @@ export function handleConnection(io: Server, socket: Socket) {
   
   socket.on('chatMessage', ({ roomId, message }: { roomId: string; message: string }) => {
     try {
-        const room = rooms.get(roomId);
-        const player = room?.players.find(p => p.id === socket.id);
+        const { valid, room, player } = validateAction(socket.id, roomId);
+        if (!valid || !room || !player) return;
+
         if (room && player) {
           const chatMessage = { sender: player.name, text: message, type: 'player' as const };
           io.to(roomId).emit('chatMessage', chatMessage);
@@ -96,11 +102,18 @@ export function handleConnection(io: Server, socket: Socket) {
 
   socket.on('playerAction', ({ roomId, action }: { roomId: string, action: PlayerAction }) => {
     try {
-        const { valid, message, room, player } = validateAction(socket.id, roomId, action);
+        const { valid, message, room, player } = validateAction(socket.id, roomId);
         if (!valid || !room || !player) {
             socket.emit('gameError', message);
             return;
         }
+        
+        // Example for role and phase validation
+        if (room.gameState.phase !== 'night' || player.role?.id !== action.role) {
+            socket.emit('gameError', 'No puedes realizar esa acción ahora.');
+            return;
+        }
+
 
         // --- Logic for player actions ---
         // This is where you would process werewolf kills, seer checks, etc.
@@ -125,26 +138,31 @@ export function handleConnection(io: Server, socket: Socket) {
   });
 
   socket.on('disconnect', () => {
-    console.log(`Socket desconectado: ${socket.id}`);
-    // Find which room the player was in and remove them
-    for (const [roomId, room] of rooms.entries()) {
-      const playerIndex = room.players.findIndex((p) => p.id === socket.id);
-      if (playerIndex !== -1) {
-        room.players.splice(playerIndex, 1);
-        // If the host disconnects, assign a new host
-        if (room.players.length > 0 && room.players.every(p => !p.isHost)) {
-            room.players[0].isHost = true;
+    try {
+      console.log(`Socket desconectado: ${socket.id}`);
+      // Find which room the player was in and remove them
+      for (const [roomId, room] of rooms.entries()) {
+        const playerIndex = room.players.findIndex((p) => p.id === socket.id);
+        if (playerIndex !== -1) {
+          room.players.splice(playerIndex, 1);
+          // If the host disconnects, assign a new host
+          if (room.players.length > 0 && room.players.every(p => !p.isHost)) {
+              room.players[0].isHost = true;
+          }
+          
+          if (room.players.length === 0) {
+              rooms.delete(roomId);
+              console.log(`Sala vacía ${roomId} eliminada.`);
+          } else {
+              io.to(roomId).emit('playerLeft', socket.id);
+              updateRoom(io, roomId);
+          }
+          break;
         }
-        
-        if (room.players.length === 0) {
-            rooms.delete(roomId);
-            console.log(`Sala vacía ${roomId} eliminada.`);
-        } else {
-            io.to(roomId).emit('playerLeft', socket.id);
-            updateRoom(io, roomId);
-        }
-        break;
       }
+    } catch(error) {
+        console.error("Error en el manejador de 'disconnect':", error);
+        // Cannot emit to a disconnected socket, so we just log.
     }
   });
 }

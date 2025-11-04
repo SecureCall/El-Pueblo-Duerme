@@ -33,12 +33,10 @@ export function SocketManager() {
     function onConnect() {
       console.log('Connected to socket server');
       setError(null);
-      toast.success('Conectado al servidor.');
     }
     
     function onDisconnect() {
       console.log('Disconnected from socket server');
-      setError('Desconectado del servidor. Intentando reconectar...');
       toast.error('Desconectado del servidor.');
     }
 
@@ -48,6 +46,11 @@ export function SocketManager() {
       setGameState(room.gameState);
     }
     
+    function onRoomCreated(data: { roomId: string }) {
+      console.log('Server created room, redirecting to:', data.roomId);
+      router.push(`/room/${data.roomId}`);
+    }
+
     function onPlayerJoined(player: Player) {
       addPlayer(player);
       toast(`${player.name} se ha unido a la sala.`);
@@ -73,7 +76,7 @@ export function SocketManager() {
         addChatMessage(message);
     }
     
-    function onRoleAssigned(role: Role) {
+    function onRoleAssigned(role: any) {
         setMyRole(role);
         toast.success(`Tu rol es: ${role.name}`, { duration: 5000 });
     }
@@ -87,19 +90,21 @@ export function SocketManager() {
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('roomUpdate', onRoomUpdate);
+    socket.on('roomCreated', onRoomCreated);
     socket.on('playerJoined', onPlayerJoined);
     socket.on('playerLeft', onPlayerLeft);
     socket.on('playerStateUpdate', onPlayerStateUpdate);
     socket.on('gameStateUpdate', onGameStateUpdate);
     socket.on('chatMessage', onChatMessage);
     socket.on('roleAssigned', onRoleAssigned);
-    socket.on('gameError', onGameError); // Use a specific event for game errors
+    socket.on('gameError', onGameError);
 
     // --- Cleanup ---
     return () => {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
       socket.off('roomUpdate', onRoomUpdate);
+      socket.off('roomCreated', onRoomCreated);
       socket.off('playerJoined', onPlayerJoined);
       socket.off('playerLeft', onPlayerLeft);
       socket.off('playerStateUpdate', onPlayerStateUpdate);
@@ -111,7 +116,7 @@ export function SocketManager() {
       // Disconnect when the main component unmounts (e.g., user closes tab)
       socket.disconnect();
     };
-  }, [setRoom, setPlayers, addPlayer, removePlayer, updatePlayer, setGameState, addChatMessage, setMyRole, setError]);
+  }, [setRoom, setPlayers, addPlayer, removePlayer, updatePlayer, setGameState, addChatMessage, setMyRole, setError, router]);
 
   // This component doesn't render anything
   return null;
