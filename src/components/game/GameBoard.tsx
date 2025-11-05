@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -462,5 +461,3 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
         </div>
     );
 }
-
-    
