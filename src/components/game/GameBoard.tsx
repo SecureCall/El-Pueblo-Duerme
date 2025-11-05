@@ -381,7 +381,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                             {isMaster && <MasterActionBar game={game} setMasterActionState={setMasterActionState} />}
                         </div>
                     </div>
-                    {(game.phase === 'day' || game.phase === 'night' || game.phase === 'jury_voting') && game.status === 'in_progress' && (
+                    {(game.phase === 'day' || game.phase === 'night' || game.phase === 'jury_voting') && game.status === 'in_progress' && currentPlayer.isAlive && (
                         <PhaseTimer
                             key={`${game.id}-${game.phase}-${game.currentRound}`}
                             timeLeft={timeLeft}
