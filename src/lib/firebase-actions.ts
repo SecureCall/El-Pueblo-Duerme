@@ -269,6 +269,85 @@ export async function updatePlayerAvatar(db: Firestore, gameId: string, userId: 
 // AI ACTIONS LOGIC
 // ===============================================================================================
 
+async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
+    try {
+        const gameDoc = await getDoc(doc(db, 'games', gameId));
+        if (!gameDoc.exists()) return;
+
+        const game = gameDoc.data() as Game;
+        if (game.status === 'finished') return;
+
+        const aiPlayersToTrigger = game.players.filter(p => p.isAI && p.isAlive);
+
+        for (const aiPlayer of aiPlayersToTrigger) {
+             const isAccused = triggerMessage.toLowerCase().includes(aiPlayer.displayName.toLowerCase());
+             const shouldTrigger = isAccused ? Math.random() < 0.95 : Math.random() < 0.35;
+
+             if (shouldTrigger) {
+                const perspective: AIPlayerPerspective = {
+                    game: toPlainObject(game),
+                    aiPlayer: toPlainObject(aiPlayer),
+                    trigger: triggerMessage,
+                    players: toPlainObject(game.players),
+                    chatType,
+                };
+
+                generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
+                    if (shouldSend && message) {
+                        await new Promise(resolve => setTimeout(resolve, Math.random() * 4000 + 1000));
+                        await sendChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName, message, true);
+                    }
+                }).catch(aiError => console.error(`Error generating AI chat for ${aiPlayer.displayName}:`, aiError));
+            }
+        }
+    } catch (e) {
+        console.error("Error in triggerAIChat:", e);
+    }
+}
+
+async function triggerPrivateAIChats(db: Firestore, gameId: string, triggerMessage: string) {
+     try {
+        const gameDoc = await getDoc(doc(db, 'games', gameId));
+        if (!gameDoc.exists()) return;
+
+        const game = gameDoc.data() as Game;
+        if (game.status === 'finished') return;
+
+        const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
+        const twinIds = game.twins || [];
+        const loverIds = game.lovers || [];
+
+        const wolves = game.players.filter(p => p.isAI && p.isAlive && p.role && wolfRoles.includes(p.role));
+        const twins = game.players.filter(p => p.isAI && p.isAlive && twinIds.includes(p.userId));
+        const lovers = game.players.filter(p => p.isAI && p.isAlive && loverIds.includes(p.userId));
+
+        const processChat = async (players: Player[], chatType: 'wolf' | 'twin' | 'lovers', sendMessageFn: Function) => {
+            for (const aiPlayer of players) {
+                if (Math.random() < 0.8) { // Higher chance to talk in private
+                    const perspective: AIPlayerPerspective = {
+                        game: toPlainObject(game), aiPlayer: toPlainObject(aiPlayer), trigger: triggerMessage,
+                        players: toPlainObject(game.players), chatType,
+                    };
+                    generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
+                        if (shouldSend && message) {
+                            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
+                            await sendMessageFn(db, gameId, aiPlayer.userId, aiPlayer.displayName, message);
+                        }
+                    }).catch(err => console.error(`Error in private AI chat for ${aiPlayer.displayName}:`, err));
+                }
+            }
+        };
+
+        if (wolves.length > 1) await processChat(wolves, 'wolf', sendWolfChatMessage);
+        if (twins.length > 1) await processChat(twins, 'twin', sendTwinChatMessage);
+        if (lovers.length > 1) await processChat(lovers, 'lovers', sendLoversChatMessage);
+
+    } catch (e) {
+        console.error("Error in triggerPrivateAIChats:", e);
+    }
+}
+
+
 export async function runAIActions(db: Firestore, gameId: string) {
     try {
         const gameDoc = await getDoc(doc(db, 'games', gameId));
@@ -280,6 +359,8 @@ export async function runAIActions(db: Firestore, gameId: string) {
         const aiPlayers = game.players.filter((p: Player) => p.isAI && p.isAlive && !p.usedNightAbility);
         const alivePlayers = game.players.filter((p: Player) => p.isAlive);
         const deadPlayers = game.players.filter((p: Player) => !p.isAlive);
+
+        await triggerPrivateAIChats(db, gameId, "La noche ha caído. ¿Cuál es nuestro plan?");
 
         for (const ai of aiPlayers) {
             await new Promise(resolve => setTimeout(resolve, Math.random() * 1500 + 500)); // Stagger AI actions
@@ -301,9 +382,9 @@ export async function triggerAIVote(db: Firestore, gameId: string) {
         const game = gameDoc.data() as Game;
         if (game.status === 'finished' || game.phase !== 'day') return;
 
-        const aiPlayersToVote = game.players.filter((p: Player) => p.isAI && p.isAlive && !p.votedFor);
-        const alivePlayers = game.players.filter((p: Player) => p.isAlive);
-        const deadPlayers = game.players.filter((p: Player) => !p.isAlive);
+        const aiPlayersToVote = game.players.filter(p => p.isAI && p.isAlive && !p.votedFor);
+        const alivePlayers = game.players.filter(p => p.isAlive);
+        const deadPlayers = game.players.filter(p => !p.isAlive);
 
         for (const ai of aiPlayersToVote) {
             const { targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
@@ -913,4 +994,452 @@ export async function processJuryVotes(db: Firestore, gameId: string) {
 export async function executeMasterAction(db: Firestore, gameId: string, actionId: string, sourceId: string, targetId: string) {
     // Placeholder for master action logic
     return { success: true };
+}
+
+export async function getSeerResult(db: Firestore, gameId: string, seerId: string, targetId: string) {
+    try {
+        const gameDoc = await getDoc(doc(db, 'games', gameId));
+        if (!gameDoc.exists()) throw new Error("Game not found");
+        const game = gameDoc.data() as Game;
+
+        const seerPlayer = game.players.find(p => p.userId === seerId);
+        if (!seerPlayer || (seerPlayer.role !== 'seer' && !(seerPlayer.role === 'seer_apprentice' && game.seerDied))) {
+            throw new Error("No tienes el don de la videncia.");
+        }
+
+        const targetPlayer = game.players.find(p => p.userId === targetId);
+        if (!targetPlayer) throw new Error("Target player not found");
+
+        const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
+        const isWerewolf = (targetPlayer.role && wolfRoles.includes(targetPlayer.role)) || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope);
+
+        return { success: true, isWerewolf, targetName: targetPlayer.displayName };
+    } catch (error: any) {
+        console.error("Error getting seer result: ", error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function submitHunterShot(db: Firestore, gameId: string, hunterId: string, targetId: string) {
+    const gameRef = doc(db, 'games', gameId) as DocumentReference<Game>;
+
+    try {
+        await runTransaction(db, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found");
+            let game = gameSnap.data()!;
+
+            if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId || game.status === 'finished') {
+                return;
+            }
+
+            const hunterPlayer = game.players.find(p => p.userId === hunterId);
+            const targetPlayer = game.players.find(p => p.userId === targetId);
+
+            if (!hunterPlayer || !targetPlayer) {
+                console.error("Hunter or target not found for shot.");
+                return;
+            }
+
+            let { updatedGame, triggeredHunterId } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, targetId, 'hunter_shot');
+            game = updatedGame;
+
+            game.events.push({
+                id: `evt_huntershot_${Date.now()}`, gameId, round: game.currentRound, type: 'hunter_shot',
+                message: `En su último aliento, ${hunterPlayer.displayName} dispara y se lleva consigo a ${targetPlayer.displayName}.`,
+                createdAt: Timestamp.now(), data: { killedPlayerIds: [targetId] },
+            });
+
+            if (triggeredHunterId) {
+                game.pendingHunterShot = triggeredHunterId;
+                transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: triggeredHunterId }));
+                return;
+            }
+
+            const gameOverInfo = await checkGameOver(game);
+            if (gameOverInfo.isGameOver) {
+                game.status = "finished";
+                game.phase = "finished";
+                game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
+                transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: game.players, events: game.events }));
+                return;
+            }
+
+            const hunterDeathEvent = [...game.events].sort((a, b) => toPlainObject(b.createdAt) - toPlainObject(a.createdAt)).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
+
+            const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
+            const currentRound = game.currentRound;
+            const newRound = nextPhase === 'night' ? currentRound + 1 : currentRound;
+
+            game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; });
+            const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
+
+            transaction.update(gameRef, toPlainObject({
+                players: game.players, events: game.events, phase: nextPhase, phaseEndsAt,
+                currentRound: newRound, pendingHunterShot: null
+            }));
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("CRITICAL ERROR in submitHunterShot: ", error);
+        return { success: false, error: error.message || "No se pudo registrar el disparo." };
+    }
+}
+
+export async function submitVote(db: Firestore, gameId: string, voterId: string, targetId: string) {
+    const gameRef = doc(db, 'games', gameId) as DocumentReference<Game>;
+    
+    try {
+       await runTransaction(db, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found");
+            
+            let game = gameSnap.data()!;
+            if (game.phase !== 'day' || game.status === 'finished') return;
+            
+            const playerIndex = game.players.findIndex(p => p.userId === voterId && p.isAlive);
+            if (playerIndex === -1) throw new Error("Player not found or is not alive");
+            
+            if (game.players[playerIndex].votedFor) return;
+
+            const siren = game.players.find(p => p.role === 'river_siren');
+            const charmedPlayerId = siren?.riverSirenTargetId;
+
+            if (voterId === charmedPlayerId && siren && siren.isAlive) {
+                if (siren.votedFor) {
+                    game.players[playerIndex].votedFor = siren.votedFor;
+                } else {
+                    throw new Error("Debes esperar a que la Sirena vote primero.");
+                }
+            } else {
+                 game.players[playerIndex].votedFor = targetId;
+            }
+            
+            transaction.update(gameRef, { players: toPlainObject(game.players) });
+        });
+
+        const gameDoc = await getDoc(gameRef);
+        if(gameDoc.exists()){
+            const gameData = gameDoc.data();
+            const voter = gameData.players.find(p => p.userId === voterId);
+            const target = gameData.players.find(p => p.userId === targetId);
+            if (voter && target && !voter.isAI) {
+                await triggerAIChat(db, gameId, `${voter.displayName} ha votado por ${target.displayName}.`, 'public');
+            }
+        }
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error("Error submitting vote: ", error);
+        return { error: "No se pudo registrar tu voto." };
+    }
+}
+
+export async function sendChatMessage(
+    db: Firestore,
+    gameId: string,
+    senderId: string,
+    senderName: string,
+    text: string,
+    isFromAI: boolean = false
+) {
+    if (!text?.trim()) {
+        return { success: false, error: 'El mensaje no puede estar vacío.' };
+    }
+
+    const gameRef = doc(db, 'games', gameId);
+
+    try {
+        let latestGame: Game | null = null;
+        await runTransaction(db, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error('Game not found');
+            const game = gameDoc.data() as Game;
+            latestGame = game;
+
+            if (game.silencedPlayerId === senderId) {
+                throw new Error("No puedes hablar, has sido silenciado esta ronda.");
+            }
+            
+            const textLowerCase = text.toLowerCase();
+            const mentionedPlayerIds = game.players
+                .filter(p => p.isAlive && textLowerCase.includes(p.displayName.toLowerCase()))
+                .map(p => p.userId);
+            
+            const messageData: ChatMessage = {
+                id: `${Date.now()}_${senderId}`,
+                senderId, senderName, text: text.trim(), round: game.currentRound,
+                createdAt: Timestamp.now(), mentionedPlayerIds,
+            };
+
+            transaction.update(gameRef, { chatMessages: arrayUnion(toPlainObject(messageData)) });
+        });
+
+        if (!isFromAI && latestGame) {
+            const triggerMessage = `${senderName} dijo: "${text.trim()}"`;
+            await triggerAIChat(db, gameId, triggerMessage, 'public');
+        }
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error("Error sending chat message: ", error);
+        return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
+    }
+}
+
+async function sendSpecialChatMessage(
+    db: Firestore,
+    gameId: string,
+    senderId: string,
+    senderName: string,
+    text: string,
+    chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost'
+) {
+    if (!text?.trim()) {
+        return { success: false, error: 'El mensaje no puede estar vacío.' };
+    }
+
+    const gameRef = doc(db, 'games', gameId);
+
+    try {
+        await runTransaction(db, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error('Game not found');
+            const game = gameDoc.data() as Game;
+            
+            const sender = game.players.find(p => p.userId === senderId);
+            if (!sender) throw new Error("Sender not found.");
+
+            const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
+            const fairyRoles: PlayerRole[] = ['seeker_fairy', 'sleeping_fairy'];
+
+            let canSend = false;
+            let chatField: keyof Game = 'chatMessages';
+
+            switch (chatType) {
+                case 'wolf':
+                    if (sender.role && wolfRoles.includes(sender.role)) {
+                        canSend = true;
+                        chatField = 'wolfChatMessages';
+                    }
+                    break;
+                case 'fairy':
+                    if (sender.role && fairyRoles.includes(sender.role) && game.fairiesFound) {
+                        canSend = true;
+                        chatField = 'fairyChatMessages';
+                    }
+                    break;
+                case 'lovers':
+                    if (sender.isLover) {
+                        canSend = true;
+                        chatField = 'loversChatMessages';
+                    }
+                    break;
+                 case 'twin':
+                    if (game.twins?.includes(senderId)) {
+                        canSend = true;
+                        chatField = 'twinChatMessages';
+                    }
+                    break;
+                case 'ghost':
+                    if (!sender.isAlive) {
+                        canSend = true;
+                        chatField = 'ghostChatMessages';
+                    }
+                    break;
+            }
+
+            if (!canSend) {
+                throw new Error("No tienes permiso para enviar mensajes en este chat.");
+            }
+
+            const messageData: ChatMessage = {
+                id: `${Date.now()}_${senderId}`,
+                senderId, senderName, text: text.trim(),
+                round: game.currentRound, createdAt: Timestamp.now(),
+            };
+
+            transaction.update(gameRef, { [chatField]: arrayUnion(toPlainObject(messageData)) });
+        });
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error(`Error sending ${chatType} chat message: `, error);
+        return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
+    }
+}
+
+export const sendWolfChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'wolf');
+export const sendFairyChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'fairy');
+export const sendLoversChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'lovers');
+export const sendTwinChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'twin');
+export const sendGhostChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'ghost');
+
+
+export async function resetGame(db: Firestore, gameId: string) {
+    const gameRef = doc(db, 'games', gameId);
+
+    try {
+        await runTransaction(db, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Partida no encontrada.");
+            const game = gameSnap.data() as Game;
+
+            const humanPlayers = game.players.filter(p => !p.isAI);
+
+            const resetHumanPlayers = humanPlayers.map(player => {
+                const newPlayer = createPlayerObject(player.userId, game.id, player.displayName, player.avatarUrl, player.isAI);
+                newPlayer.joinedAt = player.joinedAt; 
+                return newPlayer;
+            });
+
+            transaction.update(gameRef, toPlainObject({
+                status: 'waiting', phase: 'waiting', currentRound: 0,
+                events: [], chatMessages: [], wolfChatMessages: [], fairyChatMessages: [],
+                twinChatMessages: [], loversChatMessages: [], ghostChatMessages: [], nightActions: [],
+                twins: null, lovers: null, phaseEndsAt: Timestamp.now(), pendingHunterShot: null,
+                wolfCubRevengeRound: 0, players: resetHumanPlayers, vampireKills: 0, boat: [],
+                leprosaBlockedRound: 0, witchFoundSeer: false, seerDied: false,
+                silencedPlayerId: null, exiledPlayerId: null, troublemakerUsed: false,
+                fairiesFound: false, fairyKillUsed: false,
+            }));
+        });
+        return { success: true };
+    } catch (e: any) {
+        console.error("Error resetting game:", e);
+        return { error: e.message || 'No se pudo reiniciar la partida.' };
+    }
+}
+
+export async function setPhaseToNight(db: Firestore, gameId: string) {
+  const gameRef = doc(db, "games", gameId) as DocumentReference<Game>;
+  try {
+    await runTransaction(db, async (transaction) => {
+        const gameSnap = await transaction.get(gameRef);
+        if (!gameSnap.exists()) throw new Error("Game not found");
+        const game = gameSnap.data();
+
+        if (game.phase === 'role_reveal' && game.status === 'in_progress') {
+            const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
+            let updateData: Partial<Game> = { phase: 'night', phaseEndsAt };
+            
+            if (game.settings.cupid && game.currentRound === 1) {
+                const cupidAction = game.nightActions?.find(a => a.round === 1 && a.actionType === 'cupid_love');
+                if (cupidAction) {
+                    const loverIds = cupidAction.targetId.split('|') as [string, string];
+                    if (loverIds.length === 2) {
+                        const playerUpdates = game.players.map(p => {
+                            if (loverIds.includes(p.userId)) {
+                                return { ...p, isLover: true };
+                            }
+                            return p;
+                        });
+                        updateData.players = playerUpdates;
+                        updateData.lovers = loverIds;
+                    }
+                }
+            }
+             transaction.update(gameRef, toPlainObject(updateData));
+        }
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error setting phase to night:", error);
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function sendGhostMessage(db: Firestore, gameId: string, ghostId: string, targetId: string, message: string) {
+    const gameRef = doc(db, 'games', gameId);
+    try {
+        await runTransaction(db, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error("Game not found");
+            const game = gameDoc.data() as Game;
+            const playerIndex = game.players.findIndex(p => p.userId === ghostId);
+
+            if (playerIndex === -1) throw new Error("Player not found.");
+            const player = game.players[playerIndex];
+
+            if (player.role !== 'ghost' || player.isAlive || player.ghostMessageSent) {
+                throw new Error("No tienes permiso para realizar esta acción.");
+            }
+
+            const ghostEvent: GameEvent = {
+                id: `evt_ghost_${Date.now()}`, gameId, round: game.currentRound, type: 'special',
+                message: `Has recibido un misterioso mensaje desde el más allá: "${message}"`,
+                createdAt: Timestamp.now(), data: { targetId: targetId, originalMessage: message },
+            };
+
+            game.players[playerIndex].ghostMessageSent = true;
+            game.events.push(ghostEvent);
+
+            transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events }));
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error sending ghost message:", error);
+        return { success: false, error: error.message || "No se pudo enviar el mensaje." };
+    }
+}
+
+export async function submitTroublemakerAction(db: Firestore, gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
+  const gameRef = doc(db, 'games', gameId) as DocumentReference<Game>;
+
+  try {
+    await runTransaction(db, async (transaction) => {
+      const gameSnap = await transaction.get(gameRef);
+      if (!gameSnap.exists()) throw new Error("Partida no encontrada");
+      let game = gameSnap.data();
+
+      if (game.status === 'finished') return;
+
+      const player = game.players.find(p => p.userId === troublemakerId);
+      if (!player || player.role !== 'troublemaker' || game.troublemakerUsed) {
+        throw new Error("No puedes realizar esta acción.");
+      }
+
+      const target1 = game.players.find(p => p.userId === target1Id);
+      const target2 = game.players.find(p => p.userId === target2Id);
+
+      if (!target1 || !target2 || !target1.isAlive || !target2.isAlive) {
+        throw new Error("Los objetivos seleccionados no son válidos.");
+      }
+      
+      let { updatedGame } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, target1Id, 'troublemaker_duel');
+      game = updatedGame;
+      let finalResult = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, target2Id, 'troublemaker_duel');
+      game = finalResult.updatedGame;
+
+      game.events.push({
+        id: `evt_trouble_${Date.now()}`, gameId, round: game.currentRound, type: 'special',
+        message: `${player.displayName} ha provocado una pelea mortal. ${target1.displayName} y ${target2.displayName} han sido eliminados.`,
+        createdAt: Timestamp.now(), data: { killedPlayerIds: [target1Id, target2Id] }
+      });
+
+      const gameOverInfo = await checkGameOver(game);
+      if (gameOverInfo.isGameOver) {
+        game.status = "finished";
+        game.phase = "finished";
+        game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
+        transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: game.players, events: game.events, troublemakerUsed: true }));
+        return;
+      }
+
+      transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, troublemakerUsed: true }));
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    if ((error as any).code === 'permission-denied') {
+      const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
+      errorEmitter.emit('permission-error', permissionError);
+      return { error: 'Permiso denegado para usar esta habilidad.' };
+    }
+    console.error("Error submitting troublemaker action:", error);
+    return { error: error.message || "No se pudo realizar la acción." };
+  }
 }
