@@ -11,7 +11,6 @@ import { GameLobby } from './GameLobby';
 import { GameBoard } from './GameBoard';
 import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { useFirebase } from '@/firebase';
 import { GameMusic } from './GameMusic';
 
 export function GameRoom({ gameId }: { gameId: string }) {
@@ -19,8 +18,6 @@ export function GameRoom({ gameId }: { gameId: string }) {
   const { game, players, currentPlayer, loading, error: gameStateError } = useGameState(gameId);
   const [isJoining, setIsJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
-
-  const { firestore } = useFirebase();
 
   const handleNameSubmit = useCallback(
     (name: string) => {
@@ -31,12 +28,12 @@ export function GameRoom({ gameId }: { gameId: string }) {
   );
 
   const handleJoinGame = useCallback(async () => {
-    if (!displayName || !firestore || !avatarUrl || !userId) return;
+    if (!displayName || !avatarUrl || !userId) return;
 
     setIsJoining(true);
     setJoinError(null);
 
-    const result = await joinGame(firestore, gameId, userId, displayName, avatarUrl);
+    const result = await joinGame(gameId, userId, displayName, avatarUrl);
 
     if (result.error) {
       setJoinError(result.error);
@@ -45,7 +42,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
       }
     }
     setIsJoining(false);
-  }, [displayName, firestore, gameId, userId, setDisplayName, avatarUrl]);
+  }, [displayName, gameId, userId, setDisplayName, avatarUrl]);
 
   useEffect(() => {
     if (isSessionLoaded && game && displayName && !currentPlayer && game.status === 'waiting' && !isJoining) {

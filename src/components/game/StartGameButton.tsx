@@ -7,7 +7,6 @@ import { startGame } from "@/lib/firebase-actions";
 import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useGameSession } from "@/hooks/use-game-session";
-import { useFirebase } from "@/firebase";
 import type { Game } from "@/types";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 
@@ -23,13 +22,12 @@ export function StartGameButton({ game, playerCount }: StartGameButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const { userId, isSessionLoaded } = useGameSession();
-  const { firestore } = useFirebase();
 
   const totalPlayers = game.settings.fillWithAI ? game.maxPlayers : playerCount;
   const canStart = totalPlayers >= MINIMUM_PLAYERS;
 
   const handleStartGame = async () => {
-    if (!isSessionLoaded || !userId || !firestore) {
+    if (!isSessionLoaded || !userId) {
        toast({
           variant: "destructive",
           title: "Error",
@@ -38,7 +36,7 @@ export function StartGameButton({ game, playerCount }: StartGameButtonProps) {
       return;
     }
     setIsLoading(true);
-    const result = await startGame(firestore, game.id, userId);
+    const result = await startGame(game.id, userId);
     if (result.error) {
       toast({
         variant: "destructive",
@@ -81,5 +79,3 @@ export function StartGameButton({ game, playerCount }: StartGameButtonProps) {
     </TooltipProvider>
   );
 }
-
-    

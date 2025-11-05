@@ -11,7 +11,6 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { AvatarSelectionModal } from "./AvatarSelectionModal";
 import { useGameSession } from "@/hooks/use-game-session";
-import { useFirebase } from "@/firebase";
 import { updatePlayerAvatar } from "@/lib/firebase-actions";
 import { PlayerGrid } from "./PlayerGrid";
 import type { MasterActionState } from "./MasterActionBar";
@@ -25,7 +24,6 @@ interface GameLobbyProps {
 
 export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobbyProps) {
   const { toast } = useToast();
-  const { firestore } = useFirebase();
   const { userId } = useGameSession();
   const [canShare, setCanShare] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
@@ -38,8 +36,8 @@ export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobby
   }, []);
 
   const handleAvatarChange = async (newAvatarUrl: string) => {
-    if (!firestore || !userId) return;
-    const result = await updatePlayerAvatar(firestore, game.id, userId, newAvatarUrl);
+    if (!userId) return;
+    const result = await updatePlayerAvatar(game.id, userId, newAvatarUrl);
     if (!result.success) {
       toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el avatar." });
     }
