@@ -32,7 +32,7 @@ import { createRoleInstance } from "./roles/role-factory";
 import { getSdks } from "@/firebase/server-init";
 
 
-const PHASE_DURATION_SECONDS = 45;
+const PHASE_DURATION_SECONDS = 60;
 
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
