@@ -1,3 +1,4 @@
+
 'use server';
 import { 
   doc,
@@ -556,39 +557,6 @@ export async function runAIHunterShot(gameId: string, hunter: Player) {
     }
 }
 
-
-export async function getAIChatResponse(gameId: string, aiPlayer: Player, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
-    const { firestore } = getSdks();
-    try {
-        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
-        if (!gameDoc.exists()) return null;
-        
-        const game = gameDoc.data() as Game;
-
-        if (game.status === 'finished') return null;
-
-        const perspective: AIPlayerPerspective = {
-            game: toPlainObject(game),
-            aiPlayer: toPlainObject(aiPlayer),
-            trigger: triggerMessage,
-            players: toPlainObject(game.players),
-            chatType,
-        };
-
-        const result = await generateAIChatMessage(perspective);
-        
-        if (result && result.shouldSend && result.message) {
-            return result.message;
-        }
-        return null;
-
-    } catch (e) {
-        console.error("Error in getAIChatResponse:", e);
-        return null;
-    }
-}
-
-
 export const getDeterministicAIAction = (
     aiPlayer: Player,
     game: Game,
@@ -617,6 +585,53 @@ export const getDeterministicAIAction = (
         }
         return selectedTargets.join('|');
     };
+    
+    const getSuspicionScores = (): Record<string, number> => {
+        const scores: Record<string, number> = {};
+        alivePlayers.forEach(p => { if (p.userId !== aiPlayer.userId) scores[p.userId] = 1; });
+
+        const lastVoteEvent = game.events.find(e => e.type === 'vote_result' && e.round === currentRound - 1);
+        if (lastVoteEvent?.data) {
+            const votes: Record<string, number> = {};
+            game.players.forEach(p => {
+                if(p.isAlive && p.votedFor) {
+                    votes[p.votedFor] = (votes[p.votedFor] || 0) + 1;
+                }
+            });
+            for(const targetId in votes) {
+                if(scores[targetId]) scores[targetId] += votes[targetId] * 5;
+            }
+            (lastVoteEvent.data.tiedPlayerIds || []).forEach((id: string) => {
+                 if (scores[id]) scores[id] += 10;
+            });
+        }
+        return scores;
+    };
+    
+    const getMostSuspiciousTarget = (targets: Player[]): string => {
+        const scores = getSuspicionScores();
+        const validTargetIds = new Set(targets.map(t => t.userId));
+        
+        let highestScore = -1;
+        let mostSuspicious: string[] = [];
+
+        for(const userId in scores) {
+            if (validTargetIds.has(userId)) {
+                if (scores[userId] > highestScore) {
+                    highestScore = scores[userId];
+                    mostSuspicious = [userId];
+                } else if (scores[userId] === highestScore) {
+                    mostSuspicious.push(userId);
+                }
+            }
+        }
+        
+        if (mostSuspicious.length > 0) {
+            return mostSuspicious[Math.floor(Math.random() * mostSuspicious.length)];
+        }
+        return randomTarget(targets);
+    };
+
 
     if (game.phase === 'day') {
         if (aiPlayer.role === 'executioner' && aiPlayer.executionerTargetId) {
@@ -625,11 +640,11 @@ export const getDeterministicAIAction = (
                 return { actionType: 'VOTE', targetId: aiPlayer.executionerTargetId };
             }
         }
-        return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
+        return { actionType: 'VOTE', targetId: getMostSuspiciousTarget(potentialTargets) };
     }
 
     if (game.phase === 'hunter_shot' && game.pendingHunterShot === userId) {
-        return { actionType: 'SHOOT', targetId: randomTarget(potentialTargets) };
+        return { actionType: 'SHOOT', targetId: getMostSuspiciousTarget(potentialTargets) };
     }
 
     if (game.phase !== 'night' || aiPlayer.isExiled) {
@@ -638,7 +653,7 @@ export const getDeterministicAIAction = (
 
     if (canFairiesKill) {
         const nonFairies = potentialTargets.filter(p => p.role !== 'seeker_fairy' && p.role !== 'sleeping_fairy');
-        return { actionType: 'fairy_kill', targetId: randomTarget(nonFairies) };
+        return { actionType: 'fairy_kill', targetId: getMostSuspiciousTarget(nonFairies) };
     }
 
     switch (role) {
@@ -663,45 +678,23 @@ export const getDeterministicAIAction = (
         case 'seer':
         case 'seer_apprentice':
             if (role === 'seer' || apprenticeIsActive) {
-                const lastVoteEvent = game.events.find(e => e.type === 'vote_result' && e.round === currentRound - 1);
-                
-                const suspicionMap: Record<string, number> = {};
-                alivePlayers.forEach(p => {
-                    if (p.userId !== aiPlayer.userId) suspicionMap[p.userId] = 1;
-                });
-                
-                if(lastVoteEvent?.data) {
-                    const lynchedPlayerId = lastVoteEvent.data.lynchedPlayerId;
-                    const lynchedPlayer = game.players.find(p => p.userId === lynchedPlayerId);
-                    if(lynchedPlayer?.role === 'villager') {
-                         game.players.filter(p => p.votedFor === lynchedPlayerId).forEach(voter => {
-                            if (suspicionMap[voter.userId]) suspicionMap[voter.userId] += 10;
-                         });
-                    }
-                    (lastVoteEvent.data.tiedPlayerIds || []).forEach((id: string) => {
-                         if (suspicionMap[id]) suspicionMap[id] += 5;
-                    });
-                }
-                
-                const sortedSuspects = Object.keys(suspicionMap).sort((a,b) => suspicionMap[b] - suspicionMap[a]);
-                if (sortedSuspects.length > 0 && Math.random() < 0.6) {
-                    return { actionType: 'seer_check', targetId: sortedSuspects[0] };
-                }
-
-                return { actionType: 'seer_check', targetId: randomTarget(potentialTargets) };
+                const knownRoles = new Set(nightActions.filter(a => a.playerId === userId).map(a => a.targetId));
+                const unknownTargets = potentialTargets.filter(p => !knownRoles.has(p.userId));
+                return { actionType: 'seer_check', targetId: getMostSuspiciousTarget(unknownTargets.length > 0 ? unknownTargets : potentialTargets) };
             }
             return { actionType: 'NONE', targetId: '' };
         case 'doctor':
         case 'guardian': {
-            const healableTargets = potentialTargets.filter(p => p.lastHealedRound !== currentRound - 1);
-            if (role === 'guardian' && (aiPlayer.guardianSelfProtects || 0) < 1 && Math.random() < 0.2) {
+             let healableTargets = potentialTargets.filter(p => p.lastHealedRound !== currentRound - 1);
+             if (role === 'guardian' && (aiPlayer.guardianSelfProtects || 0) < 1 && Math.random() < 0.2) {
                  return { actionType: 'guardian_protect', targetId: userId };
-            }
-            return { actionType: role === 'doctor' ? 'doctor_heal' : 'guardian_protect', targetId: randomTarget(healableTargets.length > 0 ? healableTargets : potentialTargets) };
+             }
+             if (healableTargets.length === 0) healableTargets = potentialTargets;
+             return { actionType: role === 'doctor' ? 'doctor_heal' : 'guardian_protect', targetId: getMostSuspiciousTarget(healableTargets) };
         }
         case 'priest':
             if (!aiPlayer.priestSelfHealUsed && Math.random() < 0.2) return { actionType: 'priest_bless', targetId: userId };
-            return { actionType: 'priest_bless', targetId: randomTarget(potentialTargets) };
+            return { actionType: 'priest_bless', targetId: getMostSuspiciousTarget(potentialTargets) };
         case 'resurrector_angel':
             if (!aiPlayer.resurrectorAngelUsed && deadPlayers.length > 0) {
                  return { actionType: 'resurrect', targetId: randomTarget(deadPlayers, 1) };
@@ -721,7 +714,7 @@ export const getDeterministicAIAction = (
         }
         case 'silencer':
         case 'elder_leader':
-             return { actionType: role === 'silencer' ? 'silencer_silence' : 'elder_leader_exile', targetId: randomTarget(potentialTargets) };
+             return { actionType: role === 'silencer' ? 'silencer_silence' : 'elder_leader_exile', targetId: getMostSuspiciousTarget(potentialTargets) };
         case 'seeker_fairy':
             if (!game.fairiesFound) {
                  const sleepingFairy = alivePlayers.find(p => p.role === 'sleeping_fairy');
@@ -759,7 +752,7 @@ export const getDeterministicAIAction = (
         case 'hechicera':
              const hasPoison = !aiPlayer.potions?.poison;
              if (hasPoison) {
-                 return { actionType: 'hechicera_poison', targetId: randomTarget(potentialTargets) };
+                 return { actionType: 'hechicera_poison', targetId: getMostSuspiciousTarget(potentialTargets) };
              }
              return { actionType: 'NONE', targetId: '' };
         case 'executioner':
@@ -1461,7 +1454,7 @@ export async function setPhaseToNight(gameId: string) {
     await runTransaction(firestore, async (transaction) => {
         const gameSnap = await transaction.get(gameRef);
         if (!gameSnap.exists()) throw new Error("Game not found");
-        const game = gameSnap.data();
+        const game = gameSnap.data()!;
 
         if (game.phase === 'role_reveal' && game.status === 'in_progress') {
             const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);

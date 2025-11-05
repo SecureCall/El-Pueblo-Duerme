@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { playNarration } from '@/lib/sounds';
+import { Skull } from 'lucide-react';
 
 interface YouAreDeadOverlayProps {
     angelInPlay: boolean;
@@ -35,15 +36,13 @@ export function YouAreDeadOverlay({ angelInPlay }: YouAreDeadOverlayProps) {
             className="fixed inset-0 z-50 flex cursor-pointer flex-col items-center justify-center bg-black/90 backdrop-blur-sm animate-in fade-in"
             onClick={() => setIsVisible(false)}
         >
-            <div className="relative h-64 w-64 md:h-80 md:w-80 mb-4">
-                <img
-                    src="/zarpazo.svg"
-                    alt="Zarpazo"
-                    className="h-full w-full object-contain filter-destructive"
+            <div className="relative h-64 w-64 md:h-80 md:w-80 mb-4 flex items-center justify-center">
+                 <Skull
+                    className="h-full w-full object-contain text-destructive"
                 />
             </div>
             <h1 className="font-headline text-5xl md:text-7xl font-bold text-destructive text-shadow-lg shadow-black/50 mt-8">
-                HAS SIDO DEVORADO
+                HAS SIDO ELIMINADO
             </h1>
             {angelInPlay && (
                  <p className="text-lg text-yellow-300 mt-4 animate-pulse">
