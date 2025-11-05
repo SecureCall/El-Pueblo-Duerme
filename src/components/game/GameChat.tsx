@@ -8,7 +8,6 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Send, AlertTriangle, MicOff } from 'lucide-react';
-import { useFirebase } from '@/firebase';
 import { sendChatMessage } from '@/lib/firebase-actions';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -160,7 +159,7 @@ export function GameChat({ game, currentPlayer, messages }: GameChatProps) {
                             onClick={() => handleQuickMessage(msg)}
                             disabled={!canChat}
                         >
-                            {msg.split(' ')[0]} {msg.split(' ')[1]}...
+                            {msg.split(' ').slice(0, 2).join(' ')}...
                         </Button>
                     ))}
                 </div>

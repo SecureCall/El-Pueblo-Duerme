@@ -49,13 +49,13 @@ export function GameBoard({ gameId }: { gameId: string }) {
 
     const handleAcknowledgeRole = useCallback(async () => {
         setShowRole(false);
-        if (game && game.phase === 'role_reveal' && game.creator === userId && firestore) {
+        if (game && game.phase === 'role_reveal' && game.creator === userId) {
             await processNight(game.id);
         }
-    }, [firestore, game, userId]);
+    }, [game, userId]);
 
     const handlePhaseEnd = useCallback(async () => {
-        if (!firestore || !game || !userId) return;
+        if (!game || !userId) return;
         if (game.status === 'finished') return;
 
         if (game.creator === userId) {
@@ -83,7 +83,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
     }, [game?.status, events, currentPlayer, game, updateStats]);
 
     useEffect(() => {
-        if (!game || !userId || !firestore || game.status === 'finished') return;
+        if (!game || !userId || game.status === 'finished') return;
 
         const isCreator = game.creator === userId;
         const prevPhase = prevPhaseRef.current;
@@ -137,7 +137,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
 
         prevPhaseRef.current = game.phase;
 
-    }, [game?.phase, game?.currentRound, firestore, game?.id, game?.creator, game?.status, game?.players, game?.pendingHunterShot, userId, events, handleAcknowledgeRole]);
+    }, [game?.phase, game?.currentRound, game?.id, game?.creator, game?.status, game?.players, game?.pendingHunterShot, userId, events, handleAcknowledgeRole]);
 
     useEffect(() => {
         if (!game?.phaseEndsAt || game.status === 'finished') {
@@ -393,7 +393,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                 game={game}
                 players={playersWithDeathCause}
                 currentPlayer={currentPlayer}
-                onPlayerClick={masterActionState.active ? (p) => handleMasterActionTarget(p) : undefined}
+                onPlayerClick={masterActionState.active ? (p) => {} : undefined}
                 masterActionState={masterActionState}
                 setMasterActionState={setMasterActionState}
             />
@@ -461,8 +461,4 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
             )}
         </div>
     );
-}
-
-function handleMasterActionTarget(p: Player): void {
-    throw new Error("Function not implemented.");
 }
