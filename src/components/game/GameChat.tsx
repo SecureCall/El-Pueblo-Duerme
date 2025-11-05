@@ -35,7 +35,6 @@ const QUICK_MESSAGES = [
 
 export function GameChat({ game, currentPlayer, messages }: GameChatProps) {
     const [newMessage, setNewMessage] = useState('');
-    const { firestore } = useFirebase();
     const { toast } = useToast();
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const lastMessageCount = useRef(messages.length);
@@ -68,9 +67,9 @@ export function GameChat({ game, currentPlayer, messages }: GameChatProps) {
 
     const handleSendMessage = async (text?: string) => {
         const messageText = text || newMessage;
-        if (!messageText.trim() || !firestore) return;
+        if (!messageText.trim()) return;
         
-        const res = await sendChatMessage(firestore, game.id, currentPlayer.userId, currentPlayer.displayName, messageText);
+        const res = await sendChatMessage(game.id, currentPlayer.userId, currentPlayer.displayName, messageText);
 
         if (res.success) {
             setNewMessage('');
