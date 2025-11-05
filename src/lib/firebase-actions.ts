@@ -77,6 +77,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
 
 
 export async function createGame(
+  firestore: Firestore,
   userId: string,
   displayName: string,
   avatarUrl: string,
@@ -84,7 +85,6 @@ export async function createGame(
   maxPlayers: number,
   settings: Game['settings']
 ) {
-  const { firestore } = initializeFirebase();
   try {
     if (typeof displayName !== 'string' || typeof gameName !== 'string') {
         return { error: "El nombre del jugador y de la partida deben ser texto." };
