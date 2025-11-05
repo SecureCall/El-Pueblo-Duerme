@@ -30,6 +30,9 @@ function getEventIcon(type: GameEvent['type']) {
             return <SunIcon className="h-4 w-4 text-yellow-400" />;
         case 'lover_death':
         case 'hunter_shot':
+        case 'troublemaker_duel':
+        case 'vampire_kill':
+        case 'werewolf_kill':
             return <Swords className="h-4 w-4 text-destructive" />;
         case 'player_transformed':
             return <Repeat className="h-4 w-4 text-orange-400" />;
@@ -90,3 +93,5 @@ export function GameChronicle({ events, currentPlayerId }: GameChronicleProps) {
     </Sheet>
   );
 }
+
+    
