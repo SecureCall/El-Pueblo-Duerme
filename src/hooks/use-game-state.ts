@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useReducer, useRef } from 'react';
@@ -89,34 +90,30 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 export const useGameState = (gameId: string) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const { firestore } = useFirebase();
-  const { userId } = useGameSession();
-  const gameRef = useRef<DocumentData | null>(null);
+  const { userId, isSessionLoaded } = useGameSession();
+  const gameRef = useRef(firestore ? doc(firestore, 'games', gameId) : null);
   
-  useEffect(() => {
-    if (!firestore || !gameId) {
-        dispatch({ type: 'SET_LOADING', payload: false });
-        return;
-    }
 
-    if (!gameRef.current) {
+  // Firestore listener
+  useEffect(() => {
+    if (!firestore || !userId || !isSessionLoaded) return;
+    if (!gameRef.current || gameRef.current.path !== `games/${gameId}`) {
         gameRef.current = doc(firestore, 'games', gameId);
     }
-    
+
     dispatch({ type: 'SET_LOADING', payload: true });
 
-    const unsubscribeGame = onSnapshot(gameRef.current as DocumentReference<DocumentData>, (snapshot: DocumentSnapshot<DocumentData>) => {
+    const unsubscribeGame = onSnapshot(gameRef.current, (snapshot: DocumentSnapshot<DocumentData>) => {
       if (snapshot.exists()) {
         const gameData = { ...snapshot.data() as Game, id: snapshot.id };
-        if (userId) { // Only dispatch if we have a user to find
-            dispatch({ type: 'SET_GAME_DATA', payload: { game: gameData, userId } });
-        }
+        dispatch({ type: 'SET_GAME_DATA', payload: { game: gameData, userId } });
       } else {
         dispatch({ type: 'SET_ERROR', payload: 'Partida no encontrada.' });
       }
     }, (err: FirestoreError) => {
         const contextualError = new FirestorePermissionError({
             operation: 'get',
-            path: (gameRef.current as DocumentReference<DocumentData>).path,
+            path: gameRef.current!.path,
         });
         dispatch({ type: 'SET_ERROR', payload: "Error al cargar la partida. Permisos insuficientes." });
         errorEmitter.emit('permission-error', contextualError);
@@ -125,7 +122,8 @@ export const useGameState = (gameId: string) => {
     return () => {
       unsubscribeGame();
     };
-  }, [gameId, firestore, userId]); 
+  }, [gameId, firestore, userId, isSessionLoaded]);
+
 
   return { ...state };
 };
