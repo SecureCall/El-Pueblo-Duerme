@@ -1,14 +1,6 @@
 
 import { z } from 'zod';
-
-// PlayerRoleEnum is now a static list, breaking the circular dependency.
-export const PlayerRoleEnum = z.enum([
-  "villager", "seer", "doctor", "hunter", "guardian", "priest", "prince", "lycanthrope", "twin",
-  "hechicera", "ghost", "virginia_woolf", "leprosa", "river_siren", "lookout", "troublemaker",
-  "silencer", "seer_apprentice", "elder_leader", "werewolf", "wolf_cub", "cursed", "seeker_fairy",
-  "sleeping_fairy", "shapeshifter", "drunk_man", "cult_leader", "fisherman", "vampire", "witch", "banshee",
-  "resurrector_angel", "cupid", "executioner"
-]);
+import { PlayerRoleEnum } from './player-role.enum';
 
 const TimestampSchema = z.union([
   z.object({
@@ -21,10 +13,13 @@ const TimestampSchema = z.union([
   z.date(),
 ]).nullable();
 
+export const PlayerRoleSchema = z.nativeEnum(PlayerRoleEnum).nullable();
+
+
 export const PlayerSchema = z.object({
   userId: z.string(),
   gameId: z.string(),
-  role: PlayerRoleEnum.nullable(),
+  role: PlayerRoleSchema,
   isAlive: z.boolean(),
   votedFor: z.string().nullable(),
   displayName: z.string(),
@@ -174,7 +169,7 @@ export const GameSchema = z.object({
 
 
 export const RoleDataSchema = z.object({
-  name: PlayerRoleEnum.nullable(),
+  name: PlayerRoleSchema,
   description: z.string(),
   team: z.enum(['Aldeanos', 'Lobos', 'Neutral']),
   alliance: z.enum(['Aldeanos', 'Lobos', 'Neutral']),
