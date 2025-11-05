@@ -1,3 +1,4 @@
+
 'use server';
 import { 
   doc,
@@ -82,8 +83,8 @@ export async function createGame(
   maxPlayers: number,
   settings: Game['settings']
 ) {
-  const { firestore } = getSdks();
   try {
+    const { firestore } = getSdks();
     if (typeof displayName !== 'string' || typeof gameName !== 'string') {
         return { error: "El nombre del jugador y de la partida deben ser texto." };
     }
@@ -144,17 +145,8 @@ export async function createGame(
 
     return { gameId };
   } catch (error: any) {
-    console.error("Error creating game:", error);
-    if (error.code === 'permission-denied') {
-        const permissionError = new FirestorePermissionError({
-            path: `games/some-game-id`, // Generic path
-            operation: 'create',
-            requestResourceData: { name: gameName },
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        return { error: "Permiso denegado al crear la partida." };
-    }
-    return { error: `Error al crear la partida: ${error.message || 'Error desconocido'}` };
+    console.error("--- CATASTROPHIC ERROR IN createGame ---", error);
+    return { error: `Error de servidor: ${error.message || 'Error desconocido al crear la partida.'}` };
   }
 }
 
