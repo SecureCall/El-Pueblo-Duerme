@@ -13,7 +13,6 @@ interface PlayerGridProps {
     onPlayerClick?: (player: Player) => void;
     clickable?: boolean;
     selectedPlayerIds?: string[];
-    highlightedPlayers?: { userId: string, color: string }[];
     votesByPlayer?: Record<string, string[]>;
     masterActionState?: MasterActionState;
     setMasterActionState?: React.Dispatch<React.SetStateAction<MasterActionState>>;
@@ -26,25 +25,37 @@ export const PlayerGrid = React.memo(function PlayerGrid({
     onPlayerClick, 
     clickable = false,
     selectedPlayerIds = [], 
-    highlightedPlayers = [],
     votesByPlayer = {},
+    masterActionState,
+    setMasterActionState,
 }: PlayerGridProps) {
+
+  const otherTwinId = game.twins?.find(id => id !== currentPlayer.userId);
+  const otherLoverId = game.lovers?.find(id => id !== currentPlayer.userId);
+
   return (
     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
       {players.map((player) => {
-        const highlight = highlightedPlayers.find(hp => hp.userId === player.userId);
+        
+        const isTwin = player.userId === otherTwinId;
+        const isLover = player.userId === otherLoverId;
+
+        let highlightColor;
+        if (isTwin) highlightColor = 'rgba(135, 206, 250, 0.7)';
+        if (isLover) highlightColor = 'rgba(244, 114, 182, 0.7)';
+        
         return (
             <div key={player.userId} className="aspect-[3/4]">
                 <PlayerCard 
+                    player={player} 
                     isCreator={game.creator === player.userId}
                     isSelf={currentPlayer.userId === player.userId}
-                    isLover={currentPlayer.isLover && player.isLover && currentPlayer.userId !== player.userId}
+                    isLover={isLover}
                     isExecutionerTarget={currentPlayer.role === 'executioner' && player.userId === currentPlayer.executionerTargetId}
-                    player={player} 
                     onClick={onPlayerClick}
                     isClickable={clickable && player.isAlive && player.userId !== currentPlayer.userId}
                     isSelected={selectedPlayerIds.includes(player.userId)}
-                    highlightColor={highlight?.color}
+                    highlightColor={highlightColor}
                     votes={votesByPlayer[player.userId]}
                 />
             </div>

@@ -324,18 +324,6 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
         }
     }
 
-    const isTwin = !!game.twins?.includes(currentPlayer.userId);
-    const otherTwinId = isTwin ? game.twins!.find(id => id !== currentPlayer.userId) : null;
-    const otherTwin = otherTwinId ? players.find(p => p.userId === otherTwinId) : null;
-
-    const isLover = currentPlayer.isLover;
-    const otherLoverId = isLover && game.lovers ? game.lovers.find(id => id !== currentPlayer.userId) : null;
-    const otherLover = otherLoverId ? players.find(p => p.userId === otherLoverId) : null;
-
-    const highlightedPlayers = [];
-    if (otherTwin) highlightedPlayers.push({ userId: otherTwin.userId, color: 'rgba(135, 206, 250, 0.7)' });
-    if (otherLover) highlightedPlayers.push({ userId: otherLover.userId, color: 'rgba(244, 114, 182, 0.7)' });
-
     const playersWithDeathCause = players.map((p: Player) => ({
         ...p,
         causeOfDeath: !p.isAlive ? getCauseOfDeath(p.userId) : undefined,
@@ -406,43 +394,9 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                 game={game}
                 players={playersWithDeathCause}
                 currentPlayer={currentPlayer}
-                highlightedPlayers={highlightedPlayers}
                 masterActionState={masterActionState}
                 setMasterActionState={setMasterActionState}
             />
-
-            {isTwin && otherTwin && currentPlayer.isAlive && (
-                <Card className="bg-blue-900/30 border-blue-400/50">
-                    <CardContent className="pt-6">
-                        <div className="flex items-center justify-center gap-3 text-blue-300">
-                            <Users2 className="h-5 w-5" />
-                            <p>Tu gemelo/a es {otherTwin.isAlive ? otherTwin.displayName : `${otherTwin.displayName} (fallecido)`}. Sois aliados hasta el final.</p>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
-            {!!game.fairiesFound && ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer.role || '') && (
-                <Card className="bg-fuchsia-900/30 border-fuchsia-400/50">
-                    <CardContent className="pt-6">
-                        <div className="flex items-center justify-center gap-3 text-fuchsia-300">
-                            <Wand2 className="h-5 w-5" />
-                            <p>¡Las hadas se han encontrado! Vuestro poder ha despertado.</p>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
-            {isLover && otherLover && (
-                <Card className="bg-pink-900/30 border-pink-400/50">
-                    <CardContent className="pt-6">
-                        <div className="flex items-center justify-center gap-3 text-pink-300">
-                            <Heart className="h-5 w-5" />
-                            <p>Estás enamorado de {otherLover.isAlive ? otherLover.displayName : `${otherLover.displayName} (fallecido)`}. Vuestro objetivo es sobrevivir juntos.</p>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
 
             {game.phase === 'night' && currentPlayer.isAlive && (
                 <NightActions game={game} players={players} currentPlayer={currentPlayer} wolfMessages={wolfMessages} fairyMessages={fairyMessages} />
@@ -476,9 +430,9 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                         )}
 
                         <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
-                            {isTwin && <TwinChat gameId={game.id} currentPlayer={currentPlayer} messages={twinMessages} />}
-                            {game.fairiesFound && ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer.role || '') && <FairyChat gameId={game.id} currentPlayer={currentPlayer} messages={fairyMessages} />}
-                            {isLover && <LoversChat gameId={game.id} currentPlayer={currentPlayer} messages={loversMessages} />}
+                           {game.twins?.includes(currentPlayer.userId) && <TwinChat gameId={game.id} currentPlayer={currentPlayer} messages={twinMessages} />}
+                           {game.fairiesFound && ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer.role || '') && <FairyChat gameId={game.id} currentPlayer={currentPlayer} messages={fairyMessages} />}
+                           {currentPlayer.isLover && <LoversChat gameId={game.id} currentPlayer={currentPlayer} messages={loversMessages} />}
                         </div>
                     </div>
                     <div className="w-full md:w-96">
