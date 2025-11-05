@@ -129,6 +129,7 @@ export const PlayerCard = React.memo(function PlayerCard({
                 "flex flex-col items-center justify-center p-4 transition-all duration-300 relative h-full",
                 "bg-card/80",
                 isClickable && "cursor-pointer hover:scale-105 hover:bg-card/100",
+                isSelf && "cursor-pointer",
                 isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
               )}
               onClick={handleCardClick}

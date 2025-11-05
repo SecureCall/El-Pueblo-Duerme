@@ -44,16 +44,18 @@ export const PlayerGrid = React.memo(function PlayerGrid({
         if (isTwin) highlightColor = 'rgba(135, 206, 250, 0.7)';
         if (isLover) highlightColor = 'rgba(244, 114, 182, 0.7)';
         
+        const isSelf = currentPlayer.userId === player.userId;
+
         return (
             <div key={player.userId} className="aspect-[3/4]">
                 <PlayerCard 
                     player={player} 
                     isCreator={game.creator === player.userId}
-                    isSelf={currentPlayer.userId === player.userId}
+                    isSelf={isSelf}
                     isLover={isLover}
                     isExecutionerTarget={currentPlayer.role === 'executioner' && player.userId === currentPlayer.executionerTargetId}
                     onClick={onPlayerClick}
-                    isClickable={clickable && player.isAlive && player.userId !== currentPlayer.userId}
+                    isClickable={clickable && !isSelf}
                     isSelected={selectedPlayerIds.includes(player.userId)}
                     highlightColor={highlightColor}
                     votes={votesByPlayer[player.userId]}

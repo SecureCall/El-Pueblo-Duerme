@@ -1,5 +1,4 @@
 
-
 'use server';
 import { 
   doc,
@@ -203,7 +202,7 @@ export async function joinGame(
                 changed = true;
             }
             if(changed) {
-                transaction.update(gameRef, { players: toPlainObject(currentPlayers) });
+                transaction.update(gameRef, { players: toPlainObject(currentPlayers), lastActiveAt: Timestamp.now() });
             }
         }
         return;

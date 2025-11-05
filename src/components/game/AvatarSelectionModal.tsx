@@ -48,5 +48,3 @@ export function AvatarSelectionModal({ isOpen, onClose, onSelectAvatar }: Avatar
     </Dialog>
   );
 }
-
-
