@@ -219,6 +219,14 @@ export function GameBoard({ gameId }: { gameId: string }) {
     if (currentPlayer.role && game.phase === 'role_reveal' && showRole) {
         return <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />;
     }
+    
+    const isHunterWaitingToShoot = game.phase === 'hunter_shot' && game.pendingHunterShot === currentPlayer.userId;
+    if (isHunterWaitingToShoot) {
+        const hunterAlivePlayers = players.filter(p => p.isAlive && p.userId !== currentPlayer.userId);
+        return (
+            <HunterShot game={game} currentPlayer={currentPlayer} players={hunterAlivePlayers} />
+        );
+    }
 
     if (!currentPlayer.isAlive && game.status === 'in_progress') {
         const isAngelInPlay = !!(game.settings.resurrector_angel && players.some(p => p.role === 'resurrector_angel' && p.isAlive && !p.resurrectorAngelUsed));
@@ -367,14 +375,6 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                 </Card>
             </div>
         )
-    }
-
-    const isHunterWaitingToShoot = game.phase === 'hunter_shot' && game.pendingHunterShot === currentPlayer.userId;
-    if (isHunterWaitingToShoot) {
-        const hunterAlivePlayers = players.filter(p => p.isAlive && p.userId !== currentPlayer.userId);
-        return (
-            <HunterShot game={game} currentPlayer={currentPlayer} players={hunterAlivePlayers} />
-        );
     }
 
     const showGhostAction = !!(currentPlayer.role === 'ghost' && !currentPlayer.isAlive && !currentPlayer.ghostMessageSent);

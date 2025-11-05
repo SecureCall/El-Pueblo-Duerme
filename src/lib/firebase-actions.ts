@@ -1,4 +1,3 @@
-
 'use server';
 import { 
   doc,
@@ -8,7 +7,6 @@ import {
   arrayUnion,
   Timestamp,
   runTransaction,
-  type Firestore,
   type Transaction,
   DocumentReference,
 } from "firebase/firestore";
@@ -1123,9 +1121,34 @@ export async function processJuryVotes(gameId: string) {
     return { success: true };
 }
 
-export async function executeMasterAction(gameId: string, actionId: string, sourceId: string, targetId: string) {
-    // Placeholder for master action logic
-    return { success: true };
+export async function executeMasterAction(gameId: string, actionId: string, sourceId: string | null, targetId: string) {
+    const { firestore } = getSdks();
+    const gameRef = doc(firestore, 'games', gameId);
+     try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef as DocumentReference<Game>);
+            if (!gameDoc.exists()) throw new Error("Game not found");
+            let game = gameDoc.data() as Game;
+
+            if (actionId === 'master_kill') {
+                 if (game.masterKillUsed) throw new Error("El Zarpazo del Destino ya ha sido utilizado.");
+                 const { updatedGame } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, targetId, 'special');
+                 updatedGame.masterKillUsed = true;
+                 game = updatedGame;
+            } else {
+                const action = masterActions[actionId as keyof typeof masterActions];
+                if (action) {
+                    const { updatedGame } = action.execute(game, sourceId!, targetId);
+                    game = updatedGame;
+                }
+            }
+            transaction.update(gameRef, toPlainObject(game));
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error executing master action:", error);
+        return { success: false, error: error.message };
+    }
 }
 
 export async function getSeerResult(gameId: string, seerId: string, targetId: string) {

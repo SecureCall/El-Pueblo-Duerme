@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from 'react';
@@ -9,7 +8,7 @@ import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
 import { submitHunterShot } from '@/lib/firebase-actions';
 import { Loader2, Crosshair } from 'lucide-react';
-import { useFirebase } from '@/firebase';
+import type { MasterActionState } from './MasterActionBar';
 
 
 interface HunterShotProps {
@@ -22,7 +21,7 @@ export function HunterShot({ game, players, currentPlayer }: HunterShotProps) {
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
-    const { firestore } = useFirebase();
+    const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
 
     const handlePlayerSelect = (player: Player) => {
         if (!player.isAlive || player.userId === currentPlayer.userId) return;
@@ -30,13 +29,13 @@ export function HunterShot({ game, players, currentPlayer }: HunterShotProps) {
     };
 
     const handleSubmit = async () => {
-        if (!selectedPlayerId || !firestore) {
+        if (!selectedPlayerId) {
             toast({ variant: 'destructive', title: 'Debes seleccionar a quién disparar.' });
             return;
         }
 
         setIsSubmitting(true);
-        const result = await submitHunterShot(firestore, game.id, currentPlayer.userId, selectedPlayerId);
+        const result = await submitHunterShot(game.id, currentPlayer.userId, selectedPlayerId);
 
         if (result.success) {
             toast({ title: '¡Venganza cumplida!', description: 'Has disparado tu última bala.' });
@@ -65,6 +64,8 @@ export function HunterShot({ game, players, currentPlayer }: HunterShotProps) {
                     onPlayerClick={handlePlayerSelect}
                     clickable={true}
                     selectedPlayerIds={selectedPlayerId ? [selectedPlayerId] : []}
+                    masterActionState={masterActionState}
+                    setMasterActionState={setMasterActionState}
                 />
                 <Button 
                     className="w-full mt-6 text-lg" 
