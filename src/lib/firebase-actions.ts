@@ -1,4 +1,3 @@
-
 'use server';
 import { 
   doc,
@@ -98,8 +97,6 @@ export async function createGame(
     const gameId = generateGameId();
     const gameRef = doc(firestore, "games", gameId);
         
-    const werewolfCount = Math.max(1, Math.floor(maxPlayers / 4));
-
     const gameData: Game = {
         id: gameId,
         name: gameName.trim(),
@@ -118,10 +115,7 @@ export async function createGame(
         createdAt: Timestamp.now(),
         lastActiveAt: Timestamp.now(),
         currentRound: 0,
-        settings: {
-            ...settings,
-            werewolves: werewolfCount,
-        },
+        settings,
         phaseEndsAt: Timestamp.now(),
         pendingHunterShot: null,
         twins: null,
@@ -1408,7 +1402,7 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
     await runTransaction(firestore, async (transaction) => {
       const gameSnap = await transaction.get(gameRef);
       if (!gameSnap.exists()) throw new Error("Partida no encontrada");
-      let game = gameSnap.data();
+      let game = gameSnap.data()!;
 
       if (game.status === 'finished') return;
 
@@ -1472,7 +1466,7 @@ export async function masterKillPlayer(gameId: string, targetId: string) {
                 throw new Error("El Zarpazo del Destino ya ha sido utilizado.");
             }
 
-            const { updatedGame } = await killPlayer(transaction, gameRef, game, targetId, 'special');
+            const { updatedGame } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, targetId, 'special');
             game = updatedGame;
             
             const targetPlayer = game.players.find(p => p.userId === targetId);

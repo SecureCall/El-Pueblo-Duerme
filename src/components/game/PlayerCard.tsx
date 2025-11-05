@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -128,15 +127,14 @@ export const PlayerCard = React.memo(function PlayerCard({
               className={cn(
                 "flex flex-col items-center justify-center p-4 transition-all duration-300 relative h-full",
                 "bg-card/80",
-                isClickable && "cursor-pointer hover:scale-105 hover:bg-card/100",
-                isSelf && "cursor-pointer",
+                (isClickable || isSelf) && "cursor-pointer hover:scale-105 hover:bg-card/100",
                 isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
               )}
               onClick={handleCardClick}
               style={cardStyle}
             >
               {isSelf && (
-                <div className="absolute top-1 right-1 bg-secondary/80 rounded-full p-1 cursor-pointer hover:bg-secondary" onClick={handleCardClick}>
+                <div className="absolute top-1 right-1 bg-secondary/80 rounded-full p-1" onClick={handleCardClick}>
                   <Edit className="h-4 w-4 text-secondary-foreground" />
                   <span className="sr-only">Cambiar avatar</span>
                 </div>

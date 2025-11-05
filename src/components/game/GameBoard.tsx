@@ -50,7 +50,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
     const handleAcknowledgeRole = useCallback(async () => {
         setShowRole(false);
         if (game && game.phase === 'role_reveal' && game.creator === userId && firestore) {
-            await processNight(firestore, game.id);
+            await processNight(game.id);
         }
     }, [firestore, game, userId]);
 
@@ -60,14 +60,14 @@ export function GameBoard({ gameId }: { gameId: string }) {
 
         if (game.creator === userId) {
             if (game.phase === 'day') {
-                await processVotes(firestore, game.id);
+                await processVotes(game.id);
             } else if (game.phase === 'night') {
-                await processNight(firestore, game.id);
+                await processNight(game.id);
             } else if (game.phase === 'jury_voting') {
-                await processJuryVotes(firestore, game.id);
+                await processJuryVotes(game.id);
             }
         }
-    }, [firestore, game, userId]);
+    }, [game, userId]);
 
     useEffect(() => {
         if (!game || !currentPlayer) return;
@@ -97,7 +97,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
                     } else {
                         playNarration('noche_pueblo_duerme.mp3');
                     }
-                    if (isCreator) runAIActions(firestore, game.id);
+                    if (isCreator) runAIActions(game.id);
                     break;
                 case 'day':
                     playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
@@ -105,14 +105,14 @@ export function GameBoard({ gameId }: { gameId: string }) {
                         playNarration('dia_pueblo_despierta.mp3');
                         setTimeout(() => {
                             playNarration('inicio_debate.mp3');
-                            if (isCreator) triggerAIVote(firestore, game.id);
+                            if (isCreator) triggerAIVote(game.id);
                         }, 2000);
                     }, 1500);
                     break;
                 case 'hunter_shot':
                     if (isCreator) {
                         const pendingHunter = game.players.find(p => p.userId === game.pendingHunterShot);
-                        if (pendingHunter?.isAI) runAIHunterShot(firestore, game.id, pendingHunter);
+                        if (pendingHunter?.isAI) runAIHunterShot(game.id, pendingHunter);
                     }
                     break;
                 case 'role_reveal':
@@ -393,6 +393,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                 game={game}
                 players={playersWithDeathCause}
                 currentPlayer={currentPlayer}
+                onPlayerClick={masterActionState.active ? (p) => handleMasterActionTarget(p) : undefined}
                 masterActionState={masterActionState}
                 setMasterActionState={setMasterActionState}
             />
@@ -460,4 +461,8 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
             )}
         </div>
     );
+}
+
+function handleMasterActionTarget(p: Player): void {
+    throw new Error("Function not implemented.");
 }
