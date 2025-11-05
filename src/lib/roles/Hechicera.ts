@@ -1,10 +1,10 @@
 
 
 import { GameContext, GameStateChange, IRole, NightAction, Player, RoleData, Team } from "@/types";
-import { PlayerRoleEnum } from "@/types/zod";
+import { PlayerRoleEnum } from "@/types";
 
 export class Hechicera implements IRole {
-  readonly name = PlayerRoleEnum.enum.hechicera;
+  readonly name = PlayerRoleEnum.hechicera;
   readonly description = "Posees dos pociones de un solo uso: una de veneno para eliminar a un jugador durante la noche, y una de vida para salvar al objetivo de los lobos. No puedes salvarte a ti misma.";
   readonly team: Team = 'Aldeanos';
   readonly alliance: Team = 'Aldeanos';

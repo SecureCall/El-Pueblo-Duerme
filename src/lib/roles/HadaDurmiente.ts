@@ -1,10 +1,10 @@
 
 
 import { GameContext, GameStateChange, IRole, Player, RoleData, Team } from "@/types";
-import { PlayerRoleEnum } from "@/types/zod";
+import { PlayerRoleEnum } from "@/types";
 
 export class HadaDurmiente implements IRole {
-  readonly name = PlayerRoleEnum.enum.sleeping_fairy;
+  readonly name = PlayerRoleEnum.sleeping_fairy;
   readonly description = "Empiezas como Neutral. Si el Hada Buscadora (del equipo de los lobos) te encuentra, os unís. Vuestro objetivo es ser las últimas en pie.";
   readonly team: Team = 'Neutral';
   readonly alliance: Team = 'Neutral';

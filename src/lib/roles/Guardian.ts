@@ -1,9 +1,9 @@
 
 import { GameContext, GameStateChange, IRole, NightAction, Player, RoleData, Team } from "@/types";
-import { PlayerRoleEnum } from "@/types/zod";
+import { PlayerRoleEnum } from "@/types";
 
 export class Guardian implements IRole {
-  readonly name = PlayerRoleEnum.enum.guardian;
+  readonly name = PlayerRoleEnum.guardian;
   readonly description = "Cada noche, eliges a un jugador para protegerlo del ataque de los lobos. No puedes proteger a la misma persona dos noches seguidas, y solo puedes protegerte a ti mismo una vez por partida.";
   readonly team: Team = 'Aldeanos';
   readonly alliance: Team = 'Aldeanos';

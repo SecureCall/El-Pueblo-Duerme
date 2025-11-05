@@ -3,7 +3,7 @@ import { GameContext, GameStateChange, IRole, NightAction, RoleData, Player, Pla
 import { Vidente } from "./Vidente";
 
 export class AprendizVidente implements IRole {
-  readonly name = PlayerRoleEnum.SEER_APPRENTICE;
+  readonly name = PlayerRoleEnum.seer_apprentice;
   readonly description = "Mientras la vidente siga con vida, no tienes acciones especiales. Pero si la vidente muere, tomarás su lugar y comenzarás a investigar cada noche.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';

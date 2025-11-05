@@ -6,7 +6,7 @@ import {
     GameSchema, 
     PlayerSchema, 
     NightActionSchema, 
-    PlayerRoleEnum,
+    PlayerRoleEnum as PlayerRoleZodEnum, // Import with an alias
     RoleDataSchema,
     GameEventSchema,
     ChatMessageSchema,
@@ -14,13 +14,16 @@ import {
     NightActionTypeSchema
 } from './zod';
 
-export { PlayerRoleEnum };
+// Export the enum directly from the zod file
+export const PlayerRoleEnum = PlayerRoleZodEnum.enum;
+export type PlayerRoleEnum = z.infer<typeof PlayerRoleZodEnum>;
+
 
 // Main data structures inferred from Zod schemas
 export type Game = z.infer<typeof GameSchema>;
 export type Player = z.infer<typeof PlayerSchema>;
 export type NightAction = z.infer<typeof NightActionSchema>;
-export type PlayerRole = z.infer<typeof PlayerRoleEnum>;
+export type PlayerRole = z.infer<typeof PlayerRoleZodEnum>;
 export type GameEvent = z.infer<typeof GameEventSchema>;
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type GameSettings = z.infer<typeof GameSettingsSchema>;

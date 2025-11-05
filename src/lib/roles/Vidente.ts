@@ -4,7 +4,7 @@ import type { GameContext, GameStateChange, IRole, NightAction, Player, RoleData
 import { PlayerRoleEnum } from "@/types";
 
 export class Vidente implements IRole {
-  readonly name = PlayerRoleEnum.enum.seer;
+  readonly name = PlayerRoleEnum.seer;
   readonly description = "Cada noche, eliges a un jugador para investigar. Se te revelará si es un Hombre Lobo o no.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';

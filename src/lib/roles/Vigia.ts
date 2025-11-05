@@ -1,10 +1,10 @@
 
 
 import { GameContext, GameStateChange, IRole, NightAction, Player, RoleData } from "@/types";
-import { PlayerRoleEnum } from "@/types/zod";
+import { PlayerRoleEnum } from "@/types";
 
 export class Vigia implements IRole {
-  readonly name = PlayerRoleEnum.enum.lookout;
+  readonly name = PlayerRoleEnum.lookout;
   readonly description = "Una vez por partida, puedes espiar a un jugador por la noche. Descubrirás a todos los que lo visiten, pero si los lobos te atacan esa misma noche, morirás antes de ver nada.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';

@@ -1,10 +1,10 @@
 
 
 import { GameContext, GameStateChange, IRole, NightAction, Player, RoleData, Team } from "@/types";
-import { PlayerRoleEnum } from "@/types/zod";
+import { PlayerRoleEnum } from "@/types";
 
 export class HadaBuscadora implements IRole {
-  readonly name = PlayerRoleEnum.enum.seeker_fairy;
+  readonly name = PlayerRoleEnum.seeker_fairy;
   readonly description = "Equipo de los Lobos. Cada noche, buscas al Hada Durmiente. Si la encuentras, ambas despertáis un poder de un solo uso para matar a un jugador.";
   readonly team: Team = 'Lobos';
   readonly alliance: Team = 'Lobos';

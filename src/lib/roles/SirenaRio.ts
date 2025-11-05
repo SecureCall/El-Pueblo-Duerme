@@ -1,10 +1,10 @@
 
 
 import type { GameContext, GameStateChange, IRole, NightAction, Player, RoleData, Team } from "@/types";
-import { PlayerRoleEnum } from "@/types/zod";
+import { PlayerRoleEnum } from "@/types";
 
 export class SirenaRio implements IRole {
-  readonly name = PlayerRoleEnum.enum.river_siren;
+  readonly name = PlayerRoleEnum.river_siren;
   readonly description = "En la primera noche, hechizas a un jugador. A partir de entonces, esa persona está obligada a votar por el mismo objetivo que tú durante el día.";
   readonly team: Team = 'Aldeanos';
   readonly alliance: Team = 'Aldeanos';

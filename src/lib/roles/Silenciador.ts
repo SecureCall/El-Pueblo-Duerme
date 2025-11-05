@@ -3,7 +3,7 @@ import type { GameContext, GameStateChange, IRole, NightAction, Player, RoleData
 import { PlayerRoleEnum } from "@/types";
 
 export class Silenciador implements IRole {
-  readonly name = PlayerRoleEnum.SILENCER;
+  readonly name = PlayerRoleEnum.silencer;
   readonly description = "Cada noche, eliges a un jugador. Esa persona no podrá hablar (enviar mensajes en el chat) durante todo el día siguiente.";
   readonly team: Team = 'Aldeanos';
   readonly alliance: Team = 'Aldeanos';

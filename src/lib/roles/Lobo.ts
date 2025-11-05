@@ -3,7 +3,7 @@ import { GameContext, GameStateChange, IRole, NightAction, RoleData, PlayerRoleE
 import { createRoleInstance } from "./role-factory";
 
 export class Lobo implements IRole {
-  readonly name = PlayerRoleEnum.WEREWOLF;
+  readonly name = PlayerRoleEnum.werewolf;
   readonly description = "Cada noche, te despiertas con tu manada para elegir a una víctima. Tu objetivo es eliminar a los aldeanos hasta que vuestro número sea igual o superior.";
   readonly team = 'Lobos';
   readonly alliance = 'Lobos';

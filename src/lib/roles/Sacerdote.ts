@@ -1,10 +1,10 @@
 
 
 import { GameContext, GameStateChange, IRole, NightAction, Player, RoleData, Team } from "@/types";
-import { PlayerRoleEnum } from "@/types/zod";
+import { PlayerRoleEnum } from "@/types";
 
 export class Sacerdote implements IRole {
-  readonly name = PlayerRoleEnum.enum.priest;
+  readonly name = PlayerRoleEnum.priest;
   readonly description = "Cada noche, otorgas una bendición a un jugador, protegiéndolo de cualquier ataque nocturno (lobos, venenos, etc.). Puedes bendecirte a ti mismo una sola vez por partida.";
   readonly team: Team = 'Aldeanos';
   readonly alliance: Team = 'Aldeanos';

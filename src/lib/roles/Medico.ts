@@ -1,8 +1,9 @@
+
 import type { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } from "@/types";
-import { PlayerRoleEnum } from "@/types/zod";
+import { PlayerRoleEnum } from "@/types";
 
 export class Medico implements IRole {
-  readonly name = PlayerRoleEnum.DOCTOR;
+  readonly name = PlayerRoleEnum.doctor;
   readonly description = "Cada noche, eliges a un jugador (o a ti mismo) para protegerlo del ataque de los lobos. No puedes proteger a la misma persona dos noches seguidas.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';

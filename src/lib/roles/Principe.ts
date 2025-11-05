@@ -3,7 +3,7 @@ import { IRole, RoleData, GameStateChange, Player } from "@/types";
 import { PlayerRoleEnum } from "@/types";
 
 export class Principe implements IRole {
-  readonly name = PlayerRoleEnum.enum.prince;
+  readonly name = PlayerRoleEnum.prince;
   readonly description = "Si el pueblo vota para lincharte, revelarás tu identidad y sobrevivirás, anulando la votación. Esta habilidad solo se puede usar una vez por partida.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';

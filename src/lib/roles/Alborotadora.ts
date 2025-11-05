@@ -1,9 +1,9 @@
 
 import { GameContext, GameStateChange, IRole, Player } from "@/types";
-import { PlayerRoleEnum } from "@/types/zod";
+import { PlayerRoleEnum } from "@/types";
 
 export class Alborotadora implements IRole {
-  readonly name = PlayerRoleEnum.enum.troublemaker;
+  readonly name = PlayerRoleEnum.troublemaker;
   readonly description = "Una vez por partida, puedes provocar una pelea mortal entre dos jugadores, lo que causará que ambos sean eliminados inmediatamente.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';

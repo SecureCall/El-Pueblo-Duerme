@@ -3,7 +3,7 @@ import { GameContext, GameStateChange, IRole, NightAction, Player, RoleData, Tea
 import { PlayerRoleEnum } from "@/types";
 
 export class Cupido implements IRole {
-  readonly name = PlayerRoleEnum.enum.cupid;
+  readonly name = PlayerRoleEnum.cupid;
   readonly description = "Solo en la primera noche, eliges a dos jugadores para que se enamoren. Si uno de ellos muere, el otro morirá también. Su objetivo es sobrevivir juntos, por encima de todo.";
   readonly team: Team = 'Aldeanos';
   readonly alliance: Team = 'Aldeanos'; // Gana con el pueblo si los enamorados no ganan

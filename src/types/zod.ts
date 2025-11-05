@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 
 // PlayerRoleEnum is now a static list, breaking the circular dependency.
@@ -170,6 +171,7 @@ export const GameSchema = z.object({
   juryVotes: z.record(z.string()).optional(),
   masterKillUsed: z.boolean().optional(),
 });
+
 
 export const RoleDataSchema = z.object({
   name: PlayerRoleEnum.nullable(),

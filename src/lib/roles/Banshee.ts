@@ -3,7 +3,7 @@ import { GameContext, GameStateChange, IRole, NightAction, RoleData, Player } fr
 import { PlayerRoleEnum } from "@/types";
 
 export class Banshee implements IRole {
-  readonly name = PlayerRoleEnum.BANSHEE;
+  readonly name = PlayerRoleEnum.banshee;
   readonly description = "Te despiertas una vez por partida para lanzar tu grito y señalar a un jugador. Si muere esa noche o al día siguiente, podrás lanzar un último grito en otra noche. Si aciertas ambas veces, ganas.";
   readonly team = 'Neutral';
   readonly alliance = 'Neutral';

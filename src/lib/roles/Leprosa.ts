@@ -1,10 +1,10 @@
 
 
 import { GameContext, GameStateChange, IRole, Player, RoleData, Team } from "@/types";
-import { PlayerRoleEnum } from "@/types/zod";
+import { PlayerRoleEnum } from "@/types";
 
 export class Leprosa implements IRole {
-  readonly name = PlayerRoleEnum.enum.leprosa;
+  readonly name = PlayerRoleEnum.leprosa;
   readonly description = "Si los lobos te matan durante la noche, tu enfermedad se propaga a la manada, impidiéndoles atacar en la noche siguiente.";
   readonly team: Team = 'Aldeanos';
   readonly alliance: Team = 'Aldeanos';
