@@ -251,6 +251,149 @@ export async function updatePlayerAvatar(gameId: string, userId: string, newAvat
         return { success: false, error: error.message };
     }
 }
+
+const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
+    let baseRoles: PlayerRole[] = [];
+    const numWerewolves = Math.max(1, Math.floor(playerCount / 4));
+    
+    for (let i = 0; i < numWerewolves; i++) {
+        baseRoles.push('werewolf');
+    }
+    
+    while (baseRoles.length < playerCount) {
+        baseRoles.push('villager');
+    }
+
+    const availableSpecialRoles: PlayerRole[] = (Object.keys(settings) as Array<keyof typeof settings>)
+        .filter(key => {
+            const roleKey = key as PlayerRole;
+            return settings[key] === true && roleKey !== 'werewolves' && roleKey !== 'fillWithAI' && roleKey !== 'isPublic';
+        })
+        .sort(() => Math.random() - 0.5) as PlayerRole[];
+
+    let finalRoles = [...baseRoles];
+    let villagerIndices = finalRoles.map((role, index) => role === 'villager' ? index : -1).filter(index => index !== -1);
+
+    for (const specialRole of availableSpecialRoles) {
+        if (!specialRole) continue;
+
+        if (specialRole === 'twin') {
+            if (villagerIndices.length >= 2) {
+                const idx1 = villagerIndices.pop()!;
+                const idx2 = villagerIndices.pop()!;
+                finalRoles[idx1] = 'twin';
+                finalRoles[idx2] = 'twin';
+            }
+        } else {
+            if (villagerIndices.length > 0) {
+                const idx = villagerIndices.pop()!;
+                finalRoles[idx] = specialRole;
+            }
+        }
+    }
+    
+    return finalRoles.sort(() => Math.random() - 0.5);
+};
+
+
+const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
+const MINIMUM_PLAYERS = 3;
+
+export async function startGame(gameId: string, creatorId: string) {
+    const { firestore } = getSdks();
+    const gameRef = doc(firestore, 'games', gameId);
+    
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+
+            if (!gameSnap.exists()) {
+                throw new Error('Partida no encontrada.');
+            }
+
+            let game = gameSnap.data() as Game;
+
+            if (game.creator !== creatorId) {
+                throw new Error('Solo el creador puede iniciar la partida.');
+            }
+
+            if (game.status !== 'waiting') {
+                throw new Error('La partida ya ha comenzado.');
+            }
+            
+            let finalPlayers = [...game.players];
+
+            if (game.settings.fillWithAI && finalPlayers.length < game.maxPlayers) {
+                const aiPlayerCount = game.maxPlayers - finalPlayers.length;
+                const availableAINames = AI_NAMES.filter(name => !finalPlayers.some(p => p.displayName === name));
+
+                for (let i = 0; i < aiPlayerCount; i++) {
+                    const aiUserId = `ai_${Date.now()}_${i}`;
+                    const aiName = availableAINames[i % availableAINames.length] || `Bot ${i + 1}`;
+                    const aiAvatar = `/logo.png`;
+                    const aiPlayerData = createPlayerObject(aiUserId, gameId, aiName, aiAvatar, true);
+                    finalPlayers.push(aiPlayerData);
+                }
+            }
+            
+            const totalPlayers = finalPlayers.length;
+            if (totalPlayers < MINIMUM_PLAYERS) {
+                throw new Error(`Se necesitan al menos ${MINIMUM_PLAYERS} jugadores para comenzar.`);
+            }
+            
+            const newRoles = generateRoles(finalPlayers.length, game.settings);
+            
+            let assignedPlayers = finalPlayers.map((player, index) => {
+                const p = { ...player, role: newRoles[index] };
+                if (p.role === 'cult_leader') {
+                    p.isCultMember = true;
+                }
+                return p;
+            });
+
+            const executioner = assignedPlayers.find(p => p.role === 'executioner');
+            if (executioner) {
+                const wolfTeamRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
+                const nonWolfPlayers = assignedPlayers.filter(p => {
+                    return p.role && !wolfTeamRoles.includes(p.role) && p.userId !== executioner.userId;
+                });
+                if (nonWolfPlayers.length > 0) {
+                    const target = nonWolfPlayers[Math.floor(Math.random() * nonWolfPlayers.length)];
+                    if (target) {
+                        const executionerIndex = assignedPlayers.findIndex(p => p.userId === executioner.userId);
+                        if (executionerIndex > -1) {
+                            assignedPlayers[executionerIndex].executionerTargetId = target.userId;
+                        }
+                    }
+                }
+            }
+
+            const twinUserIds = assignedPlayers.filter(p => p.role === 'twin').map(p => p.userId);
+            
+            transaction.update(gameRef, toPlainObject({
+                players: assignedPlayers,
+                twins: twinUserIds.length === 2 ? [twinUserIds[0], twinUserIds[1]] as [string, string] : null,
+                status: 'in_progress',
+                phase: 'role_reveal',
+                currentRound: 1,
+            }));
+        });
+        
+        return { success: true };
+
+    } catch (e: any) {
+        if (e.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+                path: gameRef.path,
+                operation: 'update',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            return { error: "Permiso denegado al iniciar la partida." };
+        }
+        console.error("Error starting game:", e);
+        return { error: e.message || 'Error al iniciar la partida.' };
+    }
+}
 // ===============================================================================================
 // AI ACTIONS LOGIC
 // ===============================================================================================
