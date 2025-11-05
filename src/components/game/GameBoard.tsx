@@ -5,12 +5,11 @@ import { RoleReveal } from "./RoleReveal";
 import { PlayerGrid } from "./PlayerGrid";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
 import { useEffect, useState, useRef, useCallback } from "react";
-import { useFirebase } from "@/firebase";
 import { NightActions } from "./NightActions";
 import { processJuryVotes, executeMasterAction, processNight, processVotes, runAIActions, triggerAIVote, runAIHunterShot } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
-import { Heart, Moon, Sun, Users2, Wand2, Loader2, UserX, Scale } from "lucide-react";
+import { Moon, Sun, Loader2, UserX, Scale } from "lucide-react";
 import { HunterShot } from "./HunterShot";
 import { GameChronicle } from "./GameChronicle";
 import { PhaseTimer } from "./PhaseTimer";
@@ -32,11 +31,12 @@ import { useGameSession } from "@/hooks/use-game-session";
 import { playNarration, playSoundEffect } from '@/lib/sounds';
 import { useGameState } from "@/hooks/use-game-state";
 import { RoleManual } from "./RoleManual";
+import { useToast } from "@/hooks/use-toast";
 
 export function GameBoard({ gameId }: { gameId: string }) {
-    const { firestore } = useFirebase();
     const { updateStats, userId } = useGameSession();
     const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, loading, error } = useGameState(gameId);
+    const { toast } = useToast();
 
     const [showRole, setShowRole] = useState(true);
     const [deathCause, setDeathCause] = useState<GameEvent['type'] | 'other' | null>(null);
@@ -183,6 +183,25 @@ export function GameBoard({ gameId }: { gameId: string }) {
         setDeathCause(getCauseOfDeath(currentPlayer.userId));
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
 
+    const handleMasterActionClick = async (player: Player) => {
+        if (!masterActionState.active || !masterActionState.actionId) return;
+
+        if (masterActionState.actionId === 'master_kill') {
+            await executeMasterAction(game.id, 'master_kill', null, player.userId);
+            toast({ title: "Zarpazo del Destino", description: `${player.displayName} ha sido eliminado por el Máster.`});
+            setMasterActionState({ active: false, actionId: null, sourceId: null });
+        } else {
+            if (!masterActionState.sourceId) {
+                setMasterActionState(prev => ({ ...prev, sourceId: player.userId }));
+                toast({ title: "Acción de Máster", description: `Has seleccionado a ${player.displayName}. Ahora selecciona el objetivo.`});
+            } else {
+                await executeMasterAction(game.id, masterActionState.actionId, masterActionState.sourceId, player.userId);
+                toast({ title: "Acción de Máster", description: `Acción ejecutada.`});
+                setMasterActionState({ active: false, actionId: null, sourceId: null });
+            }
+        }
+    };
+
     if (loading || !game || !currentPlayer) {
         return (
             <div className="flex flex-col items-center justify-center h-screen w-screen">
@@ -235,6 +254,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
                     timeLeft={timeLeft}
                     masterActionState={masterActionState}
                     setMasterActionState={setMasterActionState}
+                    onMasterActionClick={handleMasterActionClick}
                 />
             </>
         );
@@ -256,6 +276,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
             timeLeft={timeLeft}
             masterActionState={masterActionState}
             setMasterActionState={setMasterActionState}
+            onMasterActionClick={handleMasterActionClick}
         />
     );
 }
@@ -275,9 +296,10 @@ interface SpectatorContentProps {
     timeLeft: number;
     masterActionState: MasterActionState;
     setMasterActionState: React.Dispatch<React.SetStateAction<MasterActionState>>;
+    onMasterActionClick: (player: Player) => void;
 }
 
-function SpectatorContent({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, currentPlayer, getCauseOfDeath, timeLeft, masterActionState, setMasterActionState }: SpectatorContentProps) {
+function SpectatorContent({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, currentPlayer, getCauseOfDeath, timeLeft, masterActionState, setMasterActionState, onMasterActionClick }: SpectatorContentProps) {
     const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
     const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
     const voteEvent = events.find(e => e.type === 'vote_result' && e.round === (game.phase === 'day' ? game.currentRound : game.currentRound - 1));
@@ -377,7 +399,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                             <CardDescription className="text-base mt-1">{getPhaseDescription()}</CardDescription>
                         </div>
                         <div className="w-24 flex items-center justify-end">
-                            {isMaster && <MasterActionBar game={game} setMasterActionState={setMasterActionState} />}
+                            {isMaster && <MasterActionBar game={game} masterActionState={masterActionState} setMasterActionState={setMasterActionState} />}
                         </div>
                     </div>
                     {(game.phase === 'day' || game.phase === 'night' || game.phase === 'jury_voting') && game.status === 'in_progress' && currentPlayer.isAlive && (
@@ -393,7 +415,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                 game={game}
                 players={playersWithDeathCause}
                 currentPlayer={currentPlayer}
-                onPlayerClick={masterActionState.active ? (p) => {} : undefined}
+                onPlayerClick={masterActionState.active ? onMasterActionClick : undefined}
                 masterActionState={masterActionState}
                 setMasterActionState={setMasterActionState}
             />

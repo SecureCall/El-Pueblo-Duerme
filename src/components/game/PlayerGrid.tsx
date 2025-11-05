@@ -1,9 +1,10 @@
-"use client";
+'use client';
 
 import React from 'react';
 import type { Game, Player, GameEvent } from "@/types";
 import { PlayerCard } from "./PlayerCard";
 import type { MasterActionState } from './MasterActionBar';
+import { cn } from '@/lib/utils';
 
 interface PlayerGridProps {
     game: Game;
@@ -12,9 +13,8 @@ interface PlayerGridProps {
     onPlayerClick?: (player: Player) => void;
     clickable?: boolean;
     selectedPlayerIds?: string[];
-    votesByPlayer?: Record<string, string[]>;
-    masterActionState?: MasterActionState;
-    setMasterActionState?: React.Dispatch<React.SetStateAction<MasterActionState>>;
+    masterActionState: MasterActionState;
+    setMasterActionState: React.Dispatch<React.SetStateAction<MasterActionState>>;
 }
 
 export const PlayerGrid = React.memo(function PlayerGrid({ 
@@ -24,7 +24,6 @@ export const PlayerGrid = React.memo(function PlayerGrid({
     onPlayerClick, 
     clickable = false,
     selectedPlayerIds = [], 
-    votesByPlayer = {},
     masterActionState,
     setMasterActionState,
 }: PlayerGridProps) {
@@ -33,7 +32,10 @@ export const PlayerGrid = React.memo(function PlayerGrid({
   const otherLoverId = game.lovers?.find(id => id !== currentPlayer.userId);
 
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
+    <div className={cn(
+        "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4",
+        masterActionState.active && "cursor-crosshair"
+    )}>
       {players.map((player) => {
         
         const isTwin = player.userId === otherTwinId;
@@ -42,6 +44,7 @@ export const PlayerGrid = React.memo(function PlayerGrid({
         let highlightColor;
         if (isTwin) highlightColor = 'rgba(135, 206, 250, 0.7)';
         if (isLover) highlightColor = 'rgba(244, 114, 182, 0.7)';
+        if (masterActionState.sourceId === player.userId) highlightColor = 'rgba(255, 255, 0, 0.7)';
         
         const isSelf = currentPlayer.userId === player.userId;
 
@@ -57,7 +60,7 @@ export const PlayerGrid = React.memo(function PlayerGrid({
                     isClickable={clickable && !isSelf}
                     isSelected={selectedPlayerIds.includes(player.userId)}
                     highlightColor={highlightColor}
-                    votes={votesByPlayer[player.userId]}
+                    votes={game.phase === 'day' ? game.players.filter(p => p.votedFor === player.userId).map(p => p.displayName) : undefined}
                 />
             </div>
         )
