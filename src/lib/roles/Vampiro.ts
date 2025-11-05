@@ -1,10 +1,10 @@
 
 
-import { GameContext, GameStateChange, IRole, NightAction, RoleData, Team } from "@/types";
+import { GameContext, GameStateChange, IRole, NightAction, RoleData, Team, Player } from "@/types";
 import { PlayerRoleEnum } from "@/types";
 
 export class Vampiro implements IRole {
-  readonly name = PlayerRoleEnum.enum.vampire;
+  readonly name = PlayerRoleEnum.vampire;
   readonly description = "Juegas solo. Cada noche, muerdes a un jugador. Un jugador mordido 3 veces, muere. Si consigues 3 muertes por mordisco, ganas la partida.";
   readonly team = 'Neutral';
   readonly alliance = 'Neutral';

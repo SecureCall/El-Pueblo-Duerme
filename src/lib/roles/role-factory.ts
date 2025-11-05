@@ -74,7 +74,8 @@ const roleMap: Record<PlayerRoleEnum, new () => IRole> = {
 
 export function createRoleInstance(roleName: PlayerRole | null): IRole {
   if (!roleName || !roleMap[roleName as PlayerRoleEnum]) {
-    // Return a default role if the roleName is not found or is null/undefined
+    // Failsafe: if a role is somehow not in the map, default to Villager.
+    // This prevents the server from crashing.
     return new Aldeano();
   }
   const RoleClass = roleMap[roleName as PlayerRoleEnum];

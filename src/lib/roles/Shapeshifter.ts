@@ -3,7 +3,7 @@
 import { GameContext, GameStateChange, IRole, NightAction, RoleData, PlayerRoleEnum } from "@/types";
 
 export class Cambiaformas implements IRole {
-  readonly name = PlayerRoleEnum.enum.shapeshifter;
+  readonly name = PlayerRoleEnum.shapeshifter;
   readonly description = "Te despiertas solo la primera noche para elegir a una persona. Si esa persona muere, adoptarás su rol y su equipo, transformándote completamente en ella.";
   readonly team = 'Neutral';
   readonly alliance = 'Neutral';

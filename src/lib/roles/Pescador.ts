@@ -1,10 +1,10 @@
 
 
 import { GameContext, GameStateChange, IRole, NightAction, Player, PlayerRole, Team, Alliance } from "@/types";
-import { PlayerRoleEnum } from "@/types/zod";
+import { PlayerRoleEnum } from "@/types";
 
 export class Pescador implements IRole {
-  readonly name = PlayerRoleEnum.enum.fisherman;
+  readonly name = PlayerRoleEnum.fisherman;
   readonly description = "Cada noche, subes a un jugador a tu barco. Ganas si logras tener a todos los aldeanos vivos en tu barco. Pero si pescas a un lobo, mueres.";
   readonly team: Team = 'Neutral';
   readonly alliance: Alliance = 'Neutral';
