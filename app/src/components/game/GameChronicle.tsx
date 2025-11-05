@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import type { GameEvent } from '@/types';
@@ -16,8 +15,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { ScrollText, SunIcon, MoonIcon, Swords, Milestone, Repeat, BrainCircuit, Ghost } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { getMillis } from '@/hooks/use-game-state';
-import type { Timestamp } from 'firebase/firestore';
+import { getMillis } from '@/lib/utils';
 
 interface GameChronicleProps {
   currentPlayerId: string;
@@ -32,6 +30,9 @@ function getEventIcon(type: GameEvent['type']) {
             return <SunIcon className="h-4 w-4 text-yellow-400" />;
         case 'lover_death':
         case 'hunter_shot':
+        case 'troublemaker_duel':
+        case 'vampire_kill':
+        case 'werewolf_kill':
             return <Swords className="h-4 w-4 text-destructive" />;
         case 'player_transformed':
             return <Repeat className="h-4 w-4 text-orange-400" />;
@@ -54,18 +55,6 @@ export function GameChronicle({ events, currentPlayerId }: GameChronicleProps) {
       }
       return true; // Show all other event types
   }); 
-
-  const getDateFromTimestamp = (timestamp: Timestamp | { seconds: number; nanoseconds: number; } | string) => {
-    if (!timestamp) return new Date();
-    if (typeof timestamp === 'string') {
-        return new Date(timestamp);
-    }
-    if ('toDate' in timestamp && typeof timestamp.toDate === 'function') {
-        return timestamp.toDate();
-    }
-    // It's a plain object from JSON serialization
-    return new Date(timestamp.seconds * 1000);
-  }
 
   return (
     <Sheet>
@@ -90,7 +79,7 @@ export function GameChronicle({ events, currentPlayerId }: GameChronicleProps) {
                 <div className="flex-1">
                   <p className="text-sm text-foreground">{event.message}</p>
                   <p className="text-xs text-muted-foreground">
-                    {`Ronda ${event.round} - ${event.createdAt ? formatDistanceToNow(getDateFromTimestamp(event.createdAt), { addSuffix: true, locale: es }) : ''}`}
+                    {`Ronda ${event.round} - ${event.createdAt ? formatDistanceToNow(new Date(getMillis(event.createdAt)), { addSuffix: true, locale: es }) : ''}`}
                   </p>
                 </div>
               </div>
@@ -104,3 +93,5 @@ export function GameChronicle({ events, currentPlayerId }: GameChronicleProps) {
     </Sheet>
   );
 }
+
+    

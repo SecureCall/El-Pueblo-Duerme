@@ -14,7 +14,6 @@ export function toPlainObject<T>(obj: T): T {
         return obj;
     }
     if (obj instanceof Timestamp) {
-        // CONVERT TIMESTAMP TO JAVASCRIPT DATE OBJECT
         return obj.toDate() as any; 
     }
     if (obj instanceof Date) {
@@ -58,6 +57,5 @@ export const getMillis = (timestamp: any): number => {
         return timestamp;
     }
     
-    console.warn("Could not convert timestamp to milliseconds:", timestamp);
     return 0;
 };
