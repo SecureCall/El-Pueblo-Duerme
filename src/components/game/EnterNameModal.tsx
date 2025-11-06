@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useForm } from "react-hook-form";
@@ -14,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
+import { AlertCircle } from "lucide-react";
 
 const FormSchema = z.object({
   displayName: z.string().min(2, "El nombre debe tener al menos 2 caracteres.").max(20),
@@ -48,6 +50,7 @@ export function EnterNameModal({ isOpen, onNameSubmit, error }: EnterNameModalPr
         </DialogHeader>
         {error && (
             <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Error</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
             </Alert>

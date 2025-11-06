@@ -52,23 +52,27 @@ export function useGameSession() {
         setDisplayNameState(storedDisplayName);
     }
     
-    if (storedStatsRaw && storedStatsRaw.length > 2) {
+    // Robust parsing of stats
+    if (storedStatsRaw) {
         try {
             const parsedStats = JSON.parse(storedStatsRaw);
+            // Basic validation to ensure it's a plausible stats object
             if (typeof parsedStats === 'object' && parsedStats !== null && 'victories' in parsedStats) {
                  if (!Array.isArray(parsedStats.history)) {
-                    parsedStats.history = [];
+                    parsedStats.history = []; // Ensure history array exists
                 }
                 setStats(parsedStats);
             } else {
-                 throw new Error("Parsed data is not a valid stats object.");
+                 // The stored data is not in the expected format
+                 throw new Error("Parsed stats object is invalid.");
             }
         } catch (e) {
             console.error("Failed to parse stats from localStorage, resetting.", e);
-            localStorage.removeItem("werewolf_stats");
+            localStorage.removeItem("werewolf_stats"); // Clear corrupted data
             setStats(defaultStats);
         }
     } else {
+        // No stats found, use default
         setStats(defaultStats);
     }
 

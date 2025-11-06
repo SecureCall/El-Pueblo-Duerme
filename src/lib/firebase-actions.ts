@@ -28,7 +28,7 @@ import { toPlainObject } from "./utils";
 import { masterActions } from "./master-actions";
 import { createRoleInstance } from "./roles/role-factory";
 import { getSdks } from "@/firebase/server-init";
-import { secretObjectives } from "./objectives";
+import { secretObjectives, getObjectiveLogic } from "./objectives";
 
 
 const PHASE_DURATION_SECONDS = 60;
@@ -1665,7 +1665,8 @@ export const sendTwinChatMessage = (gameId: string, senderId: string, senderName
 export const sendGhostChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'ghost');
 
 
-export async function resetGame(firestore: Firestore, gameId: string) {
+export async function resetGame(gameId: string) {
+    const { firestore } = getSdks();
     const gameRef = doc(firestore, 'games', gameId);
 
     try {
@@ -1719,57 +1720,6 @@ export async function setPhaseToNight(gameId: string) {
         console.error("Error setting phase to night:", error);
         return { success: false, error: (error as Error).message };
     }
-}
-
-export async function submitNightAction(action: Omit<NightAction, 'createdAt' | 'round'> & { round: number }) {
-  const { firestore } = getSdks();
-  const { gameId, playerId, actionType, targetId } = action;
-  const gameRef = doc(firestore, 'games', gameId);
-  try {
-    await runTransaction(firestore, async (transaction) => {
-        const gameSnap = await transaction.get(gameRef);
-        if (!gameSnap.exists()) throw new Error("Game not found");
-        
-        let game = gameSnap.data() as Game;
-        if (game.phase !== 'night' || game.status === 'finished') return;
-
-        const player = game.players.find(p => p.userId === playerId);
-        if (!player || !player.isAlive) throw new Error("Jugador no válido o muerto.");
-        if (player.isExiled) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
-        if (player.usedNightAbility) return;
-        
-        const playerIndex = game.players.findIndex(p => p.userId === action.playerId);
-        
-        if (playerIndex === -1) {
-            console.error(`Critical error: Player ${action.playerId} not found in game ${gameId} during night action.`);
-            return;
-        }
-
-        const roleInstance = createRoleInstance(player.role);
-        const context = { game, player, players: game.players };
-        const changes = roleInstance.performNightAction(context, action);
-
-        if(changes?.game) game = { ...game, ...changes.game };
-        if(changes?.playerUpdates) {
-             changes.playerUpdates.forEach(update => {
-                const pIndex = game.players.findIndex(p => p.userId === update.userId);
-                if(pIndex !== -1) game.players[pIndex] = { ...game.players[pIndex], ...update };
-            });
-        }
-        
-        game.players[playerIndex].usedNightAbility = true;
-        const newAction: NightAction = { ...action, createdAt: Timestamp.now() };
-        game.nightActions = [...(game.nightActions || []), newAction];
-        
-        transaction.update(gameRef, toPlainObject(game));
-    });
-
-    return { success: true };
-
-  } catch (error: any) {
-    console.error("Error submitting night action: ", error);
-    return { success: false, error: error.message || "No se pudo registrar tu acción." };
-  }
 }
 
 export async function submitJuryVote(gameId: string, jurorId: string, targetId: string) {
