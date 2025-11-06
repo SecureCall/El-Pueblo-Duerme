@@ -55,4 +55,3 @@ export function BanishedOverlay({ angelInPlay }: BanishedOverlayProps) {
         </div>
     );
 }
-
