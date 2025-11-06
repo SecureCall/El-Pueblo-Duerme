@@ -25,7 +25,7 @@ import { toPlainObject } from "./utils";
 import { masterActions } from "./master-actions";
 import { getSdks } from "@/firebase/server-init";
 import { secretObjectives } from "./objectives";
-import { processJuryVotes, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes, processNight } from './game-engine';
+import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 
 
@@ -549,16 +549,8 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
                 return;
             }
             
-            const hunterDeathEvent = [...game.events]
-                .sort((a, b) => toPlainObject(b.createdAt).getTime() - toPlainObject(a.createdAt).getTime())
-                .find(e => {
-                    const data = e.data || {};
-                    const killedIds = data.killedPlayerIds || (data.killedPlayerId ? [data.killedPlayerId] : []);
-                    if (killedIds.includes(hunterId)) return true;
-                    if (data.lynchedPlayerId === hunterId) return true;
-                    return false;
-                });
-
+            const hunterDeathEvent = [...game.events].sort((a, b) => toPlainObject(b.createdAt).getTime() - toPlainObject(a.createdAt).getTime()).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
+            
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
             const currentRound = game.currentRound;
             const newRound = nextPhase === 'night' ? currentRound + 1 : currentRound;
@@ -765,11 +757,21 @@ async function sendSpecialChatMessage(
     }
 }
 
-export const sendWolfChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'wolf');
-export const sendFairyChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'fairy');
-export const sendLoversChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'lovers');
-export const sendTwinChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'twin');
-export const sendGhostChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'ghost');
+export async function sendWolfChatMessage(gameId: string, senderId: string, senderName: string, text: string) {
+    return sendSpecialChatMessage(gameId, senderId, senderName, text, 'wolf');
+}
+export async function sendFairyChatMessage(gameId: string, senderId: string, senderName: string, text: string) {
+    return sendSpecialChatMessage(gameId, senderId, senderName, text, 'fairy');
+}
+export async function sendLoversChatMessage(gameId: string, senderId: string, senderName: string, text: string) {
+    return sendSpecialChatMessage(gameId, senderId, senderName, text, 'lovers');
+}
+export async function sendTwinChatMessage(gameId: string, senderId: string, senderName: string, text: string) {
+    return sendSpecialChatMessage(gameId, senderId, senderName, text, 'twin');
+}
+export async function sendGhostChatMessage(gameId: string, senderId: string, senderName: string, text: string) {
+    return sendSpecialChatMessage(gameId, senderId, senderName, text, 'ghost');
+}
 
 
 export async function resetGame(gameId: string) {
@@ -973,7 +975,7 @@ async function triggerPrivateAIChats(gameId: string, triggerMessage: string) {
         const twins = game.players.filter(p => p.isAI && p.isAlive && twinIds.includes(p.userId));
         const lovers = game.players.filter(p => p.isAI && p.isAlive && loverIds.includes(p.userId));
 
-        const processChat = async (players: Player[], chatType: 'wolf' | 'twin' | 'lovers', sendMessageFn: Function) => {
+        const processChat = async (players: Player[], chatType: 'wolf' | 'twin' | 'lovers', sendMessageFn: (gameId: string, senderId: string, senderName: string, text: string) => Promise<any>) => {
             for (const aiPlayer of players) {
                 if (Math.random() < 0.8) { 
                     const perspective: AIPlayerPerspective = {
@@ -1287,6 +1289,39 @@ export async function runAIHunterShot(gameId: string, hunter: Player) {
     }
 }
 
-export { processNight, processVotes, processJuryVotes } from './game-engine';
+export async function processNight(gameId: string) {
+    const { firestore } = getSdks();
+    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            await processNightEngine(transaction, gameRef);
+        });
+    } catch (e) {
+        console.error("Failed to process night", e);
+    }
+}
 
-    
+export async function processVotes(gameId: string) {
+    const { firestore } = getSdks();
+    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            await processVotesEngine(transaction, gameRef);
+        });
+    } catch (e) {
+        console.error("Failed to process votes", e);
+    }
+}
+
+export async function processJuryVotes(gameId: string) {
+    const { firestore } = getSdks();
+    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            await processJuryVotesEngine(transaction, gameRef);
+        });
+    } catch (e) {
+        console.error("Failed to process jury votes", e);
+    }
+}
+
