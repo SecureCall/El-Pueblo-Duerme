@@ -1,3 +1,4 @@
+
 'use server';
 import { 
   doc,
@@ -462,7 +463,7 @@ async function triggerPrivateAIChats(gameId: string, triggerMessage: string) {
                     generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
                         if (shouldSend && message) {
                             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
-                            await sendMessageFn(gameId, aiPlayer.userId, aiPlayer.displayName, message);
+                            await sendMessageFn(firestore, gameId, aiPlayer.userId, aiPlayer.displayName, message);
                         }
                     }).catch(err => console.error(`Error in private AI chat for ${aiPlayer.displayName}:`, err));
                 }
@@ -691,7 +692,8 @@ export const getDeterministicAIAction = (
                  return { actionType: 'guardian_protect', targetId: userId };
              }
              if (healableTargets.length === 0) healableTargets = potentialTargets;
-             return { actionType: role === 'doctor' ? 'doctor_heal' : 'guardian_protect', targetId: getMostSuspiciousTarget(healableTargets) };
+             const mostVulnerable = getMostSuspiciousTarget(alivePlayers.filter(p => p.role !== 'werewolf'));
+             return { actionType: role === 'doctor' ? 'doctor_heal' : 'guardian_protect', targetId: mostVulnerable };
         }
         case 'priest':
             if (!aiPlayer.priestSelfHealUsed && Math.random() < 0.2) return { actionType: 'priest_bless', targetId: userId };
@@ -767,7 +769,7 @@ export const getDeterministicAIAction = (
 // GAME LOGIC
 // ===============================================================================================
 
-export async function killPlayer(transaction: Transaction, gameRef: DocumentReference, gameData: Game, playerIdToKill: string | null, cause: GameEvent['type']): Promise<{ updatedGame: Game; triggeredHunterId: string | null; }> {
+export async function killPlayer(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, playerIdToKill: string | null, cause: GameEvent['type']): Promise<{ updatedGame: Game; triggeredHunterId: string | null; }> {
     let newGameData = { ...gameData };
     let triggeredHunterId: string | null = null;
     
@@ -945,13 +947,13 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
             isGameOver: true,
             winnerCode: 'wolves',
             message: "¡Los hombres lobo han ganado! Superan en número a los aldeanos y la oscuridad consume el pueblo.",
-            winners: [...gameData.players.filter(p => p.role && wolfRoles.includes(p.role!)), ...sharedWinners]
+            winners: [...gameData.players.filter(p => p.role && createRoleInstance(p.role).alliance === 'Lobos'), ...sharedWinners]
         };
     }
     
     const threats = alivePlayers.filter(p => (p.role && wolfRoles.includes(p.role)) || p.role === 'vampire' || (p.role === 'sleeping_fairy' && gameData.fairiesFound));
     if (threats.length === 0 && alivePlayers.length > 0) {
-        const villageWinners = alivePlayers.filter(p => !p.isCultMember && p.role !== 'sleeping_fairy' && p.role !== 'executioner'); 
+        const villageWinners = alivePlayers.filter(p => createRoleInstance(p.role!).alliance === 'Aldeanos'); 
         return {
             isGameOver: true,
             winnerCode: 'villagers',
@@ -1008,8 +1010,8 @@ export async function processNight(gameId: string) {
         actions.sort((a, b) => (actionPriority[a.actionType] || 99) - (actionPriority[b.actionType] || 99));
 
         let pendingDeaths: { playerId: string; cause: GameEvent['type']; }[] = [];
-        let hechiceraSaveTarget: string | null = null;
-        let hechiceraSaveUsed = false;
+        const blessedThisNight = new Set<string>();
+        const protectedThisNight = new Set<string>();
         
         for (const action of actions) {
              const player = game.players.find(p => p.userId === action.playerId);
@@ -1028,15 +1030,37 @@ export async function processNight(gameId: string) {
              }
              if(changes?.events) game.events.push(...changes.events);
              if(changes?.pendingDeaths) pendingDeaths.push(...changes.pendingDeaths);
+
+             if (action.actionType === 'priest_bless') {
+                blessedThisNight.add(action.targetId);
+             }
+             if (action.actionType === 'guardian_protect' || action.actionType === 'doctor_heal') {
+                protectedThisNight.add(action.targetId);
+             }
         }
 
         const hechiceraSaveAction = actions.find(a => a.actionType === 'hechicera_save');
-        if(hechiceraSaveAction) hechiceraSaveTarget = hechiceraSaveAction.targetId;
+        let hechiceraSaveUsed = false;
+        
+        const wolfAttack = actions.find(a => a.actionType === 'werewolf_kill');
 
-        if(hechiceraSaveTarget && pendingDeaths.some(d => d.playerId === hechiceraSaveTarget)) {
-            pendingDeaths = pendingDeaths.filter(d => d.playerId !== hechiceraSaveTarget);
+        if (hechiceraSaveAction && wolfAttack?.targetId === hechiceraSaveAction.targetId) {
             hechiceraSaveUsed = true;
+        } else {
+             if (wolfAttack && !blessedThisNight.has(wolfAttack.targetId) && !protectedThisNight.has(wolfAttack.targetId)) {
+                const targetPlayer = game.players.find(p => p.userId === wolfAttack.targetId);
+                if(targetPlayer?.role === 'cursed' && game.settings.cursed) {
+                     const cursedPlayerIndex = game.players.findIndex(p => p.userId === wolfAttack.targetId);
+                     if (cursedPlayerIndex !== -1) {
+                         game.players[cursedPlayerIndex].role = 'werewolf';
+                         game.events.push({ id: `evt_transform_cursed_${Date.now()}`, gameId, round: game.currentRound, type: 'player_transformed', message: `¡${targetPlayer.displayName} ha sido mordido y se ha transformado en Hombre Lobo!`, data: { targetId: targetPlayer.userId, newRole: 'werewolf' }, createdAt: Timestamp.now() });
+                     }
+                } else {
+                    pendingDeaths.push({ playerId: wolfAttack.targetId, cause: 'werewolf_kill' });
+                }
+             }
         }
+        
          const hechiceraIdx = game.players.findIndex(p => p.role === 'hechicera');
          if(hechiceraSaveUsed && hechiceraIdx !== -1) {
             if(game.players[hechiceraIdx].potions)
@@ -1070,11 +1094,10 @@ export async function processNight(gameId: string) {
             ? `Anoche, el pueblo perdió a ${newlyKilledPlayers.map(p => p.displayName).join(', ')}.`
             : "La noche transcurre en un inquietante silencio. Nadie ha muerto.";
         
-        const protectedThisNight = new Set<string>();
-        actions.filter(a => a.actionType === 'doctor_heal' || a.actionType === 'guardian_protect' || a.actionType === 'priest_bless' || (a.actionType === 'hechicera_save' && hechiceraSaveUsed))
-            .forEach(a => protectedThisNight.add(a.targetId));
+        const allProtections = new Set([...protectedThisNight, ...blessedThisNight]);
+        if(hechiceraSaveUsed && hechiceraSaveAction) allProtections.add(hechiceraSaveAction.targetId);
 
-        game.events.push({ id: `evt_night_${game.currentRound}`, gameId, round: game.currentRound, type: 'night_result', message: nightMessage, data: { killedPlayerIds: newlyKilledPlayers.map(p => p.userId), savedPlayerIds: Array.from(protectedThisNight) }, createdAt: Timestamp.now() });
+        game.events.push({ id: `evt_night_${game.currentRound}`, gameId, round: game.currentRound, type: 'night_result', message: nightMessage, data: { killedPlayerIds: newlyKilledPlayers.map(p => p.userId), savedPlayerIds: Array.from(allProtections) }, createdAt: Timestamp.now() });
 
         game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; p.isExiled = false; });
         const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
@@ -1348,21 +1371,21 @@ export async function sendChatMessage(
 }
 
 async function sendSpecialChatMessage(
+    db: Firestore,
     gameId: string,
     senderId: string,
     senderName: string,
     text: string,
     chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost'
 ) {
-    const { firestore } = getSdks();
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
 
-    const gameRef = doc(firestore, 'games', gameId);
+    const gameRef = doc(db, 'games', gameId);
 
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(db, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error('Game not found');
             const game = gameDoc.data() as Game;
@@ -1430,19 +1453,18 @@ async function sendSpecialChatMessage(
     }
 }
 
-export const sendWolfChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'wolf');
-export const sendFairyChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'fairy');
-export const sendLoversChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'lovers');
-export const sendTwinChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'twin');
-export const sendGhostChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'ghost');
+export const sendWolfChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'wolf');
+export const sendFairyChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'fairy');
+export const sendLoversChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'lovers');
+export const sendTwinChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'twin');
+export const sendGhostChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'ghost');
 
 
-export async function resetGame(gameId: string) {
-    const { firestore } = getSdks();
-    const gameRef = doc(firestore, 'games', gameId);
+export async function resetGame(db: Firestore, gameId: string) {
+    const gameRef = doc(db, 'games', gameId);
 
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Partida no encontrada.");
             const game = gameSnap.data() as Game;
@@ -1470,6 +1492,27 @@ export async function resetGame(gameId: string) {
     } catch (e: any) {
         console.error("Error resetting game:", e);
         return { error: e.message || 'No se pudo reiniciar la partida.' };
+    }
+}
+
+export async function setPhaseToNight(db: Firestore, gameId: string) {
+    const { firestore } = getSdks();
+    const gameRef = doc(firestore, "games", gameId) as DocumentReference<Game>;
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found");
+            const game = gameSnap.data();
+
+            if (game.phase === 'role_reveal' && game.status === 'in_progress') {
+                const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
+                transaction.update(gameRef, { phase: 'night', phaseEndsAt });
+            }
+        });
+        return { success: true };
+    } catch (error) {
+        console.error("Error setting phase to night:", error);
+        return { success: false, error: (error as Error).message };
     }
 }
 
