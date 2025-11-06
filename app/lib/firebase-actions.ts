@@ -549,16 +549,8 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
                 return;
             }
             
-            const hunterDeathEvent = [...game.events]
-                .sort((a, b) => toPlainObject(b.createdAt).getTime() - toPlainObject(a.createdAt).getTime())
-                .find(e => {
-                    const data = e.data || {};
-                    const killedIds = data.killedPlayerIds || (data.killedPlayerId ? [data.killedPlayerId] : []);
-                    if (killedIds.includes(hunterId)) return true;
-                    if (data.lynchedPlayerId === hunterId) return true;
-                    return false;
-                });
-
+            const hunterDeathEvent = [...game.events].sort((a, b) => toPlainObject(b.createdAt).getTime() - toPlainObject(a.createdAt).getTime()).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
+            
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
             const currentRound = game.currentRound;
             const newRound = nextPhase === 'night' ? currentRound + 1 : currentRound;

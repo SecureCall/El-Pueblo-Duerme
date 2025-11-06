@@ -13,10 +13,6 @@ export function GameMusic({ src }: GameMusicProps) {
     // This function will be attached to the first user interaction
     const handleFirstInteraction = () => {
       unlockAudio();
-      // Clean up listeners after the first interaction to avoid re-triggering
-      window.removeEventListener('click', handleFirstInteraction);
-      window.removeEventListener('keydown', handleFirstInteraction);
-      window.removeEventListener('touchstart', handleFirstInteraction);
     };
 
     // Attempt to set the music immediately. It will only play if audio is already unlocked.
