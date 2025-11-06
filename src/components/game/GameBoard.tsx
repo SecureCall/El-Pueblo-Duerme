@@ -468,7 +468,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                 </div>
             )}
 
-            {game.phase === 'hunter_shot' && !isHunterWaitingToShoot && (
+            {game.phase === 'hunter_shot' && !(game.pendingHunterShot === currentPlayer.userId) && (
                 <Card className="mt-8 bg-card/80">
                     <CardHeader>
                         <CardTitle className="font-headline text-2xl">¡Disparo del Cazador!</CardTitle>
@@ -485,6 +485,5 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
         </div>
     );
 }
-
 
     
