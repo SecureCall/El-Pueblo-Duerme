@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -236,7 +237,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
                 case 'vote_result': return <BanishedOverlay angelInPlay={isAngelInPlay} />;
                 case 'hunter_shot': return <HunterKillOverlay angelInPlay={isAngelInPlay} />;
                 case 'vampire_kill': return <VampireKillOverlay angelInPlay={isAngelInPlay} />;
-                case 'werewolf_kill': return <YouAreDeadOverlay angelInPlay={isAngelInPlay} />;
+                case 'werewolf_kill':
                 case 'troublemaker_duel':
                 case 'special':
                 case 'lover_death':
@@ -484,3 +485,4 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
         </div>
     );
 }
+

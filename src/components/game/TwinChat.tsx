@@ -8,7 +8,6 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Send, Users2 } from 'lucide-react';
-import { useFirebase } from '@/firebase';
 import { sendTwinChatMessage } from '@/lib/firebase-actions';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -24,7 +23,6 @@ interface TwinChatProps {
 
 export function TwinChat({ gameId, currentPlayer, messages }: TwinChatProps) {
     const [newMessage, setNewMessage] = useState('');
-    const { firestore } = useFirebase();
     const { toast } = useToast();
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -35,9 +33,9 @@ export function TwinChat({ gameId, currentPlayer, messages }: TwinChatProps) {
     }, [messages]);
 
     const handleSendMessage = async () => {
-        if (!newMessage.trim() || !firestore) return;
+        if (!newMessage.trim()) return;
         
-        const res = await sendTwinChatMessage(firestore, gameId, currentPlayer.userId, currentPlayer.displayName, newMessage);
+        const res = await sendTwinChatMessage(gameId, currentPlayer.userId, currentPlayer.displayName, newMessage);
 
         if (res.success) {
             setNewMessage('');
@@ -106,3 +104,4 @@ export function TwinChat({ gameId, currentPlayer, messages }: TwinChatProps) {
         </Card>
     );
 }
+

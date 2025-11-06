@@ -1120,17 +1120,94 @@ export async function processVotes(gameId: string) {
   const gameRef = doc(firestore, 'games', gameId);
   try {
     await runTransaction(firestore, async (transaction) => {
-      const gameDoc = await transaction.get(gameRef as DocumentReference<Game>);
-      if (!gameDoc.exists()) throw new Error("Game not found.");
-      let game = gameDoc.data()!;
-      if (game.phase !== 'day') return;
+        const gameSnap = await transaction.get(gameRef as DocumentReference<Game>);
+        if (!gameSnap.exists()) throw new Error("Game not found.");
+        let game = gameSnap.data()!;
+        if (game.phase !== 'day' || game.status === 'finished') return;
 
-      const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
-        transaction.update(gameRef, {
+        const lastVoteEvent = [...game.events].sort((a,b) => toPlainObject(b.createdAt) - toPlainObject(a.createdAt)).find(e => e.type === 'vote_result');
+        const isTiebreaker = lastVoteEvent?.data?.tiedPlayerIds && !lastVoteEvent?.data?.final;
+
+        const alivePlayers = game.players.filter(p => p.isAlive);
+        const voteCounts: Record<string, number> = {};
+        
+        alivePlayers.forEach(player => {
+            if (player.votedFor) {
+                if (!isTiebreaker || (lastVoteEvent.data.tiedPlayerIds && lastVoteEvent.data.tiedPlayerIds.includes(player.votedFor))) {
+                    voteCounts[player.votedFor] = (voteCounts[player.votedFor] || 0) + 1;
+                }
+            }
+        });
+
+        let maxVotes = 0;
+        let mostVotedPlayerIds: string[] = [];
+        for (const playerId in voteCounts) {
+            if (voteCounts[playerId] > maxVotes) {
+                maxVotes = voteCounts[playerId];
+                mostVotedPlayerIds = [playerId];
+            } else if (voteCounts[playerId] === maxVotes && maxVotes > 0) {
+                mostVotedPlayerIds.push(playerId);
+            }
+        }
+        
+        if (mostVotedPlayerIds.length > 1 && !isTiebreaker) {
+            game.events.push({ id: `evt_vote_tie_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: `¡La votación resultó en un empate! Se requiere una segunda votación solo entre los siguientes jugadores: ${mostVotedPlayerIds.map(id => game.players.find(p=>p.userId === id)?.displayName).join(', ')}.`, data: { tiedPlayerIds: mostVotedPlayerIds, final: false }, createdAt: Timestamp.now() });
+            game.players.forEach(p => { p.votedFor = null; });
+            const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
+            transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, phaseEndsAt }));
+            return;
+        }
+
+        let lynchedPlayerId: string | null = mostVotedPlayerIds[0] || null;
+        let lynchedPlayerObject: Player | null = null;
+        let triggeredHunterId: string | null = null;
+
+        if (lynchedPlayerId) {
+            lynchedPlayerObject = game.players.find(p => p.userId === lynchedPlayerId) || null;
+
+            if (lynchedPlayerObject?.role === 'prince' && game.settings.prince && !lynchedPlayerObject.princeRevealed) {
+                const playerIndex = game.players.findIndex(p => p.userId === lynchedPlayerId);
+                if (playerIndex > -1) game.players[playerIndex].princeRevealed = true;
+                game.events.push({
+                    id: `evt_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result',
+                    message: `${lynchedPlayerObject.displayName} ha sido sentenciado, ¡pero revela su identidad como Príncipe y sobrevive!`,
+                    createdAt: Timestamp.now(), data: { lynchedPlayerId: null, final: true },
+                });
+                lynchedPlayerId = null;
+            } else {
+                const result = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, lynchedPlayerId, 'vote_result');
+                game = result.updatedGame;
+                triggeredHunterId = result.triggeredHunterId;
+            }
+        } else {
+            const message = isTiebreaker ? 'Tras un segundo empate, el pueblo decide perdonar una vida hoy.' : 'El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.';
+            game.events.push({ id: `evt_vote_result_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message, data: { lynchedPlayerId: null, final: true }, createdAt: Timestamp.now() });
+        }
+
+        let gameOverInfo = await checkGameOver(game, lynchedPlayerObject);
+        if (gameOverInfo.isGameOver) {
+            game.status = "finished";
+            game.phase = "finished";
+            game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
+            transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: game.players, events: game.events }));
+            return;
+        }
+
+        if (triggeredHunterId) {
+            game.pendingHunterShot = triggeredHunterId;
+            transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot }));
+            return;
+        }
+
+        game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; p.isExiled = false; });
+        const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
+
+        transaction.update(gameRef, toPlainObject({
+            ...game,
             phase: 'night',
             currentRound: game.currentRound + 1,
             phaseEndsAt
-        });
+        }));
     });
     return { success: true };
   } catch (error: any) {
@@ -1371,21 +1448,21 @@ export async function sendChatMessage(
 }
 
 async function sendSpecialChatMessage(
-    db: Firestore,
     gameId: string,
     senderId: string,
     senderName: string,
     text: string,
     chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost'
 ) {
+    const { firestore } = getSdks();
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
 
-    const gameRef = doc(db, 'games', gameId);
+    const gameRef = doc(firestore, 'games', gameId);
 
     try {
-        await runTransaction(db, async (transaction) => {
+        await runTransaction(firestore, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error('Game not found');
             const game = gameDoc.data() as Game;
@@ -1453,11 +1530,11 @@ async function sendSpecialChatMessage(
     }
 }
 
-export const sendWolfChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'wolf');
-export const sendFairyChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'fairy');
-export const sendLoversChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'lovers');
-export const sendTwinChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'twin');
-export const sendGhostChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'ghost');
+export const sendWolfChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'wolf');
+export const sendFairyChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'fairy');
+export const sendLoversChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'lovers');
+export const sendTwinChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'twin');
+export const sendGhostChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'ghost');
 
 
 export async function resetGame(db: Firestore, gameId: string) {
