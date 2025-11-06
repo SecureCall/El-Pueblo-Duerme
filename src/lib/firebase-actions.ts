@@ -417,6 +417,7 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt'> &
 
         const player = game.players.find(p => p.userId === playerId);
         if (!player || !player.isAlive) throw new Error("Jugador no válido o muerto.");
+        if (player.isExiled) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
         if (player.usedNightAbility) return;
         
         const newAction: NightAction = { ...action, createdAt: Timestamp.now() };
@@ -1075,17 +1076,37 @@ export const getDeterministicAIAction = (
                 if (game.witchFoundSeer && p.role === 'witch') return false; 
                 return true;
             });
+
+            const prince = nonWolves.find(p => p.princeRevealed);
+            if (prince && Math.random() < 0.7) {
+                return { actionType: 'werewolf_kill', targetId: prince.userId };
+            }
+
+            const playersWhoVotedForWolves = game.players.filter(p => {
+                const lastVote = game.events.find(e => e.type === 'vote_result' && e.round === currentRound -1);
+                if (!lastVote) return false;
+                const lynchedPlayer = game.players.find(p => p.userId === lastVote.data.lynchedPlayerId);
+                return p.votedFor === lynchedPlayer?.userId && lynchedPlayer?.role && wolfRoles.includes(lynchedPlayer.role);
+            }).map(p => p.userId);
+
+            const suspiciousPlayers = nonWolves.filter(p => playersWhoVotedForWolves.includes(p.userId));
+            if (suspiciousPlayers.length > 0 && Math.random() < 0.6) {
+                 return { actionType: 'werewolf_kill', targetId: randomTarget(suspiciousPlayers) };
+            }
+
             const killCount = wolfCubRevengeActive ? 2 : 1;
             return { actionType: 'werewolf_kill', targetId: randomTarget(nonWolves, killCount) };
         }
         case 'seer':
         case 'seer_apprentice':
             if (role === 'seer' || apprenticeIsActive) {
+                const previousTargets = nightActions.filter(a => a.playerId === userId && a.actionType === 'seer_check').map(a => a.targetId);
+                const uninvestigatedTargets = potentialTargets.filter(p => !previousTargets.includes(p.userId));
+
                 const lastVoteEvent = game.events.find(e => e.type === 'vote_result' && e.round === currentRound - 1);
-                
                 const suspicionMap: Record<string, number> = {};
-                alivePlayers.forEach(p => {
-                    if (p.userId !== aiPlayer.userId) suspicionMap[p.userId] = 1;
+                (uninvestigatedTargets.length > 0 ? uninvestigatedTargets : potentialTargets).forEach(p => {
+                     suspicionMap[p.userId] = 1;
                 });
                 
                 if(lastVoteEvent?.data) {
@@ -1102,16 +1123,20 @@ export const getDeterministicAIAction = (
                 }
                 
                 const sortedSuspects = Object.keys(suspicionMap).sort((a,b) => suspicionMap[b] - suspicionMap[a]);
-                if (sortedSuspects.length > 0 && Math.random() < 0.6) {
+                if (sortedSuspects.length > 0 && Math.random() < 0.7) {
                     return { actionType: 'seer_check', targetId: sortedSuspects[0] };
                 }
 
-                return { actionType: 'seer_check', targetId: randomTarget(potentialTargets) };
+                return { actionType: 'seer_check', targetId: randomTarget(uninvestigatedTargets.length > 0 ? uninvestigatedTargets : potentialTargets) };
             }
             return { actionType: 'NONE', targetId: '' };
         case 'doctor':
         case 'guardian': {
             const healableTargets = potentialTargets.filter(p => p.lastHealedRound !== currentRound - 1);
+            const seer = healableTargets.find(p => p.role === 'seer');
+            if (seer && Math.random() < 0.6) {
+                 return { actionType: role === 'doctor' ? 'doctor_heal' : 'guardian_protect', targetId: seer.userId };
+            }
             if (role === 'guardian' && (aiPlayer.guardianSelfProtects || 0) < 1 && Math.random() < 0.2) {
                  return { actionType: 'guardian_protect', targetId: userId };
             }
@@ -1119,6 +1144,8 @@ export const getDeterministicAIAction = (
         }
         case 'priest':
             if (!aiPlayer.priestSelfHealUsed && Math.random() < 0.2) return { actionType: 'priest_bless', targetId: userId };
+            const seer = potentialTargets.find(p => p.role === 'seer');
+            if (seer && Math.random() < 0.5) return { actionType: 'priest_bless', targetId: seer.userId };
             return { actionType: 'priest_bless', targetId: randomTarget(potentialTargets) };
         case 'resurrector_angel':
             if (!aiPlayer.resurrectorAngelUsed && deadPlayers.length > 0) {
@@ -1243,4 +1270,5 @@ export async function runAIHunterShot(gameId: string, hunter: Player) {
 
 export { processNight, processVotes, processJuryVotes } from './game-engine';
 
+    
     
