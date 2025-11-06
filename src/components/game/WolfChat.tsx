@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -7,7 +8,6 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Send } from 'lucide-react';
-import { useFirebase } from '@/firebase';
 import { sendWolfChatMessage } from '@/lib/firebase-actions';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -23,7 +23,6 @@ interface WolfChatProps {
 
 export function WolfChat({ gameId, currentPlayer, messages }: WolfChatProps) {
     const [newMessage, setNewMessage] = useState('');
-    const { firestore } = useFirebase();
     const { toast } = useToast();
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -34,9 +33,9 @@ export function WolfChat({ gameId, currentPlayer, messages }: WolfChatProps) {
     }, [messages]);
 
     const handleSendMessage = async () => {
-        if (!newMessage.trim() || !firestore) return;
+        if (!newMessage.trim()) return;
         
-        const res = await sendWolfChatMessage(firestore, gameId, currentPlayer.userId, currentPlayer.displayName, newMessage);
+        const res = await sendWolfChatMessage(gameId, currentPlayer.userId, currentPlayer.displayName, newMessage);
 
         if (res.success) {
             setNewMessage('');
@@ -102,3 +101,5 @@ export function WolfChat({ gameId, currentPlayer, messages }: WolfChatProps) {
         </Card>
     );
 }
+
+    

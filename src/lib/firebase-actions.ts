@@ -255,44 +255,37 @@ const MINIMUM_PLAYERS = 3;
 
 const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
     let baseRoles: PlayerRole[] = [];
-    const numWerewolves = Math.max(1, Math.floor(playerCount / 4));
+    const numWerewolves = Math.max(1, Math.floor(playerCount / 5));
     
     for (let i = 0; i < numWerewolves; i++) {
         baseRoles.push('werewolf');
     }
     
-    while (baseRoles.length < playerCount) {
-        baseRoles.push('villager');
-    }
-
     const availableSpecialRoles: PlayerRole[] = (Object.keys(settings) as Array<keyof typeof settings>)
         .filter(key => {
             const roleKey = key as PlayerRole;
-            return settings[key] === true && roleKey !== 'werewolves' && roleKey !== 'fillWithAI' && roleKey !== 'isPublic';
+            return settings[key] === true && roleKey !== 'werewolves' && roleKey !== 'fillWithAI' && roleKey !== 'isPublic' && roleKey !== 'juryVoting';
         })
         .sort(() => Math.random() - 0.5) as PlayerRole[];
 
     let finalRoles = [...baseRoles];
-    let villagerIndices = finalRoles.map((role, index) => role === 'villager' ? index : -1).filter(index => index !== -1);
 
     for (const specialRole of availableSpecialRoles) {
-        if (!specialRole) continue;
-
+        if (finalRoles.length >= playerCount) break;
         if (specialRole === 'twin') {
-            if (villagerIndices.length >= 2) {
-                const idx1 = villagerIndices.pop()!;
-                const idx2 = villagerIndices.pop()!;
-                finalRoles[idx1] = 'twin';
-                finalRoles[idx2] = 'twin';
-            }
+             if (finalRoles.length + 2 <= playerCount) {
+                finalRoles.push('twin');
+                finalRoles.push('twin');
+             }
         } else {
-            if (villagerIndices.length > 0) {
-                const idx = villagerIndices.pop()!;
-                finalRoles[idx] = specialRole;
-            }
+            finalRoles.push(specialRole);
         }
     }
     
+    while (finalRoles.length < playerCount) {
+        finalRoles.push('villager');
+    }
+
     return finalRoles.sort(() => Math.random() - 0.5);
 };
 
@@ -875,7 +868,6 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
       let { updatedGame } = await killPlayer(transaction, gameRef, game, target1Id, 'troublemaker_duel');
       game = updatedGame;
       
-      // Re-get is not needed inside a transaction like this, but we need the result of the first kill
       let finalResult = await killPlayer(transaction, gameRef, game, target2Id, 'troublemaker_duel');
       game = finalResult.updatedGame;
 
@@ -941,7 +933,7 @@ export async function sendGhostMessage(gameId: string, ghostId: string, targetId
     }
 }
 
-// These are now wrappers that call the main logic in ai-logic.ts
-// We keep them here so the client-side components don't need to change.
 export { runAIActions, triggerAIVote, runAIHunterShot } from "./ai-logic";
 export { processNight, processVotes, processJuryVotes } from './game-engine';
+
+    

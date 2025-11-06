@@ -3,7 +3,6 @@
 
 import { useState } from "react";
 import type { Game, Player } from "@/types";
-import { useFirebase } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { sendGhostMessage } from "@/lib/firebase-actions";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
@@ -22,11 +21,9 @@ export function GhostAction({ game, currentPlayer, players }: GhostActionProps) 
     const [targetId, setTargetId] = useState<string>('');
     const [message, setMessage] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const { firestore } = useFirebase();
     const { toast } = useToast();
 
     const handleSubmit = async () => {
-        if (!firestore) return;
         if (!targetId) {
             toast({ variant: "destructive", title: "Debes elegir a un jugador." });
             return;
@@ -41,7 +38,7 @@ export function GhostAction({ game, currentPlayer, players }: GhostActionProps) 
         }
 
         setIsSubmitting(true);
-        const result = await sendGhostMessage(firestore, game.id, currentPlayer.userId, targetId, message);
+        const result = await sendGhostMessage(game.id, currentPlayer.userId, targetId, message);
         setIsSubmitting(false);
 
         if (result.success) {
@@ -101,3 +98,5 @@ export function GhostAction({ game, currentPlayer, players }: GhostActionProps) 
         </Card>
     );
 }
+
+    

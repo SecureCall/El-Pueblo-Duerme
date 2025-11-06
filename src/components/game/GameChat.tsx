@@ -187,3 +187,5 @@ export function GameChat({ game, currentPlayer, messages }: GameChatProps) {
         </Card>
     );
 }
+
+    

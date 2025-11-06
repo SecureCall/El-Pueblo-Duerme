@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -7,7 +8,6 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Send, Ghost } from 'lucide-react';
-import { useFirebase } from '@/firebase';
 import { sendGhostChatMessage } from '@/lib/firebase-actions';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -23,7 +23,6 @@ interface GhostSpectatorChatProps {
 
 export function GhostSpectatorChat({ gameId, currentPlayer, messages }: GhostSpectatorChatProps) {
     const [newMessage, setNewMessage] = useState('');
-    const { firestore } = useFirebase();
     const { toast } = useToast();
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -34,9 +33,9 @@ export function GhostSpectatorChat({ gameId, currentPlayer, messages }: GhostSpe
     }, [messages]);
 
     const handleSendMessage = async () => {
-        if (!newMessage.trim() || !firestore) return;
+        if (!newMessage.trim()) return;
         
-        const res = await sendGhostChatMessage(firestore, gameId, currentPlayer.userId, currentPlayer.displayName, newMessage);
+        const res = await sendGhostChatMessage(gameId, currentPlayer.userId, currentPlayer.displayName, newMessage);
 
         if (res.success) {
             setNewMessage('');
@@ -105,3 +104,5 @@ export function GhostSpectatorChat({ gameId, currentPlayer, messages }: GhostSpe
         </Card>
     );
 }
+
+    

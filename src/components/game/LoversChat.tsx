@@ -8,7 +8,6 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Send, Heart } from 'lucide-react';
-import { useFirebase } from '@/firebase';
 import { sendLoversChatMessage } from '@/lib/firebase-actions';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -24,7 +23,6 @@ interface LoversChatProps {
 
 export function LoversChat({ gameId, currentPlayer, messages }: LoversChatProps) {
     const [newMessage, setNewMessage] = useState('');
-    const { firestore } = useFirebase();
     const { toast } = useToast();
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -35,7 +33,7 @@ export function LoversChat({ gameId, currentPlayer, messages }: LoversChatProps)
     }, [messages]);
 
     const handleSendMessage = async () => {
-        if (!newMessage.trim() || !firestore) return;
+        if (!newMessage.trim()) return;
         
         const res = await sendLoversChatMessage(gameId, currentPlayer.userId, currentPlayer.displayName, newMessage);
 
@@ -106,3 +104,5 @@ export function LoversChat({ gameId, currentPlayer, messages }: LoversChatProps)
         </Card>
     );
 }
+
+    
