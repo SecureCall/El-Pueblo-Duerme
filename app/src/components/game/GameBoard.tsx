@@ -237,12 +237,12 @@ export function GameBoard({ gameId }: { gameId: string }) {
                 case 'vote_result': return <BanishedOverlay angelInPlay={isAngelInPlay} />;
                 case 'hunter_shot': return <HunterKillOverlay angelInPlay={isAngelInPlay} />;
                 case 'vampire_kill': return <VampireKillOverlay angelInPlay={isAngelInPlay} />;
-                case 'werewolf_kill': return <YouAreDeadOverlay angelInPlay={isAngelInPlay} />;
+                case 'werewolf_kill': return <YouAreDeadOverlay angelInPlay={isAngelInPlay} isWolfKill={true} />;
                 case 'troublemaker_duel':
                 case 'special':
                 case 'lover_death':
                 default:
-                    return <YouAreDeadOverlay angelInPlay={isAngelInPlay} />;
+                    return <YouAreDeadOverlay angelInPlay={isAngelInPlay} isWolfKill={false} />;
             }
         };
         return (
@@ -311,7 +311,7 @@ interface SpectatorContentProps {
 function SpectatorContent({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, currentPlayer, getCauseOfDeath, timeLeft, masterActionState, setMasterActionState, onMasterActionClick }: SpectatorContentProps) {
     const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
     const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
-    const voteEvent = events.find(e => e.type === 'vote_result' && e.round === (game.phase === 'day' ? game.currentRound : game.currentRound - 1));
+    const voteEvent = events.find(e => e.type === 'vote_result' && e.round === (game.phase === 'day' || game.phase === 'jury_voting' ? game.currentRound : game.currentRound - 1));
     const behaviorClueEvent = events.find(e => e.type === 'behavior_clue' && e.round === game.currentRound - 1);
 
     const getPhaseTitle = () => {
@@ -448,7 +448,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                             <JuryVote game={game} players={players} currentPlayer={currentPlayer} tiedPlayerIds={voteEvent.data.tiedPlayerIds} />
                         )}
 
-                        {showGhostChat && (
+                        {showGhostChat && ghostMessages && (
                             <GhostSpectatorChat gameId={game.id} currentPlayer={currentPlayer} messages={ghostMessages} />
                         )}
 
@@ -468,7 +468,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                 </div>
             )}
 
-            {game.phase === 'hunter_shot' && !isHunterWaitingToShoot && (
+            {game.phase === 'hunter_shot' && !(game.pendingHunterShot === currentPlayer.userId) && (
                 <Card className="mt-8 bg-card/80">
                     <CardHeader>
                         <CardTitle className="font-headline text-2xl">¡Disparo del Cazador!</CardTitle>
