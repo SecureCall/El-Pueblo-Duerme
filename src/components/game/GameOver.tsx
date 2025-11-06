@@ -135,7 +135,7 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
                     <div className="space-y-6 p-4">
                         {villageTeam.length > 0 && <RoleListSection title="El Pueblo" players={villageTeam} icon={<Shield className="text-blue-400"/>} />}
                         {wolfTeam.length > 0 && <RoleListSection title="Los Lobos" players={wolfTeam} icon={<Bot className="text-destructive"/>} />}
-                        {neutralTeam.length > 0 && <RoleListSection title="Roles Especiales" players={neutralTeam} icon={<Wand2 className="text-purple-400"/>} />}
+                        {neutralTeam.length > 0 && <RoleListSection title="Roles Neutrales" players={neutralTeam} icon={<Wand2 className="text-purple-400"/>} />}
                     </div>
                  </ScrollArea>
 
