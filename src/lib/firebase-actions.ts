@@ -1047,7 +1047,7 @@ export async function processNight(gameId: string) {
         if (wolfAttack?.targetId && hechiceraSaveAction?.targetId === wolfAttack.targetId) {
             hechiceraSaveUsed = true;
         } else {
-             if (wolfAttack && !blessedThisNight.has(wolfAttack.targetId) && !protectedThisNight.has(wolfAttack.targetId)) {
+             if (wolfAttack?.targetId && !blessedThisNight.has(wolfAttack.targetId) && !protectedThisNight.has(wolfAttack.targetId)) {
                 const targetPlayer = game.players.find(p => p.userId === wolfAttack.targetId);
                 if(targetPlayer?.role === 'cursed' && game.settings.cursed) {
                      const cursedPlayerIndex = game.players.findIndex(p => p.userId === wolfAttack.targetId);

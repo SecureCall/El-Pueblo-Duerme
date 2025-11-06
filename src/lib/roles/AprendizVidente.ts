@@ -1,4 +1,5 @@
 
+
 import { GameContext, GameStateChange, IRole, NightAction, RoleData, Player, PlayerRoleEnum } from "@/types";
 import { Vidente } from "./Vidente";
 

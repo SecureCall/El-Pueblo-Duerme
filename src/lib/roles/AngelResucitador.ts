@@ -1,8 +1,9 @@
+
 import type { GameContext, GameStateChange, IRole, NightAction, Player } from "@/types";
 import { PlayerRoleEnum } from "@/types";
 
 export class AngelResucitador implements IRole {
-  readonly name = PlayerRoleEnum.RESURRECTOR_ANGEL;
+  readonly name = PlayerRoleEnum.resurrector_angel;
   readonly description = "Una vez por partida, durante la noche, puedes elegir a un jugador muerto para devolverlo a la vida. El jugador resucitado volverá al juego con su rol original.";
   readonly team = 'Aldeanos';
   readonly alliance = 'Aldeanos';
