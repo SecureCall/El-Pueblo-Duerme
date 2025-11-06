@@ -51,6 +51,9 @@ export const PlayerGrid = React.memo(function PlayerGrid({
                 .filter(p => p.votedFor === player.userId)
                 .map(p => p.displayName);
 
+        const isSilenced = game.phase === 'day' && game.silencedPlayerId === player.userId;
+        const isExiled = game.phase === 'night' && game.exiledPlayerId === player.userId;
+
         return (
             <div key={player.userId} className="aspect-[3/4]">
                 <PlayerCard 
@@ -59,6 +62,8 @@ export const PlayerGrid = React.memo(function PlayerGrid({
                     isSelf={isSelf}
                     isLover={isLover}
                     isExecutionerTarget={currentPlayer.role === 'executioner' && player.userId === currentPlayer.executionerTargetId}
+                    isSilenced={isSilenced}
+                    isExiled={isExiled}
                     onClick={onPlayerClick}
                     isClickable={clickable && !isSelf}
                     isSelected={selectedPlayerIds.includes(player.userId)}
@@ -71,3 +76,5 @@ export const PlayerGrid = React.memo(function PlayerGrid({
     </div>
   );
 });
+
+    

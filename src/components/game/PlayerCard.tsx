@@ -6,7 +6,7 @@ import type { Player, GameEvent } from "@/types";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { Bot, Crown, Gavel, Skull, Heart, Swords, Edit } from "lucide-react";
+import { Bot, Crown, Gavel, Skull, Heart, Swords, Edit, MicOff, UserX } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { roleDetails, defaultRoleDetail } from "@/lib/roles";
@@ -19,6 +19,8 @@ interface PlayerCardProps {
   isSelf: boolean;
   isLover: boolean;
   isExecutionerTarget: boolean;
+  isSilenced: boolean;
+  isExiled: boolean;
   onClick?: (player: Player) => void;
   isClickable?: boolean;
   isSelected?: boolean;
@@ -32,6 +34,8 @@ export const PlayerCard = React.memo(function PlayerCard({
     isSelf,
     isLover,
     isExecutionerTarget,
+    isSilenced,
+    isExiled,
     onClick, 
     isClickable, 
     isSelected, 
@@ -156,6 +160,16 @@ export const PlayerCard = React.memo(function PlayerCard({
               {player.isAI && (
                 <Bot className="absolute -top-2 -left-2 z-10 h-5 w-5 text-muted-foreground" />
               )}
+              {isSilenced && (
+                 <div className="absolute top-1 left-1 bg-destructive/80 rounded-full p-1">
+                    <MicOff className="h-4 w-4 text-white" />
+                 </div>
+              )}
+               {isExiled && (
+                 <div className="absolute top-1 left-1 bg-gray-500/80 rounded-full p-1">
+                    <UserX className="h-4 w-4 text-white" />
+                 </div>
+              )}
               {player.princeRevealed && (
                  <Crown className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-10 h-5 w-5 text-yellow-400" />
               )}
@@ -194,6 +208,16 @@ export const PlayerCard = React.memo(function PlayerCard({
                 <p>¡Eres tú! Haz clic para cambiar tu avatar.</p>
             </TooltipContent>
          )}
+         {isSilenced && (
+            <TooltipContent>
+                <p>Este jugador ha sido silenciado para el día.</p>
+            </TooltipContent>
+         )}
+         {isExiled && (
+            <TooltipContent>
+                <p>Este jugador ha sido exiliado durante la noche.</p>
+            </TooltipContent>
+         )}
           {player.princeRevealed && (
              <TooltipContent>
                 <p>¡Príncipe revelado! Inmune al linchamiento.</p>
@@ -203,3 +227,5 @@ export const PlayerCard = React.memo(function PlayerCard({
     </TooltipProvider>
   );
 });
+
+    
