@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React from 'react';
@@ -14,6 +15,7 @@ interface PlayerGridProps {
     onPlayerClick?: (player: Player) => void;
     clickable?: boolean;
     selectedPlayerIds?: string[];
+    votesByPlayer?: Record<string, string[]>;
     masterActionState: MasterActionState;
     setMasterActionState: React.Dispatch<React.SetStateAction<MasterActionState>>;
 }
@@ -25,6 +27,7 @@ export const PlayerGrid = React.memo(function PlayerGrid({
     onPlayerClick, 
     clickable = false,
     selectedPlayerIds = [], 
+    votesByPlayer = {},
     masterActionState,
 }: PlayerGridProps) {
 
@@ -47,9 +50,7 @@ export const PlayerGrid = React.memo(function PlayerGrid({
         if (masterActionState.sourceId === player.userId) highlightColor = 'rgba(255, 255, 0, 0.7)';
         
         const isSelf = currentPlayer.userId === player.userId;
-        const votesForThisPlayer = game.players
-                .filter(p => p.votedFor === player.userId)
-                .map(p => p.displayName);
+        const votesForThisPlayer = votesByPlayer[player.userId] || [];
 
         const isSilenced = game.phase === 'day' && game.silencedPlayerId === player.userId;
         const isExiled = game.phase === 'night' && game.exiledPlayerId === player.userId;

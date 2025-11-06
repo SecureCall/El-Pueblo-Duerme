@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -52,7 +53,7 @@ function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, curre
         if (!firestore) return;
 
         setIsSubmitting(true);
-        const result = await submitTroublemakerAction(firestore, game.id, currentPlayer.userId, selectedPlayerIds[0], selectedPlayerIds[1]);
+        const result = await submitTroublemakerAction(game.id, currentPlayer.userId, selectedPlayerIds[0], selectedPlayerIds[1]);
         if (result.success) {
             toast({ title: '¡Caos desatado!', description: 'Has provocado una pelea mortal.' });
         } else {
@@ -145,7 +146,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
         }
 
         setIsSubmitting(true);
-        const result = await submitVote(firestore, game.id, currentPlayer.userId, selectedPlayerId);
+        const result = await submitVote(game.id, currentPlayer.userId, selectedPlayerId);
 
         if (result.error) {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
@@ -158,6 +159,19 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
     const sirenVote = isCharmed && isSirenAlive && siren?.votedFor ? players.find(p => p.userId === siren.votedFor) : null;
     const votedForPlayer = players.find(p => p.userId === currentPlayer.votedFor);
     
+    const votesByPlayer = players.filter(p => p.isAlive).reduce((acc, player) => {
+        if (player.votedFor) {
+            if (!acc[player.votedFor]) {
+                acc[player.votedFor] = [];
+            }
+            const voter = players.find(p => p.userId === player.userId);
+            if (voter) {
+                acc[player.votedFor].push(voter.displayName);
+            }
+        }
+        return acc;
+    }, {} as Record<string, string[]>);
+
     return (
         <Card className="bg-card/80 w-full h-full">
             <CardHeader>
@@ -222,6 +236,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                                 game={game}
                                 players={players.filter(p => p.isAlive)}
                                 currentPlayer={currentPlayer}
+                                votesByPlayer={votesByPlayer}
                                 masterActionState={masterActionState} 
                                 setMasterActionState={setMasterActionState}
                             />
@@ -253,6 +268,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                                 onPlayerClick={handlePlayerSelect}
                                 clickable={canPlayerVote}
                                 selectedPlayerIds={selectedPlayerId ? [selectedPlayerId] : []}
+                                votesByPlayer={votesByPlayer}
                                 masterActionState={masterActionState} 
                                 setMasterActionState={setMasterActionState}
                             />
@@ -272,6 +288,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
                             game={game}
                             players={players.filter(p => p.isAlive)}
                             currentPlayer={currentPlayer}
+                            votesByPlayer={votesByPlayer}
                             masterActionState={masterActionState} 
                             setMasterActionState={setMasterActionState}
                         />
@@ -284,5 +301,3 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
         </Card>
     );
 }
-
-    
