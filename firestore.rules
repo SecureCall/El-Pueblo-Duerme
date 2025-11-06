@@ -1,18 +1,88 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper function to check if a user is a player in the game
+    function isPlayer(gameId) {
+      return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p => p.userId == request.auth.uid);
+    }
+    
+    // Helper function to get player data from the current resource
+    function getPlayer(players) {
+        return players.filter(p => p.userId == request.auth.uid)[0];
+    }
+    
+    // Helper function to get player data from the incoming request
+    function getRequestPlayer(players) {
+        return request.resource.data.players.filter(p => p.userId == request.auth.uid)[0]
+    }
+
     match /games/{gameId} {
-      // Allow any authenticated user to read game documents.
-      // This is a broad rule to ensure the public games list can be fetched.
+      // Allow any authenticated user to read game documents for joining/spectating.
       allow read: if request.auth != null;
 
-      // Allow any authenticated user to create a game.
+      // Allow any authenticated user to create a new game document.
       allow create: if request.auth != null;
-
-      // Allow a user to update a game only if they are a player in that game.
-      allow update: if request.auth != null && request.auth.uid in resource.data.players;
+      
+      // Define update rules
+      allow update: if 
+          // Rule 1: The user must be a player in the game to update it.
+          isPlayer(gameId) &&
+          (
+            // Rule 2: Joining a game in 'waiting' state.
+            (
+                // A new player is being added.
+                request.resource.data.players.size() == resource.data.players.size() + 1 &&
+                // The game is in the 'waiting' state.
+                resource.data.status == 'waiting'
+            ) ||
+            // Rule 3: Updating your own player object (e.g., voting, submitting night action).
+            (
+                // The number of players hasn't changed.
+                request.resource.data.players.size() == resource.data.players.size() &&
+                // Validate that only the current user's player object is changing in a valid way.
+                (
+                    // Voting during the day phase
+                    (
+                        request.resource.data.phase == 'day' &&
+                        getPlayer(resource.data.players).votedFor == null &&
+                        getRequestPlayer(request.resource.data.players).votedFor != null
+                    ) ||
+                    // Submitting a night action
+                    (
+                        request.resource.data.phase == 'night' &&
+                        getPlayer(resource.data.players).usedNightAbility == false &&
+                        getRequestPlayer(request.resource.data.players).usedNightAbility == true
+                    ) ||
+                     // Submitting a jury vote
+                    (
+                        request.resource.data.phase == 'jury_voting' &&
+                        getPlayer(resource.data.players).isAlive == false
+                    )
+                )
+            ) ||
+             // Rule 4: Only the creator can start the game or change its state.
+            (
+                request.auth.uid == resource.data.creator &&
+                (
+                    // Starting the game
+                    (
+                        resource.data.status == 'waiting' && 
+                        request.resource.data.status == 'in_progress'
+                    ) ||
+                    // Processing phases
+                    (
+                        resource.data.status == 'in_progress' &&
+                        resource.data.phase != request.resource.data.phase
+                    ) ||
+                    // Resetting the game
+                    (
+                        resource.data.status == 'finished' &&
+                        request.resource.data.status == 'waiting'
+                    )
+                )
+            )
+          );
     }
   }
 }
