@@ -39,8 +39,6 @@ initializeAudio();
 export const unlockAudio = () => {
     if (audioUnlocked || typeof window === 'undefined') return;
     
-    console.log("Attempting to unlock audio contexts...");
-
     const unlockAndPause = (audio: HTMLAudioElement | null) => {
         if (!audio || (audio.played.length > 0 && !audio.paused)) return;
         

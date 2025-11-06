@@ -26,7 +26,6 @@ export const PlayerGrid = React.memo(function PlayerGrid({
     clickable = false,
     selectedPlayerIds = [], 
     masterActionState,
-    setMasterActionState,
 }: PlayerGridProps) {
 
   const otherTwinId = game.twins?.find(id => id !== currentPlayer.userId);
