@@ -1,6 +1,7 @@
 
 import type { GameContext, GameStateChange, IRole, NightAction, Player } from "@/types";
 import { PlayerRoleEnum } from "@/types";
+import { Timestamp } from "firebase/firestore";
 
 export class AngelResucitador implements IRole {
   readonly name = PlayerRoleEnum.resurrector_angel;
@@ -35,7 +36,7 @@ export class AngelResucitador implements IRole {
         type: 'special',
         message: `¡Un milagro! ${context.players[targetPlayerIndex].displayName} ha sido devuelto a la vida por un poder celestial.`,
         data: { targetId: action.targetId },
-        createdAt: new Date(),
+        createdAt: Timestamp.now(),
       }]
     };
   }
