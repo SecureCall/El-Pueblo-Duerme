@@ -2,7 +2,7 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { firebaseConfig } from './config';
+import { firebaseConfig } from '@/lib/firebase-config';
 
 // This file is for SERVER-SIDE initialization only.
 
