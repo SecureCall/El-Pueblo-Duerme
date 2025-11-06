@@ -881,26 +881,6 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
     }
     
     const alivePlayers = gameData.players.filter(p => p.isAlive);
-    
-    for (const p of alivePlayers) {
-        if (!p.role) continue;
-        const roleInstance = createRoleInstance(p.role);
-        if (roleInstance.checkWinCondition({ game: gameData, player: p, players: gameData.players })) {
-             const winners = gameData.players.filter(p_win => {
-                if (p.role === 'cupid' && p.isLover) { // Si cupido es un enamorado, gana con los enamorados
-                    return p_win.isLover;
-                }
-                if (p.role === 'twin' && gameData.twins?.includes(p.userId)) { // Los gemelos ganan con su alianza
-                    const playerInstance = createRoleInstance(p.role!);
-                    const twinInstance = createRoleInstance(p_win.role!);
-                    return playerInstance.alliance === twinInstance.alliance;
-                }
-                 return p_win.role && createRoleInstance(p_win.role).alliance === roleInstance.alliance
-            });
-             return { isGameOver: true, message: roleInstance.getWinMessage(p), winnerCode: p.role || 'special', winners };
-        }
-    }
-
     const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy', 'witch']; 
     
     let sharedWinners: Player[] = [];
@@ -939,25 +919,86 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
         }
     }
 
+     const aliveCultMembers = alivePlayers.filter(p => p.isCultMember);
+    if (gameData.settings.cult_leader && aliveCultMembers.length > 0 && aliveCultMembers.length === alivePlayers.length) {
+         const cultLeader = gameData.players.find(p => p.role === 'cult_leader');
+         return {
+            isGameOver: true,
+            winnerCode: 'cult',
+            message: '¡El Culto ha ganado! Todos los supervivientes se han unido a la sombra del Líder.',
+            winners: cultLeader ? [cultLeader, ...sharedWinners] : [...aliveCultMembers, ...sharedWinners]
+        };
+    }
+    
+    if (gameData.settings.vampire && gameData.players.some(p => p.role === 'vampire' && p.isAlive) && (gameData.vampireKills || 0) >= 3) {
+        return {
+            isGameOver: true,
+            winnerCode: 'vampire',
+            message: '¡El Vampiro ha ganado! Ha reclamado sus tres víctimas y ahora reina en la oscuridad.',
+            winners: [...gameData.players.filter(p => p.role === 'vampire'), ...sharedWinners]
+        };
+    }
+
+    const fisherman = gameData.players.find(p => p.role === 'fisherman' && p.isAlive);
+    if (gameData.settings.fisherman && fisherman && gameData.boat) {
+        const aliveVillagers = alivePlayers.filter(p => p.role && !wolfRoles.includes(p.role) && p.role !== 'vampire' && p.role !== 'cult_leader' && p.role !== 'drunk_man' && p.role !== 'executioner');
+        if (aliveVillagers.length > 0 && aliveVillagers.every(v => gameData.boat.includes(v.userId))) {
+            return {
+                isGameOver: true,
+                winnerCode: 'fisherman',
+                message: `¡El Pescador ha ganado! Ha conseguido salvar a todos los aldeanos en su barco.`,
+                winners: [fisherman, ...sharedWinners],
+            };
+        }
+    }
+
+    const banshee = gameData.players.find(p => p.role === 'banshee');
+    if (gameData.settings.banshee && banshee?.isAlive) {
+        const screams = banshee.bansheeScreams || {};
+        if (Object.keys(screams).length >= 2) {
+             const scream1TargetId = screams[Object.keys(screams)[0]];
+             const scream2TargetId = screams[Object.keys(screams)[1]];
+             const target1 = gameData.players.find(p => p.userId === scream1TargetId);
+             const target2 = gameData.players.find(p => p.userId === scream2TargetId);
+
+             if (target1 && target2 && !target1.isAlive && !target2.isAlive) {
+                return {
+                    isGameOver: true,
+                    winnerCode: 'banshee',
+                    message: `¡La Banshee ha ganado! Sus dos gritos han sentenciado a muerte y ha cumplido su objetivo.`,
+                    winners: [banshee, ...sharedWinners],
+                };
+             }
+        }
+    }
+    
+    if (gameData.fairyKillUsed) {
+        const fairies = gameData.players.filter(p => p.role === 'seeker_fairy' || p.role === 'sleeping_fairy');
+        const fairiesAreAlive = fairies.every(f => f.isAlive);
+        if (fairiesAreAlive) {
+            return {
+                isGameOver: true,
+                winnerCode: 'fairies',
+                message: '¡Las Hadas han ganado! Han lanzado su maldición y cumplido su misterioso objetivo.',
+                winners: [...fairies, ...sharedWinners]
+            };
+        }
+    }
+
     const aliveWerewolves = alivePlayers.filter(p => p.role && wolfRoles.includes(p.role));
-    const nonWolves = alivePlayers.filter(p => p.role && createRoleInstance(p.role).alliance === 'Aldeanos');
+    const nonWolves = alivePlayers.filter(p => p.role && !wolfRoles.includes(p.role));
     if (aliveWerewolves.length > 0 && aliveWerewolves.length >= nonWolves.length) {
         return {
             isGameOver: true,
             winnerCode: 'wolves',
             message: "¡Los hombres lobo han ganado! Superan en número a los aldeanos y la oscuridad consume el pueblo.",
-            winners: [...gameData.players.filter(p => p.role && createRoleInstance(p.role).alliance === 'Lobos'), ...sharedWinners]
+            winners: [...gameData.players.filter(p => p.role && wolfRoles.includes(p.role)), ...sharedWinners]
         };
     }
     
-    const threats = alivePlayers.filter(p => {
-        if (!p.role) return false;
-        const roleInstance = createRoleInstance(p.role);
-        return roleInstance.alliance === 'Lobos' || roleInstance.alliance === 'Neutral';
-    });
-    
+    const threats = alivePlayers.filter(p => (p.role && wolfRoles.includes(p.role)) || p.role === 'vampire' || (p.role === 'sleeping_fairy' && gameData.fairiesFound));
     if (threats.length === 0 && alivePlayers.length > 0) {
-        const villageWinners = alivePlayers.filter(p => p.role && createRoleInstance(p.role).alliance === 'Aldeanos');
+        const villageWinners = alivePlayers.filter(p => !p.isCultMember && p.role !== 'sleeping_fairy' && p.role !== 'executioner'); 
         return {
             isGameOver: true,
             winnerCode: 'villagers',
@@ -1726,5 +1767,3 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
-
-      

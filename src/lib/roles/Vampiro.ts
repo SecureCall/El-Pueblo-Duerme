@@ -41,7 +41,9 @@ export class Vampiro implements IRole {
   }
 
   checkWinCondition(context: GameContext): boolean {
-    return (context.game.vampireKills || 0) >= 3;
+    const { player, game } = context;
+    if (!player.isAlive) return false;
+    return (game.vampireKills || 0) >= 3;
   }
   
   toJSON(): RoleData {
