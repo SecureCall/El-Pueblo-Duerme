@@ -10,7 +10,8 @@ import {
   type Game, 
   type Player, 
   type GameEvent, 
-  type PlayerRole
+  type PlayerRole,
+  type NightAction
 } from "@/types";
 import { toPlainObject } from "./utils";
 import { createRoleInstance } from "./roles/role-factory";
@@ -56,6 +57,29 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
        }
   }
 
+  const lookoutAction = actions.find(a => a.actionType === 'lookout_spy');
+  if (lookoutAction && Math.random() < 0.4) {
+      pendingDeaths.push({ playerId: lookoutAction.playerId, cause: 'special' });
+      game.events.push({ id: `evt_lookout_fail_${Date.now()}`, gameId: game.id, round: game.currentRound, type: 'special', message: `¡${game.players.find(p => p.userId === lookoutAction.playerId)?.displayName} ha sido descubierto espiando y ha muerto!`, data: { targetId: lookoutAction.playerId }, createdAt: Timestamp.now() });
+  } else if (lookoutAction) {
+      const visits: Record<string, string[]> = {};
+      actions.forEach(act => {
+          if (act.playerId !== lookoutAction.playerId && act.targetId) {
+              act.targetId.split('|').forEach(tid => {
+                  if (!visits[tid]) visits[tid] = [];
+                  const visitor = game.players.find(p => p.userId === act.playerId);
+                  if (visitor) visits[tid].push(visitor.displayName);
+              });
+          }
+      });
+      const visitorsToTarget = visits[lookoutAction.targetId] || [];
+      if (visitorsToTarget.length > 0) {
+          game.events.push({ id: `evt_lookout_success_${Date.now()}`, gameId: game.id, round: game.currentRound, type: 'special', message: `Mientras vigilabas, viste a ${[...new Set(visitorsToTarget)].join(', ')} visitar la casa.`, data: { targetId: lookoutAction.playerId }, createdAt: Timestamp.now() });
+      } else {
+          game.events.push({ id: `evt_lookout_success_${Date.now()}`, gameId: game.id, round: game.currentRound, type: 'special', message: `La noche fue tranquila en la casa que vigilabas. No viste a nadie.`, data: { targetId: lookoutAction.playerId }, createdAt: Timestamp.now() });
+      }
+  }
+
   const wolfAttackAction = actions.find(a => a.actionType === 'werewolf_kill');
   if (wolfAttackAction && game.leprosaBlockedRound !== game.currentRound) {
       const targetPlayer = game.players.find(p => p.userId === wolfAttackAction.targetId);
@@ -85,8 +109,7 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
       game = updatedGame;
       if(newHunterId) triggeredHunterId = newHunterId;
 
-      // Check for Leprosa effect
-      const deadPlayer = game.players.find(p => p.userId === death.playerId);
+      const deadPlayer = initialPlayerState.find((p: Player) => p.userId === death.playerId);
       if (deadPlayer?.role === 'leprosa' && death.cause === 'werewolf_kill') {
           game.leprosaBlockedRound = game.currentRound + 1;
       }
@@ -325,7 +348,7 @@ async function performKill(transaction: Transaction, gameRef: DocumentReference<
         
         if (deathChanges?.game) newGameData = { ...newGameData, ...deathChanges.game };
         if (deathChanges?.pendingDeaths) killQueue.push(...deathChanges.pendingDeaths.map(d => d.playerId));
-        if (newGameData.pendingHunterShot) triggeredHunterId = newGameData.pendingHunterShot;
+        if (deathChanges?.game?.pendingHunterShot) triggeredHunterId = deathChanges.game.pendingHunterShot;
 
         const checkAndQueueChainDeath = (linkedIds: (string[] | null | undefined), deadPlayer: Player, messageTemplate: string, eventType: GameEvent['type']) => {
             if (!linkedIds || !linkedIds.includes(deadPlayer.userId)) return;
@@ -398,7 +421,8 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
     // Check individual win conditions first
     if (lynchedPlayer) {
         const roleInstance = createRoleInstance(lynchedPlayer.role);
-        if (roleInstance.checkWinCondition({ game: gameData, players: gameData.players, player: lynchedPlayer })) {
+        const winResult = roleInstance.checkWinCondition({ game: gameData, players: gameData.players, player: lynchedPlayer });
+        if (winResult) {
             return {
                 isGameOver: true,
                 winnerCode: lynchedPlayer.role || 'special',
@@ -409,7 +433,8 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
     }
     for (const player of alivePlayers) {
         const roleInstance = createRoleInstance(player.role);
-        if (roleInstance.checkWinCondition({ game: gameData, players: gameData.players, player })) {
+         const winResult = roleInstance.checkWinCondition({ game: gameData, players: gameData.players, player });
+        if (winResult) {
              return {
                 isGameOver: true,
                 winnerCode: player.role || 'special',
@@ -422,9 +447,8 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
     // Team-based win conditions
     const aliveWolves = alivePlayers.filter(p => p.role && createRoleInstance(p.role).alliance === 'Lobos');
     const aliveVillagers = alivePlayers.filter(p => p.role && createRoleInstance(p.role).alliance === 'Aldeanos');
-    const aliveNeutrals = alivePlayers.filter(p => p.role && createRoleInstance(p.role).alliance === 'Neutral');
 
-    if (aliveWolves.length > 0 && aliveWolves.length >= (aliveVillagers.length + aliveNeutrals.length)) {
+    if (aliveWolves.length > 0 && aliveWolves.length >= aliveVillagers.length) {
         return {
             isGameOver: true,
             winnerCode: 'wolves',
@@ -434,11 +458,13 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
     }
     
     if (aliveWolves.length === 0 && alivePlayers.length > 0) {
+        // Exclude neutrals who win alone from the villager victory
+        const villageWinners = alivePlayers.filter(p => createRoleInstance(p.role).alliance === 'Aldeanos');
         return {
             isGameOver: true,
             winnerCode: 'villagers',
             message: "¡El pueblo ha ganado! Todas las amenazas han sido eliminadas.",
-            winners: aliveVillagers,
+            winners: villageWinners,
         };
     }
     
