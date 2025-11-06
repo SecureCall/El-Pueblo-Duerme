@@ -1228,7 +1228,7 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
         await runTransaction(firestore, async (transaction) => {
             const gameDoc = await transaction.get(gameRef as DocumentReference<Game>);
             if (!gameDoc.exists()) throw new Error("Game not found");
-            let game = gameDoc.data() as Game;
+            let game = gameDoc.data()!;
 
             if (actionId === 'master_kill') {
                  if (game.masterKillUsed) throw new Error("El Zarpazo del Destino ya ha sido utilizado.");
@@ -1572,7 +1572,7 @@ export async function resetGame(db: Firestore, gameId: string) {
     }
 }
 
-export async function setPhaseToNight(db: Firestore, gameId: string) {
+export async function setPhaseToNight(gameId: string) {
     const { firestore } = getSdks();
     const gameRef = doc(firestore, "games", gameId) as DocumentReference<Game>;
     try {

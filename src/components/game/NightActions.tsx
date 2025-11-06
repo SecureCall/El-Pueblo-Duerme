@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -31,7 +32,6 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [seerResult, setSeerResult] = useState<{ targetName: string; isWerewolf: boolean; } | null>(null);
     const [hechiceraAction, setHechiceraAction] = useState<HechiceraAction>('poison');
-    const { firestore } = useFirebase();
     const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
     
     const { toast } = useToast();
@@ -178,7 +178,6 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     }
 
     const handleSubmit = async () => {
-        if (!firestore) return;
         if (selectedPlayerIds.length !== selectionLimit && !isLookout && currentPlayer.role !== 'sleeping_fairy') {
             toast({ variant: 'destructive', title: `Debes seleccionar ${selectionLimit} jugador(es).` });
             return;
@@ -189,7 +188,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         
         setIsSubmitting(true);
 
-        const result = await submitNightAction(firestore, {
+        const result = await submitNightAction({
             gameId: game.id,
             round: game.currentRound,
             playerId: currentPlayer.userId,
@@ -199,7 +198,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         
         if (result.success) {
             if (actionType === 'seer_check') {
-                 const seerResultData = await getSeerResult(firestore, game.id, currentPlayer.userId, selectedPlayerIds[0]);
+                 const seerResultData = await getSeerResult(game.id, currentPlayer.userId, selectedPlayerIds[0]);
                 if (seerResultData.success) {
                     setSeerResult({
                         targetName: seerResultData.targetName!,
