@@ -1,5 +1,4 @@
 
-
 import { GameContext, GameStateChange, IRole, NightAction, Player, RoleData, Team } from "@/types";
 import { PlayerRoleEnum } from "@/types";
 
@@ -46,19 +45,19 @@ export class HadaBuscadora implements IRole {
 
   checkWinCondition(context: GameContext): boolean {
     const { game, player } = context;
+    if (!game.fairiesFound || !game.fairyKillUsed) return false;
+    
     const otherFairy = game.players.find((p: Player) => p.role === 'sleeping_fairy');
     
-    if (game.fairiesFound && player.isAlive && otherFairy?.isAlive) {
-      const alivePlayers = game.players.filter((p: Player) => p.isAlive);
-      if (alivePlayers.length === 2) {
-        return true;
-      }
+    if (player.isAlive && otherFairy?.isAlive) {
+       return true;
     }
+
     return false;
   }
   
   getWinMessage(player: Player): string {
-    return "Las Hadas han ganado.";
+    return "¡Las Hadas han ganado! Han lanzado su maldición y cumplido su misterioso objetivo.";
   }
 
   toJSON(): RoleData {

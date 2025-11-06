@@ -4,7 +4,7 @@ import { PlayerRoleEnum } from "@/types";
 
 export class Banshee implements IRole {
   readonly name = PlayerRoleEnum.banshee;
-  readonly description = "Te despiertas una vez por partida para lanzar tu grito y señalar a un jugador. Si muere esa noche o al día siguiente, podrás lanzar un último grito en otra noche. Si aciertas ambas veces, ganas.";
+  readonly description = "Cada noche, predices la muerte de un jugador. Si ese jugador muere esa misma noche (por cualquier causa), ganas un punto. Ganas la partida si acumulas 2 puntos.";
   readonly team = 'Neutral';
   readonly alliance = 'Neutral';
 
@@ -34,19 +34,31 @@ export class Banshee implements IRole {
       return false;
     }
     
-    const screams = Object.values(player.bansheeScreams);
+    const screams = Object.entries(player.bansheeScreams);
     if (screams.length < 2) {
       return false;
     }
+    
+    let correctPredictions = 0;
 
-    const targets = screams.map(targetId => game.players.find((p: Player) => p.userId === targetId));
-    const allTargetsAreDead = targets.every(target => target && !target.isAlive);
+    for (const [roundStr, targetId] of screams) {
+        const round = parseInt(roundStr, 10);
+        // Find deaths that happened in the same night or the following day phase
+        const deathEvent = game.events.find(e => 
+            (e.round === round && (e.type === 'night_result' || e.type === 'werewolf_kill' || e.type === 'vampire_kill' || e.type === 'special')) ||
+            (e.round === round && e.type === 'vote_result')
+        );
 
-    return allTargetsAreDead;
+        if (deathEvent?.data?.killedPlayerIds?.includes(targetId) || deathEvent?.data?.lynchedPlayerId === targetId) {
+            correctPredictions++;
+        }
+    }
+
+    return correctPredictions >= 2;
   }
 
   getWinMessage(player: Player): string {
-    return `¡La Banshee ha ganado! Sus dos gritos han sentenciado a muerte y ha cumplido su objetivo.`;
+    return `¡La Banshee ha ganado! Sus gritos han sentenciado a muerte y ha cumplido su objetivo.`;
   }
   
   toJSON(): RoleData {

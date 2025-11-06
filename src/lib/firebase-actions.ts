@@ -1767,3 +1767,43 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
     return { error: error.message || "No se pudo realizar la acción." };
   }
 }
+
+export async function sendGhostMessage(gameId: string, ghostId: string, targetId: string, message: string) {
+    const { firestore } = getSdks();
+    const gameRef = doc(firestore, 'games', gameId);
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error("Game not found");
+            const game = gameDoc.data() as Game;
+            const playerIndex = game.players.findIndex(p => p.userId === ghostId);
+
+            if (playerIndex === -1) throw new Error("Player not found.");
+            const player = game.players[playerIndex];
+
+            if (player.role !== 'ghost' || player.isAlive || player.ghostMessageSent) {
+                throw new Error("No tienes permiso para realizar esta acción.");
+            }
+
+            const ghostEvent: GameEvent = {
+                id: `evt_ghost_${Date.now()}`, gameId, round: game.currentRound, type: 'special',
+                message: `Has recibido un misterioso mensaje desde el más allá: "${message}"`,
+                createdAt: Timestamp.now(), data: { targetId: targetId, originalMessage: message },
+            };
+
+            game.players[playerIndex].ghostMessageSent = true;
+            game.events.push(ghostEvent);
+
+            transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events }));
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error sending ghost message:", error);
+         if (error.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
+            errorEmitter.emit('permission-error', permissionError);
+            return { error: "Permiso denegado para enviar el mensaje." };
+        }
+        return { success: false, error: error.message || "No se pudo enviar el mensaje." };
+    }
+}
