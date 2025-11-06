@@ -40,17 +40,22 @@ export const unlockAudio = () => {
     if (audioUnlocked || typeof window === 'undefined') return;
     
     const unlockAndPause = (audio: HTMLAudioElement | null) => {
-        if (!audio || (audio.played.length > 0 && !audio.paused)) return;
-        
+        if (!audio) return;
+        // Check if context is suspended. It's a good practice.
+        if (audio.HMTL)
+        if ((audio.HMTL as any).context && (audio.HMTL as any).context.state === 'suspended') {
+           (audio.HMTL as any).context.resume();
+        }
+
+        // Try playing and pausing to unlock.
         const promise = audio.play();
         if (promise !== undefined) {
             promise.then(() => {
                 audio.pause();
-                 if (audio.loop) {
+                if (audio.loop) {
                     audio.currentTime = 0;
                 }
             }).catch(error => {
-                // NotAllowedError is expected if user hasn't interacted yet.
                 if (error.name !== 'NotAllowedError') {
                     console.warn(`Audio unlock for one channel failed unexpectedly.`, error);
                 }
@@ -73,7 +78,6 @@ export const unlockAudio = () => {
 export const playNarration = (narrationFile: string) => {
     if (!narrationAudio) return;
     if (!audioUnlocked) {
-        // Silently fail if audio not unlocked, as unlockAudio will be called on first interaction.
         return;
     }
     

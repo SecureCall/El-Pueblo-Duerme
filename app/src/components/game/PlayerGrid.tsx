@@ -1,10 +1,12 @@
 
+
 "use client";
 
 import React from 'react';
 import type { Game, Player, GameEvent } from "@/types";
 import { PlayerCard } from "./PlayerCard";
 import type { MasterActionState } from './MasterActionBar';
+import { cn } from '@/lib/utils';
 
 interface PlayerGridProps {
     game: Game;
@@ -13,10 +15,9 @@ interface PlayerGridProps {
     onPlayerClick?: (player: Player) => void;
     clickable?: boolean;
     selectedPlayerIds?: string[];
-    highlightedPlayers?: { userId: string, color: string }[];
     votesByPlayer?: Record<string, string[]>;
-    masterActionState?: MasterActionState;
-    setMasterActionState?: React.Dispatch<React.SetStateAction<MasterActionState>>;
+    masterActionState: MasterActionState;
+    setMasterActionState: React.Dispatch<React.SetStateAction<MasterActionState>>;
 }
 
 export const PlayerGrid = React.memo(function PlayerGrid({ 
@@ -26,24 +27,49 @@ export const PlayerGrid = React.memo(function PlayerGrid({
     onPlayerClick, 
     clickable = false,
     selectedPlayerIds = [], 
-    highlightedPlayers = [],
     votesByPlayer = {},
+    masterActionState,
 }: PlayerGridProps) {
+
+  const otherTwinId = game.twins?.find(id => id !== currentPlayer.userId);
+  const otherLoverId = game.lovers?.find(id => id !== currentPlayer.userId);
+
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
+    <div className={cn(
+        "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4",
+        masterActionState.active && "cursor-crosshair"
+    )}>
       {players.map((player) => {
-        const highlight = highlightedPlayers.find(hp => hp.userId === player.userId);
+        
+        const isTwin = player.userId === otherTwinId;
+        const isLover = player.userId === otherLoverId;
+
+        let highlightColor;
+        if (isTwin) highlightColor = 'rgba(135, 206, 250, 0.7)';
+        if (isLover) highlightColor = 'rgba(244, 114, 182, 0.7)';
+        if (masterActionState.sourceId === player.userId) highlightColor = 'rgba(255, 255, 0, 0.7)';
+        
+        const isSelf = currentPlayer.userId === player.userId;
+        const votesForThisPlayer = votesByPlayer[player.userId] || [];
+
+        const isSilenced = game.silencedPlayerId === player.userId;
+        const isExiled = game.exiledPlayerId === player.userId;
+
         return (
             <div key={player.userId} className="aspect-[3/4]">
                 <PlayerCard 
-                    game={game}
                     player={player} 
-                    currentPlayer={currentPlayer}
+                    isCreator={game.creator === player.userId}
+                    isSelf={isSelf}
+                    isLover={isLover}
+                    isExecutionerTarget={currentPlayer.role === 'executioner' && player.userId === currentPlayer.executionerTargetId}
+                    isSilenced={isSilenced}
+                    isExiled={isExiled}
                     onClick={onPlayerClick}
-                    isClickable={clickable && player.isAlive && player.userId !== currentPlayer.userId}
+                    isClickable={clickable && !isSelf}
                     isSelected={selectedPlayerIds.includes(player.userId)}
-                    highlightColor={highlight?.color}
-                    votes={votesByPlayer[player.userId]}
+                    highlightColor={highlightColor}
+                    votes={votesForThisPlayer}
                 />
             </div>
         )
@@ -51,3 +77,6 @@ export const PlayerGrid = React.memo(function PlayerGrid({
     </div>
   );
 });
+
+    
+

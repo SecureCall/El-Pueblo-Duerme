@@ -21,14 +21,11 @@ import {
   type ChatMessage,
   type AIPlayerPerspective
 } from "@/types";
-import { errorEmitter } from "@/firebase/error-emitter";
-import { FirestorePermissionError } from "@/firebase/errors";
 import { toPlainObject } from "./utils";
 import { masterActions } from "./master-actions";
 import { getSdks } from "@/firebase/server-init";
 import { secretObjectives } from "./objectives";
 import { processJuryVotes, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes, processNight } from './game-engine';
-import { roleDetails } from "./roles";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 
 
@@ -218,15 +215,6 @@ export async function joinGame(
     return { success: true };
 
   } catch(error: any) {
-    if (error.code === 'permission-denied') {
-        const permissionError = new FirestorePermissionError({
-            path: gameRef.path,
-            operation: 'update',
-            requestResourceData: { players: '...' },
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        return { error: "Permiso denegado al unirse a la partida." };
-    }
     console.error("Error joining game:", error);
     return { error: `No se pudo unir a la partida: ${error.message}` };
   }
@@ -273,7 +261,7 @@ const generateRoles = (playerCount: number, settings: Game['settings']): (Player
     const availableSpecialRoles: PlayerRole[] = (Object.keys(settings) as Array<keyof typeof settings>)
         .filter(key => {
             const roleKey = key as PlayerRole;
-            return settings[key] === true && roleKey && roleDetails[roleKey] && roleKey !== 'werewolf' && roleKey !== 'villager';
+            return settings[key] === true && roleKey && roleKey !== 'werewolf' && roleKey !== 'villager';
         })
         .sort(() => Math.random() - 0.5) as PlayerRole[];
     
@@ -390,22 +378,14 @@ export async function startGame(gameId: string, creatorId: string) {
         return { success: true };
 
     } catch (e: any) {
-        if (e.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({
-                path: gameRef.path,
-                operation: 'update',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            return { error: "Permiso denegado al iniciar la partida." };
-        }
         console.error("Error starting game:", e);
         return { error: e.message || 'Error al iniciar la partida.' };
     }
 }
 
-export async function submitNightAction(action: Omit<NightAction, 'createdAt'> & { round: number }) {
+export async function submitNightAction(action: Omit<NightAction, 'createdAt'>) {
   const { firestore } = getSdks();
-  const { gameId, playerId } = action;
+  const { gameId, playerId, actionType, targetId } = action;
   const gameRef = doc(firestore, 'games', gameId);
   try {
     await runTransaction(firestore, async (transaction) => {
@@ -424,7 +404,38 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt'> &
         
         const updatedPlayers = game.players.map(p => {
           if (p.userId === playerId) {
-            return { ...p, usedNightAbility: true };
+            let updatedPlayer = { ...p, usedNightAbility: true };
+            // Role specific logic that needs to be persisted immediately
+             switch (actionType) {
+                case 'hechicera_poison':
+                    updatedPlayer.potions = { ...updatedPlayer.potions, poison: game.currentRound };
+                    break;
+                case 'hechicera_save':
+                    updatedPlayer.potions = { ...updatedPlayer.potions, save: game.currentRound };
+                    break;
+                case 'priest_bless':
+                    if (targetId === playerId) updatedPlayer.priestSelfHealUsed = true;
+                    break;
+                case 'guardian_protect':
+                     if (targetId === playerId) updatedPlayer.guardianSelfProtects = (updatedPlayer.guardianSelfProtects || 0) + 1;
+                    break;
+                case 'lookout_spy':
+                    updatedPlayer.lookoutUsed = true;
+                    break;
+                case 'resurrect':
+                    updatedPlayer.resurrectorAngelUsed = true;
+                    break;
+                case 'shapeshifter_select':
+                    if(game.currentRound === 1) updatedPlayer.shapeshifterTargetId = targetId;
+                    break;
+                case 'virginia_woolf_link':
+                    if(game.currentRound === 1) updatedPlayer.virginiaWoolfTargetId = targetId;
+                    break;
+                case 'river_siren_charm':
+                     if(game.currentRound === 1) updatedPlayer.riverSirenTargetId = targetId;
+                    break;
+            }
+            return updatedPlayer;
           }
           return p;
         });
@@ -545,7 +556,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
             const newRound = nextPhase === 'night' ? currentRound + 1 : currentRound;
 
             game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; p.isExiled = false; });
-            const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000); // 60 seconds for next phase
+            const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
             
             transaction.update(gameRef, toPlainObject({
                 players: game.players, events: game.events, phase: nextPhase, phaseEndsAt,
@@ -1269,6 +1280,3 @@ export async function runAIHunterShot(gameId: string, hunter: Player) {
 }
 
 export { processNight, processVotes, processJuryVotes } from './game-engine';
-
-    
-    

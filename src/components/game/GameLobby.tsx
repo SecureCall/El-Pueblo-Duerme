@@ -143,6 +143,7 @@ export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobby
                     setIsAvatarModalOpen(true);
                 }
             }}
+            clickable={true}
             masterActionState={masterActionState}
             setMasterActionState={setMasterActionState}
         />

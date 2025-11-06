@@ -100,7 +100,7 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
   }
 
   const protectedThisNight = new Set<string>(actions.filter(a => a.actionType === 'doctor_heal' || a.actionType === 'guardian_protect').map(a => a.targetId));
-  pendingDeaths = pendingDeaths.filter(death => death.cause !== 'werewolf_kill' || !protectedThisNight.has(death.playerId) && !blessedThisNight.has(death.playerId));
+  pendingDeaths = pendingDeaths.filter(death => death.cause !== 'werewolf_kill' || (!protectedThisNight.has(death.playerId) && !blessedThisNight.has(death.playerId)));
 
 
   let triggeredHunterId: string | null = null;
