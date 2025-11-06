@@ -29,7 +29,7 @@ const revealRoleAction: MasterAction = {
             gameId: game.id,
             round: game.currentRound,
             type: 'special',
-            message: `El Máster te ha revelado un secreto. Has visto que ${targetPlayer.displayName} es un(a) ${targetPlayer.role}.`,
+            message: `El Máster te ha revelado un secreto. Has visto que ${targetPlayer.displayName} es un(a) ${roleDetails[targetPlayer.role!]?.name || 'Desconocido'}.`,
             createdAt: Timestamp.now(),
             data: { 
                 targetId: sourceId, // The event is directed TO the source player
@@ -42,6 +42,9 @@ const revealRoleAction: MasterAction = {
         return { updatedGame };
     }
 };
+
+// This needs to be imported to avoid a circular dependency issue with roleDetails
+import { roleDetails } from './roles';
 
 export const masterActions: Record<MasterActionId, MasterAction> = {
     reveal_role: revealRoleAction,

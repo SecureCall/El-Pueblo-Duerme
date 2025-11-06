@@ -1,3 +1,4 @@
+
 'use server';
 import { 
   doc,
@@ -1573,11 +1574,11 @@ export const sendTwinChatMessage = (gameId: string, senderId: string, senderName
 export const sendGhostChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'ghost');
 
 
-export async function resetGame(db: Firestore, gameId: string) {
-    const gameRef = doc(db, 'games', gameId);
+export async function resetGame(firestore: Firestore, gameId: string) {
+    const gameRef = doc(firestore, 'games', gameId);
 
     try {
-        await runTransaction(db, async (transaction) => {
+        await runTransaction(firestore, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Partida no encontrada.");
             const game = gameSnap.data() as Game;
