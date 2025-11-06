@@ -933,5 +933,3 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt'>) 
       return { success: false, error: error.message || "No se pudo registrar tu acción." };
     }
 }
-
-    
