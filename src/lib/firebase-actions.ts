@@ -536,7 +536,7 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
         if (!targetPlayer) throw new Error("Target player not found");
 
         const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
-        const isWerewolf = !!(targetPlayer.role && wolfRoles.includes(targetPlayer.role));
+        const isWerewolf = !!(targetPlayer.role && (wolfRoles.includes(targetPlayer.role) || targetPlayer.role === 'lycanthrope'));
 
         return { success: true, isWerewolf, targetName: targetPlayer.displayName };
     } catch (error: any) {

@@ -98,7 +98,7 @@ const generateAiChatMessageFlow = ai.defineFlow(
 
             const knownGoodPlayers = new Set<string>();
             const knownWolfPlayers = new Set<string>();
-            const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed'];
+            const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'lycanthrope'];
 
             for (const action of seerActions) {
                 const targetPlayer = perspective.players.find(p => p.userId === action.targetId);
@@ -129,22 +129,16 @@ const generateAiChatMessageFlow = ai.defineFlow(
             }
         }
         
-        let targetForExecutioner: any;
-        if(perspective.aiPlayer.role === 'executioner' && perspective.aiPlayer.executionerTargetId) {
-            targetForExecutioner = perspective.players.find(p => p.userId === perspective.aiPlayer.executionerTargetId);
-        }
-
-        const promptInput = {
+        // Sanitize player roles before sending to prompt to prevent AI from "knowing" other roles
+        const sanitizedPerspective = {
             ...perspective,
-            objetivo_verdugo: targetForExecutioner?.displayName || "nadie",
-             // Hide roles of other players before sending to the prompt, except for own role
             players: perspective.players.map(p => ({
                 ...p,
                 role: p.userId === perspective.aiPlayer.userId || !p.isAlive ? p.role : 'unknown',
             })),
         };
 
-        const { output } = await prompt(promptInput);
+        const { output } = await prompt(sanitizedPerspective);
         return output || { message: '', shouldSend: false };
     }
 );
