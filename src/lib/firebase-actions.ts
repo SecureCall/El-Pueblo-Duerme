@@ -535,7 +535,7 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
         if (!targetPlayer) throw new Error("Target player not found");
 
         const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
-        const isWerewolf = (targetPlayer.role && wolfRoles.includes(targetPlayer.role)) || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope);
+        const isWerewolf = !!(targetPlayer.role && wolfRoles.includes(targetPlayer.role));
 
         return { success: true, isWerewolf, targetName: targetPlayer.displayName };
     } catch (error: any) {
@@ -867,10 +867,10 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
         throw new Error("Los objetivos seleccionados no son válidos.");
       }
       
-      let { updatedGame } = await killPlayer(transaction, gameRef, game, target1Id, 'troublemaker_duel');
+      let { updatedGame } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, target1Id, 'troublemaker_duel');
       game = updatedGame;
       
-      let finalResult = await killPlayer(transaction, gameRef, game, target2Id, 'troublemaker_duel');
+      let finalResult = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, target2Id, 'troublemaker_duel');
       game = finalResult.updatedGame;
 
       game.events.push({

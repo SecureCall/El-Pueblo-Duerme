@@ -1,3 +1,4 @@
+
 'use server';
 
 import { ai } from '@/ai/genkit';
@@ -97,7 +98,7 @@ const generateAiChatMessageFlow = ai.defineFlow(
 
             const knownGoodPlayers = new Set<string>();
             const knownWolfPlayers = new Set<string>();
-            const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'lycanthrope'];
+            const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed'];
 
             for (const action of seerActions) {
                 const targetPlayer = perspective.players.find(p => p.userId === action.targetId);
