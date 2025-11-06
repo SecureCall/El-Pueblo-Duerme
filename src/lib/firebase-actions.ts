@@ -254,39 +254,41 @@ const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessi
 const MINIMUM_PLAYERS = 3;
 
 const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
-    let baseRoles: PlayerRole[] = [];
-    const numWerewolves = settings.werewolves || Math.max(1, Math.floor(playerCount / 5));
+    let roles: PlayerRole[] = [];
     
+    // 1. Add Werewolves
+    const numWerewolves = Math.max(1, Math.floor(playerCount / 5));
     for (let i = 0; i < numWerewolves; i++) {
-        baseRoles.push('werewolf');
+        roles.push('werewolf');
     }
-    
+
+    // 2. Add selected special roles
     const availableSpecialRoles: PlayerRole[] = (Object.keys(settings) as Array<keyof typeof settings>)
         .filter(key => {
             const roleKey = key as PlayerRole;
-            return settings[key] === true && roleKey !== 'werewolves' && roleKey !== 'fillWithAI' && roleKey !== 'isPublic' && roleKey !== 'juryVoting';
+            return settings[key] === true && roleKey && roleDetails[roleKey] && roleKey !== 'werewolf' && roleKey !== 'villager';
         })
         .sort(() => Math.random() - 0.5) as PlayerRole[];
-
-    let finalRoles = [...baseRoles];
-
+    
     for (const specialRole of availableSpecialRoles) {
-        if (finalRoles.length >= playerCount) break;
+        if (roles.length >= playerCount) break;
+
         if (specialRole === 'twin') {
-             if (finalRoles.length + 2 <= playerCount) {
-                finalRoles.push('twin');
-                finalRoles.push('twin');
-             }
+            if (roles.length + 2 <= playerCount) {
+                roles.push('twin', 'twin');
+            }
         } else {
-            finalRoles.push(specialRole);
+            roles.push(specialRole);
         }
     }
     
-    while (finalRoles.length < playerCount) {
-        finalRoles.push('villager');
+    // 3. Fill remaining spots with Villagers
+    while (roles.length < playerCount) {
+        roles.push('villager');
     }
 
-    return finalRoles.sort(() => Math.random() - 0.5);
+    // 4. Shuffle all roles
+    return roles.sort(() => Math.random() - 0.5);
 };
 
 export async function startGame(gameId: string, creatorId: string) {
@@ -352,7 +354,7 @@ export async function startGame(gameId: string, creatorId: string) {
 
             const executioner = assignedPlayers.find(p => p.role === 'executioner');
             if (executioner) {
-                const wolfTeamRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy'];
+                const wolfTeamRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy', 'witch'];
                 const nonWolfPlayers = assignedPlayers.filter(p => {
                     return p.role && !wolfTeamRoles.includes(p.role) && p.userId !== executioner.userId;
                 });
@@ -419,7 +421,6 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt'>) 
               return;
           }
           
-          // These validations are repeated on server for security
           switch (actionType) {
               case 'doctor_heal':
               case 'guardian_protect':
@@ -545,20 +546,16 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
 
     try {
         await runTransaction(firestore, async (transaction) => {
-            let gameSnap = await transaction.get(gameRef);
+            const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
             let game = gameSnap.data()!;
 
             if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId || game.status === 'finished') {
                 return;
             }
-
-            const { updatedGame } = await killPlayerUnstoppable(transaction, gameRef, game, targetId, 'hunter_shot');
             
-            // This is a re-fetch to get the state after killPlayer's transaction part
-            gameSnap = await transaction.get(gameRef);
-            game = gameSnap.data()!;
-
+            await killPlayerUnstoppable(transaction, gameRef, game, targetId, 'hunter_shot');
+            
             await processNight(transaction, gameRef);
         });
         return { success: true };
