@@ -1,5 +1,5 @@
 
-'use client';
+"use client";
 
 import { useState, useEffect } from 'react';
 import type { Game, Player, NightActionType, ChatMessage } from '@/types';
@@ -32,6 +32,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [seerResult, setSeerResult] = useState<{ targetName: string; isWerewolf: boolean; } | null>(null);
     const [hechiceraAction, setHechiceraAction] = useState<HechiceraAction>('poison');
+    const { firestore } = useFirebase();
     const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
     
     const { toast } = useToast();
@@ -95,38 +96,6 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
              return;
         }
 
-
-        if (isWerewolfTeam && ['werewolf', 'wolf_cub'].includes(player.role || '')) return;
-        if (isVampire && (player.biteCount || 0) >= 3) {
-            toast({ variant: 'destructive', title: 'Regla del Vampiro', description: 'Esta persona ya no tiene más sangre que dar.' });
-            return;
-        }
-        if ((currentPlayer.role === 'doctor' || currentPlayer.role === 'guardian') && player.lastHealedRound === game.currentRound - 1 && game.currentRound > 1) {
-            toast({ variant: 'destructive', title: 'Regla de Protección', description: 'No puedes proteger a la misma persona dos noches seguidas.' });
-            return;
-        }
-        if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save' && player.userId === currentPlayer.userId) {
-             toast({ variant: 'destructive', title: 'Regla de la Hechicera', description: 'No puedes usar la poción de salvación en ti misma.' });
-             return;
-        }
-        if (currentPlayer.role === 'guardian' && player.userId === currentPlayer.userId && (currentPlayer.guardianSelfProtects || 0) >= 1) {
-            toast({ variant: 'destructive', title: 'Regla del Guardián', description: 'Solo puedes protegerte a ti mismo una vez por partida.' });
-            return;
-        }
-        if (currentPlayer.role === 'priest' && player.userId === currentPlayer.userId && currentPlayer.priestSelfHealUsed) {
-            toast({ variant: 'destructive', title: 'Regla del Sacerdote', description: 'Ya te has bendecido a ti mismo una vez.' });
-            return;
-        }
-         if (isCultLeader && player.isCultMember) {
-            toast({ description: `${player.displayName} ya es parte de tu culto.` });
-            return;
-        }
-        if (isFisherman && game.boat?.includes(player.userId)) {
-            toast({ description: `${player.displayName} ya está en tu barco.` });
-            return;
-        }
-
-
         setSelectedPlayerIds(prev => {
             if (prev.includes(player.userId)) {
                 return prev.filter(id => id !== player.userId);
@@ -178,6 +147,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     }
 
     const handleSubmit = async () => {
+        if (!firestore) return;
         if (selectedPlayerIds.length !== selectionLimit && !isLookout && currentPlayer.role !== 'sleeping_fairy') {
             toast({ variant: 'destructive', title: `Debes seleccionar ${selectionLimit} jugador(es).` });
             return;
@@ -188,7 +158,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         
         setIsSubmitting(true);
 
-        const result = await submitNightAction({
+        const result = await submitNightAction(firestore, {
             gameId: game.id,
             round: game.currentRound,
             playerId: currentPlayer.userId,
@@ -198,7 +168,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         
         if (result.success) {
             if (actionType === 'seer_check') {
-                 const seerResultData = await getSeerResult(game.id, currentPlayer.userId, selectedPlayerIds[0]);
+                 const seerResultData = await getSeerResult(firestore, game.id, currentPlayer.userId, selectedPlayerIds[0]);
                 if (seerResultData.success) {
                     setSeerResult({
                         targetName: seerResultData.targetName!,
@@ -371,7 +341,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     }
 
 
-    const playersForGrid = isResurrectorAngel ? game.players.filter(p => !p.isAlive) : players.filter(p=>p.isAlive);
+    const playersForGrid = isResurrectorAngel ? game.players.filter(p => !p.isAlive) : players.filter(p => p.isAlive);
 
     return (
         <Card className="mt-8 bg-card/80">
@@ -400,7 +370,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                                     }
                                     if (isCupidFirstNight) return true; // Cupid can target anyone
                                     if (canFairiesKill && ['seeker_fairy', 'sleeping_fairy'].includes(p.role || '')) return false;
-                                    if (isVampire) return p.role !== 'vampire';
+                                    if (isVampire) return p.role !== 'vampire' && (p.biteCount || 0) < 3;
                                     if (isCultLeader) return p.userId !== currentPlayer.userId && !p.isCultMember;
                                     if (isFisherman) return p.userId !== currentPlayer.userId && !game.boat?.includes(p.userId);
                                     if (isSilencer || isElderLeader) return p.userId !== currentPlayer.userId;
@@ -409,6 +379,9 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                                         if (currentPlayer.role === 'guardian' && (currentPlayer.guardianSelfProtects || 0) < 1) return true;
                                         if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save') return false;
                                         return false; 
+                                    }
+                                    if (currentPlayer.role === 'doctor' || currentPlayer.role === 'guardian') {
+                                        return p.lastHealedRound !== game.currentRound - 1 || game.currentRound === 1;
                                     }
                                     return true;
                                 })}
@@ -454,3 +427,5 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         </Card>
     );
 }
+
+    
