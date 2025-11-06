@@ -1,10 +1,10 @@
 
 'use server';
-import { type Game, type Player, type NightAction, type NightActionType, type PlayerRole, type AIPlayerPerspective } from "@/types";
+import { type Game, type Player, type NightActionType, type PlayerRole, type AIPlayerPerspective } from "@/types";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { toPlainObject } from "./utils";
 import { getSdks } from "@/firebase/server-init";
-import { sendChatMessage, sendWolfChatMessage, sendTwinChatMessage, sendLoversChatMessage } from "./firebase-actions";
+import { submitNightAction, submitVote, submitHunterShot, sendChatMessage, sendWolfChatMessage, sendTwinChatMessage, sendLoversChatMessage } from "./firebase-actions";
 import { getDoc, doc } from "firebase/firestore";
 
 export async function runAIActions(gameId: string) {
@@ -27,10 +27,7 @@ export async function runAIActions(gameId: string) {
             const { actionType, targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
 
             if (actionType && actionType !== 'NONE' && targetId) {
-                // This function is now in firebase-actions.ts, so we'd need to call it from there or pass db instance.
-                // For simplicity, we assume a submitNightAction function exists that can be called from here.
-                // In a real scenario, this would likely call a server action.
-                // await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType as NightActionType, targetId });
+                await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType as NightActionType, targetId });
             }
         }
     } catch(e) {
@@ -49,13 +46,14 @@ export async function triggerAIVote(gameId: string) {
         const aiPlayersToVote = game.players.filter(p => p.isAI && p.isAlive && !p.votedFor);
         const alivePlayers = game.players.filter(p => p.isAlive);
         const deadPlayers = game.players.filter(p => !p.isAlive);
-
+        
+        await triggerPrivateAIChats(gameId, "El día ha comenzado. ¿Por quién deberíamos votar?");
+        
         for (const ai of aiPlayersToVote) {
             const { targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
             if (targetId) {
                  await new Promise(resolve => setTimeout(resolve, Math.random() * 8000 + 2000));
-                 // This function is in firebase-actions.ts
-                 // await submitVote(gameId, ai.userId, targetId);
+                 await submitVote(gameId, ai.userId, targetId);
             }
         }
 
@@ -79,8 +77,7 @@ export async function runAIHunterShot(gameId: string, hunter: Player) {
 
         if (targetId) {
             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
-            // This function is in firebase-actions.ts
-            // await submitHunterShot(gameId, hunter.userId, targetId);
+            await submitHunterShot(gameId, hunter.userId, targetId);
         } else {
              console.error(`AI Hunter ${hunter.displayName} could not find a target to shoot.`);
         }
@@ -376,5 +373,3 @@ export const getDeterministicAIAction = (
             return { actionType: 'NONE', targetId: '' };
     }
 };
-
-    

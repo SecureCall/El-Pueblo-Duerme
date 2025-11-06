@@ -250,6 +250,9 @@ export async function updatePlayerAvatar(gameId: string, userId: string, newAvat
     }
 }
 
+const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
+const MINIMUM_PLAYERS = 3;
+
 const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
     let baseRoles: PlayerRole[] = [];
     const numWerewolves = Math.max(1, Math.floor(playerCount / 4));
@@ -292,10 +295,6 @@ const generateRoles = (playerCount: number, settings: Game['settings']): (Player
     
     return finalRoles.sort(() => Math.random() - 0.5);
 };
-
-
-const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
-const MINIMUM_PLAYERS = 3;
 
 export async function startGame(gameId: string, creatorId: string) {
     const { firestore } = getSdks();
@@ -402,6 +401,95 @@ export async function startGame(gameId: string, creatorId: string) {
     }
 }
 
+export async function submitNightAction(action: Omit<NightAction, 'createdAt'>) {
+    const { firestore } = getSdks();
+    const { gameId, playerId, actionType, targetId, round } = action;
+    const gameRef = doc(firestore, 'games', gameId);
+    try {
+      await runTransaction(firestore, async (transaction) => {
+          const gameSnap = await transaction.get(gameRef as DocumentReference<Game>);
+          if (!gameSnap.exists()) throw new Error("Game not found");
+          
+          let game = gameSnap.data()!;
+          if (game.phase !== 'night' || game.status === 'finished') return;
+  
+          const player = game.players.find(p => p.userId === playerId);
+          if (!player || !player.isAlive) throw new Error("Jugador no válido o muerto.");
+          if (player.isExiled) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
+          if (player.usedNightAbility) return;
+          
+          let players = [...game.players];
+          const playerIndex = players.findIndex(p => p.userId === action.playerId);
+          
+          if (playerIndex === -1) {
+              console.error(`Critical error: Player ${action.playerId} not found in game ${gameId} during night action.`);
+              return;
+          }
+          
+          switch (actionType) {
+              case 'doctor_heal':
+              case 'guardian_protect':
+                  const targetPlayer = players.find(p => p.userId === targetId);
+                  if (!targetPlayer) break;
+                  if (targetPlayer.lastHealedRound === game.currentRound - 1 && game.currentRound > 1) throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
+                  
+                  const targetPlayerIndex = players.findIndex(p => p.userId === targetId);
+                  if (targetPlayerIndex !== -1) {
+                      players[targetPlayerIndex].lastHealedRound = game.currentRound;
+                  }
+  
+                  if(actionType === 'guardian_protect' && targetId === playerId) {
+                      if ((player.guardianSelfProtects || 0) >= 1) throw new Error("Solo puedes protegerte a ti mismo una vez.");
+                      players[playerIndex].guardianSelfProtects = (players[playerIndex].guardianSelfProtects || 0) + 1;
+                  }
+                  break;
+              case 'hechicera_poison':
+                  if (player.potions?.poison) throw new Error("Ya has usado tu poción de veneno.");
+                  if(players[playerIndex].potions) players[playerIndex].potions!.poison = game.currentRound;
+                  break;
+              case 'hechicera_save':
+                  if (player.potions?.save) throw new Error("Ya has usado tu poción de salvación.");
+                  if(players[playerIndex].potions) players[playerIndex].potions!.save = game.currentRound;
+                  break;
+               case 'priest_bless':
+                  if (targetId === playerId && player.priestSelfHealUsed) throw new Error("Ya te has bendecido a ti mismo una vez.");
+                   if (targetId === playerId) players[playerIndex].priestSelfHealUsed = true;
+                  break;
+              case 'lookout_spy':
+                  if(player.lookoutUsed) throw new Error("Ya has usado tu habilidad de Vigía.");
+                  players[playerIndex].lookoutUsed = true;
+                  break;
+              case 'resurrect':
+                  if(player.resurrectorAngelUsed) throw new Error("Ya has usado tu poder de resurrección.");
+                  players[playerIndex].resurrectorAngelUsed = true;
+                  break;
+              case 'shapeshifter_select':
+                   if(game.currentRound !== 1) throw new Error("Esta acción solo puede realizarse en la primera noche.");
+                   players[playerIndex].shapeshifterTargetId = targetId;
+                   break;
+              case 'virginia_woolf_link':
+              case 'river_siren_charm':
+              case 'cupid_love':
+                   if(game.currentRound !== 1) throw new Error("Esta acción solo puede realizarse en la primera noche.");
+                   break;
+          }
+  
+          players[playerIndex].usedNightAbility = true;
+          
+          const newAction: NightAction = { ...action, createdAt: Timestamp.now() };
+          const updatedNightActions = [...(game.nightActions || []), newAction];
+          transaction.update(gameRef, { nightActions: updatedNightActions, players: toPlainObject(players) });
+  
+      });
+  
+      return { success: true };
+  
+    } catch (error: any) {
+      console.error("Error submitting night action: ", error);
+      return { success: false, error: error.message || "No se pudo registrar tu acción." };
+    }
+}
+
 export async function executeMasterAction(gameId: string, actionId: string, sourceId: string | null, targetId: string) {
     const { firestore } = getSdks();
     const gameRef = doc(firestore, 'games', gameId);
@@ -463,7 +551,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
 
     try {
         await runTransaction(firestore, async (transaction) => {
-            const gameSnap = await transaction.get(gameRef);
+            let gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
             let game = gameSnap.data()!;
 
@@ -471,17 +559,13 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
                 return;
             }
 
-            const hunterPlayer = game.players.find(p => p.userId === hunterId);
-            const targetPlayer = game.players.find(p => p.userId === targetId);
-
-            if (!hunterPlayer || !targetPlayer) {
-                console.error("Hunter or target not found for shot.");
-                return;
-            }
-
-            let { updatedGame } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, targetId, 'hunter_shot');
+            const { updatedGame } = await killPlayer(transaction, gameRef, game, targetId, 'hunter_shot');
             
-            transaction.update(gameRef, toPlainObject(updatedGame));
+            // This is a re-fetch to get the state after killPlayer's transaction part
+            gameSnap = await transaction.get(gameRef);
+            game = gameSnap.data()!;
+
+            await processNight(transaction, gameRef);
         });
         return { success: true };
     } catch (error: any) {
@@ -730,7 +814,7 @@ export async function setPhaseToNight(gameId: string) {
             const game = gameSnap.data() as Game;
 
             if (game.phase === 'role_reveal' && game.status === 'in_progress') {
-                await processNight(transaction, gameRef as DocumentReference<Game>);
+                await processNight(transaction, gameRef);
             }
         });
         return { success: true };
@@ -788,8 +872,19 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
         throw new Error("Los objetivos seleccionados no son válidos.");
       }
       
-      let { updatedGame } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, target1Id, 'troublemaker_duel');
+      let { updatedGame } = await killPlayer(transaction, gameRef, game, target1Id, 'troublemaker_duel');
       game = updatedGame;
+      
+      // Re-get is not needed inside a transaction like this, but we need the result of the first kill
+      let finalResult = await killPlayer(transaction, gameRef, game, target2Id, 'troublemaker_duel');
+      game = finalResult.updatedGame;
+
+      game.events.push({
+        id: `evt_trouble_${Date.now()}`, gameId, round: game.currentRound, type: 'special',
+        message: `${player.displayName} ha provocado una pelea mortal. ${target1.displayName} y ${target2.displayName} han sido eliminados.`,
+        createdAt: Timestamp.now(), data: { killedPlayerIds: [target1Id, target2Id] }
+      });
+      game.troublemakerUsed = true;
       
       transaction.update(gameRef, toPlainObject(game));
     });
@@ -845,91 +940,8 @@ export async function sendGhostMessage(gameId: string, ghostId: string, targetId
         return { success: false, error: error.message || "No se pudo enviar el mensaje." };
     }
 }
-export async function submitNightAction(action: Omit<NightAction, 'createdAt'>) {
-    const { firestore } = getSdks();
-    const { gameId, playerId, actionType, targetId, round } = action;
-    const gameRef = doc(firestore, 'games', gameId);
-    try {
-      await runTransaction(firestore, async (transaction) => {
-          const gameSnap = await transaction.get(gameRef as DocumentReference<Game>);
-          if (!gameSnap.exists()) throw new Error("Game not found");
-          
-          let game = gameSnap.data()!;
-          if (game.phase !== 'night' || game.status === 'finished') return;
-  
-          const player = game.players.find(p => p.userId === playerId);
-          if (!player || !player.isAlive) throw new Error("Jugador no válido o muerto.");
-          if (player.isExiled) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
-          if (player.usedNightAbility) return;
-          
-          let players = [...game.players];
-          const playerIndex = players.findIndex(p => p.userId === action.playerId);
-          
-          if (playerIndex === -1) {
-              console.error(`Critical error: Player ${action.playerId} not found in game ${gameId} during night action.`);
-              return;
-          }
-          
-          switch (actionType) {
-              case 'doctor_heal':
-              case 'guardian_protect':
-                  const targetPlayer = players.find(p => p.userId === targetId);
-                  if (!targetPlayer) break;
-                  if (targetPlayer.lastHealedRound === game.currentRound - 1 && game.currentRound > 1) throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
-                  
-                  const targetPlayerIndex = players.findIndex(p => p.userId === targetId);
-                  if (targetPlayerIndex !== -1) {
-                      players[targetPlayerIndex].lastHealedRound = game.currentRound;
-                  }
-  
-                  if(actionType === 'guardian_protect' && targetId === playerId) {
-                      if ((player.guardianSelfProtects || 0) >= 1) throw new Error("Solo puedes protegerte a ti mismo una vez.");
-                      players[playerIndex].guardianSelfProtects = (players[playerIndex].guardianSelfProtects || 0) + 1;
-                  }
-                  break;
-              case 'hechicera_poison':
-                  if (player.potions?.poison) throw new Error("Ya has usado tu poción de veneno.");
-                  if(players[playerIndex].potions) players[playerIndex].potions!.poison = game.currentRound;
-                  break;
-              case 'hechicera_save':
-                  if (player.potions?.save) throw new Error("Ya has usado tu poción de salvación.");
-                  if(players[playerIndex].potions) players[playerIndex].potions!.save = game.currentRound;
-                  break;
-               case 'priest_bless':
-                  if (targetId === playerId && player.priestSelfHealUsed) throw new Error("Ya te has bendecido a ti mismo una vez.");
-                   if (targetId === playerId) players[playerIndex].priestSelfHealUsed = true;
-                  break;
-              case 'lookout_spy':
-                  if(player.lookoutUsed) throw new Error("Ya has usado tu habilidad de Vigía.");
-                  players[playerIndex].lookoutUsed = true;
-                  break;
-              case 'resurrect':
-                  if(player.resurrectorAngelUsed) throw new Error("Ya has usado tu poder de resurrección.");
-                  players[playerIndex].resurrectorAngelUsed = true;
-                  break;
-              case 'shapeshifter_select':
-                   if(game.currentRound !== 1) throw new Error("Esta acción solo puede realizarse en la primera noche.");
-                   players[playerIndex].shapeshifterTargetId = targetId;
-                   break;
-              case 'virginia_woolf_link':
-              case 'river_siren_charm':
-              case 'cupid_love':
-                   if(game.currentRound !== 1) throw new Error("Esta acción solo puede realizarse en la primera noche.");
-                   break;
-          }
-  
-          players[playerIndex].usedNightAbility = true;
-          
-          const newAction: NightAction = { ...action, createdAt: Timestamp.now() };
-          const updatedNightActions = [...(game.nightActions || []), newAction];
-          transaction.update(gameRef, { nightActions: updatedNightActions, players: toPlainObject(players) });
-  
-      });
-  
-      return { success: true };
-  
-    } catch (error: any) {
-      console.error("Error submitting night action: ", error);
-      return { success: false, error: error.message || "No se pudo registrar tu acción." };
-    }
-}
+
+// These are now wrappers that call the main logic in ai-logic.ts
+// We keep them here so the client-side components don't need to change.
+export { runAIActions, triggerAIVote, runAIHunterShot } from "./ai-logic";
+export { processNight, processVotes, processJuryVotes } from './game-engine';

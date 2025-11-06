@@ -363,10 +363,7 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
     }
     
     const alivePlayers = gameData.players.filter(p => p.isAlive);
-    const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy', 'witch']; 
     
-    let sharedWinners: Player[] = [];
-
     // Check individual win conditions first
     for (const player of alivePlayers) {
         const roleInstance = createRoleInstance(player.role);
@@ -393,20 +390,20 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
     }
     
     // Team-based win conditions
-    const aliveWerewolves = alivePlayers.filter(p => p.role && createRoleInstance(p.role).alliance === 'Lobos');
+    const aliveWolves = alivePlayers.filter(p => p.role && createRoleInstance(p.role).alliance === 'Lobos');
     const aliveVillagers = alivePlayers.filter(p => p.role && createRoleInstance(p.role).alliance === 'Aldeanos');
     const aliveNeutrals = alivePlayers.filter(p => p.role && createRoleInstance(p.role).alliance === 'Neutral');
 
-    if (aliveWerewolves.length > 0 && aliveWerewolves.length >= (aliveVillagers.length + aliveNeutrals.length)) {
+    if (aliveWolves.length > 0 && aliveWolves.length >= (aliveVillagers.length + aliveNeutrals.length)) {
         return {
             isGameOver: true,
             winnerCode: 'wolves',
             message: "¡Los hombres lobo han ganado! Superan en número a los aldeanos y la oscuridad consume el pueblo.",
-            winners: aliveWerewolves,
+            winners: aliveWolves,
         };
     }
     
-    if (aliveWerewolves.length === 0 && alivePlayers.length > 0) {
+    if (aliveWolves.length === 0 && alivePlayers.length > 0) {
         return {
             isGameOver: true,
             winnerCode: 'villagers',
@@ -421,5 +418,3 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
 
     return { isGameOver: false, message: "", winners: [] };
 }
-
-    
