@@ -1,4 +1,3 @@
-
 'use server';
 import { 
   doc,
@@ -29,6 +28,7 @@ import { toPlainObject } from "./utils";
 import { masterActions } from "./master-actions";
 import { createRoleInstance } from "./roles/role-factory";
 import { getSdks } from "@/firebase/server-init";
+import { secretObjectives } from "./objectives";
 
 
 const PHASE_DURATION_SECONDS = 60;
@@ -348,6 +348,15 @@ export async function startGame(gameId: string, creatorId: string) {
                 const p = { ...player, role: newRoles[index] };
                 if (p.role === 'cult_leader') {
                     p.isCultMember = true;
+                }
+                 // Assign a secret objective to human players
+                if (!p.isAI) {
+                    const applicableObjectives = secretObjectives.filter(obj => 
+                        obj.appliesTo.includes('any') || (p.role && obj.appliesTo.includes(p.role))
+                    );
+                    if (applicableObjectives.length > 0) {
+                        p.secretObjectiveId = applicableObjectives[Math.floor(Math.random() * applicableObjectives.length)].id;
+                    }
                 }
                 return p;
             });
@@ -1195,6 +1204,15 @@ export async function processVotes(gameId: string) {
             return;
         }
 
+        if (mostVotedPlayerIds.length > 1 && isTiebreaker && game.settings.juryVoting) {
+             game.phase = "jury_voting";
+             game.events.push({ id: `evt_jury_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: `¡El pueblo sigue dividido! Los espíritus de los caídos emitirán el voto final para decidir el destino de: ${mostVotedPlayerIds.map(id => game.players.find(p => p.userId === id)?.displayName).join(' o ')}.`, data: { tiedPlayerIds: mostVotedPlayerIds, final: false }, createdAt: Timestamp.now() });
+             game.players.forEach(p => { p.votedFor = null; });
+             const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
+             transaction.update(gameRef, toPlainObject({ events: game.events, phase: "jury_voting", phaseEndsAt }));
+             return;
+        }
+
         let lynchedPlayerId: string | null = mostVotedPlayerIds[0] || null;
         let lynchedPlayerObject: Player | null = null;
         let triggeredHunterId: string | null = null;
@@ -1254,9 +1272,82 @@ export async function processVotes(gameId: string) {
 }
 
 export async function processJuryVotes(gameId: string) {
-    // Placeholder for jury vote logic
-    return { success: true };
+     const { firestore } = getSdks();
+     const gameRef = doc(firestore, 'games', gameId);
+     try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef as DocumentReference<Game>);
+            if (!gameSnap.exists()) throw new Error("Game not found.");
+            let game = gameSnap.data()!;
+            if (game.phase !== 'jury_voting') return;
+
+            const juryVotes = game.juryVotes || {};
+            const voteCounts: Record<string, number> = {};
+            Object.values(juryVotes).forEach(targetId => {
+                voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
+            });
+            
+            let maxVotes = 0;
+            let mostVotedPlayerId: string | null = null;
+            let tie = false;
+
+            for (const playerId in voteCounts) {
+                if (voteCounts[playerId] > maxVotes) {
+                    maxVotes = voteCounts[playerId];
+                    mostVotedPlayerId = playerId;
+                    tie = false;
+                } else if (voteCounts[playerId] === maxVotes) {
+                    tie = true;
+                }
+            }
+            
+            // On final tie, random selection
+            if (tie && mostVotedPlayerId) {
+                const tiedPlayers = Object.keys(voteCounts).filter(id => voteCounts[id] === maxVotes);
+                mostVotedPlayerId = tiedPlayers[Math.floor(Math.random() * tiedPlayers.length)];
+            }
+            
+            let lynchedPlayerObject: Player | null = null;
+            let triggeredHunterId: string | null = null;
+
+            if (mostVotedPlayerId) {
+                const { updatedGame, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, mostVotedPlayerId, 'vote_result');
+                game = updatedGame;
+                triggeredHunterId = newHunterId;
+                lynchedPlayerObject = game.players.find(p => p.userId === mostVotedPlayerId) || null;
+            } else {
+                 game.events.push({ id: `evt_jury_no_vote_${game.currentRound}`, gameId, round: game.currentRound, type: 'vote_result', message: "El jurado de los muertos no llegó a un consenso. Nadie es linchado.", data: { lynchedPlayerId: null, final: true }, createdAt: Timestamp.now() });
+            }
+            
+            let gameOverInfo = await checkGameOver(game, lynchedPlayerObject);
+            if (gameOverInfo.isGameOver) {
+                game.status = "finished";
+                game.phase = "finished";
+                game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
+                transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: game.players, events: game.events }));
+                return;
+            }
+
+            if (triggeredHunterId) {
+                game.pendingHunterShot = triggeredHunterId;
+                transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot }));
+                return;
+            }
+
+            game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; });
+            const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
+
+            transaction.update(gameRef, toPlainObject({
+                ...game, phase: 'night', currentRound: game.currentRound + 1, phaseEndsAt,
+            }));
+        });
+        return { success: true };
+     } catch (error: any) {
+        console.error("Error processing jury votes:", error);
+        return { success: false, error: error.message };
+     }
 }
+
 
 export async function executeMasterAction(gameId: string, actionId: string, sourceId: string | null, targetId: string) {
     const { firestore } = getSdks();
