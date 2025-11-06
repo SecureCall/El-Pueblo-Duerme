@@ -66,5 +66,3 @@ export function YouAreDeadOverlay({ angelInPlay, isWolfKill = false }: YouAreDea
         </div>
     );
 }
-
-    
