@@ -29,6 +29,7 @@ import { getSdks } from "@/firebase/server-init";
 import { secretObjectives } from "./objectives";
 import { processNight, processVotes, processJuryVotes, killPlayer, killPlayerUnstoppable } from './game-engine';
 import { runAIActions, triggerAIVote, runAIHunterShot, triggerAIChat, triggerPrivateAIChats } from "./ai-logic";
+import { roleDetails } from "./roles";
 
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -79,8 +80,8 @@ export async function createGame(
   maxPlayers: number,
   settings: Game['settings']
 ) {
+  const { firestore } = getSdks();
   try {
-    const { firestore } = getSdks();
     if (typeof displayName !== 'string' || typeof gameName !== 'string') {
         return { error: "El nombre del jugador y de la partida deben ser texto." };
     }
@@ -168,6 +169,9 @@ export async function joinGame(
       const game = gameSnap.data() as Game;
 
       if (game.status !== "waiting" && !game.players.some(p => p.userId === userId)) {
+        if (!game.settings.isPublic) {
+            throw new Error("Esta es una partida privada y no se puede unir a través de un enlace.");
+        }
         throw new Error("Esta partida ya ha comenzado.");
       }
       
@@ -802,7 +806,7 @@ export async function setPhaseToNight(gameId: string) {
         await runTransaction(firestore, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
-            const game = gameSnap.data() as Game;
+            const game = gameSnap.data()!;
 
             if (game.phase === 'role_reveal' && game.status === 'in_progress') {
                 await processNight(transaction, gameRef);
