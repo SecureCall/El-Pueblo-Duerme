@@ -288,7 +288,7 @@ export async function processJuryVotes(transaction: Transaction, gameRef: Docume
     }));
 }
 
-export async function killPlayer(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, playerIdToKill: string | null, cause: GameEvent['type']): Promise<{ updatedGame: Game; triggeredHunterId: string | null; }> {
+async function performKill(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, playerIdToKill: string | null, cause: GameEvent['type']): Promise<{ updatedGame: Game; triggeredHunterId: string | null; }> {
     let newGameData = { ...gameData };
     let triggeredHunterId: string | null = null;
     
@@ -353,6 +353,37 @@ export async function killPlayer(transaction: Transaction, gameRef: DocumentRefe
     }
     
     return { updatedGame: newGameData, triggeredHunterId };
+}
+
+
+export async function killPlayer(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, playerIdToKill: string, cause: GameEvent['type']): Promise<{ updatedGame: Game; triggeredHunterId: string | null; }> {
+    const playerToKill = gameData.players.find(p => p.userId === playerIdToKill);
+    if (!playerToKill) return { updatedGame: gameData, triggeredHunterId: null };
+
+    // Prince check for voting
+    if (cause === 'vote_result' && playerToKill.role === 'prince' && gameData.settings.prince && !playerToKill.princeRevealed) {
+        const playerIndex = gameData.players.findIndex(p => p.userId === playerIdToKill);
+        if (playerIndex > -1) {
+            let updatedGame = { ...gameData };
+            updatedGame.players[playerIndex].princeRevealed = true;
+            updatedGame.events.push({
+                id: `evt_prince_reveal_${Date.now()}`,
+                gameId: gameData.id,
+                round: gameData.currentRound,
+                type: 'special',
+                message: `${playerToKill.displayName} ha sido sentenciado, ¡pero revela su identidad como Príncipe y sobrevive!`,
+                createdAt: Timestamp.now(),
+                data: { revealedPlayerId: playerIdToKill },
+            });
+            return { updatedGame, triggeredHunterId: null };
+        }
+    }
+    
+    return performKill(transaction, gameRef, gameData, playerIdToKill, cause);
+}
+
+export async function killPlayerUnstoppable(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, playerIdToKill: string, cause: GameEvent['type']): Promise<{ updatedGame: Game; triggeredHunterId: string | null; }> {
+    return performKill(transaction, gameRef, gameData, playerIdToKill, cause);
 }
 
 

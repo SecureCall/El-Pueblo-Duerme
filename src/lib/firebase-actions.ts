@@ -27,7 +27,7 @@ import { toPlainObject } from "./utils";
 import { masterActions } from "./master-actions";
 import { getSdks } from "@/firebase/server-init";
 import { secretObjectives } from "./objectives";
-import { processNight, processVotes, processJuryVotes, killPlayer } from './game-engine';
+import { processNight, processVotes, processJuryVotes, killPlayer, killPlayerUnstoppable } from './game-engine';
 import { runAIActions, triggerAIVote, runAIHunterShot, triggerAIChat, triggerPrivateAIChats } from "./ai-logic";
 
 function generateGameId(length = 5) {
@@ -167,7 +167,7 @@ export async function joinGame(
 
       const game = gameSnap.data() as Game;
 
-      if (game.status !== "waiting") {
+      if (game.status !== "waiting" && !game.players.some(p => p.userId === userId)) {
         throw new Error("Esta partida ya ha comenzado.");
       }
       
@@ -255,7 +255,7 @@ const MINIMUM_PLAYERS = 3;
 
 const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
     let baseRoles: PlayerRole[] = [];
-    const numWerewolves = Math.max(1, Math.floor(playerCount / 5));
+    const numWerewolves = settings.werewolves || Math.max(1, Math.floor(playerCount / 5));
     
     for (let i = 0; i < numWerewolves; i++) {
         baseRoles.push('werewolf');
@@ -331,7 +331,7 @@ export async function startGame(gameId: string, creatorId: string) {
                 throw new Error(`Se necesitan al menos ${MINIMUM_PLAYERS} jugadores para comenzar.`);
             }
             
-            const newRoles = generateRoles(finalPlayers.length, game.settings);
+            const newRoles = generateRoles(totalPlayers, game.settings);
             
             let assignedPlayers = finalPlayers.map((player, index) => {
                 const p = { ...player, role: newRoles[index] };
@@ -419,6 +419,7 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt'>) 
               return;
           }
           
+          // These validations are repeated on server for security
           switch (actionType) {
               case 'doctor_heal':
               case 'guardian_protect':
@@ -552,7 +553,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
                 return;
             }
 
-            const { updatedGame } = await killPlayer(transaction, gameRef, game, targetId, 'hunter_shot');
+            const { updatedGame } = await killPlayerUnstoppable(transaction, gameRef, game, targetId, 'hunter_shot');
             
             // This is a re-fetch to get the state after killPlayer's transaction part
             gameSnap = await transaction.get(gameRef);
@@ -787,7 +788,7 @@ export async function resetGame(gameId: string) {
                 wolfCubRevengeRound: 0, players: resetHumanPlayers, vampireKills: 0, boat: [],
                 leprosaBlockedRound: 0, witchFoundSeer: false, seerDied: false,
                 silencedPlayerId: null, exiledPlayerId: null, troublemakerUsed: false,
-                fairiesFound: false, fairyKillUsed: false,
+                fairiesFound: false, fairyKillUsed: false, juryVotes: {}, masterKillUsed: false
             }));
         });
         return { success: true };
@@ -883,11 +884,6 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
 
     return { success: true };
   } catch (error: any) {
-    if ((error as any).code === 'permission-denied') {
-      const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
-      errorEmitter.emit('permission-error', permissionError);
-      return { error: 'Permiso denegado para usar esta habilidad.' };
-    }
     console.error("Error submitting troublemaker action:", error);
     return { error: error.message || "No se pudo realizar la acción." };
   }
@@ -924,16 +920,9 @@ export async function sendGhostMessage(gameId: string, ghostId: string, targetId
         return { success: true };
     } catch (error: any) {
         console.error("Error sending ghost message:", error);
-         if (error.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
-            errorEmitter.emit('permission-error', permissionError);
-            return { error: "Permiso denegado para enviar el mensaje." };
-        }
         return { success: false, error: error.message || "No se pudo enviar el mensaje." };
     }
 }
 
 export { runAIActions, triggerAIVote, runAIHunterShot } from "./ai-logic";
 export { processNight, processVotes, processJuryVotes } from './game-engine';
-
-    
