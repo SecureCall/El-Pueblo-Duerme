@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -47,6 +46,11 @@ export const PlayerGrid = React.memo(function PlayerGrid({
         if (masterActionState.sourceId === player.userId) highlightColor = 'rgba(255, 255, 0, 0.7)';
         
         const isSelf = currentPlayer.userId === player.userId;
+        const votesForThisPlayer = game.phase === 'day' 
+            ? game.players
+                .filter(p => p.votedFor === player.userId)
+                .map(p => p.displayName) 
+            : undefined;
 
         return (
             <div key={player.userId} className="aspect-[3/4]">
@@ -60,7 +64,7 @@ export const PlayerGrid = React.memo(function PlayerGrid({
                     isClickable={clickable && !isSelf}
                     isSelected={selectedPlayerIds.includes(player.userId)}
                     highlightColor={highlightColor}
-                    votes={game.phase === 'day' ? game.players.filter(p => p.votedFor === player.userId).map(p => p.displayName) : undefined}
+                    votes={votesForThisPlayer}
                 />
             </div>
         )

@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -115,7 +114,7 @@ export const PlayerCard = React.memo(function PlayerCard({
   const cardStyle = highlightColor ? { boxShadow: `0 0 15px 4px ${highlightColor}` } : {};
   
   const handleCardClick = () => {
-    if (onClick) {
+    if (onClick && (isClickable || isSelf)) {
         onClick(player);
     }
   }
@@ -144,7 +143,14 @@ export const PlayerCard = React.memo(function PlayerCard({
                  <Crown className="absolute -top-2 -left-2 h-6 w-6 text-yellow-400 rotate-[-15deg]" />
               )}
               {votes && votes.length > 0 && (
-                <Badge variant="destructive" className="absolute -top-2 -right-2 z-10">{votes.length}</Badge>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="destructive" className="absolute -top-2 -right-2 z-10">{votes.length}</Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                      <p>Votos de: {votes.join(', ')}</p>
+                  </TooltipContent>
+                </Tooltip>
               )}
               {player.isAI && (
                 <Bot className="absolute -top-2 -left-2 z-10 h-5 w-5 text-muted-foreground" />
@@ -166,19 +172,12 @@ export const PlayerCard = React.memo(function PlayerCard({
               </CardContent>
               <CardFooter className="p-0 pt-3 flex flex-col items-center gap-1">
                 <p className="font-semibold text-center truncate w-full">{player.displayName}</p>
+                 {votes && votes.length > 0 && (
+                  <p className="text-xs text-muted-foreground">Votos: {votes.length}</p>
+                 )}
               </CardFooter>
             </Card>
         </TooltipTrigger>
-         {votes && votes.length > 0 && (
-            <TooltipContent>
-                <p>Votos de: {votes.join(', ')}</p>
-            </TooltipContent>
-        )}
-         {player.princeRevealed && (
-             <TooltipContent>
-                <p>¡Príncipe revelado! Inmune al linchamiento.</p>
-            </TooltipContent>
-         )}
          {isLover && (
               <TooltipContent>
                 <p>Tu enamorado/a.</p>
@@ -194,8 +193,12 @@ export const PlayerCard = React.memo(function PlayerCard({
                 <p>¡Eres tú! Haz clic para cambiar tu avatar.</p>
             </TooltipContent>
          )}
+          {player.princeRevealed && (
+             <TooltipContent>
+                <p>¡Príncipe revelado! Inmune al linchamiento.</p>
+            </TooltipContent>
+         )}
       </Tooltip>
     </TooltipProvider>
   );
 });
-

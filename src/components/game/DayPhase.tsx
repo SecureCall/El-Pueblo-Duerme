@@ -1,5 +1,4 @@
-
-'use client';
+"use client";
 
 import { useState, useEffect } from 'react';
 import type { Game, Player, GameEvent } from '@/types';
