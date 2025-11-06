@@ -102,13 +102,19 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
   }
   
   const newlyKilledPlayers = game.players.filter(p => !p.isAlive && initialPlayerState.find(ip => ip.userId === p.userId)?.isAlive);
-  let nightMessage = newlyKilledPlayers.length > 0 
-      ? `Anoche, el pueblo perdió a ${newlyKilledPlayers.map(p => p.displayName).join(', ')}.`
-      : "La noche transcurre en un inquietante silencio. Nadie ha muerto.";
   
   const allProtections = new Set([...protectedThisNight, ...blessedThisNight]);
   if(hechiceraSaveAction) allProtections.add(hechiceraSaveAction.targetId);
 
+  let nightMessage;
+  if (newlyKilledPlayers.length > 0) {
+      nightMessage = `Anoche, el pueblo perdió a ${newlyKilledPlayers.map(p => p.displayName).join(', ')}.`;
+  } else if (pendingDeaths.length > 0 && allProtections.size > 0) {
+      nightMessage = "La noche fue tensa. Los lobos atacaron, pero alguien fue salvado por una fuerza protectora.";
+  } else {
+      nightMessage = "La noche transcurre en un inquietante silencio. Nadie ha muerto.";
+  }
+  
   game.events.push({ id: `evt_night_${game.currentRound}`, gameId: game.id, round: game.currentRound, type: 'night_result', message: nightMessage, data: { killedPlayerIds: newlyKilledPlayers.map(p => p.userId), savedPlayerIds: Array.from(allProtections) }, createdAt: Timestamp.now() });
 
   game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; p.isExiled = false; });
@@ -174,22 +180,10 @@ export async function processVotes(transaction: Transaction, gameRef: DocumentRe
     let triggeredHunterId: string | null = null;
 
     if (lynchedPlayerId) {
+        const result = await killPlayer(transaction, gameRef, game, lynchedPlayerId, 'vote_result');
+        game = result.updatedGame;
+        triggeredHunterId = result.triggeredHunterId;
         lynchedPlayerObject = game.players.find(p => p.userId === lynchedPlayerId) || null;
-
-        if (lynchedPlayerObject?.role === 'prince' && game.settings.prince && !lynchedPlayerObject.princeRevealed) {
-            const playerIndex = game.players.findIndex(p => p.userId === lynchedPlayerId);
-            if (playerIndex > -1) game.players[playerIndex].princeRevealed = true;
-            game.events.push({
-                id: `evt_vote_${game.currentRound}`, gameId: game.id, round: game.currentRound, type: 'vote_result',
-                message: `${lynchedPlayerObject.displayName} ha sido sentenciado, ¡pero revela su identidad como Príncipe y sobrevive!`,
-                createdAt: Timestamp.now(), data: { lynchedPlayerId: null, final: true },
-            });
-            lynchedPlayerId = null;
-        } else {
-            const result = await killPlayer(transaction, gameRef, game, lynchedPlayerId, 'vote_result');
-            game = result.updatedGame;
-            triggeredHunterId = result.triggeredHunterId;
-        }
     } else {
         const message = isTiebreaker ? 'Tras un segundo empate, el pueblo decide perdonar una vida hoy.' : 'El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.';
         game.events.push({ id: `evt_vote_result_${game.currentRound}`, gameId: game.id, round: game.currentRound, type: 'vote_result', message, data: { lynchedPlayerId: null, final: true }, createdAt: Timestamp.now() });
@@ -358,7 +352,7 @@ async function performKill(transaction: Transaction, gameRef: DocumentReference<
 
 export async function killPlayer(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, playerIdToKill: string, cause: GameEvent['type']): Promise<{ updatedGame: Game; triggeredHunterId: string | null; }> {
     const playerToKill = gameData.players.find(p => p.userId === playerIdToKill);
-    if (!playerToKill) return { updatedGame: gameData, triggeredHunterId: null };
+    if (!playerToKill || !playerToKill.isAlive) return { updatedGame: gameData, triggeredHunterId: null };
 
     // Prince check for voting
     if (cause === 'vote_result' && playerToKill.role === 'prince' && gameData.settings.prince && !playerToKill.princeRevealed) {
@@ -370,10 +364,10 @@ export async function killPlayer(transaction: Transaction, gameRef: DocumentRefe
                 id: `evt_prince_reveal_${Date.now()}`,
                 gameId: gameData.id,
                 round: gameData.currentRound,
-                type: 'special',
+                type: 'vote_result',
                 message: `${playerToKill.displayName} ha sido sentenciado, ¡pero revela su identidad como Príncipe y sobrevive!`,
                 createdAt: Timestamp.now(),
-                data: { revealedPlayerId: playerIdToKill },
+                data: { lynchedPlayerId: null, final: true, revealedPlayerId: playerIdToKill },
             });
             return { updatedGame, triggeredHunterId: null };
         }
@@ -396,18 +390,6 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
     const alivePlayers = gameData.players.filter(p => p.isAlive);
     
     // Check individual win conditions first
-    for (const player of alivePlayers) {
-        const roleInstance = createRoleInstance(player.role);
-        if (roleInstance.checkWinCondition({ game: gameData, players: gameData.players, player })) {
-             return {
-                isGameOver: true,
-                winnerCode: player.role || 'special',
-                message: roleInstance.getWinMessage(player),
-                winners: [player],
-            };
-        }
-    }
-    
     if (lynchedPlayer) {
         const roleInstance = createRoleInstance(lynchedPlayer.role);
         if (roleInstance.checkWinCondition({ game: gameData, players: gameData.players, player: lynchedPlayer })) {
@@ -416,6 +398,17 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
                 winnerCode: lynchedPlayer.role || 'special',
                 message: roleInstance.getWinMessage(lynchedPlayer),
                 winners: [lynchedPlayer],
+            };
+        }
+    }
+    for (const player of alivePlayers) {
+        const roleInstance = createRoleInstance(player.role);
+        if (roleInstance.checkWinCondition({ game: gameData, players: gameData.players, player })) {
+             return {
+                isGameOver: true,
+                winnerCode: player.role || 'special',
+                message: roleInstance.getWinMessage(player),
+                winners: [player],
             };
         }
     }
