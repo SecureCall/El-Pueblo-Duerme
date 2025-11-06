@@ -1,4 +1,3 @@
-
 import { z } from 'zod';
 import { PlayerRoleEnum } from './player-role.enum';
 
@@ -172,7 +171,7 @@ export const RoleDataSchema = z.object({
   name: PlayerRoleSchema,
   description: z.string(),
   team: z.enum(['Aldeanos', 'Lobos', 'Neutral']),
-  alliance: z.enum(['Aldeanos', 'Lobos', 'Neutral']),
+  alliance: z.enum(['Aldeanos', 'Lobos', 'Neutral', 'Enamorados']),
 });
 
 export const AIPlayerPerspectiveSchema = z.object({

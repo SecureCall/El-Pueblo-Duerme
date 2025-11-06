@@ -1,4 +1,3 @@
-
 import type { Timestamp } from 'firebase/firestore';
 import { z } from 'zod';
 import { PlayerRoleEnum } from './player-role.enum';
@@ -45,7 +44,7 @@ export interface GenerateAIChatMessageOutput {
 // ===============================================================================================
 
 export type Team = 'Aldeanos' | 'Lobos' | 'Neutral';
-export type Alliance = Team;
+export type Alliance = Team | 'Enamorados';
 
 export type RoleData = z.infer<typeof RoleDataSchema>;
 

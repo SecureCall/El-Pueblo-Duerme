@@ -37,7 +37,7 @@ export function LoversChat({ gameId, currentPlayer, messages }: LoversChatProps)
     const handleSendMessage = async () => {
         if (!newMessage.trim() || !firestore) return;
         
-        const res = await sendLoversChatMessage(firestore, gameId, currentPlayer.userId, currentPlayer.displayName, newMessage);
+        const res = await sendLoversChatMessage(gameId, currentPlayer.userId, currentPlayer.displayName, newMessage);
 
         if (res.success) {
             setNewMessage('');
