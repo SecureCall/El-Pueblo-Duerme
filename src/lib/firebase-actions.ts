@@ -403,11 +403,12 @@ export async function startGame(gameId: string, creatorId: string) {
     }
 }
 
-export async function submitNightAction(db: Firestore, action: Omit<NightAction, 'createdAt'> & { round: number }) {
-  const { gameId, playerId, actionType, targetId, round } = action;
-  const gameRef = doc(db, 'games', gameId);
+export async function submitNightAction(action: Omit<NightAction, 'createdAt'> & { round: number }) {
+  const { firestore } = getSdks();
+  const { gameId, playerId, actionType, targetId } = action;
+  const gameRef = doc(firestore, 'games', gameId);
   try {
-    await runTransaction(db, async (transaction) => {
+    await runTransaction(firestore, async (transaction) => {
         const gameSnap = await transaction.get(gameRef as DocumentReference<Game>);
         if (!gameSnap.exists()) throw new Error("Game not found");
         
@@ -416,7 +417,6 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
 
         const player = game.players.find(p => p.userId === playerId);
         if (!player || !player.isAlive) throw new Error("Jugador no válido o muerto.");
-        if (player.isExiled) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
         if (player.usedNightAbility) return;
         
         let players = [...game.players];
@@ -426,55 +426,26 @@ export async function submitNightAction(db: Firestore, action: Omit<NightAction,
             console.error(`Critical error: Player ${action.playerId} not found in game ${gameId} during night action.`);
             return;
         }
-        
-        switch (actionType) {
-            case 'doctor_heal':
-            case 'guardian_protect':
-                const targetPlayer = players.find(p => p.userId === targetId);
-                if (!targetPlayer) break;
-                if (targetPlayer.lastHealedRound === game.currentRound - 1 && game.currentRound > 1) throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
-                
-                const targetPlayerIndex = players.findIndex(p => p.userId === targetId);
-                if (targetPlayerIndex !== -1) {
-                    players[targetPlayerIndex].lastHealedRound = game.currentRound;
-                }
 
-                if(actionType === 'guardian_protect' && targetId === playerId) {
-                    if ((player.guardianSelfProtects || 0) >= 1) throw new Error("Solo puedes protegerte a ti mismo una vez.");
-                    players[playerIndex].guardianSelfProtects = (players[playerIndex].guardianSelfProtects || 0) + 1;
-                }
-                break;
-            case 'hechicera_poison':
-                if (player.potions?.poison) throw new Error("Ya has usado tu poción de veneno.");
-                if(players[playerIndex].potions) players[playerIndex].potions!.poison = game.currentRound;
-                break;
-            case 'hechicera_save':
-                if (player.potions?.save) throw new Error("Ya has usado tu poción de salvación.");
-                if(players[playerIndex].potions) players[playerIndex].potions!.save = game.currentRound;
-                break;
-             case 'priest_bless':
-                if (targetId === playerId && player.priestSelfHealUsed) throw new Error("Ya te has bendecido a ti mismo una vez.");
-                 if (targetId === playerId) players[playerIndex].priestSelfHealUsed = true;
-                break;
-            case 'lookout_spy':
-                if(player.lookoutUsed) throw new Error("Ya has usado tu habilidad de Vigía.");
-                players[playerIndex].lookoutUsed = true;
-                break;
-            case 'resurrect':
-                if(player.resurrectorAngelUsed) throw new Error("Ya has usado tu poder de resurrección.");
-                players[playerIndex].resurrectorAngelUsed = true;
-                break;
-            case 'shapeshifter_select':
-                 if(game.currentRound !== 1) throw new Error("Esta acción solo puede realizarse en la primera noche.");
-                 players[playerIndex].shapeshifterTargetId = targetId;
-                 break;
-            case 'virginia_woolf_link':
-            case 'river_siren_charm':
-            case 'cupid_love':
-                 if(game.currentRound !== 1) throw new Error("Esta acción solo puede realizarse en la primera noche.");
-                 break;
+        // Centralized rule validation
+        if (actionType === 'doctor_heal' || actionType === 'guardian_protect') {
+            const targetPlayer = players.find(p => p.userId === targetId);
+            if (targetPlayer?.lastHealedRound === game.currentRound - 1 && game.currentRound > 1) throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
         }
-
+        if (actionType === 'guardian_protect' && targetId === playerId && (player.guardianSelfProtects || 0) >= 1) {
+             throw new Error("Solo puedes protegerte a ti mismo una vez.");
+        }
+        if (actionType === 'hechicera_poison' && player.potions?.poison) {
+            throw new Error("Ya has usado tu poción de veneno.");
+        }
+        if (actionType === 'hechicera_save' && player.potions?.save) {
+             throw new Error("Ya has usado tu poción de salvación.");
+        }
+        if (actionType === 'priest_bless' && targetId === playerId && player.priestSelfHealUsed) {
+             throw new Error("Ya te has bendecido a ti mismo una vez.");
+        }
+        
+        // Mark ability as used
         players[playerIndex].usedNightAbility = true;
         
         const newAction: NightAction = { ...action, createdAt: Timestamp.now() };
@@ -1256,7 +1227,7 @@ export async function runAIActions(gameId: string) {
             if (!actionType || actionType === 'NONE' || !targetId || actionType === 'VOTE' || actionType === 'SHOOT') continue;
 
             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
-            await submitNightAction(firestore, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
+            await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
         }
     } catch(e) {
         console.error("Error in AI Actions:", e);

@@ -52,8 +52,8 @@ export const PlayerGrid = React.memo(function PlayerGrid({
         const isSelf = currentPlayer.userId === player.userId;
         const votesForThisPlayer = votesByPlayer[player.userId] || [];
 
-        const isSilenced = game.phase === 'day' && game.silencedPlayerId === player.userId;
-        const isExiled = game.phase === 'night' && game.exiledPlayerId === player.userId;
+        const isSilenced = game.silencedPlayerId === player.userId;
+        const isExiled = game.exiledPlayerId === player.userId;
 
         return (
             <div key={player.userId} className="aspect-[3/4]">
