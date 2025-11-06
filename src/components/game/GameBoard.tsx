@@ -237,12 +237,12 @@ export function GameBoard({ gameId }: { gameId: string }) {
                 case 'vote_result': return <BanishedOverlay angelInPlay={isAngelInPlay} />;
                 case 'hunter_shot': return <HunterKillOverlay angelInPlay={isAngelInPlay} />;
                 case 'vampire_kill': return <VampireKillOverlay angelInPlay={isAngelInPlay} />;
-                case 'werewolf_kill':
+                case 'werewolf_kill': return <YouAreDeadOverlay angelInPlay={isAngelInPlay} isWolfKill={true} />;
                 case 'troublemaker_duel':
                 case 'special':
                 case 'lover_death':
                 default:
-                    return <YouAreDeadOverlay angelInPlay={isAngelInPlay} />;
+                    return <YouAreDeadOverlay angelInPlay={isAngelInPlay} isWolfKill={false} />;
             }
         };
         return (
@@ -486,3 +486,5 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
     );
 }
 
+
+    
