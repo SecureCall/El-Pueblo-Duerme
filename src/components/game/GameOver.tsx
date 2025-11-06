@@ -6,15 +6,14 @@ import type { GameEvent, Game, Player } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import Link from 'next/link';
-import { Milestone, Loader2, Play, Users, BotIcon } from 'lucide-react';
+import { Milestone, Loader2, Play } from 'lucide-react';
 import { playNarration } from '@/lib/sounds';
 import { roleDetails } from '@/lib/roles';
 import { useGameSession } from '@/hooks/use-game-session';
-import { useFirebase } from '@/firebase';
 import { resetGame } from '@/lib/firebase-actions';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '../ui/scroll-area';
-import { Shield, Wand2 } from 'lucide-react';
+import { Shield, Bot, Wand2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 
@@ -26,7 +25,6 @@ interface GameOverProps {
 }
 
 export function GameOver({ game, event, players, currentPlayer }: GameOverProps) {
-    const { firestore } = useFirebase();
     const { toast } = useToast();
     const [isResetting, setIsResetting] = useState(false);
 
@@ -69,9 +67,9 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
     }, [event]);
 
     const handleResetGame = async () => {
-        if (!firestore || !isCreator) return;
+        if (!isCreator) return;
         setIsResetting(true);
-        const result = await resetGame(firestore, game.id);
+        const result = await resetGame(game.id);
         if (result.error) {
             toast({
                 variant: 'destructive',
@@ -80,6 +78,7 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
             });
             setIsResetting(false);
         }
+        // On success, the listener in GameRoom will handle the component switch
     };
 
     if (!event) {
@@ -90,33 +89,32 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
             </div>
         );
     }
-
-    const wolfTeamRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed', 'witch', 'seeker_fairy'];
-    const specialTeamRoles: Player['role'][] = ['cupid', 'shapeshifter', 'drunk_man', 'cult_leader', 'fisherman', 'vampire', 'banshee', 'executioner', 'sleeping_fairy'];
-
-    const villageTeam = players.filter(p => p.role && !wolfTeamRoles.includes(p.role) && !specialTeamRoles.includes(p.role));
-    const wolfTeam = players.filter(p => p.role && wolfTeamRoles.includes(p.role));
-    const specialTeam = players.filter(p => p.role && specialTeamRoles.includes(p.role));
-
+    
     const getRoleInfo = (player: Player) => {
-        return roleDetails[player.role!] ?? { name: 'Desconocido', image: '/roles/villager.png', color: 'text-white' };
+        return roleDetails[player.role!] ?? { name: 'Desconocido', image: '/roles/villager.png', color: 'text-white', team: 'Aldeanos' };
     };
+
+    const villageTeam = players.filter(p => p.role && getRoleInfo(p).team === 'Aldeanos');
+    const wolfTeam = players.filter(p => p.role && getRoleInfo(p).team === 'Lobos');
+    const neutralTeam = players.filter(p => p.role && getRoleInfo(p).team === 'Neutral');
 
     const RoleListSection = ({ title, players, icon }: { title: string, players: Player[], icon: React.ReactNode }) => (
          <div>
             <h3 className="text-2xl font-bold flex items-center justify-center gap-2 mb-2">{icon}{title}</h3>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-left">
-                {players.map(p => (
+                {players.map(p => {
+                    const roleInfo = getRoleInfo(p);
+                    return (
                     <div key={p.userId} className="flex items-center gap-2 p-2 bg-muted/30 rounded-md">
                         <div className="relative h-8 w-8">
-                            <Image src={getRoleInfo(p).image} alt={getRoleInfo(p).name} fill className="object-contain" unoptimized/>
+                            <Image src={roleInfo.image} alt={roleInfo.name} fill className="object-contain" unoptimized/>
                         </div>
                         <div>
-                            <p className={cn("font-semibold", getRoleInfo(p).color)}>{p.displayName}</p>
-                            <p className="text-xs text-muted-foreground">{getRoleInfo(p).name}</p>
+                            <p className={cn("font-semibold", roleInfo.color)}>{p.displayName}</p>
+                            <p className="text-xs text-muted-foreground">{roleInfo.name}</p>
                         </div>
                     </div>
-                ))}
+                )})}
             </div>
         </div>
     );
@@ -136,8 +134,8 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
                  <ScrollArea className="h-64">
                     <div className="space-y-6 p-4">
                         {villageTeam.length > 0 && <RoleListSection title="El Pueblo" players={villageTeam} icon={<Shield className="text-blue-400"/>} />}
-                        {wolfTeam.length > 0 && <RoleListSection title="Los Lobos" players={wolfTeam} icon={<BotIcon className="text-destructive"/>} />}
-                        {specialTeam.length > 0 && <RoleListSection title="Roles Especiales" players={specialTeam} icon={<Wand2 className="text-purple-400"/>} />}
+                        {wolfTeam.length > 0 && <RoleListSection title="Los Lobos" players={wolfTeam} icon={<Bot className="text-destructive"/>} />}
+                        {neutralTeam.length > 0 && <RoleListSection title="Roles Especiales" players={neutralTeam} icon={<Wand2 className="text-purple-400"/>} />}
                     </div>
                  </ScrollArea>
 
