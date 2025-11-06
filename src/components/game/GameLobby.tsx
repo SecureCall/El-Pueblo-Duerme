@@ -3,7 +3,7 @@
 import type { Game, Player } from "@/types";
 import { StartGameButton } from "./StartGameButton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
-import { Copy, Share2 } from "lucide-react";
+import { Copy, Share2, User } from "lucide-react";
 import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
@@ -13,6 +13,7 @@ import { useGameSession } from "@/hooks/use-game-session";
 import { updatePlayerAvatar } from "@/lib/firebase-actions";
 import { PlayerGrid } from "./PlayerGrid";
 import type { MasterActionState } from "./MasterActionBar";
+import Link from "next/link";
 
 interface GameLobbyProps {
   game: Game;
@@ -87,10 +88,21 @@ export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobby
       <div className="w-full max-w-4xl mx-auto p-4 space-y-8">
         <Card className="text-center bg-card/80">
           <CardHeader>
-            <CardTitle className="font-headline text-4xl">{game.name}</CardTitle>
-            <CardDescription className="text-lg">
-              Esperando jugadores... ({players.length}/{game.maxPlayers})
-            </CardDescription>
+            <div className="flex justify-between items-center">
+                <Button variant="ghost" size="icon" asChild>
+                    <Link href="/profile">
+                        <User />
+                        <span className="sr-only">Ver Perfil</span>
+                    </Link>
+                </Button>
+                <div className="flex-1">
+                    <CardTitle className="font-headline text-4xl">{game.name}</CardTitle>
+                    <CardDescription className="text-lg">
+                    Esperando jugadores... ({players.length}/{game.maxPlayers})
+                    </CardDescription>
+                </div>
+                <div className="w-10"></div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
               <p>Comparte este ID con tus amigos:</p>
