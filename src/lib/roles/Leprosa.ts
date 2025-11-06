@@ -1,5 +1,4 @@
 
-
 import { GameContext, GameStateChange, IRole, Player, RoleData, Team } from "@/types";
 import { PlayerRoleEnum } from "@/types";
 
@@ -14,13 +13,9 @@ export class Leprosa implements IRole {
   }
 
   onDeath(context: GameContext): GameStateChange | null {
-    // El efecto se activa si la causa de la muerte es un ataque de lobo
-    // Esta lógica se maneja en el game loop principal al procesar la muerte
-    return {
-      game: {
-        leprosaBlockedRound: context.game.currentRound + 1
-      }
-    };
+    // This logic is now handled in the game engine when the cause of death is 'werewolf_kill'
+    // to correctly apply the block for the *next* round.
+    return null;
   }
 
   checkWinCondition() {

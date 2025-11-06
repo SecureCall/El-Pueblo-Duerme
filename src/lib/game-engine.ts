@@ -55,11 +55,11 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
           blessedThisNight.add(action.targetId);
        }
   }
-  
+
   const wolfAttackAction = actions.find(a => a.actionType === 'werewolf_kill');
-  if (wolfAttackAction && !blessedThisNight.has(wolfAttackAction.targetId)) {
+  if (wolfAttackAction && game.leprosaBlockedRound !== game.currentRound) {
       const targetPlayer = game.players.find(p => p.userId === wolfAttackAction.targetId);
-      if(targetPlayer?.role === 'cursed' && game.settings.cursed) {
+      if(targetPlayer?.role === 'cursed' && game.settings.cursed && !blessedThisNight.has(wolfAttackAction.targetId)) {
            const cursedPlayerIndex = game.players.findIndex(p => p.userId === wolfAttackAction.targetId);
            if (cursedPlayerIndex !== -1) {
                game.players[cursedPlayerIndex].role = 'werewolf';
@@ -76,7 +76,7 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
   }
 
   const protectedThisNight = new Set<string>(actions.filter(a => a.actionType === 'doctor_heal' || a.actionType === 'guardian_protect').map(a => a.targetId));
-  pendingDeaths = pendingDeaths.filter(death => death.cause !== 'werewolf_kill' || !protectedThisNight.has(death.playerId));
+  pendingDeaths = pendingDeaths.filter(death => death.cause !== 'werewolf_kill' || !protectedThisNight.has(death.playerId) && !blessedThisNight.has(death.playerId));
 
 
   let triggeredHunterId: string | null = null;
@@ -84,6 +84,12 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
       const { updatedGame, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, death.playerId, death.cause);
       game = updatedGame;
       if(newHunterId) triggeredHunterId = newHunterId;
+
+      // Check for Leprosa effect
+      const deadPlayer = game.players.find(p => p.userId === death.playerId);
+      if (deadPlayer?.role === 'leprosa' && death.cause === 'werewolf_kill') {
+          game.leprosaBlockedRound = game.currentRound + 1;
+      }
   }
 
   let gameOverInfo = await checkGameOver(game);
