@@ -463,7 +463,7 @@ async function triggerPrivateAIChats(gameId: string, triggerMessage: string) {
                     generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
                         if (shouldSend && message) {
                             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
-                            await sendMessageFn(firestore, gameId, aiPlayer.userId, aiPlayer.displayName, message);
+                            await sendMessageFn(gameId, aiPlayer.userId, aiPlayer.displayName, message);
                         }
                     }).catch(err => console.error(`Error in private AI chat for ${aiPlayer.displayName}:`, err));
                 }
@@ -1044,7 +1044,7 @@ export async function processNight(gameId: string) {
         
         const wolfAttack = actions.find(a => a.actionType === 'werewolf_kill');
 
-        if (hechiceraSaveAction && wolfAttack?.targetId === hechiceraSaveAction.targetId) {
+        if (wolfAttack?.targetId && hechiceraSaveAction?.targetId === wolfAttack.targetId) {
             hechiceraSaveUsed = true;
         } else {
              if (wolfAttack && !blessedThisNight.has(wolfAttack.targetId) && !protectedThisNight.has(wolfAttack.targetId)) {
@@ -1125,7 +1125,7 @@ export async function processVotes(gameId: string) {
         let game = gameSnap.data()!;
         if (game.phase !== 'day' || game.status === 'finished') return;
 
-        const lastVoteEvent = [...game.events].sort((a,b) => toPlainObject(b.createdAt) - toPlainObject(a.createdAt)).find(e => e.type === 'vote_result');
+        const lastVoteEvent = [...game.events].sort((a,b) => toPlainObject(b.createdAt).getTime() - toPlainObject(a.createdAt).getTime()).find(e => e.type === 'vote_result');
         const isTiebreaker = lastVoteEvent?.data?.tiedPlayerIds && !lastVoteEvent?.data?.final;
 
         const alivePlayers = game.players.filter(p => p.isAlive);
@@ -1322,7 +1322,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
                 return;
             }
 
-            const hunterDeathEvent = [...game.events].sort((a, b) => toPlainObject(b.createdAt) - toPlainObject(a.createdAt)).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
+            const hunterDeathEvent = [...game.events].sort((a, b) => toPlainObject(b.createdAt).getTime() - toPlainObject(a.createdAt).getTime()).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
 
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
             const currentRound = game.currentRound;
@@ -1666,4 +1666,68 @@ export async function submitJuryVote(gameId: string, jurorId: string, targetId: 
         console.error("Error submitting jury vote:", error);
         return { success: false, error: error.message };
     }
+}
+
+export async function submitTroublemakerAction(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
+  const { firestore } = getSdks();
+  const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+
+  try {
+    await runTransaction(firestore, async (transaction) => {
+      const gameSnap = await transaction.get(gameRef);
+      if (!gameSnap.exists()) throw new Error("Partida no encontrada");
+      let game = gameSnap.data()!;
+
+      if (game.status === 'finished') return;
+
+      const player = game.players.find(p => p.userId === troublemakerId);
+      if (!player || player.role !== 'troublemaker' || game.troublemakerUsed) {
+        throw new Error("No puedes realizar esta acción.");
+      }
+
+      const target1 = game.players.find(p => p.userId === target1Id);
+      const target2 = game.players.find(p => p.userId === target2Id);
+
+      if (!target1 || !target2 || !target1.isAlive || !target2.isAlive) {
+        throw new Error("Los objetivos seleccionados no son válidos.");
+      }
+      
+      let { updatedGame, triggeredHunterId } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, target1Id, 'troublemaker_duel');
+      game = updatedGame;
+      
+      let finalResult = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, target2Id, 'troublemaker_duel');
+      game = finalResult.updatedGame;
+
+      if(triggeredHunterId || finalResult.triggeredHunterId) {
+          game.pendingHunterShot = triggeredHunterId || finalResult.triggeredHunterId;
+      }
+
+      game.events.push({
+        id: `evt_trouble_${Date.now()}`, gameId, round: game.currentRound, type: 'special',
+        message: `${player.displayName} ha provocado una pelea mortal. ${target1.displayName} y ${target2.displayName} han sido eliminados.`,
+        createdAt: Timestamp.now(), data: { killedPlayerIds: [target1Id, target2Id] }
+      });
+      
+      game.troublemakerUsed = true;
+      let gameOverInfo = await checkGameOver(game);
+
+      if (gameOverInfo.isGameOver) {
+        game.status = "finished";
+        game.phase = "finished";
+        game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
+      }
+
+      transaction.update(gameRef, toPlainObject(game));
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    if ((error as any).code === 'permission-denied') {
+      const permissionError = new FirestorePermissionError({ path: gameRef.path, operation: 'update' });
+      errorEmitter.emit('permission-error', permissionError);
+      return { error: 'Permiso denegado para usar esta habilidad.' };
+    }
+    console.error("Error submitting troublemaker action:", error);
+    return { error: error.message || "No se pudo realizar la acción." };
+  }
 }
