@@ -107,7 +107,6 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
-    const { firestore } = useFirebase();
     const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
 
 
@@ -138,7 +137,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
     };
 
     const handleVoteSubmit = async () => {
-        if (!selectedPlayerId || !firestore) {
+        if (!selectedPlayerId) {
             if (!isCharmed) { // Only show toast if not charmed, as charmed vote is automatic
                 toast({ variant: 'destructive', title: 'Debes seleccionar un jugador para votar.' });
             }
@@ -301,3 +300,5 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
         </Card>
     );
 }
+
+    

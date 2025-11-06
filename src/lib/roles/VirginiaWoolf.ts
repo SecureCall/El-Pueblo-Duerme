@@ -1,5 +1,4 @@
 
-
 import type { GameContext, GameStateChange, IRole, NightAction, Player, RoleData, Team } from "@/types";
 import { PlayerRoleEnum } from "@/types";
 
@@ -17,6 +16,7 @@ export class VirginiaWoolf implements IRole {
       playerUpdates: [{
         userId: context.player.userId,
         virginiaWoolfTargetId: action.targetId as string,
+        usedNightAbility: true,
       }]
     };
   }
@@ -48,3 +48,5 @@ export class VirginiaWoolf implements IRole {
     };
   }
 }
+
+    

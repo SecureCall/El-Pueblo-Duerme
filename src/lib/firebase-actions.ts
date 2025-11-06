@@ -405,7 +405,7 @@ export async function startGame(gameId: string, creatorId: string) {
 
 export async function submitNightAction(action: Omit<NightAction, 'createdAt'> & { round: number }) {
   const { firestore } = getSdks();
-  const { gameId, playerId, actionType, targetId } = action;
+  const { gameId, playerId } = action;
   const gameRef = doc(firestore, 'games', gameId);
   try {
     await runTransaction(firestore, async (transaction) => {
@@ -419,39 +419,19 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt'> &
         if (!player || !player.isAlive) throw new Error("Jugador no válido o muerto.");
         if (player.usedNightAbility) return;
         
-        let players = [...game.players];
-        const playerIndex = players.findIndex(p => p.userId === action.playerId);
-        
-        if (playerIndex === -1) {
-            console.error(`Critical error: Player ${action.playerId} not found in game ${gameId} during night action.`);
-            return;
-        }
-
-        // Centralized rule validation
-        if (actionType === 'doctor_heal' || actionType === 'guardian_protect') {
-            const targetPlayer = players.find(p => p.userId === targetId);
-            if (targetPlayer?.lastHealedRound === game.currentRound - 1 && game.currentRound > 1) throw new Error("No puedes proteger a la misma persona dos noches seguidas.");
-        }
-        if (actionType === 'guardian_protect' && targetId === playerId && (player.guardianSelfProtects || 0) >= 1) {
-             throw new Error("Solo puedes protegerte a ti mismo una vez.");
-        }
-        if (actionType === 'hechicera_poison' && player.potions?.poison) {
-            throw new Error("Ya has usado tu poción de veneno.");
-        }
-        if (actionType === 'hechicera_save' && player.potions?.save) {
-             throw new Error("Ya has usado tu poción de salvación.");
-        }
-        if (actionType === 'priest_bless' && targetId === playerId && player.priestSelfHealUsed) {
-             throw new Error("Ya te has bendecido a ti mismo una vez.");
-        }
-        
-        // Mark ability as used
-        players[playerIndex].usedNightAbility = true;
-        
         const newAction: NightAction = { ...action, createdAt: Timestamp.now() };
-        const updatedNightActions = [...(game.nightActions || []), newAction];
-        transaction.update(gameRef, { nightActions: updatedNightActions, players: toPlainObject(players) });
+        
+        const updatedPlayers = game.players.map(p => {
+          if (p.userId === playerId) {
+            return { ...p, usedNightAbility: true };
+          }
+          return p;
+        });
 
+        transaction.update(gameRef, { 
+          nightActions: arrayUnion(toPlainObject(newAction)), 
+          players: toPlainObject(updatedPlayers) 
+        });
     });
 
     return { success: true };
@@ -516,11 +496,12 @@ export async function getSeerResult(db: Firestore, gameId: string, seerId: strin
     }
 }
 
-export async function submitHunterShot(db: Firestore, gameId: string, hunterId: string, targetId: string) {
-    const gameRef = doc(db, 'games', gameId) as DocumentReference<Game>;
+export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
+    const { firestore } = getSdks();
+    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
 
     try {
-        await runTransaction(db, async (transaction) => {
+        await runTransaction(firestore, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
             let game = gameSnap.data()!;
@@ -855,10 +836,10 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
         throw new Error("Los objetivos seleccionados no son válidos.");
       }
       
-      let { updatedGame } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, target1Id, 'troublemaker_duel');
+      let { updatedGame } = await killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, target1Id, 'troublemaker_duel');
       game = updatedGame;
       
-      let finalResult = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, target2Id, 'troublemaker_duel');
+      let finalResult = await killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, target2Id, 'troublemaker_duel');
       game = finalResult.updatedGame;
 
       game.events.push({
@@ -874,7 +855,7 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
     return { success: true };
   } catch (error: any) {
     console.error("Error submitting troublemaker action:", error);
-    return { error: error.message || "No se pudo realizar la acción." };
+    return { success: false, error: error.message || "No se pudo realizar la acción." };
   }
 }
 
@@ -1250,7 +1231,7 @@ export async function runAIHunterShot(gameId: string, hunter: Player) {
 
         if (targetId) {
             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
-            await submitHunterShot(firestore, gameId, hunter.userId, targetId);
+            await submitHunterShot(gameId, hunter.userId, targetId);
         } else {
              console.error(`AI Hunter ${hunter.displayName} could not find a target to shoot.`);
         }
@@ -1261,3 +1242,5 @@ export async function runAIHunterShot(gameId: string, hunter: Player) {
 }
 
 export { processNight, processVotes, processJuryVotes } from './game-engine';
+
+    
