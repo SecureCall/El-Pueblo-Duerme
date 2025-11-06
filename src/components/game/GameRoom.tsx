@@ -6,7 +6,7 @@ import { useGameSession } from '@/hooks/use-game-session';
 import { useGameState } from '@/hooks/use-game-state';
 import { EnterNameModal } from './EnterNameModal';
 import { joinGame } from '@/lib/firebase-actions';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ArrowLeft } from 'lucide-react';
 import { GameLobby } from './GameLobby';
 import { GameBoard } from './GameBoard';
 import Image from 'next/image';
@@ -14,7 +14,6 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { GameMusic } from './GameMusic';
 import Link from 'next/link';
 import { Button } from '../ui/button';
-import { ArrowLeft } from 'lucide-react';
 
 export function GameRoom({ gameId }: { gameId: string }) {
   const { userId, displayName, setDisplayName, isSessionLoaded, avatarUrl } = useGameSession();
@@ -98,11 +97,18 @@ export function GameRoom({ gameId }: { gameId: string }) {
     }
 
     if (!game) {
-        return <p className="text-destructive text-xl">Esta partida no existe o ha sido eliminada.</p>;
+        return (
+            <div className='text-center text-white space-y-4'>
+                <p className="text-destructive text-2xl font-bold">Esta partida no existe o ha sido eliminada.</p>
+                 <Button asChild>
+                    <Link href="/"><ArrowLeft className="mr-2" /> Volver al Inicio</Link>
+                </Button>
+            </div>
+        );
     }
     
     // Player is not in the game, and it's a private game they tried to access via URL
-    if (!currentPlayer && !game.settings.isPublic) {
+    if (!currentPlayer && game.status === 'waiting' && !game.settings.isPublic) {
         return (
             <div className='text-center text-white space-y-4'>
                 <p className="text-destructive text-2xl font-bold">Esta es una partida privada.</p>
@@ -117,10 +123,24 @@ export function GameRoom({ gameId }: { gameId: string }) {
 
     if (!currentPlayer) {
         if (game.status !== 'waiting') {
-            return <p className="text-destructive text-xl">Esta partida ya ha comenzado.</p>;
+            return (
+                 <div className='text-center text-white space-y-4'>
+                    <p className="text-destructive text-2xl font-bold">Esta partida ya ha comenzado.</p>
+                     <Button asChild>
+                        <Link href="/"><ArrowLeft className="mr-2" /> Volver al Inicio</Link>
+                    </Button>
+                </div>
+            );
         }
          if (players.length >= game.maxPlayers) {
-            return <p className="text-destructive text-xl">Esta partida está llena.</p>;
+            return (
+                 <div className='text-center text-white space-y-4'>
+                    <p className="text-destructive text-2xl font-bold">Esta partida está llena.</p>
+                     <Button asChild>
+                        <Link href="/"><ArrowLeft className="mr-2" /> Volver al Inicio</Link>
+                    </Button>
+                </div>
+            );
         }
         return (
             <div className="flex flex-col items-center gap-4 text-white">
