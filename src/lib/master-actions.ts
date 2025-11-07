@@ -1,4 +1,3 @@
-'use server';
 
 import type { Game, GameEvent } from "@/types";
 import { Timestamp } from "firebase/firestore";
