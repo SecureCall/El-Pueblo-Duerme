@@ -26,21 +26,23 @@ service cloud.firestore {
       
       // Define update rules
       allow update: if 
-          // Rule 1: The user must be a player in the game to update it.
-          isPlayer(gameId) &&
+          // Rule 1: The user must be authenticated.
+          request.auth != null &&
           (
-            // Rule 2: Joining a game in 'waiting' state.
+            // Rule 2: Joining a game in 'waiting' state (either the first player or subsequent players).
             (
-                // A new player is being added.
-                request.resource.data.players.size() == resource.data.players.size() + 1 &&
-                // The game is in the 'waiting' state.
-                resource.data.status == 'waiting'
+                resource.data.status == 'waiting' &&
+                (
+                    // Creator joining their own game (player list is initially empty)
+                    (resource.data.players.size() == 0 && request.resource.data.players.size() == 1) ||
+                    // Subsequent players joining
+                    (request.resource.data.players.size() == resource.data.players.size() + 1)
+                )
             ) ||
-            // Rule 3: Updating your own player object (e.g., voting, submitting night action).
+            // Rule 3: Updating your own player object (e.g., voting, submitting night action, changing avatar).
             (
-                // The number of players hasn't changed.
+                isPlayer(gameId) &&
                 request.resource.data.players.size() == resource.data.players.size() &&
-                // Validate that only the current user's player object is changing in a valid way.
                 (
                     // Voting during the day phase
                     (
@@ -58,7 +60,11 @@ service cloud.firestore {
                     (
                         request.resource.data.phase == 'jury_voting' &&
                         getPlayer(resource.data.players).isAlive == false
-                    )
+                    ) ||
+                    // Changing avatar
+                     (
+                        getRequestPlayer(request.resource.data.players).avatarUrl != getPlayer(resource.data.players).avatarUrl
+                     )
                 )
             ) ||
              // Rule 4: Only the creator can start the game or change its state.
@@ -83,6 +89,3 @@ service cloud.firestore {
                 )
             )
           );
-    }
-  }
-}
