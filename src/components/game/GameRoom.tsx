@@ -12,6 +12,7 @@ import { GameBoard } from './GameBoard';
 import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { GameMusic } from './GameMusic';
+import { useFirebase } from '@/firebase';
 import Link from 'next/link';
 import { Button } from '../ui/button';
 
@@ -20,6 +21,8 @@ export function GameRoom({ gameId }: { gameId: string }) {
   const { game, players, currentPlayer, loading, error: gameStateError } = useGameState(gameId);
   const [isJoining, setIsJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
+
+  const { firestore } = useFirebase();
 
   const handleNameSubmit = useCallback(
     (name: string) => {
@@ -30,12 +33,12 @@ export function GameRoom({ gameId }: { gameId: string }) {
   );
 
   const handleJoinGame = useCallback(async () => {
-    if (!displayName || !avatarUrl || !userId) return;
+    if (!displayName || !firestore || !avatarUrl || !userId) return;
 
     setIsJoining(true);
     setJoinError(null);
 
-    const result = await joinGame(gameId, userId, displayName, avatarUrl);
+    const result = await joinGame(firestore, gameId, userId, displayName, avatarUrl);
 
     if (result.error) {
       setJoinError(result.error);
@@ -44,7 +47,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
       }
     }
     setIsJoining(false);
-  }, [displayName, gameId, userId, setDisplayName, avatarUrl]);
+  }, [displayName, firestore, gameId, userId, setDisplayName, avatarUrl]);
 
   useEffect(() => {
     if (isSessionLoaded && game && displayName && !currentPlayer && game.status === 'waiting' && !isJoining) {
@@ -152,7 +155,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
     
     switch (game.status) {
         case 'waiting':
-            return <GameLobby game={game} players={players} isCreator={game.creator === userId} currentPlayer={currentPlayer} />;
+            return <GameLobby game={game} players={players} isCreator={game.creator === userId} />;
         case 'in_progress':
         case 'finished':
             return <GameBoard gameId={gameId} />;
@@ -180,3 +183,5 @@ export function GameRoom({ gameId }: { gameId: string }) {
     </div>
   );
 }
+
+    

@@ -1,41 +1,35 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if a user is a player in the game
+    
     function isPlayer(gameId) {
       return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p => p.userId == request.auth.uid);
     }
     
-    // Helper function to get player data from the current resource
     function getPlayer(players) {
         return players.filter(p => p.userId == request.auth.uid)[0];
     }
     
-    // Helper function to get player data from the incoming request
     function getRequestPlayer(players) {
-        return request.resource.data.players.filter(p => p.userId == request.auth.uid)[0]
+        return request.resource.data.players.filter(p => p.userId == request.auth.uid)[0];
     }
 
     match /games/{gameId} {
-      // Allow any authenticated user to read game documents for joining/spectating.
       allow read: if request.auth != null;
 
-      // Allow any authenticated user to create a new game document.
-      allow create: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.creator == request.auth.uid && request.resource.data.players.size() == 1 && request.resource.data.players[0].userId == request.auth.uid;
       
-      // Define update rules
       allow update: if 
-          // Rule 1: The user must be authenticated.
           request.auth != null &&
           (
-            // Rule 2: Joining an existing game in 'waiting' state.
+            // Rule: Joining an existing game in 'waiting' state.
             (
                 resource.data.status == 'waiting' &&
-                request.resource.data.players.size() == resource.data.players.size() + 1 &&
-                isPlayer(gameId) == false // Ensure the user is not already a player.
+                request.resource.data.players.size() == resource.data.players.size() + 1
             ) ||
-            // Rule 3: Updating your own player object (e.g., voting, submitting night action, changing avatar).
+            // Rule: Updating your own player object (e.g., voting, submitting night action, changing avatar).
             (
                 isPlayer(gameId) &&
                 request.resource.data.players.size() == resource.data.players.size() &&
@@ -64,7 +58,7 @@ service cloud.firestore {
                      )
                 )
             ) ||
-             // Rule 4: Only the creator can start the game or change its state.
+             // Rule: Only the creator can start the game or process phases.
             (
                 request.auth.uid == resource.data.creator &&
                 (
@@ -73,7 +67,7 @@ service cloud.firestore {
                         resource.data.status == 'waiting' && 
                         request.resource.data.status == 'in_progress'
                     ) ||
-                    // Processing phases
+                    // Processing phases (day to night, night to day, etc.)
                     (
                         resource.data.status == 'in_progress' &&
                         resource.data.phase != request.resource.data.phase
@@ -89,3 +83,5 @@ service cloud.firestore {
     }
   }
 }
+
+    

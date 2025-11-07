@@ -15,20 +15,23 @@ import { updatePlayerAvatar } from "@/lib/firebase-actions";
 import { PlayerGrid } from "./PlayerGrid";
 import type { MasterActionState } from "./MasterActionBar";
 import Link from "next/link";
+import { useFirebase } from "@/firebase";
 
 interface GameLobbyProps {
   game: Game;
   players: Player[];
   isCreator: boolean;
-  currentPlayer: Player;
 }
 
-export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobbyProps) {
+export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
   const { toast } = useToast();
-  const { userId } = useGameSession();
+  const { userId, setAvatarUrl } = useGameSession();
+  const { firestore } = useFirebase();
   const [canShare, setCanShare] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
+
+  const currentPlayer = players.find(p => p.userId === userId);
 
   useEffect(() => {
     if (typeof navigator !== 'undefined' && navigator.share) {
@@ -37,8 +40,9 @@ export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobby
   }, []);
 
   const handleAvatarChange = async (newAvatarUrl: string) => {
-    if (!userId) return;
-    const result = await updatePlayerAvatar(game.id, userId, newAvatarUrl);
+    if (!userId || !firestore) return;
+    setAvatarUrl(newAvatarUrl); // Optimistically update local state
+    const result = await updatePlayerAvatar(firestore, game.id, userId, newAvatarUrl);
     if (!result.success) {
       toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el avatar." });
     }
@@ -78,6 +82,10 @@ export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobby
       }
     }
   };
+
+  if (!currentPlayer) {
+      return <div>Cargando tu información de jugador...</div>
+  }
 
   return (
     <>
@@ -157,3 +165,5 @@ export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobby
     </>
   );
 }
+
+    

@@ -1,6 +1,7 @@
 
 import type { Game, GameEvent } from "@/types";
 import { Timestamp } from "firebase/firestore";
+import { roleDetails } from "./roles";
 
 export type MasterActionId = 'reveal_role' | 'master_kill';
 
@@ -41,9 +42,6 @@ const revealRoleAction: MasterAction = {
     }
 };
 
-// This needs to be imported to avoid a circular dependency issue with roleDetails
-import { roleDetails } from './roles';
-
 export const masterActions: Record<MasterActionId, MasterAction> = {
     reveal_role: revealRoleAction,
     master_kill: {
@@ -56,3 +54,5 @@ export const masterActions: Record<MasterActionId, MasterAction> = {
         }
     }
 };
+
+    

@@ -1,5 +1,5 @@
 
-'use server';
+'use client';
 import { 
   doc,
   setDoc,
@@ -8,6 +8,7 @@ import {
   arrayUnion,
   Timestamp,
   runTransaction,
+  type Firestore,
   type Transaction,
   DocumentReference,
 } from "firebase/firestore";
@@ -23,7 +24,6 @@ import {
 } from "@/types";
 import { toPlainObject } from "./utils";
 import { masterActions } from "./master-actions";
-import { getSdks } from "@/firebase/server-init";
 import { secretObjectives } from "./objectives";
 import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
@@ -73,6 +73,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
 
 
 export async function createGame(
+  db: Firestore,
   userId: string,
   displayName: string,
   avatarUrl: string,
@@ -80,7 +81,6 @@ export async function createGame(
   maxPlayers: number,
   settings: Game['settings']
 ) {
-  const { firestore } = getSdks();
   try {
     if (typeof displayName !== 'string' || typeof gameName !== 'string') {
         return { error: "El nombre del jugador y de la partida deben ser texto." };
@@ -93,52 +93,51 @@ export async function createGame(
     }
 
     const gameId = generateGameId();
-    const gameRef = doc(firestore, "games", gameId);
+    const gameRef = doc(db, "games", gameId);
+        
+    const creatorPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
+
+    const gameData: Game = {
+        id: gameId,
+        name: gameName.trim(),
+        status: "waiting",
+        phase: "waiting", 
+        creator: userId,
+        players: [creatorPlayer], // Add creator directly
+        events: [],
+        chatMessages: [],
+        wolfChatMessages: [],
+        fairyChatMessages: [],
+        twinChatMessages: [],
+        loversChatMessages: [],
+        ghostChatMessages: [],
+        maxPlayers: maxPlayers,
+        createdAt: Timestamp.now(),
+        lastActiveAt: Timestamp.now(),
+        currentRound: 0,
+        settings,
+        phaseEndsAt: Timestamp.now(),
+        pendingHunterShot: null,
+        twins: null,
+        lovers: null,
+        wolfCubRevengeRound: 0,
+        nightActions: [],
+        vampireKills: 0,
+        boat: [],
+        leprosaBlockedRound: 0,
+        witchFoundSeer: false,
+        seerDied: false,
+        silencedPlayerId: null,
+        exiledPlayerId: null,
+        troublemakerUsed: false,
+        fairiesFound: false,
+        fairyKillUsed: false,
+        juryVotes: {},
+        masterKillUsed: false,
+    };
     
-    await runTransaction(firestore, async (transaction) => {
-        const creatorPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
-
-        const gameData: Game = {
-            id: gameId,
-            name: gameName.trim(),
-            status: "waiting",
-            phase: "waiting", 
-            creator: userId,
-            players: [creatorPlayer], // Add creator directly
-            events: [],
-            chatMessages: [],
-            wolfChatMessages: [],
-            fairyChatMessages: [],
-            twinChatMessages: [],
-            loversChatMessages: [],
-            ghostChatMessages: [],
-            maxPlayers: maxPlayers,
-            createdAt: Timestamp.now(),
-            lastActiveAt: Timestamp.now(),
-            currentRound: 0,
-            settings,
-            phaseEndsAt: Timestamp.now(),
-            pendingHunterShot: null,
-            twins: null,
-            lovers: null,
-            wolfCubRevengeRound: 0,
-            nightActions: [],
-            vampireKills: 0,
-            boat: [],
-            leprosaBlockedRound: 0,
-            witchFoundSeer: false,
-            seerDied: false,
-            silencedPlayerId: null,
-            exiledPlayerId: null,
-            troublemakerUsed: false,
-            fairiesFound: false,
-            fairyKillUsed: false,
-            juryVotes: {},
-            masterKillUsed: false,
-        };
-        transaction.set(gameRef, toPlainObject(gameData));
-    });
-
+    await setDoc(gameRef, toPlainObject(gameData));
+    
     return { gameId };
   } catch (error: any) {
     console.error("--- CATASTROPHIC ERROR IN createGame ---", error);
@@ -147,16 +146,16 @@ export async function createGame(
 }
 
 export async function joinGame(
+  db: Firestore,
   gameId: string,
   userId: string,
   displayName: string,
   avatarUrl: string
 ) {
-  const { firestore } = getSdks();
-  const gameRef = doc(firestore, "games", gameId);
+  const gameRef = doc(db, "games", gameId);
   
   try {
-    await runTransaction(firestore, async (transaction) => {
+    await runTransaction(db, async (transaction) => {
       const gameSnap = await transaction.get(gameRef);
 
       if (!gameSnap.exists()) {
@@ -217,11 +216,10 @@ export async function joinGame(
   }
 }
 
-export async function updatePlayerAvatar(gameId: string, userId: string, newAvatarUrl: string) {
-    const { firestore } = getSdks();
-    const gameRef = doc(firestore, 'games', gameId);
+export async function updatePlayerAvatar(db: Firestore, gameId: string, userId: string, newAvatarUrl: string) {
+    const gameRef = doc(db, 'games', gameId);
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(db, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error("Game not found.");
 
@@ -283,12 +281,11 @@ const generateRoles = (playerCount: number, settings: Game['settings']): (Player
     return roles.sort(() => Math.random() - 0.5);
 };
 
-export async function startGame(gameId: string, creatorId: string) {
-    const { firestore } = getSdks();
-    const gameRef = doc(firestore, 'games', gameId);
+export async function startGame(db: Firestore, gameId: string, creatorId: string) {
+    const gameRef = doc(db, 'games', gameId);
     
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
 
             if (!gameSnap.exists()) {
@@ -380,12 +377,11 @@ export async function startGame(gameId: string, creatorId: string) {
     }
 }
 
-export async function submitNightAction(action: Omit<NightAction, 'createdAt'>) {
-  const { firestore } = getSdks();
+export async function submitNightAction(db: Firestore, action: Omit<NightAction, 'createdAt'>) {
   const { gameId, playerId, actionType, targetId } = action;
-  const gameRef = doc(firestore, 'games', gameId);
+  const gameRef = doc(db, 'games', gameId);
   try {
-    await runTransaction(firestore, async (transaction) => {
+    await runTransaction(db, async (transaction) => {
         const gameSnap = await transaction.get(gameRef as DocumentReference<Game>);
         if (!gameSnap.exists()) throw new Error("Game not found");
         
@@ -451,11 +447,10 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt'>) 
   }
 }
 
-export async function executeMasterAction(gameId: string, actionId: string, sourceId: string | null, targetId: string) {
-    const { firestore } = getSdks();
-    const gameRef = doc(firestore, 'games', gameId);
+export async function executeMasterAction(db: Firestore, gameId: string, actionId: string, sourceId: string | null, targetId: string) {
+    const gameRef = doc(db, 'games', gameId);
      try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(db, async (transaction) => {
             const gameDoc = await transaction.get(gameRef as DocumentReference<Game>);
             if (!gameDoc.exists()) throw new Error("Game not found");
             let game = gameDoc.data()!;
@@ -505,12 +500,11 @@ export async function getSeerResult(db: Firestore, gameId: string, seerId: strin
     }
 }
 
-export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
-    const { firestore } = getSdks();
-    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+export async function submitHunterShot(db: Firestore, gameId: string, hunterId: string, targetId: string) {
+    const gameRef = doc(db, 'games', gameId) as DocumentReference<Game>;
 
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
             let game = gameSnap.data()!;
@@ -567,12 +561,11 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
     }
 }
 
-export async function submitVote(gameId: string, voterId: string, targetId: string) {
-    const { firestore } = getSdks();
-    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+export async function submitVote(db: Firestore, gameId: string, voterId: string, targetId: string) {
+    const gameRef = doc(db, 'games', gameId) as DocumentReference<Game>;
     
     try {
-       await runTransaction(firestore, async (transaction) => {
+       await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
             
@@ -606,7 +599,7 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
             const voter = gameData.players.find(p => p.userId === voterId);
             const target = gameData.players.find(p => p.userId === targetId);
             if (voter && target && !voter.isAI) {
-                await triggerAIChat(gameId, `${voter.displayName} ha votado por ${target.displayName}.`, 'public');
+                await triggerAIChat(db, gameId, `${voter.displayName} ha votado por ${target.displayName}.`, 'public');
             }
         }
 
@@ -619,22 +612,22 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
 }
 
 export async function sendChatMessage(
+    db: Firestore,
     gameId: string,
     senderId: string,
     senderName: string,
     text: string,
     isFromAI: boolean = false
 ) {
-    const { firestore } = getSdks();
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
 
-    const gameRef = doc(firestore, 'games', gameId);
+    const gameRef = doc(db, 'games', gameId);
 
     try {
         let latestGame: Game | null = null;
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(db, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error('Game not found');
             const game = gameDoc.data() as Game;
@@ -660,7 +653,7 @@ export async function sendChatMessage(
 
         if (!isFromAI && latestGame) {
             const triggerMessage = `${senderName} dijo: "${text.trim()}"`;
-            await triggerAIChat(gameId, triggerMessage, 'public');
+            await triggerAIChat(db, gameId, triggerMessage, 'public');
         }
 
         return { success: true };
@@ -672,21 +665,21 @@ export async function sendChatMessage(
 }
 
 async function sendSpecialChatMessage(
+    db: Firestore,
     gameId: string,
     senderId: string,
     senderName: string,
     text: string,
     chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost'
 ) {
-    const { firestore } = getSdks();
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
 
-    const gameRef = doc(firestore, 'games', gameId);
+    const gameRef = doc(db, 'games', gameId);
 
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(db, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error('Game not found');
             const game = gameDoc.data() as Game;
@@ -754,29 +747,28 @@ async function sendSpecialChatMessage(
     }
 }
 
-export async function sendWolfChatMessage(gameId: string, senderId: string, senderName: string, text: string) {
-    return sendSpecialChatMessage(gameId, senderId, senderName, text, 'wolf');
+export async function sendWolfChatMessage(db: Firestore, gameId: string, senderId: string, senderName: string, text: string) {
+    return sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'wolf');
 }
-export async function sendFairyChatMessage(gameId: string, senderId: string, senderName: string, text: string) {
-    return sendSpecialChatMessage(gameId, senderId, senderName, text, 'fairy');
+export async function sendFairyChatMessage(db: Firestore, gameId: string, senderId: string, senderName: string, text: string) {
+    return sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'fairy');
 }
-export async function sendLoversChatMessage(gameId: string, senderId: string, senderName: string, text: string) {
-    return sendSpecialChatMessage(gameId, senderId, senderName, text, 'lovers');
+export async function sendLoversChatMessage(db: Firestore, gameId: string, senderId: string, senderName: string, text: string) {
+    return sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'lovers');
 }
-export async function sendTwinChatMessage(gameId: string, senderId: string, senderName: string, text: string) {
-    return sendSpecialChatMessage(gameId, senderId, senderName, text, 'twin');
+export async function sendTwinChatMessage(db: Firestore, gameId: string, senderId: string, senderName: string, text: string) {
+    return sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'twin');
 }
-export async function sendGhostChatMessage(gameId: string, senderId: string, senderName: string, text: string) {
-    return sendSpecialChatMessage(gameId, senderId, senderName, text, 'ghost');
+export async function sendGhostChatMessage(db: Firestore, gameId: string, senderId: string, senderName: string, text: string) {
+    return sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'ghost');
 }
 
 
-export async function resetGame(gameId: string) {
-    const { firestore } = getSdks();
-    const gameRef = doc(firestore, 'games', gameId);
+export async function resetGame(db: Firestore, gameId: string) {
+    const gameRef = doc(db, 'games', gameId);
 
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(db, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Partida no encontrada.");
             const game = gameSnap.data() as Game;
@@ -807,11 +799,10 @@ export async function resetGame(gameId: string) {
     }
 }
 
-export async function submitJuryVote(gameId: string, jurorId: string, targetId: string) {
-    const { firestore } = getSdks();
-    const gameRef = doc(firestore, 'games', gameId);
+export async function submitJuryVote(db: Firestore, gameId: string, jurorId: string, targetId: string) {
+    const gameRef = doc(db, 'games', gameId);
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(db, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error("Game not found");
             const game = gameDoc.data() as Game;
@@ -831,12 +822,11 @@ export async function submitJuryVote(gameId: string, jurorId: string, targetId: 
     }
 }
 
-export async function submitTroublemakerAction(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
-  const { firestore } = getSdks();
-  const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+export async function submitTroublemakerAction(db: Firestore, gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
+  const gameRef = doc(db, 'games', gameId) as DocumentReference<Game>;
 
   try {
-    await runTransaction(firestore, async (transaction) => {
+    await runTransaction(db, async (transaction) => {
       const gameSnap = await transaction.get(gameRef);
       if (!gameSnap.exists()) throw new Error("Partida no encontrada");
       let game = gameSnap.data()!;
@@ -878,11 +868,10 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
   }
 }
 
-export async function sendGhostMessage(gameId: string, ghostId: string, targetId: string, message: string) {
-    const { firestore } = getSdks();
-    const gameRef = doc(firestore, 'games', gameId);
+export async function sendGhostMessage(db: Firestore, gameId: string, ghostId: string, targetId: string, message: string) {
+    const gameRef = doc(db, 'games', gameId);
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(db, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error("Game not found");
             const game = gameDoc.data() as Game;
@@ -918,10 +907,9 @@ export async function sendGhostMessage(gameId: string, ghostId: string, targetId
 // AI ACTIONS LOGIC
 // ===============================================================================================
 
-async function triggerAIChat(gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
-    const { firestore } = getSdks();
+async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
     try {
-        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
+        const gameDoc = await getDoc(doc(db, 'games', gameId));
         if (!gameDoc.exists()) return;
 
         const game = gameDoc.data() as Game;
@@ -945,7 +933,7 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
                 generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
                     if (shouldSend && message) {
                         await new Promise(resolve => setTimeout(resolve, Math.random() * 4000 + 1000));
-                        await sendChatMessage(gameId, aiPlayer.userId, aiPlayer.displayName, message, true);
+                        await sendChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName, message, true);
                     }
                 }).catch(aiError => console.error(`Error generating AI chat for ${aiPlayer.displayName}:`, aiError));
             }
@@ -955,10 +943,9 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
     }
 }
 
-async function triggerPrivateAIChats(gameId: string, triggerMessage: string) {
-    const { firestore } = getSdks();
+async function triggerPrivateAIChats(db: Firestore, gameId: string, triggerMessage: string) {
      try {
-        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
+        const gameDoc = await getDoc(doc(db, 'games', gameId));
         if (!gameDoc.exists()) return;
 
         const game = gameDoc.data() as Game;
@@ -972,7 +959,7 @@ async function triggerPrivateAIChats(gameId: string, triggerMessage: string) {
         const twins = game.players.filter(p => p.isAI && p.isAlive && twinIds.includes(p.userId));
         const lovers = game.players.filter(p => p.isAI && p.isAlive && loverIds.includes(p.userId));
 
-        const processChat = async (players: Player[], chatType: 'wolf' | 'twin' | 'lovers', sendMessageFn: (gameId: string, senderId: string, senderName: string, text: string) => Promise<any>) => {
+        const processChat = async (players: Player[], chatType: 'wolf' | 'twin' | 'lovers', sendMessageFn: Function) => {
             for (const aiPlayer of players) {
                 if (Math.random() < 0.8) { 
                     const perspective: AIPlayerPerspective = {
@@ -982,7 +969,7 @@ async function triggerPrivateAIChats(gameId: string, triggerMessage: string) {
                     generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
                         if (shouldSend && message) {
                             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
-                            await sendMessageFn(gameId, aiPlayer.userId, aiPlayer.displayName, message);
+                            await sendMessageFn(db, gameId, aiPlayer.userId, aiPlayer.displayName, message);
                         }
                     }).catch(err => console.error(`Error in private AI chat for ${aiPlayer.displayName}:`, err));
                 }
@@ -999,10 +986,9 @@ async function triggerPrivateAIChats(gameId: string, triggerMessage: string) {
 }
 
 
-export async function triggerAIVote(gameId: string) {
-    const { firestore } = getSdks();
+export async function triggerAIVote(db: Firestore, gameId: string) {
     try {
-        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
+        const gameDoc = await getDoc(doc(db, 'games', gameId));
         if (!gameDoc.exists()) return;
         const game = gameDoc.data() as Game;
         if (game.status === 'finished' || game.phase !== 'day') return;
@@ -1011,13 +997,13 @@ export async function triggerAIVote(gameId: string) {
         const alivePlayers = game.players.filter(p => p.isAlive);
         const deadPlayers = game.players.filter(p => !p.isAlive);
         
-        await triggerPrivateAIChats(gameId, "El día ha comenzado. ¿Por quién deberíamos votar?");
+        await triggerPrivateAIChats(db, gameId, "El día ha comenzado. ¿Por quién deberíamos votar?");
 
         for (const ai of aiPlayersToVote) {
             const { targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
             if (targetId) {
                  await new Promise(resolve => setTimeout(resolve, Math.random() * 8000 + 2000));
-                 await submitVote(gameId, ai.userId, targetId);
+                 await submitVote(db, gameId, ai.userId, targetId);
             }
         }
 
@@ -1232,16 +1218,15 @@ export const getDeterministicAIAction = (
     }
 };
 
-export async function runAIActions(gameId: string) {
-    const { firestore } = getSdks();
+export async function runAIActions(db: Firestore, gameId: string) {
     try {
-        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
+        const gameDoc = await getDoc(doc(db, 'games', gameId));
         if (!gameDoc.exists()) return;
         const game = gameDoc.data() as Game;
 
         if(game.phase !== 'night' || game.status === 'finished') return;
 
-        await triggerPrivateAIChats(gameId, "La noche ha caído. ¿Cuál es nuestro plan?");
+        await triggerPrivateAIChats(db, gameId, "La noche ha caído. ¿Cuál es nuestro plan?");
 
         const aiPlayers = game.players.filter(p => p.isAI && p.isAlive && !p.usedNightAbility);
         const alivePlayers = game.players.filter(p => p.isAlive);
@@ -1253,7 +1238,7 @@ export async function runAIActions(gameId: string) {
             if (!actionType || actionType === 'NONE' || !targetId || actionType === 'VOTE' || actionType === 'SHOOT') continue;
 
             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
-            await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
+            await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
         }
     } catch(e) {
         console.error("Error in AI Actions:", e);
@@ -1261,10 +1246,9 @@ export async function runAIActions(gameId: string) {
 }
 
 
-export async function runAIHunterShot(gameId: string, hunter: Player) {
-    const { firestore } = getSdks();
+export async function runAIHunterShot(db: Firestore, gameId: string, hunter: Player) {
     try {
-        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
+        const gameDoc = await getDoc(doc(db, 'games', gameId));
         if (!gameDoc.exists()) return;
         const game = gameDoc.data() as Game;
 
@@ -1276,7 +1260,7 @@ export async function runAIHunterShot(gameId: string, hunter: Player) {
 
         if (targetId) {
             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
-            await submitHunterShot(gameId, hunter.userId, targetId);
+            await submitHunterShot(db, gameId, hunter.userId, targetId);
         } else {
              console.error(`AI Hunter ${hunter.displayName} could not find a target to shoot.`);
         }
@@ -1286,11 +1270,10 @@ export async function runAIHunterShot(gameId: string, hunter: Player) {
     }
 }
 
-export async function processNight(gameId: string) {
-    const { firestore } = getSdks();
-    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+export async function processNight(db: Firestore, gameId: string) {
+    const gameRef = doc(db, 'games', gameId) as DocumentReference<Game>;
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(db, async (transaction) => {
             await processNightEngine(transaction, gameRef);
         });
     } catch (e) {
@@ -1298,11 +1281,10 @@ export async function processNight(gameId: string) {
     }
 }
 
-export async function processVotes(gameId: string) {
-    const { firestore } = getSdks();
-    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+export async function processVotes(db: Firestore, gameId: string) {
+    const gameRef = doc(db, 'games', gameId) as DocumentReference<Game>;
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(db, async (transaction) => {
             await processVotesEngine(transaction, gameRef);
         });
     } catch (e) {
@@ -1310,14 +1292,15 @@ export async function processVotes(gameId: string) {
     }
 }
 
-export async function processJuryVotes(gameId: string) {
-    const { firestore } = getSdks();
-    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+export async function processJuryVotes(db: Firestore, gameId: string) {
+    const gameRef = doc(db, 'games', gameId) as DocumentReference<Game>;
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(db, async (transaction) => {
             await processJuryVotesEngine(transaction, gameRef);
         });
     } catch (e) {
         console.error("Failed to process jury votes", e);
     }
 }
+
+    
