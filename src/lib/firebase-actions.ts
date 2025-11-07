@@ -94,53 +94,50 @@ export async function createGame(
 
     const gameId = generateGameId();
     const gameRef = doc(firestore, "games", gameId);
-        
-    const gameData: Game = {
-        id: gameId,
-        name: gameName.trim(),
-        status: "waiting",
-        phase: "waiting", 
-        creator: userId,
-        players: [], 
-        events: [],
-        chatMessages: [],
-        wolfChatMessages: [],
-        fairyChatMessages: [],
-        twinChatMessages: [],
-        loversChatMessages: [],
-        ghostChatMessages: [],
-        maxPlayers: maxPlayers,
-        createdAt: Timestamp.now(),
-        lastActiveAt: Timestamp.now(),
-        currentRound: 0,
-        settings,
-        phaseEndsAt: Timestamp.now(),
-        pendingHunterShot: null,
-        twins: null,
-        lovers: null,
-        wolfCubRevengeRound: 0,
-        nightActions: [],
-        vampireKills: 0,
-        boat: [],
-        leprosaBlockedRound: 0,
-        witchFoundSeer: false,
-        seerDied: false,
-        silencedPlayerId: null,
-        exiledPlayerId: null,
-        troublemakerUsed: false,
-        fairiesFound: false,
-        fairyKillUsed: false,
-        juryVotes: {},
-        masterKillUsed: false,
-    };
     
-    await setDoc(gameRef, toPlainObject(gameData));
-    
-    const joinResult = await joinGame(gameId, userId, displayName, avatarUrl);
-    if (joinResult.error) {
-      console.error(`Game created (${gameId}), but creator failed to join:`, joinResult.error);
-      return { error: `La partida se creó, pero no se pudo unir: ${joinResult.error}` };
-    }
+    await runTransaction(firestore, async (transaction) => {
+        const creatorPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
+
+        const gameData: Game = {
+            id: gameId,
+            name: gameName.trim(),
+            status: "waiting",
+            phase: "waiting", 
+            creator: userId,
+            players: [creatorPlayer], // Add creator directly
+            events: [],
+            chatMessages: [],
+            wolfChatMessages: [],
+            fairyChatMessages: [],
+            twinChatMessages: [],
+            loversChatMessages: [],
+            ghostChatMessages: [],
+            maxPlayers: maxPlayers,
+            createdAt: Timestamp.now(),
+            lastActiveAt: Timestamp.now(),
+            currentRound: 0,
+            settings,
+            phaseEndsAt: Timestamp.now(),
+            pendingHunterShot: null,
+            twins: null,
+            lovers: null,
+            wolfCubRevengeRound: 0,
+            nightActions: [],
+            vampireKills: 0,
+            boat: [],
+            leprosaBlockedRound: 0,
+            witchFoundSeer: false,
+            seerDied: false,
+            silencedPlayerId: null,
+            exiledPlayerId: null,
+            troublemakerUsed: false,
+            fairiesFound: false,
+            fairyKillUsed: false,
+            juryVotes: {},
+            masterKillUsed: false,
+        };
+        transaction.set(gameRef, toPlainObject(gameData));
+    });
 
     return { gameId };
   } catch (error: any) {
@@ -1324,4 +1321,3 @@ export async function processJuryVotes(gameId: string) {
         console.error("Failed to process jury votes", e);
     }
 }
-

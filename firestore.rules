@@ -29,15 +29,11 @@ service cloud.firestore {
           // Rule 1: The user must be authenticated.
           request.auth != null &&
           (
-            // Rule 2: Joining a game in 'waiting' state (either the first player or subsequent players).
+            // Rule 2: Joining an existing game in 'waiting' state.
             (
                 resource.data.status == 'waiting' &&
-                (
-                    // Creator joining their own game (player list is initially empty)
-                    (resource.data.players.size() == 0 && request.resource.data.players.size() == 1) ||
-                    // Subsequent players joining
-                    (request.resource.data.players.size() == resource.data.players.size() + 1)
-                )
+                request.resource.data.players.size() == resource.data.players.size() + 1 &&
+                isPlayer(gameId) == false // Ensure the user is not already a player.
             ) ||
             // Rule 3: Updating your own player object (e.g., voting, submitting night action, changing avatar).
             (
@@ -61,9 +57,10 @@ service cloud.firestore {
                         request.resource.data.phase == 'jury_voting' &&
                         getPlayer(resource.data.players).isAlive == false
                     ) ||
-                    // Changing avatar
+                    // Changing avatar or display name
                      (
-                        getRequestPlayer(request.resource.data.players).avatarUrl != getPlayer(resource.data.players).avatarUrl
+                        getRequestPlayer(request.resource.data.players).avatarUrl != getPlayer(resource.data.players).avatarUrl ||
+                        getRequestPlayer(request.resource.data.players).displayName != getPlayer(resource.data.players).displayName
                      )
                 )
             ) ||
@@ -89,3 +86,6 @@ service cloud.firestore {
                 )
             )
           );
+    }
+  }
+}
