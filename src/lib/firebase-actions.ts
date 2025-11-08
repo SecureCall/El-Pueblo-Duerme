@@ -1,4 +1,3 @@
-
 'use client';
 import { 
   doc,
@@ -20,7 +19,8 @@ import {
   type PlayerRole, 
   type NightActionType, 
   type ChatMessage,
-  type AIPlayerPerspective
+  type AIPlayerPerspective,
+  type PlayerProfile
 } from "@/types";
 import { toPlainObject } from "./utils";
 import { masterActions } from "./master-actions";
@@ -40,11 +40,9 @@ function generateGameId(length = 5) {
   return result;
 }
 
-const createPlayerObject = (userId: string, gameId: string, displayName: string, avatarUrl: string, isAI: boolean = false): Player => ({
+const createPlayerObject = (userId: string, gameId: string, isAI: boolean = false): Player => ({
     userId,
     gameId,
-    displayName: displayName.trim(),
-    avatarUrl,
     role: null,
     isAlive: true,
     votedFor: null,
@@ -71,73 +69,79 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     secretObjectiveId: null,
 });
 
-
 export async function createGame(
   db: Firestore,
-  userId: string,
-  displayName: string,
-  avatarUrl: string,
-  gameName: string,
-  maxPlayers: number,
-  settings: Game['settings']
+  options: {
+    userId: string;
+    displayName: string;
+    avatarUrl: string;
+    gameName: string;
+    maxPlayers: number;
+    settings: Game['settings'];
+  }
 ) {
+  const { userId, displayName, avatarUrl, gameName, maxPlayers, settings } = options;
+  if (typeof displayName !== 'string' || typeof gameName !== 'string') {
+      return { error: "El nombre del jugador y de la partida deben ser texto." };
+  }
+  if (!userId || !displayName.trim() || !gameName.trim()) {
+    return { error: "Datos incompletos para crear la partida." };
+  }
+  if (maxPlayers < 3 || maxPlayers > 32) {
+    return { error: "El número de jugadores debe ser entre 3 y 32." };
+  }
+
+  const gameId = generateGameId();
+  const gameRef = doc(db, "games", gameId);
+  const playerProfileRef = doc(db, `games/${gameId}/player_profiles`, userId);
+      
+  const creatorPlayer = createPlayerObject(userId, gameId, false);
+  const creatorProfile: PlayerProfile = { userId, displayName: displayName.trim(), avatarUrl };
+
+  const gameData: Game = {
+      id: gameId,
+      name: gameName.trim(),
+      status: "waiting",
+      phase: "waiting", 
+      creator: userId,
+      players: [creatorPlayer], // Add creator directly
+      events: [],
+      chatMessages: [],
+      wolfChatMessages: [],
+      fairyChatMessages: [],
+      twinChatMessages: [],
+      loversChatMessages: [],
+      ghostChatMessages: [],
+      maxPlayers: maxPlayers,
+      createdAt: Timestamp.now(),
+      lastActiveAt: Timestamp.now(),
+      currentRound: 0,
+      settings,
+      phaseEndsAt: Timestamp.now(),
+      pendingHunterShot: null,
+      twins: null,
+      lovers: null,
+      wolfCubRevengeRound: 0,
+      nightActions: [],
+      vampireKills: 0,
+      boat: [],
+      leprosaBlockedRound: 0,
+      witchFoundSeer: false,
+      seerDied: false,
+      silencedPlayerId: null,
+      exiledPlayerId: null,
+      troublemakerUsed: false,
+      fairiesFound: false,
+      fairyKillUsed: false,
+      juryVotes: {},
+      masterKillUsed: false,
+  };
+    
   try {
-    if (typeof displayName !== 'string' || typeof gameName !== 'string') {
-        return { error: "El nombre del jugador y de la partida deben ser texto." };
-    }
-    if (!userId || !displayName.trim() || !gameName.trim()) {
-      return { error: "Datos incompletos para crear la partida." };
-    }
-    if (maxPlayers < 3 || maxPlayers > 32) {
-      return { error: "El número de jugadores debe ser entre 3 y 32." };
-    }
-
-    const gameId = generateGameId();
-    const gameRef = doc(db, "games", gameId);
-        
-    const creatorPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
-
-    const gameData: Game = {
-        id: gameId,
-        name: gameName.trim(),
-        status: "waiting",
-        phase: "waiting", 
-        creator: userId,
-        players: [creatorPlayer], // Add creator directly
-        events: [],
-        chatMessages: [],
-        wolfChatMessages: [],
-        fairyChatMessages: [],
-        twinChatMessages: [],
-        loversChatMessages: [],
-        ghostChatMessages: [],
-        maxPlayers: maxPlayers,
-        createdAt: Timestamp.now(),
-        lastActiveAt: Timestamp.now(),
-        currentRound: 0,
-        settings,
-        phaseEndsAt: Timestamp.now(),
-        pendingHunterShot: null,
-        twins: null,
-        lovers: null,
-        wolfCubRevengeRound: 0,
-        nightActions: [],
-        vampireKills: 0,
-        boat: [],
-        leprosaBlockedRound: 0,
-        witchFoundSeer: false,
-        seerDied: false,
-        silencedPlayerId: null,
-        exiledPlayerId: null,
-        troublemakerUsed: false,
-        fairiesFound: false,
-        fairyKillUsed: false,
-        juryVotes: {},
-        masterKillUsed: false,
-    };
-    
-    await setDoc(gameRef, toPlainObject(gameData));
-    
+    await runTransaction(db, async (transaction) => {
+      transaction.set(gameRef, toPlainObject(gameData));
+      transaction.set(playerProfileRef, toPlainObject(creatorProfile));
+    });
     return { gameId };
   } catch (error: any) {
     console.error("--- CATASTROPHIC ERROR IN createGame ---", error);
@@ -153,6 +157,7 @@ export async function joinGame(
   avatarUrl: string
 ) {
   const gameRef = doc(db, "games", gameId);
+  const playerProfileRef = doc(db, `games/${gameId}/player_profiles`, userId);
   
   try {
     await runTransaction(db, async (transaction) => {
@@ -173,39 +178,23 @@ export async function joinGame(
       
       const playerExists = game.players.some(p => p.userId === userId);
       if (playerExists) {
-        const currentPlayers = game.players;
-        const playerIndex = currentPlayers.findIndex(p => p.userId === userId);
-        if (playerIndex !== -1) {
-            let changed = false;
-            if(currentPlayers[playerIndex].displayName !== displayName.trim()) {
-                currentPlayers[playerIndex].displayName = displayName.trim();
-                changed = true;
-            }
-             if(currentPlayers[playerIndex].avatarUrl !== avatarUrl) {
-                currentPlayers[playerIndex].avatarUrl = avatarUrl;
-                changed = true;
-            }
-            if(changed) {
-                transaction.update(gameRef, { players: toPlainObject(currentPlayers), lastActiveAt: Timestamp.now() });
-            }
-        }
+        // Player is already in the game, just update their profile if needed
+        transaction.set(playerProfileRef, { userId, displayName: displayName.trim(), avatarUrl }, { merge: true });
         return;
-      }
-      
-      const nameExists = game.players.some(p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase());
-      if (nameExists) {
-        throw new Error("Ese nombre ya está en uso en esta partida.");
       }
 
       if (game.players.length >= game.maxPlayers) {
         throw new Error("Esta partida está llena.");
       }
       
-      const newPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
+      const newPlayer = createPlayerObject(userId, gameId, false);
+      const newProfile: PlayerProfile = { userId, displayName: displayName.trim(), avatarUrl };
+
       transaction.update(gameRef, {
         players: arrayUnion(toPlainObject(newPlayer)),
         lastActiveAt: Timestamp.now(),
       });
+      transaction.set(playerProfileRef, toPlainObject(newProfile));
     });
 
     return { success: true };
@@ -217,22 +206,9 @@ export async function joinGame(
 }
 
 export async function updatePlayerAvatar(db: Firestore, gameId: string, userId: string, newAvatarUrl: string) {
-    const gameRef = doc(db, 'games', gameId);
+    const profileRef = doc(db, 'games', gameId, 'player_profiles', userId);
     try {
-        await runTransaction(db, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error("Game not found.");
-
-            const gameData = gameDoc.data() as Game;
-            const playerIndex = gameData.players.findIndex(p => p.userId === userId);
-
-            if (playerIndex === -1) throw new Error("Player not found in game.");
-
-            const updatedPlayers = [...gameData.players];
-            updatedPlayers[playerIndex].avatarUrl = newAvatarUrl;
-
-            transaction.update(gameRef, { players: toPlainObject(updatedPlayers), lastActiveAt: Timestamp.now() });
-        });
+        await updateDoc(profileRef, { avatarUrl: newAvatarUrl });
         return { success: true };
     } catch (error: any) {
         console.error("Error updating player avatar:", error);
@@ -312,8 +288,12 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
                     const aiUserId = `ai_${Date.now()}_${i}`;
                     const aiName = availableAINames[i % availableAINames.length] || `Bot ${i + 1}`;
                     const aiAvatar = `/logo.png`;
-                    const aiPlayerData = createPlayerObject(aiUserId, gameId, aiName, aiAvatar, true);
+                    const aiPlayerData = createPlayerObject(aiUserId, gameId, true);
                     finalPlayers.push(aiPlayerData);
+
+                    const aiProfile: PlayerProfile = { userId: aiUserId, displayName: aiName, avatarUrl: aiAvatar };
+                    const aiProfileRef = doc(db, `games/${gameId}/player_profiles`, aiUserId);
+                    transaction.set(aiProfileRef, toPlainObject(aiProfile));
                 }
             }
             
@@ -639,7 +619,7 @@ export async function sendChatMessage(
             
             const textLowerCase = text.toLowerCase();
             const mentionedPlayerIds = game.players
-                .filter(p => p.isAlive && textLowerCase.includes(p.displayName.toLowerCase()))
+                .filter(p => p.isAlive && p.displayName && textLowerCase.includes(p.displayName.toLowerCase()))
                 .map(p => p.userId);
             
             const messageData: ChatMessage = {
@@ -747,21 +727,11 @@ async function sendSpecialChatMessage(
     }
 }
 
-export async function sendWolfChatMessage(db: Firestore, gameId: string, senderId: string, senderName: string, text: string) {
-    return sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'wolf');
-}
-export async function sendFairyChatMessage(db: Firestore, gameId: string, senderId: string, senderName: string, text: string) {
-    return sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'fairy');
-}
-export async function sendLoversChatMessage(db: Firestore, gameId: string, senderId: string, senderName: string, text: string) {
-    return sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'lovers');
-}
-export async function sendTwinChatMessage(db: Firestore, gameId: string, senderId: string, senderName: string, text: string) {
-    return sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'twin');
-}
-export async function sendGhostChatMessage(db: Firestore, gameId: string, senderId: string, senderName: string, text: string) {
-    return sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'ghost');
-}
+export const sendWolfChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'wolf');
+export const sendFairyChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'fairy');
+export const sendLoversChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'lovers');
+export const sendTwinChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'twin');
+export const sendGhostChatMessage = (db: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(db, gameId, senderId, senderName, text, 'ghost');
 
 
 export async function resetGame(db: Firestore, gameId: string) {
@@ -776,7 +746,7 @@ export async function resetGame(db: Firestore, gameId: string) {
             const humanPlayers = game.players.filter(p => !p.isAI);
 
             const resetHumanPlayers = humanPlayers.map(player => {
-                const newPlayer = createPlayerObject(player.userId, game.id, player.displayName, player.avatarUrl, player.isAI);
+                const newPlayer = createPlayerObject(player.userId, game.id, player.isAI);
                 newPlayer.joinedAt = player.joinedAt; 
                 return newPlayer;
             });
@@ -918,7 +888,7 @@ async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: stri
         const aiPlayersToTrigger = game.players.filter(p => p.isAI && p.isAlive);
 
         for (const aiPlayer of aiPlayersToTrigger) {
-             const isAccused = triggerMessage.toLowerCase().includes(aiPlayer.displayName.toLowerCase());
+             const isAccused = triggerMessage.toLowerCase().includes(aiPlayer.displayName?.toLowerCase() ?? 'zxzx');
              const shouldTrigger = isAccused ? Math.random() < 0.95 : Math.random() < 0.35;
 
              if (shouldTrigger) {
@@ -933,7 +903,7 @@ async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: stri
                 generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
                     if (shouldSend && message) {
                         await new Promise(resolve => setTimeout(resolve, Math.random() * 4000 + 1000));
-                        await sendChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName, message, true);
+                        await sendChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName ?? 'Bot', message, true);
                     }
                 }).catch(aiError => console.error(`Error generating AI chat for ${aiPlayer.displayName}:`, aiError));
             }
@@ -969,7 +939,7 @@ async function triggerPrivateAIChats(db: Firestore, gameId: string, triggerMessa
                     generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
                         if (shouldSend && message) {
                             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
-                            await sendMessageFn(db, gameId, aiPlayer.userId, aiPlayer.displayName, message);
+                            await sendMessageFn(db, gameId, aiPlayer.userId, aiPlayer.displayName ?? 'Bot', message);
                         }
                     }).catch(err => console.error(`Error in private AI chat for ${aiPlayer.displayName}:`, err));
                 }
@@ -1009,6 +979,63 @@ export async function triggerAIVote(db: Firestore, gameId: string) {
 
     } catch(e) {
         console.error("Error in triggerAIVote:", e);
+    }
+}
+
+export async function processNight(db: Firestore, gameId: string) {
+    const gameRef = doc(db, 'games', gameId) as DocumentReference<Game>;
+    try {
+        await runTransaction(db, async (transaction) => {
+            await processNightEngine(transaction, gameRef);
+        });
+    } catch (e) {
+        console.error("Failed to process night", e);
+    }
+}
+
+export async function processVotes(db: Firestore, gameId: string) {
+    const gameRef = doc(db, 'games', gameId) as DocumentReference<Game>;
+    try {
+        await runTransaction(db, async (transaction) => {
+            await processVotesEngine(transaction, gameRef);
+        });
+    } catch (e) {
+        console.error("Failed to process votes", e);
+    }
+}
+
+export async function processJuryVotes(db: Firestore, gameId: string) {
+    const gameRef = doc(db, 'games', gameId) as DocumentReference<Game>;
+    try {
+        await runTransaction(db, async (transaction) => {
+            await processJuryVotesEngine(transaction, gameRef);
+        });
+    } catch (e) {
+        console.error("Failed to process jury votes", e);
+    }
+}
+
+export async function runAIHunterShot(db: Firestore, gameId: string, hunter: Player) {
+    try {
+        const gameDoc = await getDoc(doc(db, 'games', gameId));
+        if (!gameDoc.exists()) return;
+        const game = gameDoc.data() as Game;
+
+        if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunter.userId) return;
+
+        const alivePlayers = game.players.filter(p => p.isAlive && p.userId !== hunter.userId);
+        
+        const { targetId } = getDeterministicAIAction(hunter, game, alivePlayers, []);
+
+        if (targetId) {
+            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+            await submitHunterShot(db, gameId, hunter.userId, targetId);
+        } else {
+             console.error(`AI Hunter ${hunter.displayName} could not find a target to shoot.`);
+        }
+
+    } catch(e) {
+         console.error("Error in runAIHunterShot:", e);
     }
 }
 
@@ -1218,89 +1245,6 @@ export const getDeterministicAIAction = (
     }
 };
 
-export async function runAIActions(db: Firestore, gameId: string) {
-    try {
-        const gameDoc = await getDoc(doc(db, 'games', gameId));
-        if (!gameDoc.exists()) return;
-        const game = gameDoc.data() as Game;
-
-        if(game.phase !== 'night' || game.status === 'finished') return;
-
-        await triggerPrivateAIChats(db, gameId, "La noche ha caído. ¿Cuál es nuestro plan?");
-
-        const aiPlayers = game.players.filter(p => p.isAI && p.isAlive && !p.usedNightAbility);
-        const alivePlayers = game.players.filter(p => p.isAlive);
-        const deadPlayers = game.players.filter(p => !p.isAlive);
-
-        for (const ai of aiPlayers) {
-            const { actionType, targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
-
-            if (!actionType || actionType === 'NONE' || !targetId || actionType === 'VOTE' || actionType === 'SHOOT') continue;
-
-            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
-            await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
-        }
-    } catch(e) {
-        console.error("Error in AI Actions:", e);
-    }
-}
-
-
-export async function runAIHunterShot(db: Firestore, gameId: string, hunter: Player) {
-    try {
-        const gameDoc = await getDoc(doc(db, 'games', gameId));
-        if (!gameDoc.exists()) return;
-        const game = gameDoc.data() as Game;
-
-        if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunter.userId) return;
-
-        const alivePlayers = game.players.filter(p => p.isAlive && p.userId !== hunter.userId);
-        
-        const { targetId } = getDeterministicAIAction(hunter, game, alivePlayers, []);
-
-        if (targetId) {
-            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
-            await submitHunterShot(db, gameId, hunter.userId, targetId);
-        } else {
-             console.error(`AI Hunter ${hunter.displayName} could not find a target to shoot.`);
-        }
-
-    } catch(e) {
-         console.error("Error in runAIHunterShot:", e);
-    }
-}
-
-export async function processNight(db: Firestore, gameId: string) {
-    const gameRef = doc(db, 'games', gameId) as DocumentReference<Game>;
-    try {
-        await runTransaction(db, async (transaction) => {
-            await processNightEngine(transaction, gameRef);
-        });
-    } catch (e) {
-        console.error("Failed to process night", e);
-    }
-}
-
-export async function processVotes(db: Firestore, gameId: string) {
-    const gameRef = doc(db, 'games', gameId) as DocumentReference<Game>;
-    try {
-        await runTransaction(db, async (transaction) => {
-            await processVotesEngine(transaction, gameRef);
-        });
-    } catch (e) {
-        console.error("Failed to process votes", e);
-    }
-}
-
-export async function processJuryVotes(db: Firestore, gameId: string) {
-    const gameRef = doc(db, 'games', gameId) as DocumentReference<Game>;
-    try {
-        await runTransaction(db, async (transaction) => {
-            await processJuryVotesEngine(transaction, gameRef);
-        });
-    } catch (e) {
-        console.error("Failed to process jury votes", e);
-    }
-}
+    
 
     
