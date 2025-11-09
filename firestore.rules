@@ -7,6 +7,14 @@ service cloud.firestore {
     function isPlayer(gameId) {
       return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p => p.userId == request.auth.uid);
     }
+    
+    function getPlayer(players) {
+        return players.filter(p => p.userId == request.auth.uid)[0];
+    }
+    
+    function getRequestPlayer(players) {
+        return request.resource.data.players.filter(p => p.userId == request.auth.uid)[0];
+    }
 
     match /games/{gameId} {
       allow read: if true; 
@@ -36,7 +44,7 @@ service cloud.firestore {
                 request.auth.uid == resource.data.creator &&
                 (
                     (resource.data.status == 'waiting' && request.resource.data.status == 'in_progress') ||
-                    (resource.data.status == 'in_progress' && resource.data.phase != request.resource.data.phase) ||
+                    (resource.data.status == 'in_progress' && resource.data.phase != resource.data.phase) ||
                     (resource.data.status == 'finished' && request.resource.data.status == 'waiting')
                 )
             )
