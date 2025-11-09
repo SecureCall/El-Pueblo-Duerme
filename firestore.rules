@@ -2,9 +2,73 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Helper Functions
+    function isPlayer(gameId) {
+      return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p => p.userId == request.auth.uid);
+    }
+    
+    function getPlayerData(gameId) {
+      return get(/databases/$(database)/documents/games/$(gameId)).data.players.get(request.auth.uid);
+    }
+    
+    function getIncomingPlayerData(request) {
+      return request.resource.data.players.get(request.auth.uid);
+    }
+
     match /games/{gameId} {
-      allow read: if true;
-      allow write: if request.auth != null;
+      // READ: Any authenticated user can read game data to view lobbies or join games.
+      allow read: if request.auth != null;
+
+      // CREATE: Any authenticated user can create a new game.
+      allow create: if request.auth != null && request.resource.data.creator == request.auth.uid;
+      
+      // UPDATE: More granular rules for updating a game document.
+      allow update: if 
+          // The user must be authenticated.
+          request.auth != null &&
+          (
+            // --- JOINING ---
+            // Allow a player to join a game that is in 'waiting' state.
+            (
+              resource.data.status == 'waiting' &&
+              request.resource.data.players.size() == resource.data.players.size() + 1 &&
+              isPlayer(gameId) == false // The user is not yet a player
+            ) ||
+
+            // --- STARTING THE GAME ---
+            // Allow ONLY the creator to start the game.
+            (
+              resource.data.status == 'waiting' &&
+              request.resource.data.status == 'in_progress' &&
+              request.auth.uid == resource.data.creator
+            ) ||
+            
+            // --- IN-GAME ACTIONS (by the creator) ---
+            // Allow the creator to process phase changes.
+            (
+              resource.data.status == 'in_progress' &&
+              request.auth.uid == resource.data.creator &&
+              resource.data.phase != request.resource.data.phase
+            ) ||
+
+            // --- IN-GAME ACTIONS (by players) ---
+            // Allow a player to perform their actions (vote, night action, avatar change).
+            (
+              isPlayer(gameId) &&
+              request.resource.data.players.size() == resource.data.players.size()
+              // More specific checks could be added here for voting/night actions,
+              // but we trust the server-side logic for now. The important part is that only a player can update.
+            ) ||
+            
+            // --- RESETTING THE GAME ---
+            // Allow ONLY the creator to reset a finished game.
+            (
+               resource.data.status == 'finished' &&
+               request.resource.data.status == 'waiting' &&
+               request.auth.uid == resource.data.creator
+            )
+          );
     }
   }
 }
