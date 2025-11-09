@@ -22,9 +22,123 @@ import {
   type ChatMessage,
 } from "@/types";
 import { toPlainObject } from "./utils";
-import { runAIActions } from "./ai-actions";
+import { runAIActions, runAIHunterShot } from "./ai-actions";
 import { getSdks } from "@/firebase/server-init";
-import { killPlayerUnstoppable, checkGameOver } from './game-engine';
+import { killPlayerUnstoppable, checkGameOver, processJuryVotes, killPlayer, processVotes, processNight } from './game-engine';
+
+function generateGameId(length = 5) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+const createPlayerObject = (userId: string, gameId: string, displayName: string, avatarUrl: string, isAI: boolean = false): Player => ({
+    userId,
+    gameId,
+    displayName: displayName.trim(),
+    avatarUrl,
+    role: null,
+    isAlive: true,
+    votedFor: null,
+    joinedAt: Timestamp.now(),
+    isAI,
+    isExiled: false,
+    lastHealedRound: 0,
+    potions: { poison: null, save: null },
+    priestSelfHealUsed: false,
+    princeRevealed: false,
+    guardianSelfProtects: 0,
+    biteCount: 0,
+    isCultMember: false,
+    isLover: false,
+    usedNightAbility: false,
+    shapeshifterTargetId: null,
+    virginiaWoolfTargetId: null,
+    riverSirenTargetId: null,
+    ghostMessageSent: false,
+    resurrectorAngelUsed: false,
+    bansheeScreams: {},
+    lookoutUsed: false,
+    executionerTargetId: null,
+    secretObjectiveId: null,
+});
+
+
+export async function createGame(
+  firestore: Firestore,
+  options: {
+    userId: string;
+    displayName: string;
+    avatarUrl: string;
+    gameName: string;
+    maxPlayers: number;
+    settings: Game['settings'];
+  }
+) {
+  const { userId, displayName, avatarUrl, gameName, maxPlayers, settings } = options;
+
+  if (!userId || !displayName.trim() || !gameName.trim()) {
+    return { error: "Datos incompletos para crear la partida." };
+  }
+  if (maxPlayers < 3 || maxPlayers > 32) {
+    return { error: "El número de jugadores debe ser entre 3 y 32." };
+  }
+
+  const gameId = generateGameId();
+  const gameRef = doc(firestore, "games", gameId);
+      
+  const creatorPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
+
+  const gameData: Game = {
+      id: gameId,
+      name: gameName.trim(),
+      status: "waiting",
+      phase: "waiting", 
+      creator: userId,
+      players: [creatorPlayer], // Add creator directly
+      events: [],
+      chatMessages: [],
+      wolfChatMessages: [],
+      fairyChatMessages: [],
+      twinChatMessages: [],
+      loversChatMessages: [],
+      ghostChatMessages: [],
+      maxPlayers: maxPlayers,
+      createdAt: Timestamp.now(),
+      lastActiveAt: Timestamp.now(),
+      currentRound: 0,
+      settings,
+      phaseEndsAt: Timestamp.now(),
+      pendingHunterShot: null,
+      twins: null,
+      lovers: null,
+      wolfCubRevengeRound: 0,
+      nightActions: [],
+      vampireKills: 0,
+      boat: [],
+      leprosaBlockedRound: 0,
+      witchFoundSeer: false,
+      seerDied: false,
+      silencedPlayerId: null,
+      exiledPlayerId: null,
+      troublemakerUsed: false,
+      fairiesFound: false,
+      fairyKillUsed: false,
+      juryVotes: {},
+      masterKillUsed: false,
+  };
+    
+  try {
+    await setDoc(gameRef, toPlainObject(gameData));
+    return { gameId };
+  } catch (error: any) {
+    console.error("--- CATASTROPHIC ERROR IN createGame ---", error);
+    return { error: `Error de servidor: ${error.message || 'Error desconocido al crear la partida.'}` };
+  }
+}
 
 export async function joinGame(
   firestore: Firestore,
@@ -66,37 +180,7 @@ export async function joinGame(
         throw new Error("Esta partida está llena.");
       }
       
-      const newPlayer = {
-          userId,
-          gameId,
-          displayName: displayName.trim(),
-          avatarUrl,
-          role: null,
-          isAlive: true,
-          votedFor: null,
-          joinedAt: Timestamp.now(),
-          isAI: false,
-          isExiled: false,
-          lastHealedRound: 0,
-          potions: { poison: null, save: null },
-          priestSelfHealUsed: false,
-          princeRevealed: false,
-          guardianSelfProtects: 0,
-          biteCount: 0,
-          isCultMember: false,
-          isLover: false,
-          usedNightAbility: false,
-          shapeshifterTargetId: null,
-          virginiaWoolfTargetId: null,
-          riverSirenTargetId: null,
-          ghostMessageSent: false,
-          resurrectorAngelUsed: false,
-          bansheeScreams: {},
-          lookoutUsed: false,
-          executionerTargetId: null,
-          secretObjectiveId: null,
-      };
-
+      const newPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
       transaction.update(gameRef, {
         players: arrayUnion(toPlainObject(newPlayer)),
         lastActiveAt: Timestamp.now(),
@@ -230,65 +314,10 @@ export async function getSeerResult(firestore: Firestore, gameId: string, seerId
 }
 
 export async function submitHunterShot(firestore: Firestore, gameId: string, hunterId: string, targetId: string) {
-    // This function needs to be a server action because it changes game state for all players
-    // and can end the game. We'll use a server-side SDK instance.
-    const { firestore: serverFirestore } = getSdks();
-    const gameRef = doc(serverFirestore, 'games', gameId) as DocumentReference<Game>;
-
-    try {
-        await runTransaction(serverFirestore, async (transaction) => {
-            const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found");
-            let game = gameSnap.data()!;
-            
-            if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId || game.status === 'finished') {
-                return;
-            }
-
-            const { updatedGame, triggeredHunterId: newTriggeredHunter } = await killPlayerUnstoppable(transaction, gameRef, game, targetId, 'hunter_shot');
-            
-            game = updatedGame;
-            
-            game.events.push({
-                id: `evt_huntershot_${Date.now()}`, gameId, round: game.currentRound, type: 'hunter_shot',
-                message: `En su último aliento, ${game.players.find(p=>p.userId === hunterId)?.displayName} dispara y se lleva consigo a ${game.players.find(p=>p.userId === targetId)?.displayName}.`,
-                createdAt: Timestamp.now(), data: {killedPlayerIds: [targetId]},
-            });
-
-            if (newTriggeredHunter) {
-                game.pendingHunterShot = newTriggeredHunter;
-                transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot }));
-                return;
-            }
-            
-            const gameOverInfo = await checkGameOver(game, null);
-            if (gameOverInfo.isGameOver) {
-                game.status = "finished";
-                game.phase = "finished";
-                game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
-                transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: game.players, events: game.events }));
-                return;
-            }
-            
-            const hunterDeathEvent = [...game.events].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
-            
-            const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
-            const currentRound = game.currentRound;
-            const newRound = nextPhase === 'night' ? currentRound + 1 : currentRound;
-
-            game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; p.isExiled = false; });
-            const phaseEndsAt = Timestamp.fromMillis(Date.now() + 60 * 1000);
-            
-            transaction.update(gameRef, toPlainObject({
-                players: game.players, events: game.events, phase: nextPhase, phaseEndsAt,
-                currentRound: newRound, pendingHunterShot: null
-            }));
-        });
-        return { success: true };
-    } catch (error: any) {
-        console.error("CRITICAL ERROR in submitHunterShot: ", error);
-        return { success: false, error: error.message || "No se pudo registrar el disparo." };
-    }
+    // This action modifies sensitive game state and must run on the server.
+    // However, we are calling it from the client. Let's proxy it through a server action.
+    const { submitHunterShot: submitHunterShotServer } = await import('@/lib/firebase-actions');
+    return submitHunterShotServer(gameId, hunterId, targetId);
 }
 
 export async function submitVote(firestore: Firestore, gameId: string, voterId: string, targetId: string) {
@@ -487,50 +516,8 @@ export async function submitJuryVote(firestore: Firestore, gameId: string, juror
 }
 
 export async function submitTroublemakerAction(firestore: Firestore, gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
-    const { firestore: serverFirestore } = getSdks();
-    const gameRef = doc(serverFirestore, 'games', gameId) as DocumentReference<Game>;
-    
-    try {
-    await runTransaction(serverFirestore, async (transaction) => {
-      const gameSnap = await transaction.get(gameRef);
-      if (!gameSnap.exists()) throw new Error("Partida no encontrada");
-      let game = gameSnap.data()!;
-
-      if (game.status === 'finished') return;
-
-      const player = game.players.find(p => p.userId === troublemakerId);
-      if (!player || player.role !== 'troublemaker' || game.troublemakerUsed) {
-        throw new Error("No puedes realizar esta acción.");
-      }
-
-      const target1 = game.players.find(p => p.userId === target1Id);
-      const target2 = game.players.find(p => p.userId === target2Id);
-
-      if (!target1 || !target2 || !target1.isAlive || !target2.isAlive) {
-        throw new Error("Los objetivos seleccionados no son válidos.");
-      }
-      
-      let { updatedGame } = await killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, target1Id, 'troublemaker_duel');
-      game = updatedGame;
-      
-      let finalResult = await killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, target2Id, 'troublemaker_duel');
-      game = finalResult.updatedGame;
-
-      game.events.push({
-        id: `evt_trouble_${Date.now()}`, gameId, round: game.currentRound, type: 'special',
-        message: `${player.displayName} ha provocado una pelea mortal. ${target1.displayName} y ${target2.displayName} han sido eliminados.`,
-        createdAt: Timestamp.now(), data: { killedPlayerIds: [target1Id, target2Id] }
-      });
-      game.troublemakerUsed = true;
-      
-      transaction.update(gameRef, toPlainObject(game));
-    });
-
-    return { success: true };
-  } catch (error: any) {
-    console.error("Error submitting troublemaker action:", error);
-    return { success: false, error: error.message || "No se pudo realizar la acción." };
-  }
+    const { submitTroublemakerAction: submitTroublemakerActionServer } = await import('@/lib/firebase-actions');
+    return submitTroublemakerActionServer(gameId, troublemakerId, target1Id, target2Id);
 }
 
 export async function sendGhostMessage(firestore: Firestore, gameId: string, ghostId: string, targetId: string, message: string) {
@@ -566,6 +553,3 @@ export async function sendGhostMessage(firestore: Firestore, gameId: string, gho
         return { success: false, error: error.message || "No se pudo enviar el mensaje." };
     }
 }
-
-// Re-export server functions that can be called from the client (as they are 'use server')
-export { createGame, startGame, resetGame, processNight, processVotes, processJuryVotes, executeMasterAction } from './firebase-actions';
