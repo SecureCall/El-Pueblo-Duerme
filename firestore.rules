@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -8,50 +9,46 @@ service cloud.firestore {
     }
     
     match /games/{gameId} {
-      allow read: if true; // Public read for game state
-      allow create: if request.auth != null 
+      // Public read for all game states.
+      allow read: if true; 
+
+      // Allow creating a game if the creator is the first player.
+      allow create: if request.auth != null
                     && request.resource.data.creator == request.auth.uid
+                    && request.resource.data.players.size() == 1
                     && request.resource.data.players[0].userId == request.auth.uid;
       
-      allow update: if 
-          request.auth != null &&
+      // Allow updates for joining, playing, or managing the game.
+      allow update: if request.auth != null &&
           (
-            // Rule: Joining an existing game in 'waiting' state.
+            // Rule: A new player can join a 'waiting' game.
             (
                 resource.data.status == 'waiting' &&
                 request.resource.data.players.size() == resource.data.players.size() + 1 &&
-                !isPlayer(gameId) // Ensure the user is not already in the game
+                !isPlayer(gameId)
             ) ||
-            // Rule: Submitting a vote or night action.
+            // Rule: Any existing player can update fields during the game (e.g., voting, night actions).
             (
                 isPlayer(gameId) &&
                 request.resource.data.players.size() == resource.data.players.size()
             ) ||
-             // Rule: Only the creator can process phases.
+             // Rule: Only the creator can start, process phases, or reset the game.
             (
                 request.auth.uid == resource.data.creator &&
                 (
-                    (
-                        resource.data.status == 'waiting' && 
-                        request.resource.data.status == 'in_progress'
-                    ) ||
-                    (
-                        resource.data.status == 'in_progress' &&
-                        resource.data.phase != request.resource.data.phase
-                    ) ||
-                    (
-                        resource.data.status == 'finished' &&
-                        request.resource.data.status == 'waiting'
-                    )
+                    (resource.data.status == 'waiting' && request.resource.data.status == 'in_progress') ||
+                    (resource.data.status == 'in_progress' && resource.data.phase != request.resource.data.phase) ||
+                    (resource.data.status == 'finished' && request.resource.data.status == 'waiting')
                 )
             )
           );
     }
 
     match /games/{gameId}/player_profiles/{userId} {
+      // Allow anyone to read player profiles (for display names, avatars).
       allow read: if true;
-      allow create: if request.auth.uid == userId;
-      allow update: if request.auth.uid == userId;
+      // Allow a user to create or update their OWN profile.
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
   }
 }
