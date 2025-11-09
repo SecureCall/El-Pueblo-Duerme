@@ -12,12 +12,6 @@ service cloud.firestore {
        return request.auth.uid == get(/databases/$(database)/documents/games/$(gameId)).data.creator;
     }
     
-    // Helper function to get player data from the incoming request resource
-    function getRequestPlayer(players) {
-        let matchingPlayers = players.filter(p => p.userId == request.auth.uid);
-        return matchingPlayers.size() > 0 ? matchingPlayers[0] : null;
-    }
-
     match /games/{gameId} {
       allow read: if true;
 
@@ -28,28 +22,17 @@ service cloud.firestore {
       
       allow update: if request.auth != null &&
           (
-            // Rule 1: A new player can join a 'waiting' game.
+            // Rule 1: An existing player can perform actions (join, vote, update avatar, etc.)
+            isPlayer(gameId) ||
+            
+            // Rule 2: A new player can join a 'waiting' game.
             (
                 resource.data.status == 'waiting' &&
                 request.resource.data.players.size() == resource.data.players.size() + 1 &&
                 !isPlayer(gameId)
             ) ||
-            
-            // Rule 2: An existing player can update their own avatar or display name in the lobby.
-            (
-                resource.data.status == 'waiting' &&
-                isPlayer(gameId) &&
-                request.resource.data.players.size() == resource.data.players.size()
-             ) ||
 
-            // Rule 3: An existing player can submit votes or night actions.
-            (
-                isPlayer(gameId) &&
-                resource.data.status == 'in_progress' &&
-                request.resource.data.players.size() == resource.data.players.size()
-            ) ||
-
-            // Rule 4: Only the creator can start the game, process phases, or reset it.
+            // Rule 3: Only the creator can start the game, process phases, or reset it.
             (
                 isCreator(gameId) &&
                 (
@@ -62,5 +45,3 @@ service cloud.firestore {
     }
   }
 }
-
-    

@@ -4,7 +4,7 @@
 import type { Game, Player } from "@/types";
 import { StartGameButton } from "./StartGameButton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
-import { Copy, Share2, Crown, User, Edit } from "lucide-react";
+import { Copy, Share2, User } from "lucide-react";
 import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
@@ -16,6 +16,7 @@ import type { MasterActionState } from "./MasterActionBar";
 import Link from "next/link";
 import { useFirebase } from "@/firebase";
 import { updatePlayerAvatar } from "@/lib/firebase-actions";
+import { setDoc, doc } from "firebase/firestore";
 
 interface GameLobbyProps {
   game: Game;
@@ -25,7 +26,7 @@ interface GameLobbyProps {
 
 export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
   const { toast } = useToast();
-  const { userId, setAvatarUrl } = useGameSession();
+  const { userId, avatarUrl, setAvatarUrl } = useGameSession();
   const { firestore } = useFirebase();
   const [canShare, setCanShare] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
@@ -40,18 +41,27 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
   }, []);
 
   const handleAvatarChange = async (newAvatarUrl: string) => {
-    if (!userId || !firestore || !currentPlayer) return;
-    setAvatarUrl(newAvatarUrl); // Optimistically update local state
-    
-    const result = await updatePlayerAvatar(firestore, game.id, userId, newAvatarUrl);
+      if (!userId || !firestore || !currentPlayer) return;
+      
+      const updatedPlayer = { ...currentPlayer, avatarUrl: newAvatarUrl };
+      
+      // Optimistically update local state via session hook
+      setAvatarUrl(newAvatarUrl);
+      setIsAvatarModalOpen(false);
 
-    if (result.error) {
-      toast({ variant: "destructive", title: "Error", description: result.error || "No se pudo actualizar el avatar." });
-      console.error("Error updating avatar:", result.error);
-    }
-    
-    setIsAvatarModalOpen(false);
+      // Perform the database update
+      try {
+          await updatePlayerAvatar(firestore, game.id, userId, newAvatarUrl);
+      } catch (error) {
+          console.error("Error updating avatar:", error);
+          toast({
+              variant: "destructive",
+              title: "Error",
+              description: "No se pudo actualizar el avatar en la base de datos.",
+          });
+      }
   };
+
 
   const copyGameId = () => {
     navigator.clipboard.writeText(game.id);
@@ -75,7 +85,6 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
       });
       toast({ title: "¡Enlace compartido!" });
     } catch (err) {
-      // User cancellation is not an error
       if (err instanceof Error && err.name !== 'AbortError') {
         console.error("Share failed:", err);
         toast({
