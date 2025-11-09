@@ -1,85 +1,22 @@
-
 'use server';
 import { 
   doc,
+  setDoc,
   runTransaction,
   type DocumentReference,
+  Timestamp,
 } from "firebase/firestore";
 import { 
   type Game, 
+  type Player, 
+  type GameEvent, 
+  type PlayerRole,
 } from "@/types";
 import { toPlainObject } from "./utils";
 import { masterActions } from "./master-actions";
 import { getSdks } from "@/firebase/server-init";
 import { processJuryVotes as processJuryVotesEngine, killPlayer, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
 import { runAIActions as runAIActionsEngine } from './ai-actions';
-
-
-export async function startGame(gameId: string, creatorId: string) {
-    const { firestore } = getSdks();
-    const gameRef = doc(firestore, 'games', gameId);
-    
-    try {
-        await runTransaction(firestore, async (transaction) => {
-            const gameSnap = await transaction.get(gameRef);
-
-            if (!gameSnap.exists()) {
-                throw new Error('Partida no encontrada.');
-            }
-
-            let game = gameSnap.data() as Game;
-
-            if (game.creator !== creatorId) {
-                throw new Error('Solo el creador puede iniciar la partida.');
-            }
-
-            if (game.status !== 'waiting') {
-                throw new Error('La partida ya ha comenzado.');
-            }
-            
-            // Logic to add AI players and assign roles remains the same
-            // ... (omitted for brevity, it's correct)
-            
-            transaction.update(gameRef, toPlainObject({
-                // ... players and other fields
-                status: 'in_progress',
-                phase: 'role_reveal',
-                currentRound: 1,
-            }));
-        });
-        
-        return { success: true };
-
-    } catch (e: any) {
-        console.error("Error starting game:", e);
-        return { error: e.message || 'Error al iniciar la partida.' };
-    }
-}
-
-export async function resetGame(gameId: string) {
-    const { firestore } = getSdks();
-    const gameRef = doc(firestore, 'games', gameId);
-
-    try {
-        await runTransaction(firestore, async (transaction) => {
-            const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Partida no encontrada.");
-            const game = gameSnap.data() as Game;
-
-            // ... logic to reset players
-            
-            transaction.update(gameRef, toPlainObject({
-                status: 'waiting', phase: 'waiting', currentRound: 0,
-                // ... other fields to reset
-            }));
-        });
-        return { success: true };
-    } catch (e: any) {
-        console.error("Error resetting game:", e);
-        return { error: e.message || 'No se pudo reiniciar la partida.' };
-    }
-}
-
 
 export async function processNight(gameId: string) {
     const { firestore } = getSdks();
@@ -148,14 +85,69 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
     }
 }
 
-export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
+export async function resetGame(gameId: string) {
     const { firestore } = getSdks();
-    // This is now a server-only function, the rest of the logic remains
-    //... (implementation is correct)
-}
+    const gameRef = doc(firestore, 'games', gameId);
 
-export async function submitTroublemakerAction(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
-    const { firestore } = getSdks();
-    // This is now a server-only function, the rest of the logic remains
-    //... (implementation is correct)
+    const createPlayerObject = (userId: string, gameId: string, displayName: string, avatarUrl: string, isAI: boolean = false): Player => ({
+        userId,
+        gameId,
+        displayName: displayName.trim(),
+        avatarUrl,
+        role: null,
+        isAlive: true,
+        votedFor: null,
+        joinedAt: Timestamp.now(),
+        isAI,
+        isExiled: false,
+        lastHealedRound: 0,
+        potions: { poison: null, save: null },
+        priestSelfHealUsed: false,
+        princeRevealed: false,
+        guardianSelfProtects: 0,
+        biteCount: 0,
+        isCultMember: false,
+        isLover: false,
+        usedNightAbility: false,
+        shapeshifterTargetId: null,
+        virginiaWoolfTargetId: null,
+        riverSirenTargetId: null,
+        ghostMessageSent: false,
+        resurrectorAngelUsed: false,
+        bansheeScreams: {},
+        lookoutUsed: false,
+        executionerTargetId: null,
+        secretObjectiveId: null,
+    });
+    
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Partida no encontrada.");
+            const game = gameSnap.data() as Game;
+
+            const humanPlayers = game.players.filter(p => !p.isAI);
+
+            const resetHumanPlayers = humanPlayers.map(player => {
+                const newPlayer = createPlayerObject(player.userId, game.id, player.displayName, player.avatarUrl, player.isAI);
+                newPlayer.joinedAt = player.joinedAt; 
+                return newPlayer;
+            });
+
+            transaction.update(gameRef, toPlainObject({
+                status: 'waiting', phase: 'waiting', currentRound: 0,
+                events: [], chatMessages: [], wolfChatMessages: [], fairyChatMessages: [],
+                twinChatMessages: [], loversChatMessages: [], ghostChatMessages: [], nightActions: [],
+                twins: null, lovers: null, phaseEndsAt: Timestamp.now(), pendingHunterShot: null,
+                wolfCubRevengeRound: 0, players: resetHumanPlayers, vampireKills: 0, boat: [],
+                leprosaBlockedRound: 0, witchFoundSeer: false, seerDied: false,
+                silencedPlayerId: null, exiledPlayerId: null, troublemakerUsed: false,
+                fairiesFound: false, fairyKillUsed: false, juryVotes: {}, masterKillUsed: false
+            }));
+        });
+        return { success: true };
+    } catch (e: any) {
+        console.error("Error resetting game:", e);
+        return { error: e.message || 'No se pudo reiniciar la partida.' };
+    }
 }

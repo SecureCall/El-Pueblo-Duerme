@@ -1,4 +1,3 @@
-
 'use client';
 import { 
   doc,
@@ -23,6 +22,8 @@ import {
 } from "@/types";
 import { toPlainObject } from "./utils";
 import { runAIActions } from "./ai-actions";
+import { secretObjectives } from "./objectives";
+
 
 const createPlayerObject = (userId: string, gameId: string, displayName: string, avatarUrl: string, isAI: boolean = false): Player => ({
     userId,
@@ -127,7 +128,6 @@ export async function createGame(
     return { error: `Error de servidor: ${error.message || 'Error desconocido al crear la partida.'}` };
   }
 }
-
 
 export async function joinGame(
   firestore: Firestore,
@@ -507,18 +507,152 @@ export async function sendGhostMessage(firestore: Firestore, gameId: string, gho
     }
 }
 
-// These are server-only actions proxied through the client actions file
-export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
+// These are server-only actions that need a client-side proxy to be called from a client component.
+// We use dynamic imports to call the server actions.
+export async function getSeerResult(firestore: Firestore, gameId: string, seerId: string, targetId: string) {
     const { getSeerResult: serverAction } = await import('@/lib/firebase-actions');
     return serverAction(gameId, seerId, targetId);
 }
 
-export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
+export async function submitHunterShot(firestore: Firestore, gameId: string, hunterId: string, targetId: string) {
     const { submitHunterShot: serverAction } = await import('@/lib/firebase-actions');
     return serverAction(gameId, hunterId, targetId);
 }
 
-export async function submitTroublemakerAction(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
+export async function submitTroublemakerAction(firestore: Firestore, gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
     const { submitTroublemakerAction: serverAction } = await import('@/lib/firebase-actions');
     return serverAction(gameId, troublemakerId, target1Id, target2Id);
+}
+
+const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
+const MINIMUM_PLAYERS = 3;
+
+const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
+    let roles: PlayerRole[] = [];
+    
+    const numWerewolves = Math.max(1, Math.floor(playerCount / 5));
+    for (let i = 0; i < numWerewolves; i++) {
+        roles.push('werewolf');
+    }
+
+    const availableSpecialRoles: PlayerRole[] = (Object.keys(settings) as Array<keyof typeof settings>)
+        .filter(key => {
+            const roleKey = key as PlayerRole;
+            return settings[key] === true && roleKey && roleKey !== 'werewolf' && roleKey !== 'villager';
+        })
+        .sort(() => Math.random() - 0.5) as PlayerRole[];
+    
+    for (const specialRole of availableSpecialRoles) {
+        if (roles.length >= playerCount) break;
+
+        if (specialRole === 'twin') {
+            if (roles.length + 2 <= playerCount) {
+                roles.push('twin', 'twin');
+            }
+        } else {
+            roles.push(specialRole);
+        }
+    }
+    
+    while (roles.length < playerCount) {
+        roles.push('villager');
+    }
+
+    return roles.sort(() => Math.random() - 0.5);
+};
+
+
+export async function startGame(firestore: Firestore, gameId: string, creatorId: string) {
+    const gameRef = doc(firestore, 'games', gameId);
+    
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+
+            if (!gameSnap.exists()) {
+                throw new Error('Partida no encontrada.');
+            }
+
+            let game = gameSnap.data() as Game;
+
+            if (game.creator !== creatorId) {
+                throw new Error('Solo el creador puede iniciar la partida.');
+            }
+
+            if (game.status !== 'waiting') {
+                throw new Error('La partida ya ha comenzado.');
+            }
+            
+            let finalPlayers = [...game.players];
+
+            if (game.settings.fillWithAI && finalPlayers.length < game.maxPlayers) {
+                const aiPlayerCount = game.maxPlayers - finalPlayers.length;
+                const availableAINames = AI_NAMES.filter(name => !finalPlayers.some(p => p.displayName === name));
+
+                for (let i = 0; i < aiPlayerCount; i++) {
+                    const aiUserId = `ai_${Date.now()}_${i}`;
+                    const aiName = availableAINames[i % availableAINames.length] || `Bot ${i + 1}`;
+                    const aiAvatar = `/logo.png`;
+                    const aiPlayerData = createPlayerObject(aiUserId, gameId, aiName, aiAvatar, true);
+                    finalPlayers.push(aiPlayerData);
+                }
+            }
+            
+            const totalPlayers = finalPlayers.length;
+            if (totalPlayers < MINIMUM_PLAYERS) {
+                throw new Error(`Se necesitan al menos ${MINIMUM_PLAYERS} jugadores para comenzar.`);
+            }
+            
+            const newRoles = generateRoles(totalPlayers, game.settings);
+            
+            let assignedPlayers = finalPlayers.map((player, index) => {
+                const p = { ...player, role: newRoles[index] };
+                if (p.role === 'cult_leader') {
+                    p.isCultMember = true;
+                }
+                if (!p.isAI) {
+                    const applicableObjectives = secretObjectives.filter(obj => 
+                        obj.appliesTo.includes('any') || (p.role && obj.appliesTo.includes(p.role))
+                    );
+                    if (applicableObjectives.length > 0) {
+                        p.secretObjectiveId = applicableObjectives[Math.floor(Math.random() * applicableObjectives.length)].id;
+                    }
+                }
+                return p;
+            });
+
+            const executioner = assignedPlayers.find(p => p.role === 'executioner');
+            if (executioner) {
+                const wolfTeamRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy', 'witch'];
+                const nonWolfPlayers = assignedPlayers.filter(p => {
+                    return p.role && !wolfTeamRoles.includes(p.role) && p.userId !== executioner.userId;
+                });
+                if (nonWolfPlayers.length > 0) {
+                    const target = nonWolfPlayers[Math.floor(Math.random() * nonWolfPlayers.length)];
+                    if (target) {
+                        const executionerIndex = assignedPlayers.findIndex(p => p.userId === executioner.userId);
+                        if (executionerIndex > -1) {
+                            assignedPlayers[executionerIndex].executionerTargetId = target.userId;
+                        }
+                    }
+                }
+            }
+
+            const twinUserIds = assignedPlayers.filter(p => p.role === 'twin').map(p => p.userId);
+            
+            transaction.update(gameRef, toPlainObject({
+                players: assignedPlayers,
+                twins: twinUserIds.length === 2 ? [twinUserIds[0], twinUserIds[1]] as [string, string] : null,
+                status: 'in_progress',
+                phase: 'role_reveal',
+                currentRound: 1,
+            }));
+        });
+        
+        return { success: true };
+
+    } catch (e: any) {
+        console.error("Error starting game:", e);
+        return { error: e.message || 'Error al iniciar la partida.' };
+    }
 }

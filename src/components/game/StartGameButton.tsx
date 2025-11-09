@@ -1,14 +1,14 @@
-
 "use client";
 
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
-import { startGame } from "@/lib/firebase-actions";
+import { startGame } from "@/lib/firebase-client-actions";
 import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useGameSession } from "@/hooks/use-game-session";
 import type { Game } from "@/types";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
+import { useFirebase } from "@/firebase";
 
 interface StartGameButtonProps {
   game: Game;
@@ -21,12 +21,13 @@ export function StartGameButton({ game, playerCount }: StartGameButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const { userId, isSessionLoaded } = useGameSession();
+  const { firestore } = useFirebase();
 
   const totalPlayers = game.settings.fillWithAI ? game.maxPlayers : playerCount;
   const canStart = totalPlayers >= MINIMUM_PLAYERS;
 
   const handleStartGame = async () => {
-    if (!isSessionLoaded || !userId) {
+    if (!isSessionLoaded || !userId || !firestore) {
        toast({
           variant: "destructive",
           title: "Error",
@@ -35,7 +36,7 @@ export function StartGameButton({ game, playerCount }: StartGameButtonProps) {
       return;
     }
     setIsLoading(true);
-    const result = await startGame(game.id, userId);
+    const result = await startGame(firestore, game.id, userId);
     if (result.error) {
       toast({
         variant: "destructive",
