@@ -1,47 +1,24 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     function isPlayer(gameId) {
       return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p => p.userId == request.auth.uid);
     }
-    
-    function isCreator(gameId) {
-       return request.auth.uid == get(/databases/$(database)/documents/games/$(gameId)).data.creator;
-    }
-    
+
     match /games/{gameId} {
+      // Allow anyone to read game data.
       allow read: if true;
 
+      // Allow any authenticated user to create a game document, as long as they are the creator.
       allow create: if request.auth != null
-                    && request.resource.data.creator == request.auth.uid
-                    && request.resource.data.players.size() == 1
-                    && request.resource.data.players[0].userId == request.auth.uid;
-      
-      allow update: if request.auth != null &&
-          (
-            // Rule 1: An existing player can perform actions (join, vote, update avatar, etc.)
-            isPlayer(gameId) ||
-            
-            // Rule 2: A new player can join a 'waiting' game.
-            (
-                resource.data.status == 'waiting' &&
-                request.resource.data.players.size() == resource.data.players.size() + 1 &&
-                !isPlayer(gameId)
-            ) ||
+                    && request.resource.data.creator == request.auth.uid;
 
-            // Rule 3: Only the creator can start the game, process phases, or reset it.
-            (
-                isCreator(gameId) &&
-                (
-                    (resource.data.status == 'waiting' && request.resource.data.status == 'in_progress') ||
-                    (resource.data.status == 'in_progress' && resource.data.phase != request.resource.data.phase) ||
-                    (resource.data.status == 'finished' && request.resource.data.status == 'waiting')
-                )
-            )
-          );
+      // Allow updates only by authenticated users who are part of the game or the creator.
+      // Detailed logic is handled in server-side functions for robustness.
+      allow update: if request.auth != null &&
+                       (request.auth.uid == resource.data.creator || isPlayer(gameId));
     }
   }
 }

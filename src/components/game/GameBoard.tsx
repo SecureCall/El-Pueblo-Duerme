@@ -33,8 +33,10 @@ import { playNarration, playSoundEffect } from '@/lib/sounds';
 import { useGameState } from "@/hooks/use-game-state";
 import { RoleManual } from "./RoleManual";
 import { useToast } from "@/hooks/use-toast";
+import { useFirebase } from "@/firebase";
 
 export function GameBoard({ gameId }: { gameId: string }) {
+    const { firestore } = useFirebase();
     const { updateStats, userId } = useGameSession();
     const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, loading, error } = useGameState(gameId);
     const { toast } = useToast();
@@ -51,24 +53,24 @@ export function GameBoard({ gameId }: { gameId: string }) {
     const handleAcknowledgeRole = useCallback(async () => {
         setShowRole(false);
         if (game && game.phase === 'role_reveal' && game.creator === userId) {
-            await processNight(game.id);
+            await processNight(firestore, game.id);
         }
-    }, [game, userId]);
+    }, [game, userId, firestore]);
 
     const handlePhaseEnd = useCallback(async () => {
-        if (!game || !userId) return;
+        if (!firestore || !game || !userId) return;
         if (game.status === 'finished') return;
 
         if (game.creator === userId) {
             if (game.phase === 'day') {
-                await processVotes(game.id);
+                await processVotes(firestore, game.id);
             } else if (game.phase === 'night') {
-                await processNight(game.id);
+                await processNight(firestore, game.id);
             } else if (game.phase === 'jury_voting') {
-                await processJuryVotes(game.id);
+                await processJuryVotes(firestore, game.id);
             }
         }
-    }, [game, userId]);
+    }, [game, userId, firestore]);
 
     useEffect(() => {
         if (!game || !currentPlayer) return;
@@ -84,7 +86,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
     }, [game?.status, events, currentPlayer, game, updateStats]);
 
     useEffect(() => {
-        if (!game || !userId || game.status === 'finished') return;
+        if (!firestore || !game || !userId || game.status === 'finished') return;
 
         const isCreator = game.creator === userId;
         const prevPhase = prevPhaseRef.current;
@@ -98,7 +100,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
                     } else {
                         playNarration('noche_pueblo_duerme.mp3');
                     }
-                    if (isCreator) runAIActions(game.id);
+                    if (isCreator) runAIActions(firestore, game.id);
                     break;
                 case 'day':
                     playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
@@ -106,14 +108,14 @@ export function GameBoard({ gameId }: { gameId: string }) {
                         playNarration('dia_pueblo_despierta.mp3');
                         setTimeout(() => {
                             playNarration('inicio_debate.mp3');
-                            if (isCreator) triggerAIVote(game.id);
+                            if (isCreator) triggerAIVote(firestore, game.id);
                         }, 2000);
                     }, 1500);
                     break;
                 case 'hunter_shot':
                     if (isCreator) {
                         const pendingHunter = game.players.find(p => p.userId === game.pendingHunterShot);
-                        if (pendingHunter?.isAI) runAIHunterShot(game.id, pendingHunter);
+                        if (pendingHunter?.isAI) runAIHunterShot(firestore, game.id, pendingHunter);
                     }
                     break;
                 case 'role_reveal':
@@ -138,7 +140,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
 
         prevPhaseRef.current = game.phase;
 
-    }, [game?.phase, game?.currentRound, game?.id, game?.creator, game?.status, game?.players, game?.pendingHunterShot, userId, events, handleAcknowledgeRole]);
+    }, [game?.phase, game?.currentRound, game?.id, game?.creator, game?.status, game?.players, game?.pendingHunterShot, userId, events, handleAcknowledgeRole, firestore]);
 
     useEffect(() => {
         if (!game?.phaseEndsAt || game.status === 'finished') {
@@ -185,10 +187,10 @@ export function GameBoard({ gameId }: { gameId: string }) {
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
 
     const handleMasterActionClick = async (player: Player) => {
-        if (!masterActionState.active || !masterActionState.actionId) return;
+        if (!firestore || !masterActionState.active || !masterActionState.actionId) return;
 
         if (masterActionState.actionId === 'master_kill') {
-            await executeMasterAction(game.id, 'master_kill', null, player.userId);
+            await executeMasterAction(firestore, game.id, 'master_kill', null, player.userId);
             toast({ title: "Zarpazo del Destino", description: `${player.displayName} ha sido eliminado por el Máster.`});
             setMasterActionState({ active: false, actionId: null, sourceId: null });
         } else {
@@ -196,7 +198,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
                 setMasterActionState(prev => ({ ...prev, sourceId: player.userId }));
                 toast({ title: "Acción de Máster", description: `Has seleccionado a ${player.displayName}. Ahora selecciona el objetivo.`});
             } else {
-                await executeMasterAction(game.id, masterActionState.actionId, masterActionState.sourceId, player.userId);
+                await executeMasterAction(firestore, game.id, masterActionState.actionId, masterActionState.sourceId, player.userId);
                 toast({ title: "Acción de Máster", description: `Acción ejecutada.`});
                 setMasterActionState({ active: false, actionId: null, sourceId: null });
             }
@@ -333,7 +335,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
             case 'night':
                 if (!currentPlayer.isAlive) return 'Observas desde el más allá...';
                 if (currentPlayer?.usedNightAbility) return 'Has actuado. Espera al amanecer.';
-                if (currentPlayer.isExiled) return <> <UserX className="inline-block h-4 w-4" /> ¡Exiliado! No puedes actuar esta noche. </>;
+                if (game.exiledPlayerId === currentPlayer.userId) return <> <UserX className="inline-block h-4 w-4" /> ¡Exiliado! No puedes actuar esta noche. </>;
                 if (currentPlayer?.role && ['werewolf', 'wolf_cub', 'seer', 'seer_apprentice', 'doctor', 'hechicera', 'guardian', 'priest', 'vampire', 'cult_leader', 'fisherman', 'shapeshifter', 'virginia_woolf', 'river_siren', 'silencer', 'elder_leader', 'witch', 'banshee', 'lookout', 'seeker_fairy', 'resurrector_angel', 'cupid'].includes(currentPlayer.role as string)) {
                     return "Es tu turno de actuar.";
                 }

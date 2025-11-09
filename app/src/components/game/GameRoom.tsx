@@ -5,14 +5,16 @@ import { useEffect, useState, useCallback } from 'react';
 import { useGameSession } from '@/hooks/use-game-session';
 import { useGameState } from '@/hooks/use-game-state';
 import { EnterNameModal } from './EnterNameModal';
-import { joinGame } from '@/lib/firebase-actions';
-import { Loader2 } from 'lucide-react';
+import { joinGame } from '@/lib/firebase-client-actions';
+import { Loader2, ArrowLeft } from 'lucide-react';
 import { GameLobby } from './GameLobby';
 import { GameBoard } from './GameBoard';
 import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { useFirebase } from '@/firebase';
 import { GameMusic } from './GameMusic';
+import { useFirebase } from '@/firebase';
+import Link from 'next/link';
+import { Button } from '../ui/button';
 
 export function GameRoom({ gameId }: { gameId: string }) {
   const { userId, displayName, setDisplayName, isSessionLoaded, avatarUrl } = useGameSession();
@@ -48,10 +50,10 @@ export function GameRoom({ gameId }: { gameId: string }) {
   }, [displayName, firestore, gameId, userId, setDisplayName, avatarUrl]);
 
   useEffect(() => {
-    if (game && displayName && !currentPlayer && game.status === 'waiting' && !isJoining) {
+    if (isSessionLoaded && game && displayName && !currentPlayer && game.status === 'waiting' && !isJoining) {
       handleJoinGame();
     }
-  }, [game, displayName, currentPlayer, isJoining, handleJoinGame]);
+  }, [game, displayName, currentPlayer, isJoining, handleJoinGame, isSessionLoaded]);
 
   const getMusicSrc = () => {
     if (!game) return '/audio/lobby-theme.mp3';
@@ -75,7 +77,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
   const renderContent = () => {
     if (loading || !isSessionLoaded || !avatarUrl || (gameId && !game && !gameStateError)) {
       return (
-        <div className="flex flex-col items-center gap-4">
+        <div className="flex flex-col items-center gap-4 text-white">
           <Loader2 className="h-16 w-16 animate-spin text-primary" />
           <p className="text-xl text-primary-foreground/80">Cargando partida...</p>
         </div>
@@ -83,22 +85,68 @@ export function GameRoom({ gameId }: { gameId: string }) {
     }
 
     if (gameStateError) {
-      return <p className="text-destructive text-xl">{gameStateError}</p>;
+        return (
+            <div className='text-center text-white space-y-4'>
+                <p className="text-destructive text-2xl font-bold">{gameStateError}</p>
+                 <Button asChild>
+                    <Link href="/"><ArrowLeft className="mr-2" /> Volver al Inicio</Link>
+                </Button>
+            </div>
+        );
     }
     
     if (!displayName) {
       return <EnterNameModal isOpen={!displayName} onNameSubmit={handleNameSubmit} error={joinError} />;
     }
 
-    if (!game || !currentPlayer) {
-        if (game && game.status !== 'waiting') {
-            return <p className="text-destructive text-xl">Esta partida ya ha comenzado o está llena.</p>;
+    if (!game) {
+        return (
+            <div className='text-center text-white space-y-4'>
+                <p className="text-destructive text-2xl font-bold">Esta partida no existe o ha sido eliminada.</p>
+                 <Button asChild>
+                    <Link href="/"><ArrowLeft className="mr-2" /> Volver al Inicio</Link>
+                </Button>
+            </div>
+        );
+    }
+    
+    // Player is not in the game, and it's a private game they tried to access via URL
+    if (!currentPlayer && game.status === 'waiting' && !game.settings.isPublic) {
+        return (
+            <div className='text-center text-white space-y-4'>
+                <p className="text-destructive text-2xl font-bold">Esta es una partida privada.</p>
+                <p className="text-lg">No puedes unirte a través de un enlace. Pide al creador el código de la partida.</p>
+                 <Button asChild>
+                    <Link href="/"><ArrowLeft className="mr-2" /> Volver al Inicio</Link>
+                </Button>
+            </div>
+        );
+    }
+
+
+    if (!currentPlayer) {
+        if (game.status !== 'waiting') {
+            return (
+                 <div className='text-center text-white space-y-4'>
+                    <p className="text-destructive text-2xl font-bold">Esta partida ya ha comenzado.</p>
+                     <Button asChild>
+                        <Link href="/"><ArrowLeft className="mr-2" /> Volver al Inicio</Link>
+                    </Button>
+                </div>
+            );
         }
-         if (game && players.length >= game.maxPlayers) {
-            return <p className="text-destructive text-xl">Esta partida está llena.</p>;
+         if (players.length >= game.maxPlayers) {
+            return (
+                 <div className='text-center text-white space-y-4'>
+                    <p className="text-destructive text-2xl font-bold">Esta partida está llena.</p>
+                     <Button asChild>
+                        <Link href="/"><ArrowLeft className="mr-2" /> Volver al Inicio</Link>
+                    </Button>
+                </div>
+            );
         }
         return (
-            <div className="flex flex-col items-center gap-4">
+            <div className="flex flex-col items-center gap-4 text-white">
                 <Loader2 className="h-16 w-16 animate-spin text-primary" />
                 <p className="text-xl text-primary-foreground/80">Uniéndote como {displayName}...</p>
             </div>
@@ -107,7 +155,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
     
     switch (game.status) {
         case 'waiting':
-            return <GameLobby game={game} players={players} isCreator={game.creator === userId} currentPlayer={currentPlayer} />;
+            return <GameLobby game={game} players={players} isCreator={game.creator === userId} />;
         case 'in_progress':
         case 'finished':
             return <GameBoard gameId={gameId} />;
@@ -135,3 +183,5 @@ export function GameRoom({ gameId }: { gameId: string }) {
     </div>
   );
 }
+
+    

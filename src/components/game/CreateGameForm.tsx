@@ -30,7 +30,6 @@ import { Checkbox } from "../ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 import type { PlayerRole } from "@/types";
 import { roleDetails } from "@/lib/roles";
-import { useFirebase } from "@/firebase";
 
 // Define an interface for the form values without Zod
 interface CreateGameFormValues {
@@ -85,7 +84,6 @@ const implementedRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'
 export function CreateGameForm() {
   const router = useRouter();
   const { userId, displayName, setDisplayName, avatarUrl, isSessionLoaded } = useGameSession();
-  const { firestore } = useFirebase();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -96,7 +94,7 @@ export function CreateGameForm() {
       maxPlayers: 8,
       fillWithAI: true,
       isPublic: false,
-      juryVoting: true,
+      juryVoting: false,
       seer: false,
       doctor: false,
       hunter: false,
@@ -144,7 +142,7 @@ export function CreateGameForm() {
   };
 
   async function onSubmit(data: CreateGameFormValues) {
-    if (!isSessionLoaded || !userId || !firestore) {
+    if (!isSessionLoaded || !userId) {
       toast({
             variant: "destructive",
             title: "Sesión no lista",
@@ -184,21 +182,18 @@ export function CreateGameForm() {
         fillWithAI,
         isPublic,
         juryVoting,
-        werewolves: 1, // This can be adjusted later based on rules
+        werewolves: 1, 
         ...roleSettings
     };
     
-    const response = await createGame(
-      firestore,
-      {
+    const response = await createGame({
         userId,
         displayName: trimmedDisplayName,
         avatarUrl,
         gameName,
         maxPlayers,
         settings: gameSettings
-      }
-    );
+    });
     
     if (response.gameId) {
       router.push(`/game/${response.gameId}`);

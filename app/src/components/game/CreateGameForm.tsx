@@ -30,7 +30,6 @@ import { Checkbox } from "../ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 import type { PlayerRole } from "@/types";
 import { roleDetails } from "@/lib/roles";
-import { useFirebase } from "@/firebase";
 
 // Define an interface for the form values without Zod
 interface CreateGameFormValues {
@@ -39,6 +38,7 @@ interface CreateGameFormValues {
   maxPlayers: number;
   fillWithAI: boolean;
   isPublic: boolean;
+  juryVoting: boolean;
   seer: boolean;
   doctor: boolean;
   hunter: boolean;
@@ -69,19 +69,21 @@ interface CreateGameFormValues {
   witch: boolean;
   banshee: boolean;
   drunk_man: boolean;
+  resurrector_angel: boolean;
+  executioner: boolean;
 }
 
 const implementedRoles: Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>[] = [
     'seer', 'doctor', 'hunter', 'cupid', 'guardian', 'priest', 'prince', 'lycanthrope', 'twin', 
     'hechicera', 'wolf_cub', 'cursed', 'cult_leader', 'fisherman', 'vampire', 'ghost', 'virginia_woolf',
     'leprosa', 'river_siren', 'lookout', 'troublemaker', 'silencer', 'seer_apprentice',
-    'elder_leader', 'seeker_fairy', 'sleeping_fairy', 'shapeshifter', 'witch', 'banshee', 'drunk_man'
+    'elder_leader', 'seeker_fairy', 'sleeping_fairy', 'shapeshifter', 'witch', 'banshee', 'drunk_man',
+    'resurrector_angel', 'executioner'
 ];
 
 export function CreateGameForm() {
   const router = useRouter();
-  const { userId, displayName, setDisplayName, isSessionLoaded } = useGameSession();
-  const { firestore } = useFirebase();
+  const { userId, displayName, setDisplayName, avatarUrl, isSessionLoaded } = useGameSession();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -92,35 +94,38 @@ export function CreateGameForm() {
       maxPlayers: 8,
       fillWithAI: true,
       isPublic: false,
-      seer: true,
-      doctor: true,
-      hunter: true,
-      cupid: true,
-      hechicera: true,
-      guardian: true,
-      prince: true,
-      lycanthrope: true,
-      twin: true,
-      wolf_cub: true,
-      cursed: true,
-      cult_leader: true,
-      fisherman: true,
-      vampire: true,
-      ghost: true,
-      virginia_woolf: true,
-      leprosa: true,
-      river_siren: true,
-      lookout: true,
-      troublemaker: true,
-      silencer: true,
-      seer_apprentice: true,
-      elder_leader: true,
-      seeker_fairy: true,
-      sleeping_fairy: true,
-      shapeshifter: true,
-      witch: true,
-      banshee: true,
-      drunk_man: true,
+      juryVoting: false,
+      seer: false,
+      doctor: false,
+      hunter: false,
+      cupid: false,
+      hechicera: false,
+      guardian: false,
+      prince: false,
+      lycanthrope: false,
+      twin: false,
+      wolf_cub: false,
+      cursed: false,
+      cult_leader: false,
+      fisherman: false,
+      vampire: false,
+      ghost: false,
+      virginia_woolf: false,
+      leprosa: false,
+      river_siren: false,
+      lookout: false,
+      troublemaker: false,
+      silencer: false,
+      seer_apprentice: false,
+      elder_leader: false,
+      seeker_fairy: false,
+      sleeping_fairy: false,
+      shapeshifter: false,
+      witch: false,
+      banshee: false,
+      drunk_man: false,
+      resurrector_angel: false,
+      executioner: false,
     },
   });
   
@@ -137,46 +142,58 @@ export function CreateGameForm() {
   };
 
   async function onSubmit(data: CreateGameFormValues) {
-    if (!isSessionLoaded || !userId || !firestore) {
-        toast({
+    if (!isSessionLoaded || !userId) {
+      toast({
             variant: "destructive",
-            title: "Esperando sesión",
-            description: "Por favor, espera un momento mientras iniciamos tu sesión.",
+            title: "Sesión no lista",
+            description: "Por favor, espera un momento a que cargue la sesión e inténtalo de nuevo.",
         });
-        return;
+      return;
     }
     
-    if (!data.displayName.trim()) {
+    const trimmedDisplayName = data.displayName.trim();
+
+    if (!trimmedDisplayName) {
         form.setError("displayName", { type: "manual", message: "Tu nombre no puede estar vacío." });
         return;
     }
+     if (!avatarUrl) {
+        toast({
+            variant: "destructive",
+            title: "Avatar no encontrado",
+            description: "No se ha podido cargar tu avatar. Por favor, recarga la página.",
+        });
+        return;
+    }
+
 
     setIsSubmitting(true);
-    setDisplayName(data.displayName.trim());
+    setDisplayName(trimmedDisplayName);
 
-    const { gameName, displayName: pName, maxPlayers, ...settings } = data;
+    const { gameName, maxPlayers, fillWithAI, isPublic, juryVoting, ...roles } = data;
 
-    // Ensure all role settings are booleans (not undefined)
-    const sanitizedRoles = implementedRoles.reduce((acc, roleId) => {
-        acc[roleId as keyof typeof settings] = !!settings[roleId as keyof typeof settings];
+    const roleSettings = implementedRoles.reduce((acc, roleId) => {
+        acc[roleId] = !!roles[roleId];
         return acc;
     }, {} as Record<Exclude<NonNullable<PlayerRole>, 'villager' | 'werewolf'>, boolean>);
 
+
     const gameSettings = {
-        fillWithAI: settings.fillWithAI,
-        isPublic: settings.isPublic,
-        werewolves: Math.max(1, Math.floor(data.maxPlayers / 5)),
-        ...sanitizedRoles
+        fillWithAI,
+        isPublic,
+        juryVoting,
+        werewolves: 1, 
+        ...roleSettings
     };
     
-    const response = await createGame(
-      firestore,
-      userId,
-      pName.trim(),
-      gameName,
-      maxPlayers,
-      gameSettings
-    );
+    const response = await createGame({
+        userId,
+        displayName: trimmedDisplayName,
+        avatarUrl,
+        gameName,
+        maxPlayers,
+        settings: gameSettings
+    });
     
     if (response.gameId) {
       router.push(`/game/${response.gameId}`);
@@ -295,6 +312,27 @@ export function CreateGameForm() {
 
             <FormField
               control={form.control}
+              name="juryVoting"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background/50">
+                  <div className="space-y-0.5">
+                    <FormLabel>Voto del Jurado</FormLabel>
+                    <FormDescription>
+                      En caso de empate, los jugadores muertos deciden.
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
               name="fillWithAI"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background/50">
@@ -345,3 +383,5 @@ export function CreateGameForm() {
     </Card>
   );
 }
+
+    

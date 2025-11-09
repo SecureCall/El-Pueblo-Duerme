@@ -6,7 +6,9 @@ import { RoleReveal } from "./RoleReveal";
 import { PlayerGrid } from "./PlayerGrid";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
 import { useEffect, useState, useRef, useCallback } from "react";
-import { processJuryVotes, executeMasterAction, processNight, processVotes, runAIActions, triggerAIVote, runAIHunterShot } from "@/lib/firebase-actions";
+import { NightActions } from "./NightActions";
+import { processJuryVotes, executeMasterAction, processNight, processVotes } from "@/lib/firebase-actions";
+import { runAIActions, runAIHunterShot } from "@/lib/ai-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { Moon, Sun, Loader2, UserX, Scale } from "lucide-react";
@@ -32,6 +34,7 @@ import { playNarration, playSoundEffect } from '@/lib/sounds';
 import { useGameState } from "@/hooks/use-game-state";
 import { RoleManual } from "./RoleManual";
 import { useToast } from "@/hooks/use-toast";
+import { useFirebase } from "@/firebase";
 
 export function GameBoard({ gameId }: { gameId: string }) {
     const { updateStats, userId } = useGameSession();
@@ -97,7 +100,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
                     } else {
                         playNarration('noche_pueblo_duerme.mp3');
                     }
-                    if (isCreator) runAIActions(game.id);
+                    if (isCreator) runAIActions(game.id, 'night');
                     break;
                 case 'day':
                     playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
@@ -105,7 +108,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
                         playNarration('dia_pueblo_despierta.mp3');
                         setTimeout(() => {
                             playNarration('inicio_debate.mp3');
-                            if (isCreator) triggerAIVote(game.id);
+                            if (isCreator) runAIActions(game.id, 'day');
                         }, 2000);
                     }, 1500);
                     break;

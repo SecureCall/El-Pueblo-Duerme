@@ -14,25 +14,24 @@ import { useGameSession } from "@/hooks/use-game-session";
 import { PlayerGrid } from "./PlayerGrid";
 import type { MasterActionState } from "./MasterActionBar";
 import Link from "next/link";
+import { updatePlayerAvatar } from "@/lib/firebase-client-actions";
 import { useFirebase } from "@/firebase";
-import { updatePlayerAvatar } from "@/lib/firebase-actions";
-import { setDoc, doc } from "firebase/firestore";
 
 interface GameLobbyProps {
   game: Game;
   players: Player[];
   isCreator: boolean;
+  currentPlayer: Player;
 }
 
-export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
+export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobbyProps) {
   const { toast } = useToast();
-  const { userId, avatarUrl, setAvatarUrl } = useGameSession();
+  const { userId, setAvatarUrl } = useGameSession();
   const { firestore } = useFirebase();
   const [canShare, setCanShare] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
 
-  const currentPlayer = players.find(p => p.userId === userId);
 
   useEffect(() => {
     if (typeof navigator !== 'undefined' && navigator.share) {
@@ -43,22 +42,18 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
   const handleAvatarChange = async (newAvatarUrl: string) => {
       if (!userId || !firestore || !currentPlayer) return;
       
-      const updatedPlayer = { ...currentPlayer, avatarUrl: newAvatarUrl };
-      
       // Optimistically update local state via session hook
       setAvatarUrl(newAvatarUrl);
       setIsAvatarModalOpen(false);
 
-      // Perform the database update
-      try {
-          await updatePlayerAvatar(firestore, game.id, userId, newAvatarUrl);
-      } catch (error) {
-          console.error("Error updating avatar:", error);
-          toast({
+      const result = await updatePlayerAvatar(firestore, game.id, userId, newAvatarUrl);
+      if(result?.error) {
+           toast({
               variant: "destructive",
               title: "Error",
               description: "No se pudo actualizar el avatar en la base de datos.",
           });
+          // Note: Reverting optimistic update could be complex, for now we just show an error.
       }
   };
 
