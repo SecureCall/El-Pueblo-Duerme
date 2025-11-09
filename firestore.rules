@@ -7,17 +7,17 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p => p.userId == request.auth.uid);
     }
     
-    function getRequestPlayer(players) {
-      return players.filter(p => p.userId == request.auth.uid)[0];
-    }
-    
-    function getResourcePlayer(players) {
-        return players.filter(p => p.userId == request.auth.uid)[0];
+    // Helper function to safely get player data from incoming/existing resources
+    function getPlayer(players, userId) {
+      let matchingPlayers = players.filter(p => p.userId == userId);
+      return matchingPlayers.size() > 0 ? matchingPlayers[0] : null;
     }
 
     match /games/{gameId} {
+      // Anyone can read game data to join or spectate.
       allow read: if true;
 
+      // An authenticated user can create a game if they are the creator and the first player.
       allow create: if request.auth != null
                     && request.resource.data.creator == request.auth.uid
                     && request.resource.data.players.size() == 1
@@ -25,24 +25,28 @@ service cloud.firestore {
       
       allow update: if request.auth != null &&
           (
-            // Rule: A new player can join a 'waiting' game.
+            // Rule 1: A new player can join a 'waiting' game.
             (
                 resource.data.status == 'waiting' &&
                 request.resource.data.players.size() == resource.data.players.size() + 1 &&
                 !isPlayer(gameId)
             ) ||
-            // Rule: A player can update their own avatar or display name.
-             (
+            
+            // Rule 2: An existing player can update their own avatar or displayName in the lobby.
+            (
+                resource.data.status == 'waiting' &&
                 isPlayer(gameId) &&
                 request.resource.data.players.size() == resource.data.players.size() &&
-                getRequestPlayer(request.resource.data.players).avatarUrl != getResourcePlayer(resource.data.players).avatarUrl
+                getPlayer(request.resource.data.players, request.auth.uid).avatarUrl != getPlayer(resource.data.players, request.auth.uid).avatarUrl
              ) ||
-            // Rule: An existing player can update their own vote or night action.
+
+            // Rule 3: An existing player can submit votes or night actions.
             (
                 isPlayer(gameId) &&
                 request.resource.data.players.size() == resource.data.players.size()
             ) ||
-             // Rule: Only the creator can start, process phases, or reset the game.
+
+            // Rule 4: Only the creator can start the game, process phases, or reset it.
             (
                 request.auth.uid == resource.data.creator &&
                 (

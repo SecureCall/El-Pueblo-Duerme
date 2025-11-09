@@ -183,5 +183,3 @@ export function GameRoom({ gameId }: { gameId: string }) {
     </div>
   );
 }
-
-    
