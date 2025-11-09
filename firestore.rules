@@ -2,23 +2,17 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function isPlayer(gameId) {
-      return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p => p.userId == request.auth.uid);
-    }
-
     match /games/{gameId} {
-      // Allow anyone to read game data.
       allow read: if true;
-
-      // Allow any authenticated user to create a game document, as long as they are the creator.
-      allow create: if request.auth != null
-                    && request.resource.data.creator == request.auth.uid;
-
-      // Allow updates only by authenticated users who are part of the game or the creator.
-      // Detailed logic is handled in server-side functions for robustness.
-      allow update: if request.auth != null &&
-                       (request.auth.uid == resource.data.creator || isPlayer(gameId));
+      
+      allow create: if request.auth != null && request.resource.data.creator == request.auth.uid;
+      
+      function isPlayer() {
+        return resource.data.players.exists(p => p.userId == request.auth.uid);
+      }
+      
+      allow update: if request.auth != null && isPlayer();
     }
   }
 }
+    

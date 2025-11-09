@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { Game, Player } from "@/types";
@@ -173,3 +172,5 @@ export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobby
     </>
   );
 }
+
+    

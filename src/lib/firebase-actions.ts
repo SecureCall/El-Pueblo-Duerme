@@ -3,60 +3,32 @@
 import { 
   doc,
   setDoc,
+  getDoc,
+  updateDoc,
+  arrayUnion,
   Timestamp,
   runTransaction,
-  type DocumentReference,
+  type Transaction,
+  DocumentReference,
 } from "firebase/firestore";
 import { 
   type Game, 
   type Player, 
+  type NightAction, 
+  type GameEvent, 
   type PlayerRole, 
+  type NightActionType, 
+  type ChatMessage,
+  type AIPlayerPerspective
 } from "@/types";
 import { toPlainObject } from "./utils";
+import { masterActions } from "./master-actions";
 import { getSdks } from "@/firebase/server-init";
 import { secretObjectives } from "./objectives";
-import { processJuryVotes, killPlayer, checkGameOver, processVotes, processNight } from './game-engine';
+import { processJuryVotes, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes, processNight } from './game-engine';
+import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
+import { runAIActions, runAIHunterShot, triggerAIVote, triggerPrivateAIChats, triggerAIChat } from "@/lib/ai-actions";
 
-const createPlayerObject = (userId: string, gameId: string, displayName: string, avatarUrl: string, isAI: boolean = false): Player => ({
-    userId,
-    gameId,
-    displayName: displayName.trim(),
-    avatarUrl,
-    role: null,
-    isAlive: true,
-    votedFor: null,
-    joinedAt: Timestamp.now(),
-    isAI,
-    isExiled: false,
-    lastHealedRound: 0,
-    potions: { poison: null, save: null },
-    priestSelfHealUsed: false,
-    princeRevealed: false,
-    guardianSelfProtects: 0,
-    biteCount: 0,
-    isCultMember: false,
-    isLover: false,
-    usedNightAbility: false,
-    shapeshifterTargetId: null,
-    virginiaWoolfTargetId: null,
-    riverSirenTargetId: null,
-    ghostMessageSent: false,
-    resurrectorAngelUsed: false,
-    bansheeScreams: {},
-    lookoutUsed: false,
-    executionerTargetId: null,
-    secretObjectiveId: null,
-});
-
-
-function generateGameId(length = 5) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
 
 export async function createGame(
   options: {
@@ -303,3 +275,77 @@ export async function resetGame(gameId: string) {
         return { error: e.message || 'No se pudo reiniciar la partida.' };
     }
 }
+
+export async function executeMasterAction(gameId: string, actionId: string, sourceId: string | null, targetId: string) {
+    const { firestore } = getSdks();
+    const gameRef = doc(firestore, 'games', gameId);
+     try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef as DocumentReference<Game>);
+            if (!gameDoc.exists()) throw new Error("Game not found");
+            let game = gameDoc.data()!;
+
+            if (actionId === 'master_kill') {
+                 if (game.masterKillUsed) throw new Error("El Zarpazo del Destino ya ha sido utilizado.");
+                 const { updatedGame } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, targetId, 'special');
+                 updatedGame.masterKillUsed = true;
+                 game = updatedGame;
+            } else {
+                const action = masterActions[actionId as keyof typeof masterActions];
+                if (action) {
+                    const { updatedGame } = action.execute(game, sourceId!, targetId);
+                    game = updatedGame;
+                }
+            }
+            transaction.update(gameRef, toPlainObject(game));
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error executing master action:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+function generateGameId(length = 5) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+const createPlayerObject = (userId: string, gameId: string, displayName: string, avatarUrl: string, isAI: boolean = false): Player => ({
+    userId,
+    gameId,
+    displayName: displayName.trim(),
+    avatarUrl,
+    role: null,
+    isAlive: true,
+    votedFor: null,
+    joinedAt: Timestamp.now(),
+    isAI,
+    isExiled: false,
+    lastHealedRound: 0,
+    potions: { poison: null, save: null },
+    priestSelfHealUsed: false,
+    princeRevealed: false,
+    guardianSelfProtects: 0,
+    biteCount: 0,
+    isCultMember: false,
+    isLover: false,
+    usedNightAbility: false,
+    shapeshifterTargetId: null,
+    virginiaWoolfTargetId: null,
+    riverSirenTargetId: null,
+    ghostMessageSent: false,
+    resurrectorAngelUsed: false,
+    bansheeScreams: {},
+    lookoutUsed: false,
+    executionerTargetId: null,
+    secretObjectiveId: null,
+});
+
+
+export { processNight, processVotes, processJuryVotes };
+export { runAIActions, runAIHunterShot, triggerAIVote, triggerAIChat, triggerPrivateAIChats }
