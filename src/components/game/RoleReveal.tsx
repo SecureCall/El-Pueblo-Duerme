@@ -84,4 +84,3 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
     </div>
   );
 }
-

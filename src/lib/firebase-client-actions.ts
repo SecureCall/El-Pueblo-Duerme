@@ -1,3 +1,4 @@
+
 'use client';
 import { 
   doc,
@@ -22,21 +23,48 @@ import {
 } from "@/types";
 import { toPlainObject } from "./utils";
 import { runAIActions } from "./ai-actions";
-import { secretObjectives } from "./objectives";
-import { getSeerResult as getSeerResultServer, submitHunterShot as submitHunterShotServer, submitTroublemakerAction as submitTroublemakerActionServer, startGame as startGameServer, createGame as createGameServer } from './firebase-actions';
+import { createGame as createGameServer, startGame as startGameServer, submitHunterShot as submitHunterShotServer, getSeerResult as getSeerResultServer, submitTroublemakerAction as submitTroublemakerActionServer } from './firebase-actions';
+
+const createPlayerObject = (userId: string, gameId: string, displayName: string, avatarUrl: string, isAI: boolean = false): Player => ({
+    userId,
+    gameId,
+    displayName: displayName.trim(),
+    avatarUrl,
+    role: null,
+    isAlive: true,
+    votedFor: null,
+    joinedAt: Timestamp.now(),
+    isAI,
+    isExiled: false,
+    lastHealedRound: 0,
+    potions: { poison: null, save: null },
+    priestSelfHealUsed: false,
+    princeRevealed: false,
+    guardianSelfProtects: 0,
+    biteCount: 0,
+    isCultMember: false,
+    isLover: false,
+    usedNightAbility: false,
+    shapeshifterTargetId: null,
+    virginiaWoolfTargetId: null,
+    riverSirenTargetId: null,
+    ghostMessageSent: false,
+    resurrectorAngelUsed: false,
+    bansheeScreams: {},
+    lookoutUsed: false,
+    executionerTargetId: null,
+    secretObjectiveId: null,
+});
 
 
-export async function createGame(
-  firestore: Firestore,
-  options: {
+export async function createGame(firestore: Firestore, options: {
     userId: string;
     displayName: string;
     avatarUrl: string;
     gameName: string;
     maxPlayers: number;
     settings: Game['settings'];
-  }
-) {
+}) {
     return createGameServer(options);
 }
 
@@ -81,37 +109,7 @@ export async function joinGame(
         throw new Error("Esta partida está llena.");
       }
       
-      const newPlayer = {
-          userId,
-          gameId,
-          displayName: displayName.trim(),
-          avatarUrl,
-          role: null,
-          isAlive: true,
-          votedFor: null,
-          joinedAt: Timestamp.now(),
-          isAI: false,
-          isExiled: false,
-          lastHealedRound: 0,
-          potions: { poison: null, save: null },
-          priestSelfHealUsed: false,
-          princeRevealed: false,
-          guardianSelfProtects: 0,
-          biteCount: 0,
-          isCultMember: false,
-          isLover: false,
-          usedNightAbility: false,
-          shapeshifterTargetId: null,
-          virginiaWoolfTargetId: null,
-          riverSirenTargetId: null,
-          ghostMessageSent: false,
-          resurrectorAngelUsed: false,
-          bansheeScreams: {},
-          lookoutUsed: false,
-          executionerTargetId: null,
-          secretObjectiveId: null,
-      };
-
+      const newPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
       transaction.update(gameRef, {
         players: arrayUnion(toPlainObject(newPlayer)),
         lastActiveAt: Timestamp.now(),
@@ -450,21 +448,19 @@ export async function sendGhostMessage(firestore: Firestore, gameId: string, gho
     }
 }
 
-
-// These are server-only actions that need a client-side proxy to be called from a client component.
-// We use dynamic imports to call the server actions.
-export async function getSeerResult(firestore: Firestore, gameId: string, seerId: string, targetId: string) {
+// Proxies to server actions
+export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
     return getSeerResultServer(gameId, seerId, targetId);
 }
 
-export async function submitHunterShot(firestore: Firestore, gameId: string, hunterId: string, targetId: string) {
+export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
    return submitHunterShotServer(gameId, hunterId, targetId);
 }
 
-export async function submitTroublemakerAction(firestore: Firestore, gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
+export async function submitTroublemakerAction(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
     return submitTroublemakerActionServer(gameId, troublemakerId, target1Id, target2Id);
 }
 
-export async function startGame(firestore: Firestore, gameId: string, creatorId: string) {
+export async function startGame(gameId: string, creatorId: string) {
     return startGameServer(gameId, creatorId);
 }

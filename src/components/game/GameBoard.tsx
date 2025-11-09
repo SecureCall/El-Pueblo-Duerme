@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -32,6 +33,7 @@ import { playNarration, playSoundEffect } from '@/lib/sounds';
 import { useGameState } from "@/hooks/use-game-state";
 import { RoleManual } from "./RoleManual";
 import { useToast } from "@/hooks/use-toast";
+import { runAIHunterShot } from "@/lib/ai-actions";
 
 export function GameBoard({ gameId }: { gameId: string }) {
     const { updateStats, userId } = useGameSession();
@@ -110,6 +112,12 @@ export function GameBoard({ gameId }: { gameId: string }) {
                             playNarration('inicio_debate.mp3');
                         }, 2000);
                     }, 1500);
+                    break;
+                 case 'hunter_shot':
+                    if (isCreator) {
+                        const pendingHunter = game.players.find(p => p.userId === game.pendingHunterShot);
+                        if (pendingHunter?.isAI) runAIHunterShot(game.id, pendingHunter);
+                    }
                     break;
             }
         }
