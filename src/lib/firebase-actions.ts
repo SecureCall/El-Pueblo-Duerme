@@ -4,12 +4,8 @@ import {
   doc,
   setDoc,
   getDoc,
-  updateDoc,
-  arrayUnion,
-  Timestamp,
   runTransaction,
-  type Transaction,
-  DocumentReference,
+  type DocumentReference,
 } from "firebase/firestore";
 import { 
   type Game, 
@@ -17,19 +13,14 @@ import {
   type NightAction, 
   type GameEvent, 
   type PlayerRole, 
-  type NightActionType, 
-  type ChatMessage,
-  type AIPlayerPerspective
 } from "@/types";
 import { toPlainObject } from "./utils";
 import { masterActions } from "./master-actions";
 import { getSdks } from "@/firebase/server-init";
 import { secretObjectives } from "./objectives";
-import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
-import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
+import { processJuryVotes as processJuryVotesEngine, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
+import { runAIActions as runAIActionsEngine } from './ai-actions';
 
-
-const PHASE_DURATION_SECONDS = 60;
 
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -48,7 +39,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     role: null,
     isAlive: true,
     votedFor: null,
-    joinedAt: Timestamp.now(),
+    joinedAt: new Date(),
     isAI,
     isExiled: false,
     lastHealedRound: 0,
@@ -103,7 +94,7 @@ export async function createGame(
       status: "waiting",
       phase: "waiting", 
       creator: userId,
-      players: [creatorPlayer], // Add creator directly
+      players: [creatorPlayer],
       events: [],
       chatMessages: [],
       wolfChatMessages: [],
@@ -112,11 +103,11 @@ export async function createGame(
       loversChatMessages: [],
       ghostChatMessages: [],
       maxPlayers: maxPlayers,
-      createdAt: Timestamp.now(),
-      lastActiveAt: Timestamp.now(),
+      createdAt: new Date(),
+      lastActiveAt: new Date(),
       currentRound: 0,
       settings,
-      phaseEndsAt: Timestamp.now(),
+      phaseEndsAt: new Date(),
       pendingHunterShot: null,
       twins: null,
       lovers: null,
@@ -151,13 +142,11 @@ const MINIMUM_PLAYERS = 3;
 const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
     let roles: PlayerRole[] = [];
     
-    // 1. Add Werewolves
     const numWerewolves = Math.max(1, Math.floor(playerCount / 5));
     for (let i = 0; i < numWerewolves; i++) {
         roles.push('werewolf');
     }
 
-    // 2. Add selected special roles
     const availableSpecialRoles: PlayerRole[] = (Object.keys(settings) as Array<keyof typeof settings>)
         .filter(key => {
             const roleKey = key as PlayerRole;
@@ -177,12 +166,10 @@ const generateRoles = (playerCount: number, settings: Game['settings']): (Player
         }
     }
     
-    // 3. Fill remaining spots with Villagers
     while (roles.length < playerCount) {
         roles.push('villager');
     }
 
-    // 4. Shuffle all roles
     return roles.sort(() => Math.random() - 0.5);
 };
 
@@ -304,7 +291,7 @@ export async function resetGame(gameId: string) {
                 status: 'waiting', phase: 'waiting', currentRound: 0,
                 events: [], chatMessages: [], wolfChatMessages: [], fairyChatMessages: [],
                 twinChatMessages: [], loversChatMessages: [], ghostChatMessages: [], nightActions: [],
-                twins: null, lovers: null, phaseEndsAt: Timestamp.now(), pendingHunterShot: null,
+                twins: null, lovers: null, phaseEndsAt: new Date(), pendingHunterShot: null,
                 wolfCubRevengeRound: 0, players: resetHumanPlayers, vampireKills: 0, boat: [],
                 leprosaBlockedRound: 0, witchFoundSeer: false, seerDied: false,
                 silencedPlayerId: null, exiledPlayerId: null, troublemakerUsed: false,
@@ -326,6 +313,7 @@ export async function processNight(gameId: string) {
         await runTransaction(firestore, async (transaction) => {
             await processNightEngine(transaction, gameRef);
         });
+        await runAIActionsEngine(gameId, 'night');
     } catch (e) {
         console.error("Failed to process night", e);
     }
@@ -366,7 +354,7 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
 
             if (actionId === 'master_kill') {
                  if (game.masterKillUsed) throw new Error("El Zarpazo del Destino ya ha sido utilizado.");
-                 const { updatedGame } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, targetId, 'special');
+                 const { updatedGame } = await (await import('./game-engine')).killPlayer(transaction, gameRef as DocumentReference<Game>, game, targetId, 'special');
                  updatedGame.masterKillUsed = true;
                  game = updatedGame;
             } else {
@@ -384,5 +372,3 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
         return { success: false, error: error.message };
     }
 }
-
-    

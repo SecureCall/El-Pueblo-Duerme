@@ -1,10 +1,49 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    function isPlayer(gameId) {
+      return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p => p.userId == request.auth.uid);
+    }
+    
+    function isCreator(gameId) {
+      return get(/databases/$(database)/documents/games/$(gameId)).data.creator == request.auth.uid;
+    }
+
     match /games/{gameId} {
+      // Anyone can read game data to view the game state.
       allow read: if true;
-      allow write: if request.auth != null;
+
+      // Anyone can create a new game, as long as they are authenticated.
+      allow create: if request.auth != null;
+      
+      // Update rules are more specific.
+      allow update: if 
+          // User must be authenticated
+          request.auth != null &&
+          (
+            // The creator can start the game, reset it, or process phases.
+            (
+                isCreator(gameId) &&
+                (
+                    (resource.data.status == 'waiting' && request.resource.data.status == 'in_progress') || // Starting
+                    (resource.data.status == 'in_progress' && resource.data.phase != request.resource.data.phase) || // Processing phases
+                    (resource.data.status == 'finished' && request.resource.data.status == 'waiting') // Resetting
+                )
+            ) ||
+            // A new player can join a waiting game.
+            (
+                resource.data.status == 'waiting' &&
+                request.resource.data.players.size() == resource.data.players.size() + 1
+            ) ||
+            // An existing player can update their own data (vote, avatar, night action).
+            (
+                isPlayer(gameId) &&
+                request.resource.data.players.size() == resource.data.players.size()
+            )
+          );
     }
   }
 }

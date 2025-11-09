@@ -1,3 +1,4 @@
+
 'use client';
 import { 
   doc,
@@ -19,43 +20,11 @@ import {
   type PlayerRole, 
   type NightActionType, 
   type ChatMessage,
-  type AIPlayerPerspective
 } from "@/types";
 import { toPlainObject } from "./utils";
-import { killPlayer, killPlayerUnstoppable, checkGameOver } from './game-engine';
-import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { runAIActions } from "./ai-actions";
-
-const createPlayerObject = (userId: string, gameId: string, displayName: string, avatarUrl: string, isAI: boolean = false): Player => ({
-    userId,
-    gameId,
-    displayName: displayName.trim(),
-    avatarUrl,
-    role: null,
-    isAlive: true,
-    votedFor: null,
-    joinedAt: Timestamp.now(),
-    isAI,
-    isExiled: false,
-    lastHealedRound: 0,
-    potions: { poison: null, save: null },
-    priestSelfHealUsed: false,
-    princeRevealed: false,
-    guardianSelfProtects: 0,
-    biteCount: 0,
-    isCultMember: false,
-    isLover: false,
-    usedNightAbility: false,
-    shapeshifterTargetId: null,
-    virginiaWoolfTargetId: null,
-    riverSirenTargetId: null,
-    ghostMessageSent: false,
-    resurrectorAngelUsed: false,
-    bansheeScreams: {},
-    lookoutUsed: false,
-    executionerTargetId: null,
-    secretObjectiveId: null,
-});
+import { getSdks } from "@/firebase/server-init";
+import { killPlayerUnstoppable, checkGameOver } from './game-engine';
 
 export async function joinGame(
   firestore: Firestore,
@@ -97,7 +66,37 @@ export async function joinGame(
         throw new Error("Esta partida está llena.");
       }
       
-      const newPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
+      const newPlayer = {
+          userId,
+          gameId,
+          displayName: displayName.trim(),
+          avatarUrl,
+          role: null,
+          isAlive: true,
+          votedFor: null,
+          joinedAt: Timestamp.now(),
+          isAI: false,
+          isExiled: false,
+          lastHealedRound: 0,
+          potions: { poison: null, save: null },
+          priestSelfHealUsed: false,
+          princeRevealed: false,
+          guardianSelfProtects: 0,
+          biteCount: 0,
+          isCultMember: false,
+          isLover: false,
+          usedNightAbility: false,
+          shapeshifterTargetId: null,
+          virginiaWoolfTargetId: null,
+          riverSirenTargetId: null,
+          ghostMessageSent: false,
+          resurrectorAngelUsed: false,
+          bansheeScreams: {},
+          lookoutUsed: false,
+          executionerTargetId: null,
+          secretObjectiveId: null,
+      };
+
       transaction.update(gameRef, {
         players: arrayUnion(toPlainObject(newPlayer)),
         lastActiveAt: Timestamp.now(),
@@ -231,6 +230,8 @@ export async function getSeerResult(firestore: Firestore, gameId: string, seerId
 }
 
 export async function submitHunterShot(firestore: Firestore, gameId: string, hunterId: string, targetId: string) {
+    // This function needs to be a server action because it changes game state for all players
+    // and can end the game. We'll use a server-side SDK instance.
     const { firestore: serverFirestore } = getSdks();
     const gameRef = doc(serverFirestore, 'games', gameId) as DocumentReference<Game>;
 
@@ -244,7 +245,7 @@ export async function submitHunterShot(firestore: Firestore, gameId: string, hun
                 return;
             }
 
-            const { updatedGame, triggeredHunterId: newTriggeredHunter } = await killPlayer(transaction, gameRef, game, targetId, 'hunter_shot');
+            const { updatedGame, triggeredHunterId: newTriggeredHunter } = await killPlayerUnstoppable(transaction, gameRef, game, targetId, 'hunter_shot');
             
             game = updatedGame;
             
@@ -269,7 +270,7 @@ export async function submitHunterShot(firestore: Firestore, gameId: string, hun
                 return;
             }
             
-            const hunterDeathEvent = [...game.events].sort((a, b) => toPlainObject(b.createdAt).getTime() - toPlainObject(a.createdAt).getTime()).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
+            const hunterDeathEvent = [...game.events].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
             
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
             const currentRound = game.currentRound;
@@ -565,3 +566,6 @@ export async function sendGhostMessage(firestore: Firestore, gameId: string, gho
         return { success: false, error: error.message || "No se pudo enviar el mensaje." };
     }
 }
+
+// Re-export server functions that can be called from the client (as they are 'use server')
+export { createGame, startGame, resetGame, processNight, processVotes, processJuryVotes, executeMasterAction } from './firebase-actions';
