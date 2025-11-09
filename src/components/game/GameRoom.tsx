@@ -33,12 +33,12 @@ export function GameRoom({ gameId }: { gameId: string }) {
   );
 
   const handleJoinGame = useCallback(async () => {
-    if (!displayName || !firestore || !avatarUrl || !userId) return;
+    if (!displayName || !avatarUrl || !userId) return;
 
     setIsJoining(true);
     setJoinError(null);
 
-    const result = await joinGame(firestore, gameId, userId, displayName, avatarUrl);
+    const result = await joinGame(gameId, userId, displayName, avatarUrl);
 
     if (result.error) {
       setJoinError(result.error);
@@ -47,7 +47,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
       }
     }
     setIsJoining(false);
-  }, [displayName, firestore, gameId, userId, setDisplayName, avatarUrl]);
+  }, [displayName, gameId, userId, setDisplayName, avatarUrl]);
 
   useEffect(() => {
     if (isSessionLoaded && game && displayName && !currentPlayer && game.status === 'waiting' && !isJoining) {
@@ -183,3 +183,4 @@ export function GameRoom({ gameId }: { gameId: string }) {
     </div>
   );
 }
+

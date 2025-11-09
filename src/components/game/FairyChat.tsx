@@ -8,12 +8,13 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Send, Wand2 } from 'lucide-react';
-import { sendFairyChatMessage } from '@/lib/firebase-actions';
+import { useFirebase } from '@/firebase';
+import { sendFairyChatMessage } from '@/lib/firebase-client-actions';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { getMillis } from '@/lib/utils';
+import type { Timestamp } from 'firebase/firestore';
 
 interface FairyChatProps {
     gameId: string;
@@ -23,6 +24,7 @@ interface FairyChatProps {
 
 export function FairyChat({ gameId, currentPlayer, messages }: FairyChatProps) {
     const [newMessage, setNewMessage] = useState('');
+    const { firestore } = useFirebase();
     const { toast } = useToast();
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -33,9 +35,9 @@ export function FairyChat({ gameId, currentPlayer, messages }: FairyChatProps) {
     }, [messages]);
 
     const handleSendMessage = async () => {
-        if (!newMessage.trim()) return;
+        if (!newMessage.trim() || !firestore) return;
         
-        const res = await sendFairyChatMessage(gameId, currentPlayer.userId, currentPlayer.displayName, newMessage);
+        const res = await sendFairyChatMessage(firestore, gameId, currentPlayer.userId, currentPlayer.displayName, newMessage);
 
         if (res.success) {
             setNewMessage('');
@@ -48,6 +50,17 @@ export function FairyChat({ gameId, currentPlayer, messages }: FairyChatProps) {
         }
     };
     
+    const getDateFromTimestamp = (timestamp: Timestamp | { seconds: number; nanoseconds: number; } | string) => {
+        if (!timestamp) return new Date();
+        if (typeof timestamp === 'string') {
+            return new Date(timestamp);
+        }
+        if ('toDate' in timestamp && typeof timestamp.toDate === 'function') {
+            return timestamp.toDate();
+        }
+        return new Date(timestamp.seconds * 1000);
+    }
+
     return (
         <Card className="bg-fuchsia-900/20 border-fuchsia-400/40 flex flex-col h-full max-h-80">
             <CardHeader className='pb-2'>
@@ -77,7 +90,7 @@ export function FairyChat({ gameId, currentPlayer, messages }: FairyChatProps) {
                                         <p className="text-base break-words">{msg.text}</p>
                                     </div>
                                     <p className="text-xs text-muted-foreground mt-1">
-                                        {formatDistanceToNow(new Date(getMillis(msg.createdAt)), { addSuffix: true, locale: es })}
+                                        {formatDistanceToNow(getDateFromTimestamp(msg.createdAt), { addSuffix: true, locale: es })}
                                     </p>
                                 </div>
                             )})
@@ -104,5 +117,3 @@ export function FairyChat({ gameId, currentPlayer, messages }: FairyChatProps) {
         </Card>
     );
 }
-
-    

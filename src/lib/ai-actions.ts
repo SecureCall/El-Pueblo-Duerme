@@ -14,7 +14,7 @@ import {
 import { toPlainObject } from "./utils";
 import { getSdks } from "@/firebase/server-init";
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
-import { submitNightAction, submitHunterShot, submitVote, sendChatMessage, sendWolfChatMessage, sendTwinChatMessage, sendLoversChatMessage, sendGhostChatMessage } from "./firebase-client-actions";
+import { submitNightAction, submitHunterShot, submitVote, sendChatMessage, sendWolfChatMessage, sendTwinChatMessage, sendLoversChatMessage } from "./firebase-actions";
 
 export const getDeterministicAIAction = (
     aiPlayer: Player,
@@ -92,7 +92,7 @@ export const getDeterministicAIAction = (
 
             const playersWhoVotedForWolves = game.players.filter(p => {
                 const lastVote = game.events.find(e => e.type === 'vote_result' && e.round === currentRound -1);
-                if (!lastVote) return false;
+                if (!lastVote || !lastVote.data) return false;
                 const lynchedPlayer = game.players.find(p => p.userId === lastVote.data.lynchedPlayerId);
                 return p.votedFor === lynchedPlayer?.userId && lynchedPlayer?.role && wolfRoles.includes(lynchedPlayer.role);
             }).map(p => p.userId);
@@ -222,33 +222,43 @@ export const getDeterministicAIAction = (
     }
 };
 
-export async function runAIActions(gameId: string) {
+export async function runAIActions(gameId: string, phase: 'day' | 'night' | 'hunter_shot') {
     const { firestore } = getSdks();
     try {
         const gameDoc = await getDoc(doc(firestore, 'games', gameId));
         if (!gameDoc.exists()) return;
         const game = gameDoc.data() as Game;
 
-        if(game.phase !== 'night' || game.status === 'finished') return;
+        if (game.status === 'finished') return;
 
-        await triggerPrivateAIChats(gameId, "La noche ha caído. ¿Cuál es nuestro plan?");
-
-        const aiPlayers = game.players.filter(p => p.isAI && p.isAlive && !p.usedNightAbility);
         const alivePlayers = game.players.filter(p => p.isAlive);
         const deadPlayers = game.players.filter(p => !p.isAlive);
 
-        for (const ai of aiPlayers) {
-            const { actionType, targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
-
-            if (!actionType || actionType === 'NONE' || !targetId || actionType === 'VOTE' || actionType === 'SHOOT') continue;
-
-            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
-            await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
+        if (phase === 'night') {
+            await triggerPrivateAIChats(gameId, "La noche ha caído. ¿Cuál es nuestro plan?");
+            const aiPlayersToDoAction = game.players.filter(p => p.isAI && p.isAlive && !p.usedNightAbility);
+            for (const ai of aiPlayersToDoAction) {
+                const { actionType, targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
+                if (!actionType || actionType === 'NONE' || !targetId || actionType === 'VOTE' || actionType === 'SHOOT') continue;
+                await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
+                await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
+            }
+        } else if (phase === 'day') {
+            await triggerPrivateAIChats(gameId, "El día ha comenzado. ¿Por quién deberíamos votar?");
+            const aiPlayersToVote = game.players.filter(p => p.isAI && p.isAlive && !p.votedFor);
+            for (const ai of aiPlayersToVote) {
+                const { targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
+                if (targetId) {
+                    await new Promise(resolve => setTimeout(resolve, Math.random() * 8000 + 2000));
+                    await submitVote(gameId, ai.userId, targetId);
+                }
+            }
         }
     } catch(e) {
         console.error("Error in AI Actions:", e);
     }
 }
+
 
 export async function runAIHunterShot(gameId: string, hunter: Player) {
     const { firestore } = getSdks();
@@ -330,7 +340,7 @@ export async function triggerAIChat(gameId: string, triggerMessage: string, chat
                 generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
                     if (shouldSend && message) {
                         await new Promise(resolve => setTimeout(resolve, Math.random() * 4000 + 1000));
-                        await sendChatMessage(gameId, aiPlayer.userId, aiPlayer.displayName, message, true);
+                        await sendChatMessage(gameId, aiPlayer.userId, aiPlayer.displayName, message);
                     }
                 }).catch(aiError => console.error(`Error generating AI chat for ${aiPlayer.displayName}:`, aiError));
             }

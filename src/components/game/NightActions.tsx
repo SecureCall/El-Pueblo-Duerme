@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
-import { submitNightAction, getSeerResult } from '@/lib/firebase-actions';
+import { submitNightAction, getSeerResult } from '@/lib/firebase-client-actions';
 import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, BotIcon, Eye, Wand2, UserX } from 'lucide-react';
 import { SeerResult } from './SeerResult';
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
@@ -95,6 +95,38 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
              setSelectedPlayerIds(prev => prev.filter(id => id !== player.userId));
              return;
         }
+
+
+        if (isWerewolfTeam && ['werewolf', 'wolf_cub'].includes(player.role || '')) return;
+        if (isVampire && (player.biteCount || 0) >= 3) {
+            toast({ variant: 'destructive', title: 'Regla del Vampiro', description: 'Esta persona ya no tiene más sangre que dar.' });
+            return;
+        }
+        if ((currentPlayer.role === 'doctor' || currentPlayer.role === 'guardian') && player.lastHealedRound === game.currentRound - 1 && game.currentRound > 1) {
+            toast({ variant: 'destructive', title: 'Regla de Protección', description: 'No puedes proteger a la misma persona dos noches seguidas.' });
+            return;
+        }
+        if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save' && player.userId === currentPlayer.userId) {
+             toast({ variant: 'destructive', title: 'Regla de la Hechicera', description: 'No puedes usar la poción de salvación en ti misma.' });
+             return;
+        }
+        if (currentPlayer.role === 'guardian' && player.userId === currentPlayer.userId && (currentPlayer.guardianSelfProtects || 0) >= 1) {
+            toast({ variant: 'destructive', title: 'Regla del Guardián', description: 'Solo puedes protegerte a ti mismo una vez por partida.' });
+            return;
+        }
+        if (currentPlayer.role === 'priest' && player.userId === currentPlayer.userId && currentPlayer.priestSelfHealUsed) {
+            toast({ variant: 'destructive', title: 'Regla del Sacerdote', description: 'Ya te has bendecido a ti mismo una vez.' });
+            return;
+        }
+         if (isCultLeader && player.isCultMember) {
+            toast({ description: `${player.displayName} ya es parte de tu culto.` });
+            return;
+        }
+        if (isFisherman && game.boat?.includes(player.userId)) {
+            toast({ description: `${player.displayName} ya está en tu barco.` });
+            return;
+        }
+
 
         setSelectedPlayerIds(prev => {
             if (prev.includes(player.userId)) {
@@ -191,7 +223,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         : [];
     
     const getActionPrompt = () => {
-        if (currentPlayer.isExiled) {
+        if (game.exiledPlayerId === currentPlayer.userId) {
             return 'Has sido exiliado por la Anciana Líder esta noche. No puedes usar tu habilidad.';
         }
         if (canFairiesKill) {
@@ -314,7 +346,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
             isSeekerFairy ||
             canFairiesKill ||
             isResurrectorAngel
-        ) && !currentPlayer.isExiled
+        ) && game.exiledPlayerId !== currentPlayer.userId
     );
 
     if (seerResult) {
@@ -341,7 +373,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     }
 
 
-    const playersForGrid = isResurrectorAngel ? game.players.filter(p => !p.isAlive) : players.filter(p => p.isAlive);
+    const playersForGrid = isResurrectorAngel ? game.players.filter(p => !p.isAlive) : players.filter(p=>p.isAlive);
 
     return (
         <Card className="mt-8 bg-card/80">
@@ -361,34 +393,11 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                         {(!isLookout && currentPlayer.role !== 'sleeping_fairy') && (
                             <PlayerGrid 
                                 game={game}
-                                players={playersForGrid.filter(p => {
-                                    if (isResurrectorAngel) return true; // Show all dead players
-                                    if (isWerewolfTeam) {
-                                        // A witch who found the seer is an ally
-                                        if (game.witchFoundSeer && p.role === 'witch') return false;
-                                        return !['werewolf', 'wolf_cub'].includes(p.role || '');
-                                    }
-                                    if (isCupidFirstNight) return true; // Cupid can target anyone
-                                    if (canFairiesKill && ['seeker_fairy', 'sleeping_fairy'].includes(p.role || '')) return false;
-                                    if (isVampire) return p.role !== 'vampire' && (p.biteCount || 0) < 3;
-                                    if (isCultLeader) return p.userId !== currentPlayer.userId && !p.isCultMember;
-                                    if (isFisherman) return p.userId !== currentPlayer.userId && !game.boat?.includes(p.userId);
-                                    if (isSilencer || isElderLeader) return p.userId !== currentPlayer.userId;
-                                    if (p.userId === currentPlayer.userId) {
-                                        if (currentPlayer.role === 'priest' && !currentPlayer.priestSelfHealUsed) return true;
-                                        if (currentPlayer.role === 'guardian' && (currentPlayer.guardianSelfProtects || 0) < 1) return true;
-                                        if (currentPlayer.role === 'hechicera' && hechiceraAction === 'save') return false;
-                                        return false; 
-                                    }
-                                    if (currentPlayer.role === 'doctor' || currentPlayer.role === 'guardian') {
-                                        return p.lastHealedRound !== game.currentRound - 1 || game.currentRound === 1;
-                                    }
-                                    return true;
-                                })}
+                                players={playersForGrid}
+                                currentPlayer={currentPlayer}
                                 onPlayerClick={handlePlayerSelect}
                                 clickable={true}
                                 selectedPlayerIds={selectedPlayerIds}
-                                currentPlayer={currentPlayer}
                                 masterActionState={masterActionState}
                                 setMasterActionState={setMasterActionState}
                             />
@@ -427,5 +436,3 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         </Card>
     );
 }
-
-    

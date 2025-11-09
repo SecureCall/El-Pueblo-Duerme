@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Game, Player } from "@/types";
@@ -20,12 +21,11 @@ interface GameLobbyProps {
   game: Game;
   players: Player[];
   isCreator: boolean;
-  currentPlayer: Player;
 }
 
-export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobbyProps) {
+export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
   const { toast } = useToast();
-  const { userId, setAvatarUrl } = useGameSession();
+  const { userId, setAvatarUrl, currentPlayer } = useGameSession();
   const { firestore } = useFirebase();
   const [canShare, setCanShare] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
@@ -172,5 +172,3 @@ export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobby
     </>
   );
 }
-
-    

@@ -7,7 +7,7 @@ import { PlayerGrid } from "./PlayerGrid";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { NightActions } from "./NightActions";
-import { processJuryVotes, executeMasterAction, processNight, processVotes, runAIActions, triggerAIVote, runAIHunterShot } from "@/lib/firebase-actions";
+import { executeMasterAction, processNight, processVotes, runAIActions, processJuryVotes } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { Moon, Sun, Loader2, UserX, Scale } from "lucide-react";
@@ -33,10 +33,8 @@ import { playNarration, playSoundEffect } from '@/lib/sounds';
 import { useGameState } from "@/hooks/use-game-state";
 import { RoleManual } from "./RoleManual";
 import { useToast } from "@/hooks/use-toast";
-import { useFirebase } from "@/firebase";
 
 export function GameBoard({ gameId }: { gameId: string }) {
-    const { firestore } = useFirebase();
     const { updateStats, userId } = useGameSession();
     const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, loading, error } = useGameState(gameId);
     const { toast } = useToast();
@@ -53,24 +51,24 @@ export function GameBoard({ gameId }: { gameId: string }) {
     const handleAcknowledgeRole = useCallback(async () => {
         setShowRole(false);
         if (game && game.phase === 'role_reveal' && game.creator === userId) {
-            await processNight(firestore, game.id);
+            await processNight(game.id);
         }
-    }, [game, userId, firestore]);
+    }, [game, userId]);
 
     const handlePhaseEnd = useCallback(async () => {
-        if (!firestore || !game || !userId) return;
+        if (!game || !userId) return;
         if (game.status === 'finished') return;
 
         if (game.creator === userId) {
             if (game.phase === 'day') {
-                await processVotes(firestore, game.id);
+                await processVotes(game.id);
             } else if (game.phase === 'night') {
-                await processNight(firestore, game.id);
+                await processNight(game.id);
             } else if (game.phase === 'jury_voting') {
-                await processJuryVotes(firestore, game.id);
+                await processJuryVotes(game.id);
             }
         }
-    }, [game, userId, firestore]);
+    }, [game, userId]);
 
     useEffect(() => {
         if (!game || !currentPlayer) return;
@@ -86,7 +84,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
     }, [game?.status, events, currentPlayer, game, updateStats]);
 
     useEffect(() => {
-        if (!firestore || !game || !userId || game.status === 'finished') return;
+        if (!game || !userId || game.status === 'finished') return;
 
         const isCreator = game.creator === userId;
         const prevPhase = prevPhaseRef.current;
@@ -100,7 +98,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
                     } else {
                         playNarration('noche_pueblo_duerme.mp3');
                     }
-                    if (isCreator) runAIActions(firestore, game.id);
+                    if (isCreator) runAIActions(game.id, 'night');
                     break;
                 case 'day':
                     playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
@@ -108,14 +106,14 @@ export function GameBoard({ gameId }: { gameId: string }) {
                         playNarration('dia_pueblo_despierta.mp3');
                         setTimeout(() => {
                             playNarration('inicio_debate.mp3');
-                            if (isCreator) triggerAIVote(firestore, game.id);
+                            if (isCreator) runAIActions(game.id, 'day');
                         }, 2000);
                     }, 1500);
                     break;
                 case 'hunter_shot':
                     if (isCreator) {
                         const pendingHunter = game.players.find(p => p.userId === game.pendingHunterShot);
-                        if (pendingHunter?.isAI) runAIHunterShot(firestore, game.id, pendingHunter);
+                        if (pendingHunter?.isAI) runAIActions(game.id, 'hunter_shot');
                     }
                     break;
                 case 'role_reveal':
@@ -140,7 +138,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
 
         prevPhaseRef.current = game.phase;
 
-    }, [game?.phase, game?.currentRound, game?.id, game?.creator, game?.status, game?.players, game?.pendingHunterShot, userId, events, handleAcknowledgeRole, firestore]);
+    }, [game?.phase, game?.currentRound, game?.id, game?.creator, game?.status, game?.players, game?.pendingHunterShot, userId, events, handleAcknowledgeRole]);
 
     useEffect(() => {
         if (!game?.phaseEndsAt || game.status === 'finished') {
@@ -187,10 +185,10 @@ export function GameBoard({ gameId }: { gameId: string }) {
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
 
     const handleMasterActionClick = async (player: Player) => {
-        if (!firestore || !masterActionState.active || !masterActionState.actionId) return;
+        if (!masterActionState.active || !masterActionState.actionId) return;
 
         if (masterActionState.actionId === 'master_kill') {
-            await executeMasterAction(firestore, game.id, 'master_kill', null, player.userId);
+            await executeMasterAction(game.id, 'master_kill', null, player.userId);
             toast({ title: "Zarpazo del Destino", description: `${player.displayName} ha sido eliminado por el Máster.`});
             setMasterActionState({ active: false, actionId: null, sourceId: null });
         } else {
@@ -198,7 +196,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
                 setMasterActionState(prev => ({ ...prev, sourceId: player.userId }));
                 toast({ title: "Acción de Máster", description: `Has seleccionado a ${player.displayName}. Ahora selecciona el objetivo.`});
             } else {
-                await executeMasterAction(firestore, game.id, masterActionState.actionId, masterActionState.sourceId, player.userId);
+                await executeMasterAction(game.id, masterActionState.actionId, masterActionState.sourceId, player.userId);
                 toast({ title: "Acción de Máster", description: `Acción ejecutada.`});
                 setMasterActionState({ active: false, actionId: null, sourceId: null });
             }
@@ -487,3 +485,4 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
         </div>
     );
 }
+

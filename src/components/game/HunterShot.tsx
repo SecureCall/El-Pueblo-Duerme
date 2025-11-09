@@ -7,9 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
-import { submitHunterShot } from '@/lib/firebase-actions';
+import { submitHunterShot } from '@/lib/firebase-client-actions';
 import { Loader2, Crosshair } from 'lucide-react';
 import type { MasterActionState } from './MasterActionBar';
+import { useFirebase } from '@/firebase';
 
 
 interface HunterShotProps {
@@ -22,6 +23,7 @@ export function HunterShot({ game, players, currentPlayer }: HunterShotProps) {
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
+    const { firestore } = useFirebase();
     const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
 
     const handlePlayerSelect = (player: Player) => {
@@ -30,13 +32,13 @@ export function HunterShot({ game, players, currentPlayer }: HunterShotProps) {
     };
 
     const handleSubmit = async () => {
-        if (!selectedPlayerId) {
+        if (!selectedPlayerId || !firestore) {
             toast({ variant: 'destructive', title: 'Debes seleccionar a quién disparar.' });
             return;
         }
 
         setIsSubmitting(true);
-        const result = await submitHunterShot(game.id, currentPlayer.userId, selectedPlayerId);
+        const result = await submitHunterShot(firestore, game.id, currentPlayer.userId, selectedPlayerId);
 
         if (result.success) {
             toast({ title: '¡Venganza cumplida!', description: 'Has disparado tu última bala.' });

@@ -25,9 +25,48 @@ import { toPlainObject } from "./utils";
 import { masterActions } from "./master-actions";
 import { getSdks } from "@/firebase/server-init";
 import { secretObjectives } from "./objectives";
-import { processJuryVotes, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes, processNight } from './game-engine';
-import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
-import { runAIActions, runAIHunterShot, triggerAIVote, triggerPrivateAIChats, triggerAIChat } from "@/lib/ai-actions";
+import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
+import { runAIActions, runAIHunterShot, triggerAIVote } from "@/lib/ai-actions";
+
+function generateGameId(length = 5) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+const createPlayerObject = (userId: string, gameId: string, displayName: string, avatarUrl: string, isAI: boolean = false): Player => ({
+    userId,
+    gameId,
+    displayName: displayName.trim(),
+    avatarUrl,
+    role: null,
+    isAlive: true,
+    votedFor: null,
+    joinedAt: Timestamp.now(),
+    isAI,
+    isExiled: false,
+    lastHealedRound: 0,
+    potions: { poison: null, save: null },
+    priestSelfHealUsed: false,
+    princeRevealed: false,
+    guardianSelfProtects: 0,
+    biteCount: 0,
+    isCultMember: false,
+    isLover: false,
+    usedNightAbility: false,
+    shapeshifterTargetId: null,
+    virginiaWoolfTargetId: null,
+    riverSirenTargetId: null,
+    ghostMessageSent: false,
+    resurrectorAngelUsed: false,
+    bansheeScreams: {},
+    lookoutUsed: false,
+    executionerTargetId: null,
+    secretObjectiveId: null,
+});
 
 
 export async function createGame(
@@ -61,7 +100,7 @@ export async function createGame(
       status: "waiting",
       phase: "waiting", 
       creator: userId,
-      players: [creatorPlayer], // Add creator directly
+      players: [toPlainObject(creatorPlayer)], // Add creator directly
       events: [],
       chatMessages: [],
       wolfChatMessages: [],
@@ -276,6 +315,43 @@ export async function resetGame(gameId: string) {
     }
 }
 
+
+export async function processNight(gameId: string) {
+    const { firestore } = getSdks();
+    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            await processNightEngine(transaction, gameRef);
+        });
+    } catch (e) {
+        console.error("Failed to process night", e);
+    }
+}
+
+export async function processVotes(gameId: string) {
+    const { firestore } = getSdks();
+    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            await processVotesEngine(transaction, gameRef);
+        });
+    } catch (e) {
+        console.error("Failed to process votes", e);
+    }
+}
+
+export async function processJuryVotes(gameId: string) {
+    const { firestore } = getSdks();
+    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            await processJuryVotesEngine(transaction, gameRef);
+        });
+    } catch (e) {
+        console.error("Failed to process jury votes", e);
+    }
+}
+
 export async function executeMasterAction(gameId: string, actionId: string, sourceId: string | null, targetId: string) {
     const { firestore } = getSdks();
     const gameRef = doc(firestore, 'games', gameId);
@@ -306,46 +382,94 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
     }
 }
 
-function generateGameId(length = 5) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
+export { runAIActions, runAIHunterShot, triggerAIVote };
+
+export async function submitVote(gameId: string, voterId: string, targetId: string) {
+    const { firestore } = getSdks();
+    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+    
+    try {
+       await runTransaction(firestore, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found");
+            
+            let game = gameSnap.data()!;
+            if (game.phase !== 'day' || game.status === 'finished') return;
+            
+            const playerIndex = game.players.findIndex(p => p.userId === voterId && p.isAlive);
+            if (playerIndex === -1) throw new Error("Player not found or is not alive");
+            
+            if (game.players[playerIndex].votedFor) return;
+
+            const siren = game.players.find(p => p.role === 'river_siren');
+            const charmedPlayerId = siren?.riverSirenTargetId;
+
+            if (voterId === charmedPlayerId && siren && siren.isAlive) {
+                if (siren.votedFor) {
+                    game.players[playerIndex].votedFor = siren.votedFor;
+                } else {
+                    throw new Error("Debes esperar a que la Sirena vote primero.");
+                }
+            } else {
+                 game.players[playerIndex].votedFor = targetId;
+            }
+            
+            transaction.update(gameRef, { players: toPlainObject(game.players) });
+        });
+        
+        await runAIActions(gameId, 'day');
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error("Error submitting vote: ", error);
+        return { error: "No se pudo registrar tu voto." };
+    }
 }
 
-const createPlayerObject = (userId: string, gameId: string, displayName: string, avatarUrl: string, isAI: boolean = false): Player => ({
-    userId,
-    gameId,
-    displayName: displayName.trim(),
-    avatarUrl,
-    role: null,
-    isAlive: true,
-    votedFor: null,
-    joinedAt: Timestamp.now(),
-    isAI,
-    isExiled: false,
-    lastHealedRound: 0,
-    potions: { poison: null, save: null },
-    priestSelfHealUsed: false,
-    princeRevealed: false,
-    guardianSelfProtects: 0,
-    biteCount: 0,
-    isCultMember: false,
-    isLover: false,
-    usedNightAbility: false,
-    shapeshifterTargetId: null,
-    virginiaWoolfTargetId: null,
-    riverSirenTargetId: null,
-    ghostMessageSent: false,
-    resurrectorAngelUsed: false,
-    bansheeScreams: {},
-    lookoutUsed: false,
-    executionerTargetId: null,
-    secretObjectiveId: null,
-});
+export async function sendChatMessage(
+    gameId: string,
+    senderId: string,
+    senderName: string,
+    text: string
+) {
+    const { firestore } = getSdks();
+    if (!text?.trim()) {
+        return { success: false, error: 'El mensaje no puede estar vacío.' };
+    }
 
+    const gameRef = doc(firestore, 'games', gameId);
 
-export { processNight, processVotes, processJuryVotes };
-export { runAIActions, runAIHunterShot, triggerAIVote, triggerAIChat, triggerPrivateAIChats }
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error('Game not found');
+            const game = gameDoc.data() as Game;
+
+            if (game.silencedPlayerId === senderId) {
+                throw new Error("No puedes hablar, has sido silenciado esta ronda.");
+            }
+            
+            const textLowerCase = text.toLowerCase();
+            const mentionedPlayerIds = game.players
+                .filter(p => p.isAlive && textLowerCase.includes(p.displayName.toLowerCase()))
+                .map(p => p.userId);
+            
+            const messageData: ChatMessage = {
+                id: `${Date.now()}_${senderId}`,
+                senderId, senderName, text: text.trim(), round: game.currentRound,
+                createdAt: Timestamp.now(), mentionedPlayerIds,
+            };
+
+            transaction.update(gameRef, { chatMessages: arrayUnion(toPlainObject(messageData)) });
+        });
+        
+        await runAIActions(gameId, 'day');
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error("Error sending chat message: ", error);
+        return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
+    }
+}
