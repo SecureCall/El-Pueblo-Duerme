@@ -9,19 +9,16 @@ service cloud.firestore {
     }
     
     function getPlayerData(gameId) {
-      return get(/databases/$(database)/documents/games/$(gameId)).data.players.get(request.auth.uid);
-    }
-    
-    function getIncomingPlayerData(request) {
-      return request.resource.data.players.get(request.auth.uid);
+      // This helper is not safe, as it assumes the player exists. Avoid using.
+      return get(/databases/$(database)/documents/games/$(gameId)).data.players.filter(p => p.userId == request.auth.uid)[0];
     }
 
     match /games/{gameId} {
       // READ: Any authenticated user can read game data to view lobbies or join games.
       allow read: if request.auth != null;
 
-      // CREATE: Any authenticated user can create a new game.
-      allow create: if request.auth != null && request.resource.data.creator == request.auth.uid;
+      // CREATE: Allow creation if the user is authenticated and is the first player in the list.
+      allow create: if request.auth != null && request.resource.data.players[0].userId == request.auth.uid;
       
       // UPDATE: More granular rules for updating a game document.
       allow update: if 
