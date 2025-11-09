@@ -1,3 +1,4 @@
+
 'use client';
 import { 
   doc,
@@ -10,6 +11,8 @@ import {
   type Firestore,
   type Transaction,
   DocumentReference,
+  collection,
+  getDocs,
 } from "firebase/firestore";
 import { 
   type Game, 
@@ -81,9 +84,7 @@ export async function createGame(
   }
 ) {
   const { userId, displayName, avatarUrl, gameName, maxPlayers, settings } = options;
-  if (typeof displayName !== 'string' || typeof gameName !== 'string') {
-      return { error: "El nombre del jugador y de la partida deben ser texto." };
-  }
+
   if (!userId || !displayName.trim() || !gameName.trim()) {
     return { error: "Datos incompletos para crear la partida." };
   }
@@ -282,7 +283,11 @@ export async function startGame(db: Firestore, gameId: string, creatorId: string
 
             if (game.settings.fillWithAI && finalPlayers.length < game.maxPlayers) {
                 const aiPlayerCount = game.maxPlayers - finalPlayers.length;
-                const availableAINames = AI_NAMES.filter(name => !finalPlayers.some(p => p.displayName === name));
+                const profilesCollection = collection(db, `games/${gameId}/player_profiles`);
+                const profilesSnap = await getDocs(profilesCollection);
+                const existingNames = profilesSnap.docs.map(d => d.data().displayName);
+
+                const availableAINames = AI_NAMES.filter(name => !existingNames.includes(name));
 
                 for (let i = 0; i < aiPlayerCount; i++) {
                     const aiUserId = `ai_${Date.now()}_${i}`;
@@ -461,6 +466,9 @@ export async function getSeerResult(db: Firestore, gameId: string, seerId: strin
         const gameDoc = await getDoc(doc(db, 'games', gameId));
         if (!gameDoc.exists()) throw new Error("Game not found");
         const game = gameDoc.data() as Game;
+        
+        const targetProfileDoc = await getDoc(doc(db, `games/${gameId}/player_profiles`, targetId));
+        const targetDisplayName = targetProfileDoc.exists() ? targetProfileDoc.data().displayName : 'alguien';
 
         const seerPlayer = game.players.find(p => p.userId === seerId);
         if (!seerPlayer || (seerPlayer.role !== 'seer' && !(seerPlayer.role === 'seer_apprentice' && game.seerDied))) {
@@ -473,7 +481,7 @@ export async function getSeerResult(db: Firestore, gameId: string, seerId: strin
         const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
         const isWerewolf = !!(targetPlayer.role && (wolfRoles.includes(targetPlayer.role) || targetPlayer.role === 'lycanthrope'));
 
-        return { success: true, isWerewolf, targetName: targetPlayer.displayName };
+        return { success: true, isWerewolf, targetName: targetDisplayName };
     } catch (error: any) {
         console.error("Error getting seer result: ", error);
         return { success: false, error: error.message };
@@ -493,15 +501,19 @@ export async function submitHunterShot(db: Firestore, gameId: string, hunterId: 
                 return;
             }
             
-            const hunterPlayer = game.players.find(p => p.userId === hunterId)!;
-            const targetPlayer = game.players.find(p => p.userId === targetId)!;
+            const hunterProfileDoc = await getDoc(doc(db, `games/${gameId}/player_profiles`, hunterId));
+            const hunterDisplayName = hunterProfileDoc.exists() ? hunterProfileDoc.data().displayName : 'Cazador';
+            
+            const targetProfileDoc = await getDoc(doc(db, `games/${gameId}/player_profiles`, targetId));
+            const targetDisplayName = targetProfileDoc.exists() ? targetProfileDoc.data().displayName : 'alguien';
+
 
             let { updatedGame, triggeredHunterId: newTriggeredHunter } = await killPlayerUnstoppable(transaction, gameRef, game, targetId, 'hunter_shot');
             game = updatedGame;
             
              game.events.push({
                 id: `evt_huntershot_${Date.now()}`, gameId, round: game.currentRound, type: 'hunter_shot',
-                message: `En su último aliento, ${hunterPlayer.displayName} dispara y se lleva consigo a ${targetPlayer.displayName}.`,
+                message: `En su último aliento, ${hunterDisplayName} dispara y se lleva consigo a ${targetDisplayName}.`,
                 createdAt: Timestamp.now(), data: {killedPlayerIds: [targetId]},
             });
             
@@ -578,8 +590,15 @@ export async function submitVote(db: Firestore, gameId: string, voterId: string,
             const gameData = gameDoc.data();
             const voter = gameData.players.find(p => p.userId === voterId);
             const target = gameData.players.find(p => p.userId === targetId);
+
+            const voterProfileDoc = await getDoc(doc(db, `games/${gameId}/player_profiles`, voterId));
+            const voterDisplayName = voterProfileDoc.exists() ? voterProfileDoc.data().displayName : 'alguien';
+
+            const targetProfileDoc = await getDoc(doc(db, `games/${gameId}/player_profiles`, targetId));
+            const targetDisplayName = targetProfileDoc.exists() ? targetProfileDoc.data().displayName : 'alguien';
+
             if (voter && target && !voter.isAI) {
-                await triggerAIChat(db, gameId, `${voter.displayName} ha votado por ${target.displayName}.`, 'public');
+                await triggerAIChat(db, gameId, `${voterDisplayName} ha votado por ${targetDisplayName}.`, 'public');
             }
         }
 
@@ -618,8 +637,12 @@ export async function sendChatMessage(
             }
             
             const textLowerCase = text.toLowerCase();
-            const mentionedPlayerIds = game.players
-                .filter(p => p.isAlive && p.displayName && textLowerCase.includes(p.displayName.toLowerCase()))
+            
+            const profilesSnapshot = await getDocs(collection(db, `games/${gameId}/player_profiles`));
+            const profiles = profilesSnapshot.docs.map(doc => doc.data() as PlayerProfile);
+
+            const mentionedPlayerIds = profiles
+                .filter(p => game.players.find(gp => gp.userId === p.userId)?.isAlive && textLowerCase.includes(p.displayName.toLowerCase()))
                 .map(p => p.userId);
             
             const messageData: ChatMessage = {
@@ -744,12 +767,23 @@ export async function resetGame(db: Firestore, gameId: string) {
             const game = gameSnap.data() as Game;
 
             const humanPlayers = game.players.filter(p => !p.isAI);
+            const playerProfilesCollection = collection(db, `games/${gameId}/player_profiles`);
+            const playerProfilesSnapshot = await getDocs(playerProfilesCollection);
+            const profiles = playerProfilesSnapshot.docs.map(d => d.data() as PlayerProfile);
 
             const resetHumanPlayers = humanPlayers.map(player => {
-                const newPlayer = createPlayerObject(player.userId, game.id, player.isAI);
+                const profile = profiles.find(p => p.userId === player.userId);
+                const newPlayer = createPlayerObject(player.userId, game.id, false);
                 newPlayer.joinedAt = player.joinedAt; 
                 return newPlayer;
             });
+            
+             // Delete AI player profiles
+            const aiPlayers = game.players.filter(p => p.isAI);
+            for (const ai of aiPlayers) {
+                const aiProfileRef = doc(db, `games/${gameId}/player_profiles`, ai.userId);
+                transaction.delete(aiProfileRef);
+            }
 
             transaction.update(gameRef, toPlainObject({
                 status: 'waiting', phase: 'waiting', currentRound: 0,
@@ -807,14 +841,17 @@ export async function submitTroublemakerAction(db: Firestore, gameId: string, tr
       if (!player || player.role !== 'troublemaker' || game.troublemakerUsed) {
         throw new Error("No puedes realizar esta acción.");
       }
-
-      const target1 = game.players.find(p => p.userId === target1Id);
-      const target2 = game.players.find(p => p.userId === target2Id);
-
-      if (!target1 || !target2 || !target1.isAlive || !target2.isAlive) {
-        throw new Error("Los objetivos seleccionados no son válidos.");
-      }
       
+      const [p1ProfileDoc, p2ProfileDoc, p3ProfileDoc] = await Promise.all([
+          getDoc(doc(db, `games/${gameId}/player_profiles`, player.userId)),
+          getDoc(doc(db, `games/${gameId}/player_profiles`, target1Id)),
+          getDoc(doc(db, `games/${gameId}/player_profiles`, target2Id)),
+      ]);
+
+      const troublemakerDisplayName = p1ProfileDoc.data()?.displayName || 'Alguien';
+      const target1DisplayName = p2ProfileDoc.data()?.displayName || 'alguien';
+      const target2DisplayName = p3ProfileDoc.data()?.displayName || 'alguien';
+
       let { updatedGame } = await killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, target1Id, 'troublemaker_duel');
       game = updatedGame;
       
@@ -823,7 +860,7 @@ export async function submitTroublemakerAction(db: Firestore, gameId: string, tr
 
       game.events.push({
         id: `evt_trouble_${Date.now()}`, gameId, round: game.currentRound, type: 'special',
-        message: `${player.displayName} ha provocado una pelea mortal. ${target1.displayName} y ${target2.displayName} han sido eliminados.`,
+        message: `${troublemakerDisplayName} ha provocado una pelea mortal. ${target1DisplayName} y ${target2DisplayName} han sido eliminados.`,
         createdAt: Timestamp.now(), data: { killedPlayerIds: [target1Id, target2Id] }
       });
       game.troublemakerUsed = true;
@@ -886,9 +923,14 @@ async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: stri
         if (game.status === 'finished') return;
 
         const aiPlayersToTrigger = game.players.filter(p => p.isAI && p.isAlive);
+        const allProfilesSnapshot = await getDocs(collection(db, `games/${gameId}/player_profiles`));
+        const allProfiles = allProfilesSnapshot.docs.map(doc => doc.data() as PlayerProfile);
 
         for (const aiPlayer of aiPlayersToTrigger) {
-             const isAccused = triggerMessage.toLowerCase().includes(aiPlayer.displayName?.toLowerCase() ?? 'zxzx');
+             const aiProfile = allProfiles.find(p => p.userId === aiPlayer.userId);
+             if (!aiProfile) continue;
+
+             const isAccused = triggerMessage.toLowerCase().includes(aiProfile.displayName.toLowerCase());
              const shouldTrigger = isAccused ? Math.random() < 0.95 : Math.random() < 0.35;
 
              if (shouldTrigger) {
@@ -903,9 +945,9 @@ async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: stri
                 generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
                     if (shouldSend && message) {
                         await new Promise(resolve => setTimeout(resolve, Math.random() * 4000 + 1000));
-                        await sendChatMessage(db, gameId, aiPlayer.userId, aiPlayer.displayName ?? 'Bot', message, true);
+                        await sendChatMessage(db, gameId, aiPlayer.userId, aiProfile.displayName, message, true);
                     }
-                }).catch(aiError => console.error(`Error generating AI chat for ${aiPlayer.displayName}:`, aiError));
+                }).catch(aiError => console.error(`Error generating AI chat for ${aiProfile.displayName}:`, aiError));
             }
         }
     } catch (e) {
@@ -921,6 +963,9 @@ async function triggerPrivateAIChats(db: Firestore, gameId: string, triggerMessa
         const game = gameDoc.data() as Game;
         if (game.status === 'finished') return;
 
+        const allProfilesSnapshot = await getDocs(collection(db, `games/${gameId}/player_profiles`));
+        const allProfiles = allProfilesSnapshot.docs.map(doc => doc.data() as PlayerProfile);
+
         const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
         const twinIds = game.twins || [];
         const loverIds = game.lovers || [];
@@ -931,6 +976,9 @@ async function triggerPrivateAIChats(db: Firestore, gameId: string, triggerMessa
 
         const processChat = async (players: Player[], chatType: 'wolf' | 'twin' | 'lovers', sendMessageFn: Function) => {
             for (const aiPlayer of players) {
+                 const aiProfile = allProfiles.find(p => p.userId === aiPlayer.userId);
+                 if (!aiProfile) continue;
+
                 if (Math.random() < 0.8) { 
                     const perspective: AIPlayerPerspective = {
                         game: toPlainObject(game), aiPlayer: toPlainObject(aiPlayer), trigger: triggerMessage,
@@ -939,9 +987,9 @@ async function triggerPrivateAIChats(db: Firestore, gameId: string, triggerMessa
                     generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
                         if (shouldSend && message) {
                             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
-                            await sendMessageFn(db, gameId, aiPlayer.userId, aiPlayer.displayName ?? 'Bot', message);
+                            await sendMessageFn(db, gameId, aiPlayer.userId, aiProfile.displayName, message);
                         }
-                    }).catch(err => console.error(`Error in private AI chat for ${aiPlayer.displayName}:`, err));
+                    }).catch(err => console.error(`Error in private AI chat for ${aiProfile.displayName}:`, err));
                 }
             }
         };
@@ -1026,12 +1074,14 @@ export async function runAIHunterShot(db: Firestore, gameId: string, hunter: Pla
         const alivePlayers = game.players.filter(p => p.isAlive && p.userId !== hunter.userId);
         
         const { targetId } = getDeterministicAIAction(hunter, game, alivePlayers, []);
+        const hunterProfileDoc = await getDoc(doc(db, `games/${gameId}/player_profiles`, hunter.userId));
+        const hunterDisplayName = hunterProfileDoc.exists() ? hunterProfileDoc.data().displayName : 'AI Cazador';
 
         if (targetId) {
             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
             await submitHunterShot(db, gameId, hunter.userId, targetId);
         } else {
-             console.error(`AI Hunter ${hunter.displayName} could not find a target to shoot.`);
+             console.error(`AI Hunter ${hunterDisplayName} could not find a target to shoot.`);
         }
 
     } catch(e) {
@@ -1245,6 +1295,29 @@ export const getDeterministicAIAction = (
     }
 };
 
-    
+export async function runAIActions(db: Firestore, gameId: string) {
+    try {
+        const gameDoc = await getDoc(doc(db, 'games', gameId));
+        if (!gameDoc.exists()) return;
+        const game = gameDoc.data() as Game;
 
-    
+        if(game.phase !== 'night' || game.status === 'finished') return;
+
+        await triggerPrivateAIChats(db, gameId, "La noche ha caído. ¿Cuál es nuestro plan?");
+
+        const aiPlayers = game.players.filter(p => p.isAI && p.isAlive && !p.usedNightAbility);
+        const alivePlayers = game.players.filter(p => p.isAlive);
+        const deadPlayers = game.players.filter(p => !p.isAlive);
+
+        for (const ai of aiPlayers) {
+            const { actionType, targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
+
+            if (!actionType || actionType === 'NONE' || !targetId || actionType === 'VOTE' || actionType === 'SHOOT') continue;
+
+            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
+            await submitNightAction(db, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
+        }
+    } catch(e) {
+        console.error("Error in AI Actions:", e);
+    }
+}

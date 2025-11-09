@@ -153,15 +153,10 @@ export function CreateGameForm() {
       return;
     }
     
-    const trimmedGameName = data.gameName.trim();
     const trimmedDisplayName = data.displayName.trim();
 
     if (!trimmedDisplayName) {
         form.setError("displayName", { type: "manual", message: "Tu nombre no puede estar vacío." });
-        return;
-    }
-    if (!trimmedGameName) {
-        form.setError("gameName", { type: "manual", message: "El nombre de la partida no puede estar vacío." });
         return;
     }
      if (!avatarUrl) {
@@ -177,7 +172,7 @@ export function CreateGameForm() {
     setIsSubmitting(true);
     setDisplayName(trimmedDisplayName);
 
-    const { maxPlayers, fillWithAI, isPublic, juryVoting, ...roles } = data;
+    const { gameName, maxPlayers, fillWithAI, isPublic, juryVoting, ...roles } = data;
 
     const roleSettings = implementedRoles.reduce((acc, roleId) => {
         acc[roleId] = !!roles[roleId];
@@ -195,12 +190,14 @@ export function CreateGameForm() {
     
     const response = await createGame(
       firestore,
-      userId,
-      trimmedDisplayName,
-      avatarUrl,
-      trimmedGameName,
-      maxPlayers,
-      gameSettings
+      {
+        userId,
+        displayName: trimmedDisplayName,
+        avatarUrl,
+        gameName,
+        maxPlayers,
+        settings: gameSettings
+      }
     );
     
     if (response.gameId) {
@@ -391,5 +388,3 @@ export function CreateGameForm() {
     </Card>
   );
 }
-
-    
