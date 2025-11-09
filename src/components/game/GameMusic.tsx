@@ -34,3 +34,4 @@ export function GameMusic({ src }: GameMusicProps) {
 
   return null;
 }
+

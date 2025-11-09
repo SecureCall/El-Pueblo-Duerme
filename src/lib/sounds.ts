@@ -42,9 +42,9 @@ export const unlockAudio = () => {
     const unlockAndPause = (audio: HTMLAudioElement | null) => {
         if (!audio) return;
         // Check if context is suspended. It's a good practice.
-        if (audio.HMTL)
-        if ((audio.HMTL as any).context && (audio.HMTL as any).context.state === 'suspended') {
-           (audio.HMTL as any).context.resume();
+        const audioContext = (audio as any).context;
+        if (audioContext && audioContext.state === 'suspended') {
+           audioContext.resume();
         }
 
         // Try playing and pausing to unlock.
@@ -150,3 +150,4 @@ export const setMusic = (musicFile: string | null) => {
         musicAudio.removeAttribute('src'); 
     }
 };
+
