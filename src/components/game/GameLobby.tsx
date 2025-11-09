@@ -1,10 +1,10 @@
 
 "use client";
 
-import type { Game, Player, PlayerProfile } from "@/types";
+import type { Game, Player } from "@/types";
 import { StartGameButton } from "./StartGameButton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
-import { Copy, Share2, User } from "lucide-react";
+import { Copy, Share2, Crown, User, Edit } from "lucide-react";
 import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
@@ -15,11 +15,11 @@ import { PlayerGrid } from "./PlayerGrid";
 import type { MasterActionState } from "./MasterActionBar";
 import Link from "next/link";
 import { useFirebase } from "@/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { updatePlayerAvatar } from "@/lib/firebase-actions";
 
 interface GameLobbyProps {
   game: Game;
-  players: (Player & PlayerProfile)[];
+  players: Player[];
   isCreator: boolean;
 }
 
@@ -43,12 +43,11 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
     if (!userId || !firestore || !currentPlayer) return;
     setAvatarUrl(newAvatarUrl); // Optimistically update local state
     
-    const profileRef = doc(firestore, 'games', game.id, 'player_profiles', userId);
-    try {
-        await setDoc(profileRef, { avatarUrl: newAvatarUrl }, { merge: true });
-    } catch(error: any) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el avatar." });
-      console.error("Error updating avatar:", error);
+    const result = await updatePlayerAvatar(firestore, game.id, userId, newAvatarUrl);
+
+    if (result.error) {
+      toast({ variant: "destructive", title: "Error", description: result.error || "No se pudo actualizar el avatar." });
+      console.error("Error updating avatar:", result.error);
     }
     
     setIsAvatarModalOpen(false);
