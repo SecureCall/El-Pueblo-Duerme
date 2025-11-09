@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useCallback, useEffect } from 'react';
+import { useEffect } from 'react';
 import type { Player } from "@/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -16,11 +16,13 @@ interface RoleRevealProps {
 }
 
 export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
-
+    // The server now automatically advances the phase.
+    // This component is purely informational for 15 seconds.
+    // The onAcknowledge function simply hides this component for the current user.
     useEffect(() => {
         const timer = setTimeout(() => {
             onAcknowledge();
-        }, 15000); // Auto-acknowledge after 15 seconds
+        }, 15000); 
 
         return () => clearTimeout(timer);
     }, [onAcknowledge]);
@@ -84,3 +86,4 @@ export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
     </div>
   );
 }
+
