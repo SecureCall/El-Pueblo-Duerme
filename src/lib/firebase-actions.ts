@@ -934,11 +934,16 @@ async function triggerAIChat(db: Firestore, gameId: string, triggerMessage: stri
              const shouldTrigger = isAccused ? Math.random() < 0.95 : Math.random() < 0.35;
 
              if (shouldTrigger) {
+                const fullPlayers = game.players.map(p => {
+                    const profile = allProfiles.find(prof => prof.userId === p.userId);
+                    return { ...p, ...profile };
+                });
+
                 const perspective: AIPlayerPerspective = {
                     game: toPlainObject(game),
-                    aiPlayer: toPlainObject(aiPlayer),
+                    aiPlayer: toPlainObject({ ...aiPlayer, ...aiProfile }),
                     trigger: triggerMessage,
-                    players: toPlainObject(game.players),
+                    players: toPlainObject(fullPlayers),
                     chatType,
                 };
 
@@ -980,9 +985,13 @@ async function triggerPrivateAIChats(db: Firestore, gameId: string, triggerMessa
                  if (!aiProfile) continue;
 
                 if (Math.random() < 0.8) { 
+                    const fullPlayers = game.players.map(p => {
+                        const profile = allProfiles.find(prof => prof.userId === p.userId);
+                        return { ...p, ...profile };
+                    });
                     const perspective: AIPlayerPerspective = {
-                        game: toPlainObject(game), aiPlayer: toPlainObject(aiPlayer), trigger: triggerMessage,
-                        players: toPlainObject(game.players), chatType,
+                        game: toPlainObject(game), aiPlayer: toPlainObject({...aiPlayer, ...aiProfile}), trigger: triggerMessage,
+                        players: toPlainObject(fullPlayers), chatType,
                     };
                     generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
                         if (shouldSend && message) {

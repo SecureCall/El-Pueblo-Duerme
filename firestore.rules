@@ -7,12 +7,11 @@ service cloud.firestore {
     function isPlayer(gameId) {
       return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p => p.userId == request.auth.uid);
     }
-    
+
     match /games/{gameId} {
-      // Public read for all game states.
       allow read: if true; 
 
-      // Allow creating a game if the creator is the first player.
+      // Allow creating a game if the creator is authenticated and is the first player.
       allow create: if request.auth != null
                     && request.resource.data.creator == request.auth.uid
                     && request.resource.data.players.size() == 1
@@ -45,9 +44,7 @@ service cloud.firestore {
     }
 
     match /games/{gameId}/player_profiles/{userId} {
-      // Allow anyone to read player profiles (for display names, avatars).
       allow read: if true;
-      // Allow a user to create or update their OWN profile.
       allow write: if request.auth != null && request.auth.uid == userId;
     }
   }
