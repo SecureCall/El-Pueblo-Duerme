@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -8,11 +9,6 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p => p.userId == request.auth.uid);
     }
     
-    function getPlayerData(gameId) {
-      // This helper is not safe, as it assumes the player exists. Avoid using.
-      return get(/databases/$(database)/documents/games/$(gameId)).data.players.filter(p => p.userId == request.auth.uid)[0];
-    }
-
     match /games/{gameId} {
       // READ: Any authenticated user can read game data to view lobbies or join games.
       allow read: if request.auth != null;
@@ -29,8 +25,7 @@ service cloud.firestore {
             // Allow a player to join a game that is in 'waiting' state.
             (
               resource.data.status == 'waiting' &&
-              request.resource.data.players.size() == resource.data.players.size() + 1 &&
-              isPlayer(gameId) == false // The user is not yet a player
+              request.resource.data.players.size() == resource.data.players.size() + 1
             ) ||
 
             // --- STARTING THE GAME ---

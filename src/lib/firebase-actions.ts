@@ -3,22 +3,30 @@
 import { 
   doc,
   setDoc,
-  runTransaction,
-  type DocumentReference,
+  getDoc,
+  updateDoc,
+  arrayUnion,
   Timestamp,
+  runTransaction,
+  type Transaction,
+  DocumentReference,
 } from "firebase/firestore";
 import { 
   type Game, 
   type Player, 
+  type NightAction, 
   type GameEvent, 
-  type PlayerRole,
+  type PlayerRole, 
+  type NightActionType, 
+  type ChatMessage,
+  type AIPlayerPerspective
 } from "@/types";
 import { toPlainObject } from "./utils";
 import { masterActions } from "./master-actions";
 import { getSdks } from "@/firebase/server-init";
 import { secretObjectives } from "./objectives";
 import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
-import { runAIActions as runAIActionsEngine } from './ai-actions';
+import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 
 
 const PHASE_DURATION_SECONDS = 60;
@@ -318,7 +326,6 @@ export async function processNight(gameId: string) {
         await runTransaction(firestore, async (transaction) => {
             await processNightEngine(transaction, gameRef);
         });
-        await runAIActionsEngine(gameId, 'night');
     } catch (e) {
         console.error("Failed to process night", e);
     }

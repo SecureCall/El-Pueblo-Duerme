@@ -50,6 +50,8 @@ export function GameRoom({ gameId }: { gameId: string }) {
   }, [displayName, firestore, gameId, userId, setDisplayName, avatarUrl]);
 
   useEffect(() => {
+    // This effect runs when essential session and game data are available.
+    // It attempts to join the user to the game if they aren't already a player.
     if (isSessionLoaded && game && displayName && !currentPlayer && game.status === 'waiting' && !isJoining) {
       handleJoinGame();
     }
@@ -109,30 +111,30 @@ export function GameRoom({ gameId }: { gameId: string }) {
             </div>
         );
     }
-    
-    if (!currentPlayer && game.players.length >= game.maxPlayers) {
-        return (
-             <div className='text-center text-white space-y-4'>
-                <p className="text-destructive text-2xl font-bold">Esta partida está llena.</p>
-                 <Button asChild>
-                    <Link href="/"><ArrowLeft className="mr-2" /> Volver al Inicio</Link>
-                </Button>
-            </div>
-        );
-    }
-
-    if (!currentPlayer && game.status !== 'waiting') {
-        return (
-             <div className='text-center text-white space-y-4'>
-                <p className="text-destructive text-2xl font-bold">Esta partida ya ha comenzado.</p>
-                 <Button asChild>
-                    <Link href="/"><ArrowLeft className="mr-2" /> Volver al Inicio</Link>
-                </Button>
-            </div>
-        );
-    }
 
     if (!currentPlayer) {
+        // If the user is not in the player list, show a relevant message.
+        if (game.status !== 'waiting') {
+            return (
+                 <div className='text-center text-white space-y-4'>
+                    <p className="text-destructive text-2xl font-bold">Esta partida ya ha comenzado.</p>
+                     <Button asChild>
+                        <Link href="/"><ArrowLeft className="mr-2" /> Volver al Inicio</Link>
+                    </Button>
+                </div>
+            );
+        }
+         if (players.length >= game.maxPlayers) {
+            return (
+                 <div className='text-center text-white space-y-4'>
+                    <p className="text-destructive text-2xl font-bold">Esta partida está llena.</p>
+                     <Button asChild>
+                        <Link href="/"><ArrowLeft className="mr-2" /> Volver al Inicio</Link>
+                    </Button>
+                </div>
+            );
+        }
+        // Show a joining state while joinGame is in progress
         return (
             <div className="flex flex-col items-center gap-4 text-white">
                 <Loader2 className="h-16 w-16 animate-spin text-primary" />

@@ -8,8 +8,6 @@ import {
   arrayUnion,
   Timestamp,
   runTransaction,
-  type Transaction,
-  DocumentReference,
   type Firestore,
 } from "firebase/firestore";
 import { 
@@ -24,6 +22,8 @@ import {
 import { toPlainObject } from "./utils";
 import { runAIActions } from "./ai-actions";
 import { createGame as createGameServer, startGame as startGameServer, submitHunterShot as submitHunterShotServer, getSeerResult as getSeerResultServer, submitTroublemakerAction as submitTroublemakerActionServer } from './firebase-actions';
+import { getSdks } from "@/firebase/server-init";
+import { killPlayer, killPlayerUnstoppable, checkGameOver } from "./game-engine";
 
 export async function createGame(options: {
     userId: string;
@@ -33,9 +33,9 @@ export async function createGame(options: {
     maxPlayers: number;
     settings: Game['settings'];
 }) {
+    // This now directly calls the server action.
     return createGameServer(options);
 }
-
 
 export async function joinGame(
   firestore: Firestore,
@@ -217,14 +217,14 @@ export async function submitNightAction(firestore: Firestore, action: Omit<Night
 }
 
 export async function submitVote(firestore: Firestore, gameId: string, voterId: string, targetId: string) {
-    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+    const gameRef = doc(firestore, 'games', gameId);
     
     try {
        await runTransaction(firestore, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
             
-            let game = gameSnap.data()!;
+            let game = gameSnap.data() as Game;
             if (game.phase !== 'day' || game.status === 'finished') return;
             
             const playerIndex = game.players.findIndex(p => p.userId === voterId && p.isAlive);
@@ -446,7 +446,9 @@ export async function sendGhostMessage(firestore: Firestore, gameId: string, gho
     }
 }
 
-// Proxies to server actions
+
+// These functions are now called from the client, but they in turn call the server actions.
+// This maintains the `'use client'` boundary while keeping the logic on the server.
 export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
     return getSeerResultServer(gameId, seerId, targetId);
 }
