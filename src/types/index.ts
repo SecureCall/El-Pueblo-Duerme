@@ -10,8 +10,7 @@ import {
     GameEventSchema,
     ChatMessageSchema,
     GameSettingsSchema,
-    NightActionTypeSchema,
-    PlayerProfileSchema
+    NightActionTypeSchema
 } from './zod';
 
 // Re-export the enum for convenience
@@ -20,7 +19,6 @@ export { PlayerRoleEnum };
 // Main data structures inferred from Zod schemas
 export type Game = z.infer<typeof GameSchema>;
 export type Player = z.infer<typeof PlayerSchema>;
-export type PlayerProfile = z.infer<typeof PlayerProfileSchema>;
 export type NightAction = z.infer<typeof NightActionSchema>;
 export type PlayerRole = z.infer<typeof PlayerRoleSchema>;
 export type GameEvent = z.infer<typeof GameEventSchema>;
@@ -33,7 +31,7 @@ export interface AIPlayerPerspective {
   game: Game;
   aiPlayer: Player;
   trigger: string;
-  players: (Player & PlayerProfile)[];
+  players: Player[];
   chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost';
 };
 

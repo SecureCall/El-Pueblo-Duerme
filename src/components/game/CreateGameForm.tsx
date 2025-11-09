@@ -189,7 +189,7 @@ export function CreateGameForm() {
     };
     
     const response = await createGame(
-      firestore,
+      db,
       {
         userId,
         displayName: trimmedDisplayName,

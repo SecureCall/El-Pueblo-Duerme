@@ -15,15 +15,12 @@ const TimestampSchema = z.union([
 
 export const PlayerRoleSchema = z.nativeEnum(PlayerRoleEnum).nullable();
 
-export const PlayerProfileSchema = z.object({
-  userId: z.string(),
-  displayName: z.string(),
-  avatarUrl: z.string(),
-});
 
 export const PlayerSchema = z.object({
   userId: z.string(),
   gameId: z.string(),
+  displayName: z.string(),
+  avatarUrl: z.string(),
   role: PlayerRoleSchema,
   isAlive: z.boolean(),
   votedFor: z.string().nullable(),
@@ -182,7 +179,7 @@ export const AIPlayerPerspectiveSchema = z.object({
   game: GameSchema,
   aiPlayer: PlayerSchema,
   trigger: z.string(),
-  players: z.array(PlayerProfileSchema.merge(PlayerSchema)),
+  players: z.array(PlayerSchema),
   chatType: z.enum(['public', 'wolf', 'twin', 'lovers', 'ghost']),
 });
 
