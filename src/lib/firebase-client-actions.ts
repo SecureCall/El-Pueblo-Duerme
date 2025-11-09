@@ -22,18 +22,7 @@ import {
   type ChatMessage,
 } from "@/types";
 import { toPlainObject } from "./utils";
-import { runAIActions, runAIHunterShot } from "./ai-actions";
-import { getSdks } from "@/firebase/server-init";
-import { killPlayerUnstoppable, checkGameOver, processJuryVotes, killPlayer, processVotes, processNight } from './game-engine';
-
-function generateGameId(length = 5) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
+import { runAIActions } from "./ai-actions";
 
 const createPlayerObject = (userId: string, gameId: string, displayName: string, avatarUrl: string, isAI: boolean = false): Player => ({
     userId,
@@ -66,7 +55,6 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     secretObjectiveId: null,
 });
 
-
 export async function createGame(
   firestore: Firestore,
   options: {
@@ -87,7 +75,7 @@ export async function createGame(
     return { error: "El número de jugadores debe ser entre 3 y 32." };
   }
 
-  const gameId = generateGameId();
+  const gameId = (Math.random().toString(36).substring(2, 7)).toUpperCase();
   const gameRef = doc(firestore, "games", gameId);
       
   const creatorPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
@@ -139,6 +127,7 @@ export async function createGame(
     return { error: `Error de servidor: ${error.message || 'Error desconocido al crear la partida.'}` };
   }
 }
+
 
 export async function joinGame(
   firestore: Firestore,
@@ -287,37 +276,6 @@ export async function submitNightAction(firestore: Firestore, action: Omit<Night
     console.error("Error submitting night action: ", error);
     return { success: false, error: error.message || "No se pudo registrar tu acción." };
   }
-}
-
-export async function getSeerResult(firestore: Firestore, gameId: string, seerId: string, targetId: string) {
-    try {
-        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
-        if (!gameDoc.exists()) throw new Error("Game not found");
-        const game = gameDoc.data() as Game;
-
-        const seerPlayer = game.players.find(p => p.userId === seerId);
-        if (!seerPlayer || (seerPlayer.role !== 'seer' && !(seerPlayer.role === 'seer_apprentice' && game.seerDied))) {
-            throw new Error("No tienes el don de la videncia.");
-        }
-
-        const targetPlayer = game.players.find(p => p.userId === targetId);
-        if (!targetPlayer) throw new Error("Target player not found");
-
-        const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
-        const isWerewolf = !!(targetPlayer.role && (wolfRoles.includes(targetPlayer.role) || targetPlayer.role === 'lycanthrope'));
-
-        return { success: true, isWerewolf, targetName: targetPlayer.displayName };
-    } catch (error: any) {
-        console.error("Error getting seer result: ", error);
-        return { success: false, error: error.message };
-    }
-}
-
-export async function submitHunterShot(firestore: Firestore, gameId: string, hunterId: string, targetId: string) {
-    // This action modifies sensitive game state and must run on the server.
-    // However, we are calling it from the client. Let's proxy it through a server action.
-    const { submitHunterShot: submitHunterShotServer } = await import('@/lib/firebase-actions');
-    return submitHunterShotServer(gameId, hunterId, targetId);
 }
 
 export async function submitVote(firestore: Firestore, gameId: string, voterId: string, targetId: string) {
@@ -515,11 +473,6 @@ export async function submitJuryVote(firestore: Firestore, gameId: string, juror
     }
 }
 
-export async function submitTroublemakerAction(firestore: Firestore, gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
-    const { submitTroublemakerAction: submitTroublemakerActionServer } = await import('@/lib/firebase-actions');
-    return submitTroublemakerActionServer(gameId, troublemakerId, target1Id, target2Id);
-}
-
 export async function sendGhostMessage(firestore: Firestore, gameId: string, ghostId: string, targetId: string, message: string) {
     const gameRef = doc(firestore, 'games', gameId);
     try {
@@ -552,4 +505,20 @@ export async function sendGhostMessage(firestore: Firestore, gameId: string, gho
         console.error("Error sending ghost message:", error);
         return { success: false, error: error.message || "No se pudo enviar el mensaje." };
     }
+}
+
+// These are server-only actions proxied through the client actions file
+export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
+    const { getSeerResult: serverAction } = await import('@/lib/firebase-actions');
+    return serverAction(gameId, seerId, targetId);
+}
+
+export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
+    const { submitHunterShot: serverAction } = await import('@/lib/firebase-actions');
+    return serverAction(gameId, hunterId, targetId);
+}
+
+export async function submitTroublemakerAction(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
+    const { submitTroublemakerAction: serverAction } = await import('@/lib/firebase-actions');
+    return serverAction(gameId, troublemakerId, target1Id, target2Id);
 }
