@@ -184,6 +184,14 @@ export async function joinGame(
         return;
       }
 
+      // Check for name uniqueness against existing profiles in this game
+      const profilesCollection = collection(db, `games/${gameId}/player_profiles`);
+      const profilesSnapshot = await getDocs(profilesCollection);
+      const nameExists = profilesSnapshot.docs.some(doc => doc.data().displayName.trim().toLowerCase() === displayName.trim().toLowerCase());
+      if (nameExists) {
+        throw new Error("Ese nombre ya está en uso en esta partida.");
+      }
+
       if (game.players.length >= game.maxPlayers) {
         throw new Error("Esta partida está llena.");
       }
@@ -204,17 +212,6 @@ export async function joinGame(
     console.error("Error joining game:", error);
     return { error: `No se pudo unir a la partida: ${error.message}` };
   }
-}
-
-export async function updatePlayerAvatar(db: Firestore, gameId: string, userId: string, newAvatarUrl: string) {
-    const profileRef = doc(db, 'games', gameId, 'player_profiles', userId);
-    try {
-        await updateDoc(profileRef, { avatarUrl: newAvatarUrl });
-        return { success: true };
-    } catch (error: any) {
-        console.error("Error updating player avatar:", error);
-        return { success: false, error: error.message };
-    }
 }
 
 const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
@@ -767,12 +764,8 @@ export async function resetGame(db: Firestore, gameId: string) {
             const game = gameSnap.data() as Game;
 
             const humanPlayers = game.players.filter(p => !p.isAI);
-            const playerProfilesCollection = collection(db, `games/${gameId}/player_profiles`);
-            const playerProfilesSnapshot = await getDocs(playerProfilesCollection);
-            const profiles = playerProfilesSnapshot.docs.map(d => d.data() as PlayerProfile);
 
             const resetHumanPlayers = humanPlayers.map(player => {
-                const profile = profiles.find(p => p.userId === player.userId);
                 const newPlayer = createPlayerObject(player.userId, game.id, false);
                 newPlayer.joinedAt = player.joinedAt; 
                 return newPlayer;

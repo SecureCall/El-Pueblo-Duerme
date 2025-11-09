@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { Game, Player } from "@/types";
+import type { Game, Player, PlayerProfile } from "@/types";
 import { StartGameButton } from "./StartGameButton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Copy, Share2, User } from "lucide-react";
@@ -11,15 +11,15 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { AvatarSelectionModal } from "./AvatarSelectionModal";
 import { useGameSession } from "@/hooks/use-game-session";
-import { updatePlayerAvatar } from "@/lib/firebase-actions";
 import { PlayerGrid } from "./PlayerGrid";
 import type { MasterActionState } from "./MasterActionBar";
 import Link from "next/link";
 import { useFirebase } from "@/firebase";
+import { doc, setDoc } from "firebase/firestore";
 
 interface GameLobbyProps {
   game: Game;
-  players: Player[];
+  players: (Player & PlayerProfile)[];
   isCreator: boolean;
 }
 
@@ -40,12 +40,17 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
   }, []);
 
   const handleAvatarChange = async (newAvatarUrl: string) => {
-    if (!userId || !firestore) return;
+    if (!userId || !firestore || !currentPlayer) return;
     setAvatarUrl(newAvatarUrl); // Optimistically update local state
-    const result = await updatePlayerAvatar(firestore, game.id, userId, newAvatarUrl);
-    if (!result.success) {
+    
+    const profileRef = doc(firestore, 'games', game.id, 'player_profiles', userId);
+    try {
+        await setDoc(profileRef, { avatarUrl: newAvatarUrl }, { merge: true });
+    } catch(error: any) {
       toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el avatar." });
+      console.error("Error updating avatar:", error);
     }
+    
     setIsAvatarModalOpen(false);
   };
 
@@ -165,5 +170,3 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
     </>
   );
 }
-
-    
