@@ -8,14 +8,13 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Send, AlertTriangle, MicOff } from 'lucide-react';
-import { sendChatMessage } from '@/lib/firebase-client-actions';
+import { sendChatMessage } from '@/lib/firebase-actions';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { playSoundEffect } from '@/lib/sounds';
 import { getMillis } from '@/lib/utils';
-import { useFirebase } from '@/firebase';
 
 interface GameChatProps {
     game: Game;
@@ -38,7 +37,6 @@ export function GameChat({ game, currentPlayer, messages }: GameChatProps) {
     const { toast } = useToast();
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const lastMessageCount = useRef(messages.length);
-    const { firestore } = useFirebase();
 
     useEffect(() => {
         if (scrollAreaRef.current) {
@@ -68,9 +66,9 @@ export function GameChat({ game, currentPlayer, messages }: GameChatProps) {
 
     const handleSendMessage = async (text?: string) => {
         const messageText = text || newMessage;
-        if (!messageText.trim() || !firestore) return;
+        if (!messageText.trim()) return;
         
-        const res = await sendChatMessage(firestore, game.id, currentPlayer.userId, currentPlayer.displayName, messageText);
+        const res = await sendChatMessage(game.id, currentPlayer.userId, currentPlayer.displayName, messageText);
 
         if (res.success) {
             setNewMessage('');

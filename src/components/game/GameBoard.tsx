@@ -7,7 +7,8 @@ import { PlayerGrid } from "./PlayerGrid";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { NightActions } from "./NightActions";
-import { executeMasterAction, processNight, processVotes, runAIActions, processJuryVotes } from "@/lib/firebase-actions";
+import { executeMasterAction, processNight, processVotes, processJuryVotes } from "@/lib/firebase-actions";
+import { runAIActions } from "@/lib/ai-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { Moon, Sun, Loader2, UserX, Scale } from "lucide-react";
@@ -112,8 +113,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
                     break;
                 case 'hunter_shot':
                     if (isCreator) {
-                        const pendingHunter = game.players.find(p => p.userId === game.pendingHunterShot);
-                        if (pendingHunter?.isAI) runAIActions(game.id, 'hunter_shot');
+                        runAIActions(game.id, 'hunter_shot');
                     }
                     break;
                 case 'role_reveal':
@@ -485,4 +485,3 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
         </div>
     );
 }
-
