@@ -25,39 +25,7 @@ import { toPlainObject } from "./utils";
 import { runAIActions } from "./ai-actions";
 import { createGame as createGameServer, startGame as startGameServer, submitHunterShot as submitHunterShotServer, getSeerResult as getSeerResultServer, submitTroublemakerAction as submitTroublemakerActionServer } from './firebase-actions';
 
-const createPlayerObject = (userId: string, gameId: string, displayName: string, avatarUrl: string, isAI: boolean = false): Player => ({
-    userId,
-    gameId,
-    displayName: displayName.trim(),
-    avatarUrl,
-    role: null,
-    isAlive: true,
-    votedFor: null,
-    joinedAt: Timestamp.now(),
-    isAI,
-    isExiled: false,
-    lastHealedRound: 0,
-    potions: { poison: null, save: null },
-    priestSelfHealUsed: false,
-    princeRevealed: false,
-    guardianSelfProtects: 0,
-    biteCount: 0,
-    isCultMember: false,
-    isLover: false,
-    usedNightAbility: false,
-    shapeshifterTargetId: null,
-    virginiaWoolfTargetId: null,
-    riverSirenTargetId: null,
-    ghostMessageSent: false,
-    resurrectorAngelUsed: false,
-    bansheeScreams: {},
-    lookoutUsed: false,
-    executionerTargetId: null,
-    secretObjectiveId: null,
-});
-
-
-export async function createGame(firestore: Firestore, options: {
+export async function createGame(options: {
     userId: string;
     displayName: string;
     avatarUrl: string;
@@ -109,7 +77,37 @@ export async function joinGame(
         throw new Error("Esta partida está llena.");
       }
       
-      const newPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
+      const newPlayer = {
+          userId,
+          gameId,
+          displayName: displayName.trim(),
+          avatarUrl,
+          role: null,
+          isAlive: true,
+          votedFor: null,
+          joinedAt: Timestamp.now(),
+          isAI: false,
+          isExiled: false,
+          lastHealedRound: 0,
+          potions: { poison: null, save: null },
+          priestSelfHealUsed: false,
+          princeRevealed: false,
+          guardianSelfProtects: 0,
+          biteCount: 0,
+          isCultMember: false,
+          isLover: false,
+          usedNightAbility: false,
+          shapeshifterTargetId: null,
+          virginiaWoolfTargetId: null,
+          riverSirenTargetId: null,
+          ghostMessageSent: false,
+          resurrectorAngelUsed: false,
+          bansheeScreams: {},
+          lookoutUsed: false,
+          executionerTargetId: null,
+          secretObjectiveId: null,
+      };
+
       transaction.update(gameRef, {
         players: arrayUnion(toPlainObject(newPlayer)),
         lastActiveAt: Timestamp.now(),
