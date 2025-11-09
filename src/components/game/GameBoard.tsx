@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
@@ -7,8 +6,7 @@ import { PlayerGrid } from "./PlayerGrid";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { NightActions } from "./NightActions";
-import { runAIActions } from "@/lib/ai-actions";
-import { processJuryVotes, processNight, processVotes, executeMasterAction } from "@/lib/firebase-actions";
+import { processJuryVotes, executeMasterAction, processNight, processVotes } from "@/lib/firebase-actions";
 import { DayPhase } from "./DayPhase";
 import { GameOver } from "./GameOver";
 import { Moon, Sun, Loader2, UserX, Scale } from "lucide-react";
@@ -81,7 +79,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
         prevGameStatusRef.current = game.status;
     }, [game?.status, events, currentPlayer, game, updateStats]);
 
-    useEffect(() => {
+     useEffect(() => {
         if (!game || !userId || game.status === 'finished') return;
 
         const isCreator = game.creator === userId;
@@ -103,7 +101,6 @@ export function GameBoard({ gameId }: { gameId: string }) {
                     } else {
                         playNarration('noche_pueblo_duerme.mp3');
                     }
-                    if (isCreator) runAIActions(game.id, 'night');
                     break;
                 case 'day':
                     playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
@@ -111,14 +108,8 @@ export function GameBoard({ gameId }: { gameId: string }) {
                         playNarration('dia_pueblo_despierta.mp3');
                         setTimeout(() => {
                             playNarration('inicio_debate.mp3');
-                            if (isCreator) runAIActions(game.id, 'day');
                         }, 2000);
                     }, 1500);
-                    break;
-                case 'hunter_shot':
-                    if (isCreator) {
-                        runAIActions(game.id, 'hunter_shot');
-                    }
                     break;
             }
         }
@@ -135,6 +126,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
         prevPhaseRef.current = game.phase;
 
     }, [game?.phase, game?.currentRound, game?.id, game?.creator, game?.status, userId, events]);
+
 
     useEffect(() => {
         if (!game?.phaseEndsAt || game.status === 'finished') {
