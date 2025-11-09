@@ -217,6 +217,30 @@ export async function joinGame(
   }
 }
 
+export async function updatePlayerAvatar(db: Firestore, gameId: string, userId: string, newAvatarUrl: string) {
+    const gameRef = doc(db, 'games', gameId);
+    try {
+        await runTransaction(db, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error("Game not found.");
+
+            const gameData = gameDoc.data() as Game;
+            const playerIndex = gameData.players.findIndex(p => p.userId === userId);
+
+            if (playerIndex === -1) throw new Error("Player not found in game.");
+
+            const updatedPlayers = [...gameData.players];
+            updatedPlayers[playerIndex].avatarUrl = newAvatarUrl;
+
+            transaction.update(gameRef, { players: toPlainObject(updatedPlayers), lastActiveAt: Timestamp.now() });
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error updating player avatar:", error);
+        return { success: false, error: error.message };
+    }
+}
+
 const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
 const MINIMUM_PLAYERS = 3;
 

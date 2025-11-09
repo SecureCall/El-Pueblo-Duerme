@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -19,13 +18,11 @@ service cloud.firestore {
     match /games/{gameId} {
       allow read: if true;
 
-      // Allow creating a game if the creator is authenticated and is the only player.
       allow create: if request.auth != null
                     && request.resource.data.creator == request.auth.uid
                     && request.resource.data.players.size() == 1
                     && request.resource.data.players[0].userId == request.auth.uid;
       
-      // Allow updates for joining, playing, or managing the game.
       allow update: if request.auth != null &&
           (
             // Rule: A new player can join a 'waiting' game.
@@ -38,7 +35,7 @@ service cloud.firestore {
              (
                 isPlayer(gameId) &&
                 request.resource.data.players.size() == resource.data.players.size() &&
-                getRequestPlayer(request.resource.data.players).keys().hasOnly(['displayName', 'avatarUrl'])
+                getRequestPlayer(request.resource.data.players).avatarUrl != getResourcePlayer(resource.data.players).avatarUrl
              ) ||
             // Rule: An existing player can update their own vote or night action.
             (
