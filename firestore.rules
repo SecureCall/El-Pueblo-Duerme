@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -7,17 +8,19 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p => p.userId == request.auth.uid);
     }
     
-    // Helper function to safely get player data from incoming/existing resources
-    function getPlayer(players, userId) {
-      let matchingPlayers = players.filter(p => p.userId == userId);
-      return matchingPlayers.size() > 0 ? matchingPlayers[0] : null;
+    function isCreator(gameId) {
+       return request.auth.uid == get(/databases/$(database)/documents/games/$(gameId)).data.creator;
+    }
+    
+    // Helper function to get player data from the incoming request resource
+    function getRequestPlayer(players) {
+        let matchingPlayers = players.filter(p => p.userId == request.auth.uid);
+        return matchingPlayers.size() > 0 ? matchingPlayers[0] : null;
     }
 
     match /games/{gameId} {
-      // Anyone can read game data to join or spectate.
       allow read: if true;
 
-      // An authenticated user can create a game if they are the creator and the first player.
       allow create: if request.auth != null
                     && request.resource.data.creator == request.auth.uid
                     && request.resource.data.players.size() == 1
@@ -32,23 +35,23 @@ service cloud.firestore {
                 !isPlayer(gameId)
             ) ||
             
-            // Rule 2: An existing player can update their own avatar or displayName in the lobby.
+            // Rule 2: An existing player can update their own avatar or display name in the lobby.
             (
                 resource.data.status == 'waiting' &&
                 isPlayer(gameId) &&
-                request.resource.data.players.size() == resource.data.players.size() &&
-                getPlayer(request.resource.data.players, request.auth.uid).avatarUrl != getPlayer(resource.data.players, request.auth.uid).avatarUrl
+                request.resource.data.players.size() == resource.data.players.size()
              ) ||
 
             // Rule 3: An existing player can submit votes or night actions.
             (
                 isPlayer(gameId) &&
+                resource.data.status == 'in_progress' &&
                 request.resource.data.players.size() == resource.data.players.size()
             ) ||
 
             // Rule 4: Only the creator can start the game, process phases, or reset it.
             (
-                request.auth.uid == resource.data.creator &&
+                isCreator(gameId) &&
                 (
                     (resource.data.status == 'waiting' && request.resource.data.status == 'in_progress') ||
                     (resource.data.status == 'in_progress' && resource.data.phase != request.resource.data.phase) ||
@@ -59,3 +62,5 @@ service cloud.firestore {
     }
   }
 }
+
+    
