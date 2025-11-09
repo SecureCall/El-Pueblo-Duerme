@@ -49,10 +49,8 @@ export function GameBoard({ gameId }: { gameId: string }) {
     const prevPhaseRef = useRef<Game['phase']>();
     const nightSoundsPlayedForRound = useRef<number>(0);
 
-    const handleAcknowledgeRole = useCallback(() => {
+    const handleAcknowledgeRole = useCallback(async () => {
         setShowRole(false);
-        // The server now handles the transition automatically after a timeout.
-        // No client-side action is needed here.
     }, []);
 
     const handlePhaseEnd = useCallback(async () => {
@@ -88,6 +86,13 @@ export function GameBoard({ gameId }: { gameId: string }) {
 
         const isCreator = game.creator === userId;
         const prevPhase = prevPhaseRef.current;
+
+        if (isCreator && game.phase === 'role_reveal' && prevPhase !== 'role_reveal') {
+            const timer = setTimeout(() => {
+                processNight(game.id);
+            }, 15000);
+            return () => clearTimeout(timer);
+        }
 
         if (prevPhase !== game.phase) {
             switch (game.phase) {
@@ -129,7 +134,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
 
         prevPhaseRef.current = game.phase;
 
-    }, [game?.phase, game?.currentRound, game?.id, game?.creator, game?.status, game?.players, game?.pendingHunterShot, userId, events]);
+    }, [game?.phase, game?.currentRound, game?.id, game?.creator, game?.status, userId, events]);
 
     useEffect(() => {
         if (!game?.phaseEndsAt || game.status === 'finished') {
@@ -368,7 +373,6 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
         causeOfDeath: !p.isAlive ? getCauseOfDeath(p.userId) : undefined,
     }));
 
-
     const showGhostAction = !!(currentPlayer.role === 'ghost' && !currentPlayer.isAlive && !currentPlayer.ghostMessageSent);
     const showGhostChat = !currentPlayer.isAlive;
     const showJuryVote = game.phase === 'jury_voting' && !currentPlayer.isAlive && game.settings.juryVoting;
@@ -476,4 +480,3 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
         </div>
     );
 }
-

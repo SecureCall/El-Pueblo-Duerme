@@ -11,7 +11,6 @@ import {
   type Player, 
   type GameEvent, 
   type PlayerRole,
-  type NightAction
 } from "@/types";
 import { toPlainObject } from "./utils";
 import { roleDetails } from "./roles";
@@ -23,6 +22,13 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
   if (!gameSnap.exists()) throw new Error("Game not found!");
   
   let game = gameSnap.data()!;
+  
+  if (game.phase === 'role_reveal' && game.status === 'in_progress') {
+     const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
+     transaction.update(gameRef, toPlainObject({ phase: 'night', phaseEndsAt }));
+     return;
+  }
+  
   if (game.phase !== 'night' || game.status === 'finished') {
       return;
   }
@@ -122,7 +128,7 @@ export async function processVotes(transaction: Transaction, gameRef: DocumentRe
     if (game.phase !== 'day') return;
 
     const lastVoteEvent = [...game.events].sort((a,b) => toPlainObject(b.createdAt).getTime() - toPlainObject(a.createdAt).getTime()).find(e => e.type === 'vote_result');
-    const isTiebreaker = lastVoteEvent?.data?.tiedPlayerIds && !lastVoteEvent?.data?.final;
+    const isTiebreaker = Array.isArray(lastVoteEvent?.data?.tiedPlayerIds) && !lastVoteEvent?.data?.final;
 
     const alivePlayers = game.players.filter(p => p.isAlive);
     const voteCounts: Record<string, number> = {};

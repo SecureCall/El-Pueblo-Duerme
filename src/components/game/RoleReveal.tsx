@@ -16,9 +16,7 @@ interface RoleRevealProps {
 }
 
 export function RoleReveal({ player, onAcknowledge }: RoleRevealProps) {
-    // The server now automatically advances the phase.
-    // This component is purely informational for 15 seconds.
-    // The onAcknowledge function simply hides this component for the current user.
+    // This component now only displays the role. The game advancement is handled by GameBoard.
     useEffect(() => {
         const timer = setTimeout(() => {
             onAcknowledge();
