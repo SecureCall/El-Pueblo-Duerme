@@ -1,5 +1,5 @@
 
-'use server';
+'use client';
 import { 
   doc,
   setDoc,
@@ -10,6 +10,7 @@ import {
   runTransaction,
   type Transaction,
   DocumentReference,
+  type Firestore
 } from "firebase/firestore";
 import { 
   type Game, 
@@ -23,7 +24,6 @@ import {
 } from "@/types";
 import { toPlainObject } from "./utils";
 import { masterActions } from "./master-actions";
-import { getSdks } from "@/firebase/server-init";
 import { secretObjectives } from "./objectives";
 import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
@@ -74,6 +74,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
 
 
 export async function createGame(
+  firestore: Firestore,
   options: {
     userId: string;
     displayName: string;
@@ -83,7 +84,6 @@ export async function createGame(
     settings: Game['settings'];
   }
 ) {
-  const { firestore } = getSdks();
   const { userId, displayName, avatarUrl, gameName, maxPlayers, settings } = options;
 
   if (!userId || !displayName.trim() || !gameName.trim()) {
@@ -102,7 +102,7 @@ export async function createGame(
       status: "waiting",
       phase: "waiting", 
       creator: userId,
-      players: [], // Start with an empty player list, creator will join in the GameRoom
+      players: [],
       events: [],
       chatMessages: [],
       wolfChatMessages: [],
@@ -145,12 +145,12 @@ export async function createGame(
 }
 
 export async function joinGame(
+  firestore: Firestore,
   gameId: string,
   userId: string,
   displayName: string,
   avatarUrl: string
 ) {
-  const { firestore } = getSdks();
   const gameRef = doc(firestore, "games", gameId);
   
   try {
@@ -199,8 +199,7 @@ export async function joinGame(
   }
 }
 
-export async function updatePlayerAvatar(gameId: string, userId: string, newAvatarUrl: string) {
-    const { firestore } = getSdks();
+export async function updatePlayerAvatar(firestore: Firestore, gameId: string, userId: string, newAvatarUrl: string) {
     const gameRef = doc(firestore, 'games', gameId);
     try {
         await runTransaction(firestore, async (transaction) => {
@@ -261,8 +260,7 @@ const generateRoles = (playerCount: number, settings: Game['settings']): (Player
     return roles.sort(() => Math.random() - 0.5);
 };
 
-export async function startGame(gameId: string, creatorId: string) {
-    const { firestore } = getSdks();
+export async function startGame(firestore: Firestore, gameId: string, creatorId: string) {
     const gameRef = doc(firestore, 'games', gameId);
     
     try {
@@ -357,8 +355,7 @@ export async function startGame(gameId: string, creatorId: string) {
     }
 }
 
-export async function submitNightAction(action: Omit<NightAction, 'createdAt'>) {
-  const { firestore } = getSdks();
+export async function submitNightAction(firestore: Firestore, action: Omit<NightAction, 'createdAt'>) {
   const { gameId, playerId, actionType, targetId } = action;
   const gameRef = doc(firestore, 'games', gameId);
   try {
@@ -427,8 +424,7 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt'>) 
   }
 }
 
-export async function executeMasterAction(gameId: string, actionId: string, sourceId: string | null, targetId: string) {
-    const { firestore } = getSdks();
+export async function executeMasterAction(firestore: Firestore, gameId: string, actionId: string, sourceId: string | null, targetId: string) {
     const gameRef = doc(firestore, 'games', gameId);
      try {
         await runTransaction(firestore, async (transaction) => {
@@ -457,9 +453,9 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
     }
 }
 
-export async function getSeerResult(db: Firestore, gameId: string, seerId: string, targetId: string) {
+export async function getSeerResult(firestore: Firestore, gameId: string, seerId: string, targetId: string) {
     try {
-        const gameDoc = await getDoc(doc(db, 'games', gameId));
+        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
         if (!gameDoc.exists()) throw new Error("Game not found");
         const game = gameDoc.data() as Game;
 
@@ -481,8 +477,7 @@ export async function getSeerResult(db: Firestore, gameId: string, seerId: strin
     }
 }
 
-export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
-    const { firestore } = getSdks();
+export async function submitHunterShot(firestore: Firestore, gameId: string, hunterId: string, targetId: string) {
     const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
 
     try {
@@ -543,8 +538,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
     }
 }
 
-export async function submitVote(gameId: string, voterId: string, targetId: string) {
-    const { firestore } = getSdks();
+export async function submitVote(firestore: Firestore, gameId: string, voterId: string, targetId: string) {
     const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
     
     try {
@@ -582,7 +576,7 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
             const voter = gameData.players.find(p => p.userId === voterId);
             const target = gameData.players.find(p => p.userId === targetId);
             if (voter && target && !voter.isAI) {
-                await triggerAIChat(gameId, `${voter.displayName} ha votado por ${target.displayName}.`, 'public');
+                await triggerAIChat(firestore, gameId, `${voter.displayName} ha votado por ${target.displayName}.`, 'public');
             }
         }
 
@@ -595,13 +589,13 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
 }
 
 export async function sendChatMessage(
+    firestore: Firestore,
     gameId: string,
     senderId: string,
     senderName: string,
     text: string,
     isFromAI: boolean = false
 ) {
-    const { firestore } = getSdks();
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
@@ -636,7 +630,7 @@ export async function sendChatMessage(
 
         if (!isFromAI && latestGame) {
             const triggerMessage = `${senderName} dijo: "${text.trim()}"`;
-            await triggerAIChat(gameId, triggerMessage, 'public');
+            await triggerAIChat(firestore, gameId, triggerMessage, 'public');
         }
 
         return { success: true };
@@ -648,13 +642,13 @@ export async function sendChatMessage(
 }
 
 async function sendSpecialChatMessage(
+    firestore: Firestore,
     gameId: string,
     senderId: string,
     senderName: string,
     text: string,
     chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost'
 ) {
-    const { firestore } = getSdks();
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
@@ -730,15 +724,14 @@ async function sendSpecialChatMessage(
     }
 }
 
-export const sendWolfChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'wolf');
-export const sendFairyChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'fairy');
-export const sendLoversChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'lovers');
-export const sendTwinChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'twin');
-export const sendGhostChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'ghost');
+export const sendWolfChatMessage = (firestore: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(firestore, gameId, senderId, senderName, text, 'wolf');
+export const sendFairyChatMessage = (firestore: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(firestore, gameId, senderId, senderName, text, 'fairy');
+export const sendLoversChatMessage = (firestore: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(firestore, gameId, senderId, senderName, text, 'lovers');
+export const sendTwinChatMessage = (firestore: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(firestore, gameId, senderId, senderName, text, 'twin');
+export const sendGhostChatMessage = (firestore: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(firestore, gameId, senderId, senderName, text, 'ghost');
 
 
-export async function resetGame(gameId: string) {
-    const { firestore } = getSdks();
+export async function resetGame(firestore: Firestore, gameId: string) {
     const gameRef = doc(firestore, 'games', gameId);
 
     try {
@@ -773,8 +766,7 @@ export async function resetGame(gameId: string) {
     }
 }
 
-export async function submitJuryVote(gameId: string, jurorId: string, targetId: string) {
-    const { firestore } = getSdks();
+export async function submitJuryVote(firestore: Firestore, gameId: string, jurorId: string, targetId: string) {
     const gameRef = doc(firestore, 'games', gameId);
     try {
         await runTransaction(firestore, async (transaction) => {
@@ -797,8 +789,7 @@ export async function submitJuryVote(gameId: string, jurorId: string, targetId: 
     }
 }
 
-export async function submitTroublemakerAction(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
-  const { firestore } = getSdks();
+export async function submitTroublemakerAction(firestore: Firestore, gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
   const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
 
   try {
@@ -844,8 +835,7 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
   }
 }
 
-export async function sendGhostMessage(gameId: string, ghostId: string, targetId: string, message: string) {
-    const { firestore } = getSdks();
+export async function sendGhostMessage(firestore: Firestore, gameId: string, ghostId: string, targetId: string, message: string) {
     const gameRef = doc(firestore, 'games', gameId);
     try {
         await runTransaction(firestore, async (transaction) => {
@@ -880,8 +870,7 @@ export async function sendGhostMessage(gameId: string, ghostId: string, targetId
 }
 
 
-async function triggerAIChat(gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
-    const { firestore } = getSdks();
+async function triggerAIChat(firestore: Firestore, gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
     try {
         const gameDoc = await getDoc(doc(firestore, 'games', gameId));
         if (!gameDoc.exists()) return;
@@ -907,7 +896,7 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
                 generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
                     if (shouldSend && message) {
                         await new Promise(resolve => setTimeout(resolve, Math.random() * 4000 + 1000));
-                        await sendChatMessage(gameId, aiPlayer.userId, aiPlayer.displayName, message, true);
+                        await sendChatMessage(firestore, gameId, aiPlayer.userId, aiPlayer.displayName, message, true);
                     }
                 }).catch(aiError => console.error(`Error generating AI chat for ${aiPlayer.displayName}:`, aiError));
             }
@@ -918,4 +907,35 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
 }
 
 
-export { processNight, processVotes, processJuryVotes } from './game-engine';
+export async function processNight(firestore: Firestore, gameId: string) {
+    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            await processNightEngine(transaction, gameRef);
+        });
+    } catch (e) {
+        console.error("Failed to process night", e);
+    }
+}
+
+export async function processVotes(firestore: Firestore, gameId: string) {
+    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            await processVotesEngine(transaction, gameRef);
+        });
+    } catch (e) {
+        console.error("Failed to process votes", e);
+    }
+}
+
+export async function processJuryVotes(firestore: Firestore, gameId: string) {
+    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            await processJuryVotesEngine(transaction, gameRef);
+        });
+    } catch (e) {
+        console.error("Failed to process jury votes", e);
+    }
+}

@@ -4,34 +4,27 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper Functions
     function isPlayer(gameId) {
       return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p => p.userId == request.auth.uid);
     }
     
     match /games/{gameId} {
-      // READ: Any authenticated user can read game data to view lobbies or join games.
       allow read: if request.auth != null;
 
-      // CREATE: Allow creation if the user is authenticated and is the creator of the game.
       allow create: if request.auth != null &&
                        request.resource.data.creator == request.auth.uid;
       
-      // UPDATE: More granular rules for updating a game document.
       allow update: if 
-          // The user must be authenticated.
           request.auth != null &&
           (
             // --- JOINING ---
-            // Allow a player to join a game that is in 'waiting' state.
             (
               resource.data.status == 'waiting' &&
               request.resource.data.players.size() == resource.data.players.size() + 1 &&
-              !isPlayer(gameId) // Ensure the user is not already in the game
+              !isPlayer(gameId) 
             ) ||
 
             // --- STARTING THE GAME ---
-            // Allow ONLY the creator to start the game.
             (
               resource.data.status == 'waiting' &&
               request.resource.data.status == 'in_progress' &&
@@ -39,7 +32,6 @@ service cloud.firestore {
             ) ||
             
             // --- IN-GAME ACTIONS (by the creator) ---
-            // Allow the creator to process phase changes.
             (
               resource.data.status == 'in_progress' &&
               request.auth.uid == resource.data.creator &&
@@ -47,14 +39,12 @@ service cloud.firestore {
             ) ||
 
             // --- IN-GAME ACTIONS (by players) ---
-            // Allow a player to perform their actions (vote, night action, avatar change).
             (
               isPlayer(gameId) &&
               request.resource.data.players.size() == resource.data.players.size()
             ) ||
             
             // --- RESETTING THE GAME ---
-            // Allow ONLY the creator to reset a finished game.
             (
                resource.data.status == 'finished' &&
                request.resource.data.status == 'waiting' &&
