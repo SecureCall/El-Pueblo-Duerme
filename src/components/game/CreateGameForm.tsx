@@ -192,7 +192,7 @@ export function CreateGameForm() {
         ...roleSettings
     };
     
-    const response = await createGame(firestore, {
+    const response = await createGame({
         userId,
         displayName: trimmedDisplayName,
         avatarUrl,
@@ -389,5 +389,3 @@ export function CreateGameForm() {
     </Card>
   );
 }
-
-    

@@ -169,5 +169,3 @@ export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobby
     </>
   );
 }
-
-    
