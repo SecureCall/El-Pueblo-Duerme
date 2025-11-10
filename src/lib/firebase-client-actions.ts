@@ -35,7 +35,6 @@ import {
   sendGhostMessage as sendGhostMessageServer
 } from './firebase-actions';
 
-export { createGameServer as createGame };
 export { startGameServer as startGame };
 export { submitHunterShotServer as submitHunterShot };
 export { submitTroublemakerActionServer as submitTroublemakerAction };
@@ -49,6 +48,21 @@ export { submitVoteServer as submitVote };
 export { submitNightActionServer as submitNightAction };
 export { submitJuryVoteServer as submitJuryVote };
 export { sendGhostMessageServer as sendGhostMessage };
+
+
+export async function createGame(
+  firestore: Firestore,
+  options: {
+    userId: string;
+    displayName: string;
+    avatarUrl: string;
+    gameName: string;
+    maxPlayers: number;
+    settings: Game['settings'];
+  }
+) {
+    return createGameServer(options);
+}
 
 
 export async function joinGame(
@@ -123,7 +137,7 @@ export async function joinGame(
       };
 
       transaction.update(gameRef, {
-        players: [...game.players, toPlainObject(newPlayer)],
+        players: arrayUnion(toPlainObject(newPlayer)),
         lastActiveAt: Timestamp.now(),
       });
     });
@@ -179,3 +193,5 @@ export async function getSeerResult(firestore: Firestore, gameId: string, seerId
 
     return { success: true, isWerewolf, targetName: targetPlayer.displayName };
 }
+
+    

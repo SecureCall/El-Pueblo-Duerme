@@ -29,7 +29,7 @@ const revealRoleAction: MasterAction = {
             round: game.currentRound,
             type: 'special',
             message: `El Máster te ha revelado un secreto. Has visto que ${targetPlayer.displayName} es un(a) ${roleDetails[targetPlayer.role!]?.name || 'Desconocido'}.`,
-            createdAt: Timestamp.now(),
+            createdAt: new Date(),
             data: { 
                 targetId: sourceId, // The event is directed TO the source player
                 revealedPlayerId: targetId,

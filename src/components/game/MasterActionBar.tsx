@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Game } from '@/types';
@@ -84,3 +85,5 @@ export function MasterActionBar({ game, masterActionState, setMasterActionState 
         </TooltipProvider>
     );
 }
+
+    
