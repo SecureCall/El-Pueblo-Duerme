@@ -9,6 +9,7 @@ import {
   Timestamp,
   runTransaction,
   type Firestore,
+  DocumentReference,
 } from "firebase/firestore";
 import { 
   type Game, 
@@ -21,9 +22,7 @@ import {
 } from "@/types";
 import { toPlainObject } from "./utils";
 import { runAIActions } from "./ai-actions";
-import { createGame as createGameServer, startGame as startGameServer, submitHunterShot as submitHunterShotServer, getSeerResult as getSeerResultServer, submitTroublemakerAction as submitTroublemakerActionServer } from './firebase-actions';
-import { getSdks } from "@/firebase/server-init";
-import { killPlayer, killPlayerUnstoppable, checkGameOver } from "./game-engine";
+import { createGame as createGameServer, startGame as startGameServer, submitHunterShot as submitHunterShotServer, submitTroublemakerAction as submitTroublemakerActionServer } from './firebase-actions';
 
 export async function createGame(options: {
     userId: string;
@@ -77,7 +76,7 @@ export async function joinGame(
         throw new Error("Esta partida está llena.");
       }
       
-      const newPlayer = {
+      const newPlayer: Player = {
           userId,
           gameId,
           displayName: displayName.trim(),
@@ -258,13 +257,7 @@ export async function submitVote(firestore: Firestore, gameId: string, voterId: 
     }
 }
 
-export async function sendChatMessage(
-    firestore: Firestore,
-    gameId: string,
-    senderId: string,
-    senderName: string,
-    text: string
-) {
+export async function sendChatMessage(firestore: Firestore, gameId: string, senderId: string, senderName: string, text: string) {
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
@@ -305,14 +298,7 @@ export async function sendChatMessage(
     }
 }
 
-export async function sendSpecialChatMessage(
-    firestore: Firestore,
-    gameId: string,
-    senderId: string,
-    senderName: string,
-    text: string,
-    chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost'
-) {
+export async function sendSpecialChatMessage(firestore: Firestore, gameId: string, senderId: string, senderName: string, text: string, chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost') {
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
@@ -411,7 +397,6 @@ export async function submitJuryVote(firestore: Firestore, gameId: string, juror
     }
 }
 
-
 export async function sendGhostMessage(firestore: Firestore, gameId: string, ghostId: string, targetId: string, message: string) {
     const gameRef = doc(firestore, 'games', gameId);
     try {
@@ -446,11 +431,28 @@ export async function sendGhostMessage(firestore: Firestore, gameId: string, gho
     }
 }
 
+// These functions now call the server action, which contains the full logic.
+export async function getSeerResult(firestore: Firestore, gameId: string, seerId: string, targetId: string) {
+    const gameDoc = await getDoc(doc(firestore, 'games', gameId));
+    if (!gameDoc.exists()) throw new Error("Game not found");
+    const game = gameDoc.data() as Game;
 
-// These functions are now called from the client, but they in turn call the server actions.
-// This maintains the `'use client'` boundary while keeping the logic on the server.
-export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
-    return getSeerResultServer(gameId, seerId, targetId);
+    const seerPlayer = game.players.find(p => p.userId === seerId);
+    if (!seerPlayer || (seerPlayer.role !== 'seer' && !(seerPlayer.role === 'seer_apprentice' && game.seerDied))) {
+        throw new Error("No tienes el don de la videncia.");
+    }
+
+    const targetPlayer = game.players.find(p => p.userId === targetId);
+    if (!targetPlayer) throw new Error("Target player not found");
+
+    const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
+    const isWerewolf = !!(targetPlayer.role && (wolfRoles.includes(targetPlayer.role) || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope)));
+
+    return { success: true, isWerewolf, targetName: targetPlayer.displayName };
+}
+
+export async function startGame(gameId: string, creatorId: string) {
+    return startGameServer(gameId, creatorId);
 }
 
 export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
@@ -459,8 +461,4 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
 
 export async function submitTroublemakerAction(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
     return submitTroublemakerActionServer(gameId, troublemakerId, target1Id, target2Id);
-}
-
-export async function startGame(gameId: string, creatorId: string) {
-    return startGameServer(gameId, creatorId);
 }

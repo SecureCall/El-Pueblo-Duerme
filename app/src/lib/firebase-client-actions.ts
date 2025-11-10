@@ -8,9 +8,8 @@ import {
   arrayUnion,
   Timestamp,
   runTransaction,
-  type Transaction,
-  DocumentReference,
   type Firestore,
+  DocumentReference,
 } from "firebase/firestore";
 import { 
   type Game, 
@@ -20,42 +19,24 @@ import {
   type PlayerRole, 
   type NightActionType, 
   type ChatMessage,
-  type AIPlayerPerspective
 } from "@/types";
 import { toPlainObject } from "./utils";
-import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { runAIActions } from "./ai-actions";
+import { createGame as createGameServer, startGame as startGameServer, submitHunterShot as submitHunterShotServer, submitTroublemakerAction as submitTroublemakerActionServer } from './firebase-actions';
+import { sendWolfChatMessage as sendWolfChatMessageServer, sendFairyChatMessage as sendFairyChatMessageServer, sendLoversChatMessage as sendLoversChatMessageServer, sendTwinChatMessage as sendTwinChatMessageServer, sendGhostChatMessage as sendGhostChatMessageServer } from "./firebase-actions";
 
-const createPlayerObject = (userId: string, gameId: string, displayName: string, avatarUrl: string, isAI: boolean = false): Player => ({
-    userId,
-    gameId,
-    displayName: displayName.trim(),
-    avatarUrl,
-    role: null,
-    isAlive: true,
-    votedFor: null,
-    joinedAt: Timestamp.now(),
-    isAI,
-    isExiled: false,
-    lastHealedRound: 0,
-    potions: { poison: null, save: null },
-    priestSelfHealUsed: false,
-    princeRevealed: false,
-    guardianSelfProtects: 0,
-    biteCount: 0,
-    isCultMember: false,
-    isLover: false,
-    usedNightAbility: false,
-    shapeshifterTargetId: null,
-    virginiaWoolfTargetId: null,
-    riverSirenTargetId: null,
-    ghostMessageSent: false,
-    resurrectorAngelUsed: false,
-    bansheeScreams: {},
-    lookoutUsed: false,
-    executionerTargetId: null,
-    secretObjectiveId: null,
-});
+
+export async function createGame(options: {
+    userId: string;
+    displayName: string;
+    avatarUrl: string;
+    gameName: string;
+    maxPlayers: number;
+    settings: Game['settings'];
+}) {
+    // This now directly calls the server action.
+    return createGameServer(options);
+}
 
 export async function joinGame(
   firestore: Firestore,
@@ -97,7 +78,37 @@ export async function joinGame(
         throw new Error("Esta partida está llena.");
       }
       
-      const newPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
+      const newPlayer: Player = {
+          userId,
+          gameId,
+          displayName: displayName.trim(),
+          avatarUrl,
+          role: null,
+          isAlive: true,
+          votedFor: null,
+          joinedAt: Timestamp.now(),
+          isAI: false,
+          isExiled: false,
+          lastHealedRound: 0,
+          potions: { poison: null, save: null },
+          priestSelfHealUsed: false,
+          princeRevealed: false,
+          guardianSelfProtects: 0,
+          biteCount: 0,
+          isCultMember: false,
+          isLover: false,
+          usedNightAbility: false,
+          shapeshifterTargetId: null,
+          virginiaWoolfTargetId: null,
+          riverSirenTargetId: null,
+          ghostMessageSent: false,
+          resurrectorAngelUsed: false,
+          bansheeScreams: {},
+          lookoutUsed: false,
+          executionerTargetId: null,
+          secretObjectiveId: null,
+      };
+
       transaction.update(gameRef, {
         players: arrayUnion(toPlainObject(newPlayer)),
         lastActiveAt: Timestamp.now(),
@@ -206,99 +217,15 @@ export async function submitNightAction(firestore: Firestore, action: Omit<Night
   }
 }
 
-export async function getSeerResult(firestore: Firestore, gameId: string, seerId: string, targetId: string) {
-    try {
-        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
-        if (!gameDoc.exists()) throw new Error("Game not found");
-        const game = gameDoc.data() as Game;
-
-        const seerPlayer = game.players.find(p => p.userId === seerId);
-        if (!seerPlayer || (seerPlayer.role !== 'seer' && !(seerPlayer.role === 'seer_apprentice' && game.seerDied))) {
-            throw new Error("No tienes el don de la videncia.");
-        }
-
-        const targetPlayer = game.players.find(p => p.userId === targetId);
-        if (!targetPlayer) throw new Error("Target player not found");
-
-        const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
-        const isWerewolf = !!(targetPlayer.role && (wolfRoles.includes(targetPlayer.role) || targetPlayer.role === 'lycanthrope'));
-
-        return { success: true, isWerewolf, targetName: targetPlayer.displayName };
-    } catch (error: any) {
-        console.error("Error getting seer result: ", error);
-        return { success: false, error: error.message };
-    }
-}
-
-export async function submitHunterShot(firestore: Firestore, gameId: string, hunterId: string, targetId: string) {
-    const { firestore: serverFirestore } = getSdks();
-    const gameRef = doc(serverFirestore, 'games', gameId) as DocumentReference<Game>;
-
-    try {
-        await runTransaction(serverFirestore, async (transaction) => {
-            const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found");
-            let game = gameSnap.data()!;
-            
-            if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId || game.status === 'finished') {
-                return;
-            }
-
-            const { updatedGame, triggeredHunterId: newTriggeredHunter } = await killPlayer(transaction, gameRef, game, targetId, 'hunter_shot');
-            
-            game = updatedGame;
-            
-            game.events.push({
-                id: `evt_huntershot_${Date.now()}`, gameId, round: game.currentRound, type: 'hunter_shot',
-                message: `En su último aliento, ${game.players.find(p=>p.userId === hunterId)?.displayName} dispara y se lleva consigo a ${game.players.find(p=>p.userId === targetId)?.displayName}.`,
-                createdAt: Timestamp.now(), data: {killedPlayerIds: [targetId]},
-            });
-
-            if (newTriggeredHunter) {
-                game.pendingHunterShot = newTriggeredHunter;
-                transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot }));
-                return;
-            }
-            
-            const gameOverInfo = await checkGameOver(game, null);
-            if (gameOverInfo.isGameOver) {
-                game.status = "finished";
-                game.phase = "finished";
-                game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
-                transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: game.players, events: game.events }));
-                return;
-            }
-            
-            const hunterDeathEvent = [...game.events].sort((a, b) => toPlainObject(b.createdAt).getTime() - toPlainObject(a.createdAt).getTime()).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
-            
-            const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
-            const currentRound = game.currentRound;
-            const newRound = nextPhase === 'night' ? currentRound + 1 : currentRound;
-
-            game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; p.isExiled = false; });
-            const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
-            
-            transaction.update(gameRef, toPlainObject({
-                players: game.players, events: game.events, phase: nextPhase, phaseEndsAt,
-                currentRound: newRound, pendingHunterShot: null
-            }));
-        });
-        return { success: true };
-    } catch (error: any) {
-        console.error("CRITICAL ERROR in submitHunterShot: ", error);
-        return { success: false, error: error.message || "No se pudo registrar el disparo." };
-    }
-}
-
 export async function submitVote(firestore: Firestore, gameId: string, voterId: string, targetId: string) {
-    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+    const gameRef = doc(firestore, 'games', gameId);
     
     try {
        await runTransaction(firestore, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
             
-            let game = gameSnap.data()!;
+            let game = gameSnap.data() as Game;
             if (game.phase !== 'day' || game.status === 'finished') return;
             
             const playerIndex = game.players.findIndex(p => p.userId === voterId && p.isAlive);
@@ -332,13 +259,7 @@ export async function submitVote(firestore: Firestore, gameId: string, voterId: 
     }
 }
 
-export async function sendChatMessage(
-    firestore: Firestore,
-    gameId: string,
-    senderId: string,
-    senderName: string,
-    text: string
-) {
+export async function sendChatMessage(firestore: Firestore, gameId: string, senderId: string, senderName: string, text: string) {
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
@@ -379,89 +300,6 @@ export async function sendChatMessage(
     }
 }
 
-export async function sendSpecialChatMessage(
-    firestore: Firestore,
-    gameId: string,
-    senderId: string,
-    senderName: string,
-    text: string,
-    chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost'
-) {
-    if (!text?.trim()) {
-        return { success: false, error: 'El mensaje no puede estar vacío.' };
-    }
-
-    const gameRef = doc(firestore, 'games', gameId);
-
-    try {
-        await runTransaction(firestore, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error('Game not found');
-            const game = gameDoc.data() as Game;
-            
-            const sender = game.players.find(p => p.userId === senderId);
-            if (!sender) throw new Error("Sender not found.");
-
-            const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
-            const fairyRoles: PlayerRole[] = ['seeker_fairy', 'sleeping_fairy'];
-
-            let canSend = false;
-            let chatField: keyof Game = 'chatMessages';
-
-            switch (chatType) {
-                case 'wolf':
-                    if (sender.role && wolfRoles.includes(sender.role)) {
-                        canSend = true;
-                        chatField = 'wolfChatMessages';
-                    }
-                    break;
-                case 'fairy':
-                    if (sender.role && fairyRoles.includes(sender.role) && game.fairiesFound) {
-                        canSend = true;
-                        chatField = 'fairyChatMessages';
-                    }
-                    break;
-                case 'lovers':
-                    if (sender.isLover) {
-                        canSend = true;
-                        chatField = 'loversChatMessages';
-                    }
-                    break;
-                 case 'twin':
-                    if (game.twins?.includes(senderId)) {
-                        canSend = true;
-                        chatField = 'twinChatMessages';
-                    }
-                    break;
-                case 'ghost':
-                    if (!sender.isAlive) {
-                        canSend = true;
-                        chatField = 'ghostChatMessages';
-                    }
-                    break;
-            }
-
-            if (!canSend) {
-                throw new Error("No tienes permiso para enviar mensajes en este chat.");
-            }
-
-            const messageData: ChatMessage = {
-                id: `${Date.now()}_${senderId}`,
-                senderId, senderName, text: text.trim(),
-                round: game.currentRound, createdAt: Timestamp.now(),
-            };
-
-            transaction.update(gameRef, { [chatField]: arrayUnion(toPlainObject(messageData)) });
-        });
-
-        return { success: true };
-
-    } catch (error: any) {
-        console.error(`Error sending ${chatType} chat message: `, error);
-        return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
-    }
-}
-
 export async function submitJuryVote(firestore: Firestore, gameId: string, jurorId: string, targetId: string) {
     const gameRef = doc(firestore, 'games', gameId);
     try {
@@ -483,53 +321,6 @@ export async function submitJuryVote(firestore: Firestore, gameId: string, juror
         console.error("Error submitting jury vote:", error);
         return { success: false, error: error.message };
     }
-}
-
-export async function submitTroublemakerAction(firestore: Firestore, gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
-    const { firestore: serverFirestore } = getSdks();
-    const gameRef = doc(serverFirestore, 'games', gameId) as DocumentReference<Game>;
-    
-    try {
-    await runTransaction(serverFirestore, async (transaction) => {
-      const gameSnap = await transaction.get(gameRef);
-      if (!gameSnap.exists()) throw new Error("Partida no encontrada");
-      let game = gameSnap.data()!;
-
-      if (game.status === 'finished') return;
-
-      const player = game.players.find(p => p.userId === troublemakerId);
-      if (!player || player.role !== 'troublemaker' || game.troublemakerUsed) {
-        throw new Error("No puedes realizar esta acción.");
-      }
-
-      const target1 = game.players.find(p => p.userId === target1Id);
-      const target2 = game.players.find(p => p.userId === target2Id);
-
-      if (!target1 || !target2 || !target1.isAlive || !target2.isAlive) {
-        throw new Error("Los objetivos seleccionados no son válidos.");
-      }
-      
-      let { updatedGame } = await killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, target1Id, 'troublemaker_duel');
-      game = updatedGame;
-      
-      let finalResult = await killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, target2Id, 'troublemaker_duel');
-      game = finalResult.updatedGame;
-
-      game.events.push({
-        id: `evt_trouble_${Date.now()}`, gameId, round: game.currentRound, type: 'special',
-        message: `${player.displayName} ha provocado una pelea mortal. ${target1.displayName} y ${target2.displayName} han sido eliminados.`,
-        createdAt: Timestamp.now(), data: { killedPlayerIds: [target1Id, target2Id] }
-      });
-      game.troublemakerUsed = true;
-      
-      transaction.update(gameRef, toPlainObject(game));
-    });
-
-    return { success: true };
-  } catch (error: any) {
-    console.error("Error submitting troublemaker action:", error);
-    return { success: false, error: error.message || "No se pudo realizar la acción." };
-  }
 }
 
 export async function sendGhostMessage(firestore: Firestore, gameId: string, ghostId: string, targetId: string, message: string) {
@@ -566,4 +357,41 @@ export async function sendGhostMessage(firestore: Firestore, gameId: string, gho
     }
 }
 
-    
+export async function getSeerResult(firestore: Firestore, gameId: string, seerId: string, targetId: string) {
+    const gameDoc = await getDoc(doc(firestore, 'games', gameId));
+    if (!gameDoc.exists()) throw new Error("Game not found");
+    const game = gameDoc.data() as Game;
+
+    const seerPlayer = game.players.find(p => p.userId === seerId);
+    if (!seerPlayer || (seerPlayer.role !== 'seer' && !(seerPlayer.role === 'seer_apprentice' && game.seerDied))) {
+        throw new Error("No tienes el don de la videncia.");
+    }
+
+    const targetPlayer = game.players.find(p => p.userId === targetId);
+    if (!targetPlayer) throw new Error("Target player not found");
+
+    const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
+    const isWerewolf = !!(targetPlayer.role && (wolfRoles.includes(targetPlayer.role) || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope)));
+
+    return { success: true, isWerewolf, targetName: targetPlayer.displayName };
+}
+
+// These functions now call the server action, which contains the full logic.
+export async function startGame(gameId: string, creatorId: string) {
+    return startGameServer(gameId, creatorId);
+}
+
+export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
+   return submitHunterShotServer(gameId, hunterId, targetId);
+}
+
+export async function submitTroublemakerAction(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
+    return submitTroublemakerActionServer(gameId, troublemakerId, target1Id, target2Id);
+}
+
+export const sendWolfChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendWolfChatMessageServer(gameId, senderId, senderName, text);
+export const sendFairyChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendFairyChatMessageServer(gameId, senderId, senderName, text);
+export const sendLoversChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendLoversChatMessageServer(gameId, senderId, senderName, text);
+export const sendTwinChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendTwinChatMessageServer(gameId, senderId, senderName, text);
+export const sendGhostChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendGhostChatMessageServer(gameId, senderId, senderName, text);
+
