@@ -26,6 +26,7 @@ import { getSdks } from "@/firebase/server-init";
 import { secretObjectives } from "./objectives";
 import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
+import { getDeterministicAIAction } from './server-ai-actions';
 
 
 const PHASE_DURATION_SECONDS = 60;
@@ -273,6 +274,12 @@ export async function startGame(gameId: string, creatorId: string) {
             }));
         });
         
+        // After starting, immediately schedule the first night phase
+        setTimeout(() => {
+            processNight(gameId);
+        }, 15000);
+
+
         return { success: true };
 
     } catch (e: any) {
@@ -317,6 +324,186 @@ export async function resetGame(gameId: string) {
     }
 }
 
+export async function sendChatMessage(
+    gameId: string,
+    senderId: string,
+    senderName: string,
+    text: string,
+    isFromAI: boolean = false
+) {
+    const { firestore } = getSdks();
+    if (!text?.trim()) {
+        return { success: false, error: 'El mensaje no puede estar vacío.' };
+    }
+
+    const gameRef = doc(firestore, 'games', gameId);
+
+    try {
+        let latestGame: Game | null = null;
+        await runTransaction(firestore, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error('Game not found');
+            const game = gameDoc.data() as Game;
+            latestGame = game;
+
+            if (game.silencedPlayerId === senderId) {
+                throw new Error("No puedes hablar, has sido silenciado esta ronda.");
+            }
+            
+            const textLowerCase = text.toLowerCase();
+            const mentionedPlayerIds = game.players
+                .filter(p => p.isAlive && textLowerCase.includes(p.displayName.toLowerCase()))
+                .map(p => p.userId);
+            
+            const messageData: ChatMessage = {
+                id: `${Date.now()}_${senderId}`,
+                senderId, senderName, text: text.trim(), round: game.currentRound,
+                createdAt: Timestamp.now(), mentionedPlayerIds,
+            };
+
+            transaction.update(gameRef, { chatMessages: arrayUnion(toPlainObject(messageData)) });
+        });
+
+        if (!isFromAI && latestGame) {
+            const triggerMessage = `${senderName} dijo: "${text.trim()}"`;
+            await triggerAIChat(gameId, triggerMessage, 'public');
+        }
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error("Error sending chat message: ", error);
+        return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
+    }
+}
+
+async function sendSpecialChatMessage(
+    gameId: string,
+    senderId: string,
+    senderName: string,
+    text: string,
+    chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost'
+) {
+    const { firestore } = getSdks();
+    if (!text?.trim()) {
+        return { success: false, error: 'El mensaje no puede estar vacío.' };
+    }
+
+    const gameRef = doc(firestore, 'games', gameId);
+
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error('Game not found');
+            const game = gameDoc.data() as Game;
+            
+            const sender = game.players.find(p => p.userId === senderId);
+            if (!sender) throw new Error("Sender not found.");
+
+            const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
+            const fairyRoles: PlayerRole[] = ['seeker_fairy', 'sleeping_fairy'];
+
+            let canSend = false;
+            let chatField: keyof Game = 'chatMessages';
+
+            switch (chatType) {
+                case 'wolf':
+                    if (sender.role && wolfRoles.includes(sender.role)) {
+                        canSend = true;
+                        chatField = 'wolfChatMessages';
+                    }
+                    break;
+                case 'fairy':
+                    if (sender.role && fairyRoles.includes(sender.role) && game.fairiesFound) {
+                        canSend = true;
+                        chatField = 'fairyChatMessages';
+                    }
+                    break;
+                case 'lovers':
+                    if (sender.isLover) {
+                        canSend = true;
+                        chatField = 'loversChatMessages';
+                    }
+                    break;
+                 case 'twin':
+                    if (game.twins?.includes(senderId)) {
+                        canSend = true;
+                        chatField = 'twinChatMessages';
+                    }
+                    break;
+                case 'ghost':
+                    if (!sender.isAlive) {
+                        canSend = true;
+                        chatField = 'ghostChatMessages';
+                    }
+                    break;
+            }
+
+            if (!canSend) {
+                throw new Error("No tienes permiso para enviar mensajes en este chat.");
+            }
+
+            const messageData: ChatMessage = {
+                id: `${Date.now()}_${senderId}`,
+                senderId, senderName, text: text.trim(),
+                round: game.currentRound, createdAt: Timestamp.now(),
+            };
+
+            transaction.update(gameRef, { [chatField]: arrayUnion(toPlainObject(messageData)) });
+        });
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error(`Error sending ${chatType} chat message: `, error);
+        return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
+    }
+}
+
+export const sendWolfChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'wolf');
+export const sendFairyChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'fairy');
+export const sendLoversChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'lovers');
+export const sendTwinChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'twin');
+export const sendGhostChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'ghost');
+
+
+async function triggerAIChat(gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
+    const { firestore } = getSdks();
+    try {
+        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
+        if (!gameDoc.exists()) return;
+
+        const game = gameDoc.data() as Game;
+        if (game.status === 'finished') return;
+
+        const aiPlayersToTrigger = game.players.filter(p => p.isAI && p.isAlive);
+
+        for (const aiPlayer of aiPlayersToTrigger) {
+             const isAccused = triggerMessage.toLowerCase().includes(aiPlayer.displayName.toLowerCase());
+             const shouldTrigger = isAccused ? Math.random() < 0.95 : Math.random() < 0.35;
+
+             if (shouldTrigger) {
+                const perspective: AIPlayerPerspective = {
+                    game: toPlainObject(game),
+                    aiPlayer: toPlainObject(aiPlayer),
+                    trigger: triggerMessage,
+                    players: toPlainObject(game.players),
+                    chatType,
+                };
+
+                generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
+                    if (shouldSend && message) {
+                        await new Promise(resolve => setTimeout(resolve, Math.random() * 4000 + 1000));
+                        await sendChatMessage(gameId, aiPlayer.userId, aiPlayer.displayName, message, true);
+                    }
+                }).catch(aiError => console.error(`Error generating AI chat for ${aiPlayer.displayName}:`, aiError));
+            }
+        }
+    } catch (e) {
+        console.error("Error in triggerAIChat:", e);
+    }
+}
+
 
 export async function processNight(gameId: string) {
     const { firestore } = getSdks();
@@ -325,6 +512,16 @@ export async function processNight(gameId: string) {
         await runTransaction(firestore, async (transaction) => {
             await processNightEngine(transaction, gameRef);
         });
+        
+        // After night processing, trigger AI actions for the new day
+        const gameDoc = await getDoc(gameRef);
+        if (gameDoc.exists()) {
+            const game = gameDoc.data();
+            if (game.phase === 'day') {
+                await triggerAIVote(gameId);
+            }
+        }
+
     } catch (e) {
         console.error("Failed to process night", e);
     }
@@ -337,6 +534,15 @@ export async function processVotes(gameId: string) {
         await runTransaction(firestore, async (transaction) => {
             await processVotesEngine(transaction, gameRef);
         });
+
+         // After vote processing, trigger AI actions for the new night
+        const gameDoc = await getDoc(gameRef);
+        if (gameDoc.exists()) {
+            const game = gameDoc.data();
+            if (game.phase === 'night') {
+                await runAIActions(gameId);
+            }
+        }
     } catch (e) {
         console.error("Failed to process votes", e);
     }
@@ -381,5 +587,99 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
     } catch (error: any) {
         console.error("Error executing master action:", error);
         return { success: false, error: error.message };
+    }
+}
+
+async function triggerAIVote(gameId: string) {
+    const { firestore } = getSdks();
+    try {
+        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
+        if (!gameDoc.exists()) return;
+        const game = gameDoc.data() as Game;
+        if (game.status === 'finished' || game.phase !== 'day') return;
+
+        const aiPlayersToVote = game.players.filter(p => p.isAI && p.isAlive && !p.votedFor);
+        const alivePlayers = game.players.filter(p => p.isAlive);
+        
+        for (const ai of aiPlayersToVote) {
+            const { targetId } = getDeterministicAIAction(ai, game, alivePlayers, []);
+            if (targetId) {
+                 await new Promise(resolve => setTimeout(resolve, Math.random() * 8000 + 2000));
+                 await submitVote(gameId, ai.userId, targetId);
+            }
+        }
+
+    } catch(e) {
+        console.error("Error in triggerAIVote:", e);
+    }
+}
+
+async function runAIActions(gameId: string) {
+    const { firestore } = getSdks();
+    try {
+        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
+        if (!gameDoc.exists()) return;
+        const game = gameDoc.data() as Game;
+
+        if(game.phase !== 'night' || game.status === 'finished') return;
+
+        await triggerPrivateAIChats(gameId, "La noche ha caído. ¿Cuál es nuestro plan?");
+
+        const aiPlayers = game.players.filter(p => p.isAI && p.isAlive && !p.usedNightAbility);
+        const alivePlayers = game.players.filter(p => p.isAlive);
+        const deadPlayers = game.players.filter(p => !p.isAlive);
+
+        for (const ai of aiPlayers) {
+            const { actionType, targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
+
+            if (!actionType || actionType === 'NONE' || !targetId || actionType === 'VOTE' || actionType === 'SHOOT') continue;
+
+            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
+            await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
+        }
+    } catch(e) {
+        console.error("Error in AI Actions:", e);
+    }
+}
+async function triggerPrivateAIChats(gameId: string, triggerMessage: string) {
+    const { firestore } = getSdks();
+     try {
+        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
+        if (!gameDoc.exists()) return;
+
+        const game = gameDoc.data() as Game;
+        if (game.status === 'finished') return;
+
+        const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
+        const twinIds = game.twins || [];
+        const loverIds = game.lovers || [];
+
+        const wolves = game.players.filter(p => p.isAI && p.isAlive && p.role && wolfRoles.includes(p.role));
+        const twins = game.players.filter(p => p.isAI && p.isAlive && twinIds.includes(p.userId));
+        const lovers = game.players.filter(p => p.isAI && p.isAlive && loverIds.includes(p.userId));
+
+        const processChat = async (players: Player[], chatType: 'wolf' | 'twin' | 'lovers', sendMessageFn: Function) => {
+            for (const aiPlayer of players) {
+                if (Math.random() < 0.8) { 
+                    const perspective: AIPlayerPerspective = {
+                        game: toPlainObject(game), aiPlayer: toPlainObject(aiPlayer), trigger: triggerMessage,
+                        players: toPlainObject(game.players), chatType,
+                    };
+                    generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
+                        if (shouldSend && message) {
+                            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
+                            await sendMessageFn(gameId, aiPlayer.userId, aiPlayer.displayName, message);
+                        }
+                    }).catch(err => console.error(`Error in private AI chat for ${aiPlayer.displayName}:`, err));
+                }
+            }
+        };
+
+        if (wolves.length > 1) await processChat(wolves, 'wolf', sendWolfChatMessage);
+        if (twins.length > 1) await processChat(twins, 'twin', sendTwinChatMessage);
+        if (lovers.length > 1) await processChat(lovers, 'lovers', sendLoversChatMessage);
+
+    } catch (e) {
+        console.error("Error in triggerPrivateAIChats:", e);
     }
 }

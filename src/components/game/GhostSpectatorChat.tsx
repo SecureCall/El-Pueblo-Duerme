@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -14,7 +13,6 @@ import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getMillis } from '@/lib/utils';
-import { useFirebase } from '@/firebase';
 
 interface GhostSpectatorChatProps {
     gameId: string;
@@ -26,7 +24,6 @@ export function GhostSpectatorChat({ gameId, currentPlayer, messages }: GhostSpe
     const [newMessage, setNewMessage] = useState('');
     const { toast } = useToast();
     const scrollAreaRef = useRef<HTMLDivElement>(null);
-    const { firestore } = useFirebase();
 
     useEffect(() => {
         if (scrollAreaRef.current) {
@@ -35,9 +32,9 @@ export function GhostSpectatorChat({ gameId, currentPlayer, messages }: GhostSpe
     }, [messages]);
 
     const handleSendMessage = async () => {
-        if (!newMessage.trim() || !firestore) return;
+        if (!newMessage.trim()) return;
         
-        const res = await sendGhostChatMessage(firestore, gameId, currentPlayer.userId, currentPlayer.displayName, newMessage);
+        const res = await sendGhostChatMessage(gameId, currentPlayer.userId, currentPlayer.displayName, newMessage);
 
         if (res.success) {
             setNewMessage('');
