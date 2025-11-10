@@ -13,10 +13,9 @@ service cloud.firestore {
       // READ: Any authenticated user can read game data to view lobbies or join games.
       allow read: if request.auth != null;
 
-      // CREATE: Allow creation if the user is authenticated and is the first and only player in the list.
-      allow create: if request.auth != null && 
-                       request.resource.data.players.size() == 1 &&
-                       request.resource.data.players[0].userId == request.auth.uid;
+      // CREATE: Allow creation if the user is authenticated and is the creator of the game.
+      allow create: if request.auth != null &&
+                       request.resource.data.creator == request.auth.uid;
       
       // UPDATE: More granular rules for updating a game document.
       allow update: if 

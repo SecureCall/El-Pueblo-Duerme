@@ -96,15 +96,13 @@ export async function createGame(
   const gameId = generateGameId();
   const gameRef = doc(firestore, "games", gameId);
       
-  const creatorPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
-
   const gameData: Game = {
       id: gameId,
       name: gameName.trim(),
       status: "waiting",
       phase: "waiting", 
       creator: userId,
-      players: [creatorPlayer], 
+      players: [], // Start with an empty player list, creator will join in the GameRoom
       events: [],
       chatMessages: [],
       wolfChatMessages: [],
@@ -916,49 +914,6 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
         }
     } catch (e) {
         console.error("Error in triggerAIChat:", e);
-    }
-}
-
-async function triggerPrivateAIChats(gameId: string, triggerMessage: string) {
-    const { firestore } = getSdks();
-     try {
-        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
-        if (!gameDoc.exists()) return;
-
-        const game = gameDoc.data() as Game;
-        if (game.status === 'finished') return;
-
-        const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
-        const twinIds = game.twins || [];
-        const loverIds = game.lovers || [];
-
-        const wolves = game.players.filter(p => p.isAI && p.isAlive && p.role && wolfRoles.includes(p.role));
-        const twins = game.players.filter(p => p.isAI && p.isAlive && twinIds.includes(p.userId));
-        const lovers = game.players.filter(p => p.isAI && p.isAlive && loverIds.includes(p.userId));
-
-        const processChat = async (players: Player[], chatType: 'wolf' | 'twin' | 'lovers', sendMessageFn: Function) => {
-            for (const aiPlayer of players) {
-                if (Math.random() < 0.8) { 
-                    const perspective: AIPlayerPerspective = {
-                        game: toPlainObject(game), aiPlayer: toPlainObject(aiPlayer), trigger: triggerMessage,
-                        players: toPlainObject(game.players), chatType,
-                    };
-                    generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
-                        if (shouldSend && message) {
-                            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
-                            await sendMessageFn(gameId, aiPlayer.userId, aiPlayer.displayName, message);
-                        }
-                    }).catch(err => console.error(`Error in private AI chat for ${aiPlayer.displayName}:`, err));
-                }
-            }
-        };
-
-        if (wolves.length > 1) await processChat(wolves, 'wolf', sendWolfChatMessage);
-        if (twins.length > 1) await processChat(twins, 'twin', sendTwinChatMessage);
-        if (lovers.length > 1) await processChat(lovers, 'lovers', sendLoversChatMessage);
-
-    } catch (e) {
-        console.error("Error in triggerPrivateAIChats:", e);
     }
 }
 
