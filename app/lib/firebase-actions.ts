@@ -96,13 +96,15 @@ export async function createGame(
   const gameId = generateGameId();
   const gameRef = doc(firestore, "games", gameId);
       
+  const creatorPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
+
   const gameData: Game = {
       id: gameId,
       name: gameName.trim(),
       status: "waiting",
       phase: "waiting", 
       creator: userId,
-      players: [], // CRITICAL: Start with an empty player list. Creator will join in the GameRoom.
+      players: [creatorPlayer], // ADD CREATOR DIRECTLY
       events: [],
       chatMessages: [],
       wolfChatMessages: [],

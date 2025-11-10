@@ -2,54 +2,34 @@
 'use client';
 import { 
   doc,
-  getDoc,
-  Timestamp,
   runTransaction,
   type Firestore,
-  DocumentReference,
   arrayUnion,
-  updateDoc,
+  Timestamp,
+  getDoc
 } from "firebase/firestore";
 import { 
   type Game, 
   type Player, 
-  type NightAction, 
-  type GameEvent, 
-  type PlayerRole, 
 } from "@/types";
 import { toPlainObject } from "./utils";
-import { 
-  startGame as startGameServer, 
-  submitHunterShot as submitHunterShotServer, 
-  submitTroublemakerAction as submitTroublemakerActionServer,
-  sendWolfChatMessage as sendWolfChatMessageServer,
-  sendFairyChatMessage as sendFairyChatMessageServer,
-  sendLoversChatMessage as sendLoversChatMessageServer,
-  sendTwinChatMessage as sendTwinChatMessageServer,
-  sendGhostChatMessage as sendGhostChatMessageServer,
-  sendChatMessage as sendChatMessageServer,
-  submitVote as submitVoteServer,
-  submitNightAction as submitNightActionServer,
-  submitJuryVote as submitJuryVoteServer,
-  sendGhostMessage as sendGhostMessageServer,
-  createGame as createGameServer
-} from './firebase-actions';
 
-// These functions now call the server action, which contains the full logic.
-export { createGameServer as createGame };
-export { startGameServer as startGame };
-export { submitHunterShotServer as submitHunterShot };
-export { submitTroublemakerActionServer as submitTroublemakerAction };
-export { sendWolfChatMessageServer as sendWolfChatMessage };
-export { sendFairyChatMessageServer as sendFairyChatMessage };
-export { sendLoversChatMessageServer as sendLoversChatMessage };
-export { sendTwinChatMessageServer as sendTwinChatMessage };
-export { sendGhostChatMessageServer as sendGhostChatMessage };
-export { sendChatMessageServer as sendChatMessage };
-export { submitVoteServer as submitVote };
-export { submitNightActionServer as submitNightAction };
-export { submitJuryVoteServer as submitJuryVote };
-export { sendGhostMessageServer as sendGhostMessage };
+export { 
+  createGame,
+  startGame,
+  sendChatMessage,
+  sendWolfChatMessage,
+  sendFairyChatMessage,
+  sendLoversChatMessage,
+  sendTwinChatMessage,
+  sendGhostChatMessage,
+  submitNightAction,
+  submitVote,
+  submitJuryVote,
+  submitHunterShot,
+  submitTroublemakerAction,
+  sendGhostMessage
+} from './firebase-actions';
 
 
 export async function joinGame(
@@ -72,9 +52,6 @@ export async function joinGame(
       const game = gameSnap.data() as Game;
 
       if (game.status !== "waiting" && !game.players.some(p => p.userId === userId)) {
-        if (!game.settings.isPublic) {
-            throw new Error("Esta es una partida privada y no se puede unir a través de un enlace.");
-        }
         throw new Error("Esta partida ya ha comenzado.");
       }
       
@@ -180,5 +157,3 @@ export async function getSeerResult(firestore: Firestore, gameId: string, seerId
 
     return { success: true, isWerewolf, targetName: targetPlayer.displayName };
 }
-
-    

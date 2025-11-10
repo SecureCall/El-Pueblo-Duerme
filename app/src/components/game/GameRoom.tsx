@@ -33,7 +33,10 @@ export function GameRoom({ gameId }: { gameId: string }) {
   );
 
   const handleJoinGame = useCallback(async () => {
-    if (!displayName || !firestore || !avatarUrl || !userId) return;
+    if (!displayName || !firestore || !avatarUrl || !userId || !game) return;
+    
+    const isPlayerInGame = game.players.some(p => p.userId === userId);
+    if (isPlayerInGame) return;
 
     setIsJoining(true);
     setJoinError(null);
@@ -47,13 +50,13 @@ export function GameRoom({ gameId }: { gameId: string }) {
       }
     }
     setIsJoining(false);
-  }, [displayName, firestore, gameId, userId, setDisplayName, avatarUrl]);
+  }, [gameId, userId, displayName, avatarUrl, game, firestore, setDisplayName]);
 
   useEffect(() => {
     if (isSessionLoaded && game && displayName && !currentPlayer && game.status === 'waiting' && !isJoining) {
       handleJoinGame();
     }
-  }, [game, displayName, currentPlayer, isJoining, handleJoinGame, isSessionLoaded]);
+  }, [isSessionLoaded, game, displayName, currentPlayer, isJoining, handleJoinGame]);
 
   const getMusicSrc = () => {
     if (!game) return '/audio/lobby-theme.mp3';
@@ -110,12 +113,21 @@ export function GameRoom({ gameId }: { gameId: string }) {
         );
     }
     
-    // Player is not in the game, and it's a private game they tried to access via URL
-    if (!currentPlayer && game.status === 'waiting' && !game.settings.isPublic) {
+    if (!currentPlayer && game.status === 'waiting' && game.players.length >= game.maxPlayers) {
+         return (
+             <div className='text-center text-white space-y-4'>
+                <p className="text-destructive text-2xl font-bold">Esta partida está llena.</p>
+                 <Button asChild>
+                    <Link href="/"><ArrowLeft className="mr-2" /> Volver al Inicio</Link>
+                </Button>
+            </div>
+        );
+    }
+
+    if (!currentPlayer && game.status !== 'waiting') {
         return (
-            <div className='text-center text-white space-y-4'>
-                <p className="text-destructive text-2xl font-bold">Esta es una partida privada.</p>
-                <p className="text-lg">No puedes unirte a través de un enlace. Pide al creador el código de la partida.</p>
+             <div className='text-center text-white space-y-4'>
+                <p className="text-destructive text-2xl font-bold">Esta partida ya ha comenzado.</p>
                  <Button asChild>
                     <Link href="/"><ArrowLeft className="mr-2" /> Volver al Inicio</Link>
                 </Button>
@@ -125,26 +137,6 @@ export function GameRoom({ gameId }: { gameId: string }) {
 
 
     if (!currentPlayer) {
-        if (game.status !== 'waiting') {
-            return (
-                 <div className='text-center text-white space-y-4'>
-                    <p className="text-destructive text-2xl font-bold">Esta partida ya ha comenzado.</p>
-                     <Button asChild>
-                        <Link href="/"><ArrowLeft className="mr-2" /> Volver al Inicio</Link>
-                    </Button>
-                </div>
-            );
-        }
-         if (players.length >= game.maxPlayers) {
-            return (
-                 <div className='text-center text-white space-y-4'>
-                    <p className="text-destructive text-2xl font-bold">Esta partida está llena.</p>
-                     <Button asChild>
-                        <Link href="/"><ArrowLeft className="mr-2" /> Volver al Inicio</Link>
-                    </Button>
-                </div>
-            );
-        }
         return (
             <div className="flex flex-col items-center gap-4 text-white">
                 <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -155,7 +147,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
     
     switch (game.status) {
         case 'waiting':
-            return <GameLobby game={game} players={players} isCreator={game.creator === userId} />;
+            return <GameLobby game={game} players={players} isCreator={game.creator === userId} currentPlayer={currentPlayer} />;
         case 'in_progress':
         case 'finished':
             return <GameBoard gameId={gameId} />;
@@ -183,5 +175,3 @@ export function GameRoom({ gameId }: { gameId: string }) {
     </div>
   );
 }
-
-    

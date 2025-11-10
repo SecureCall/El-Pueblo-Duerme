@@ -9,7 +9,7 @@ import Image from "next/image";
 
 
 import { useGameSession } from "@/hooks/use-game-session";
-import { createGame } from "@/lib/firebase-actions";
+import { createGame } from "@/lib/firebase-client-actions";
 import { Button } from "@/components/ui/button";
 import {
   Form,

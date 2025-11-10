@@ -23,7 +23,3 @@ export function getSdks() {
     firestore,
   };
 }
-
-    
-
-    
