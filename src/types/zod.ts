@@ -13,6 +13,7 @@ const TimestampSchema = z.union([
   z.date(),
 ]).nullable();
 
+
 export const PlayerRoleSchema = z.nativeEnum(PlayerRoleEnum).nullable();
 
 
@@ -187,5 +188,3 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
-
-  

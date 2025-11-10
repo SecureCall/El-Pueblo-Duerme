@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useGameSession } from "@/hooks/use-game-session";
 import type { Game } from "@/types";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
+import { useFirebase } from "@/firebase";
 
 interface StartGameButtonProps {
   game: Game;
@@ -21,11 +22,16 @@ export function StartGameButton({ game, playerCount }: StartGameButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const { userId, isSessionLoaded } = useGameSession();
+  const { firestore } = useFirebase();
 
   const totalPlayers = game.settings.fillWithAI ? game.maxPlayers : playerCount;
   const canStart = totalPlayers >= MINIMUM_PLAYERS;
 
   const handleStartGame = async () => {
+    if (!firestore) {
+        toast({ variant: 'destructive', title: 'Error de conexión', description: 'No se pudo conectar a la base de datos.' });
+        return;
+    }
     if (!isSessionLoaded || !userId) {
        toast({
           variant: "destructive",

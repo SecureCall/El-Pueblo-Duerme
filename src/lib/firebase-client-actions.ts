@@ -1,9 +1,6 @@
-
 'use client';
 import { 
   doc,
-  setDoc,
-  getDoc,
   updateDoc,
   arrayUnion,
   Timestamp,
@@ -24,7 +21,84 @@ import { toPlainObject } from "./utils";
 import { runAIActions } from "./ai-actions";
 import { createGame as createGameServer, startGame as startGameServer, submitHunterShot as submitHunterShotServer, submitTroublemakerAction as submitTroublemakerActionServer } from './firebase-actions';
 
-export async function createGame(options: {
+async function sendSpecialChatMessage(firestore: Firestore, gameId: string, senderId: string, senderName: string, text: string, chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost') {
+    if (!text?.trim()) {
+        return { success: false, error: 'El mensaje no puede estar vacío.' };
+    }
+
+    const gameRef = doc(firestore, 'games', gameId);
+
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error('Game not found');
+            const game = gameDoc.data() as Game;
+            
+            const sender = game.players.find(p => p.userId === senderId);
+            if (!sender) throw new Error("Sender not found.");
+
+            const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
+            const fairyRoles: PlayerRole[] = ['seeker_fairy', 'sleeping_fairy'];
+
+            let canSend = false;
+            let chatField: keyof Game = 'chatMessages';
+
+            switch (chatType) {
+                case 'wolf':
+                    if (sender.role && wolfRoles.includes(sender.role)) {
+                        canSend = true;
+                        chatField = 'wolfChatMessages';
+                    }
+                    break;
+                case 'fairy':
+                    if (sender.role && fairyRoles.includes(sender.role) && game.fairiesFound) {
+                        canSend = true;
+                        chatField = 'fairyChatMessages';
+                    }
+                    break;
+                case 'lovers':
+                    if (sender.isLover) {
+                        canSend = true;
+                        chatField = 'loversChatMessages';
+                    }
+                    break;
+                 case 'twin':
+                    if (game.twins?.includes(senderId)) {
+                        canSend = true;
+                        chatField = 'twinChatMessages';
+                    }
+                    break;
+                case 'ghost':
+                    if (!sender.isAlive) {
+                        canSend = true;
+                        chatField = 'ghostChatMessages';
+                    }
+                    break;
+            }
+
+            if (!canSend) {
+                throw new Error("No tienes permiso para enviar mensajes en este chat.");
+            }
+
+            const messageData: ChatMessage = {
+                id: `${Date.now()}_${senderId}`,
+                senderId, senderName, text: text.trim(),
+                round: game.currentRound, createdAt: Timestamp.now(),
+            };
+
+            transaction.update(gameRef, { [chatField]: arrayUnion(toPlainObject(messageData)) });
+        });
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error(`Error sending ${chatType} chat message: `, error);
+        return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
+    }
+}
+
+
+export async function createGame(firestore: Firestore, options: {
     userId: string;
     displayName: string;
     avatarUrl: string;
@@ -32,7 +106,6 @@ export async function createGame(options: {
     maxPlayers: number;
     settings: Game['settings'];
 }) {
-    // This now directly calls the server action.
     return createGameServer(options);
 }
 
@@ -298,82 +371,6 @@ export async function sendChatMessage(firestore: Firestore, gameId: string, send
     }
 }
 
-export async function sendSpecialChatMessage(firestore: Firestore, gameId: string, senderId: string, senderName: string, text: string, chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost') {
-    if (!text?.trim()) {
-        return { success: false, error: 'El mensaje no puede estar vacío.' };
-    }
-
-    const gameRef = doc(firestore, 'games', gameId);
-
-    try {
-        await runTransaction(firestore, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error('Game not found');
-            const game = gameDoc.data() as Game;
-            
-            const sender = game.players.find(p => p.userId === senderId);
-            if (!sender) throw new Error("Sender not found.");
-
-            const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
-            const fairyRoles: PlayerRole[] = ['seeker_fairy', 'sleeping_fairy'];
-
-            let canSend = false;
-            let chatField: keyof Game = 'chatMessages';
-
-            switch (chatType) {
-                case 'wolf':
-                    if (sender.role && wolfRoles.includes(sender.role)) {
-                        canSend = true;
-                        chatField = 'wolfChatMessages';
-                    }
-                    break;
-                case 'fairy':
-                    if (sender.role && fairyRoles.includes(sender.role) && game.fairiesFound) {
-                        canSend = true;
-                        chatField = 'fairyChatMessages';
-                    }
-                    break;
-                case 'lovers':
-                    if (sender.isLover) {
-                        canSend = true;
-                        chatField = 'loversChatMessages';
-                    }
-                    break;
-                 case 'twin':
-                    if (game.twins?.includes(senderId)) {
-                        canSend = true;
-                        chatField = 'twinChatMessages';
-                    }
-                    break;
-                case 'ghost':
-                    if (!sender.isAlive) {
-                        canSend = true;
-                        chatField = 'ghostChatMessages';
-                    }
-                    break;
-            }
-
-            if (!canSend) {
-                throw new Error("No tienes permiso para enviar mensajes en este chat.");
-            }
-
-            const messageData: ChatMessage = {
-                id: `${Date.now()}_${senderId}`,
-                senderId, senderName, text: text.trim(),
-                round: game.currentRound, createdAt: Timestamp.now(),
-            };
-
-            transaction.update(gameRef, { [chatField]: arrayUnion(toPlainObject(messageData)) });
-        });
-
-        return { success: true };
-
-    } catch (error: any) {
-        console.error(`Error sending ${chatType} chat message: `, error);
-        return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
-    }
-}
-
 export async function submitJuryVote(firestore: Firestore, gameId: string, jurorId: string, targetId: string) {
     const gameRef = doc(firestore, 'games', gameId);
     try {
@@ -432,33 +429,14 @@ export async function sendGhostMessage(firestore: Firestore, gameId: string, gho
 }
 
 // These functions now call the server action, which contains the full logic.
-export async function getSeerResult(firestore: Firestore, gameId: string, seerId: string, targetId: string) {
-    const gameDoc = await getDoc(doc(firestore, 'games', gameId));
-    if (!gameDoc.exists()) throw new Error("Game not found");
-    const game = gameDoc.data() as Game;
+export { startGameServer as startGame }
+export { submitHunterShotServer as submitHunterShot }
+export { submitTroublemakerActionServer as submitTroublemakerAction }
 
-    const seerPlayer = game.players.find(p => p.userId === seerId);
-    if (!seerPlayer || (seerPlayer.role !== 'seer' && !(seerPlayer.role === 'seer_apprentice' && game.seerDied))) {
-        throw new Error("No tienes el don de la videncia.");
-    }
-
-    const targetPlayer = game.players.find(p => p.userId === targetId);
-    if (!targetPlayer) throw new Error("Target player not found");
-
-    const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
-    const isWerewolf = !!(targetPlayer.role && (wolfRoles.includes(targetPlayer.role) || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope)));
-
-    return { success: true, isWerewolf, targetName: targetPlayer.displayName };
-}
-
-export async function startGame(gameId: string, creatorId: string) {
-    return startGameServer(gameId, creatorId);
-}
-
-export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
-   return submitHunterShotServer(gameId, hunterId, targetId);
-}
-
-export async function submitTroublemakerAction(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
-    return submitTroublemakerActionServer(gameId, troublemakerId, target1Id, target2Id);
-}
+export {
+    sendWolfChatMessage,
+    sendFairyChatMessage,
+    sendLoversChatMessage,
+    sendTwinChatMessage,
+    sendGhostChatMessage,
+};

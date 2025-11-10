@@ -318,6 +318,186 @@ export async function resetGame(gameId: string) {
     }
 }
 
+export async function sendChatMessage(
+    gameId: string,
+    senderId: string,
+    senderName: string,
+    text: string,
+    isFromAI: boolean = false
+) {
+    const { firestore } = getSdks();
+    if (!text?.trim()) {
+        return { success: false, error: 'El mensaje no puede estar vacío.' };
+    }
+
+    const gameRef = doc(firestore, 'games', gameId);
+
+    try {
+        let latestGame: Game | null = null;
+        await runTransaction(firestore, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error('Game not found');
+            const game = gameDoc.data() as Game;
+            latestGame = game;
+
+            if (game.silencedPlayerId === senderId) {
+                throw new Error("No puedes hablar, has sido silenciado esta ronda.");
+            }
+            
+            const textLowerCase = text.toLowerCase();
+            const mentionedPlayerIds = game.players
+                .filter(p => p.isAlive && textLowerCase.includes(p.displayName.toLowerCase()))
+                .map(p => p.userId);
+            
+            const messageData: ChatMessage = {
+                id: `${Date.now()}_${senderId}`,
+                senderId, senderName, text: text.trim(), round: game.currentRound,
+                createdAt: Timestamp.now(), mentionedPlayerIds,
+            };
+
+            transaction.update(gameRef, { chatMessages: arrayUnion(toPlainObject(messageData)) });
+        });
+
+        if (!isFromAI && latestGame) {
+            const triggerMessage = `${senderName} dijo: "${text.trim()}"`;
+            await triggerAIChat(gameId, triggerMessage, 'public');
+        }
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error("Error sending chat message: ", error);
+        return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
+    }
+}
+
+async function sendSpecialChatMessage(
+    gameId: string,
+    senderId: string,
+    senderName: string,
+    text: string,
+    chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost'
+) {
+    const { firestore } = getSdks();
+    if (!text?.trim()) {
+        return { success: false, error: 'El mensaje no puede estar vacío.' };
+    }
+
+    const gameRef = doc(firestore, 'games', gameId);
+
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error('Game not found');
+            const game = gameDoc.data() as Game;
+            
+            const sender = game.players.find(p => p.userId === senderId);
+            if (!sender) throw new Error("Sender not found.");
+
+            const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
+            const fairyRoles: PlayerRole[] = ['seeker_fairy', 'sleeping_fairy'];
+
+            let canSend = false;
+            let chatField: keyof Game = 'chatMessages';
+
+            switch (chatType) {
+                case 'wolf':
+                    if (sender.role && wolfRoles.includes(sender.role)) {
+                        canSend = true;
+                        chatField = 'wolfChatMessages';
+                    }
+                    break;
+                case 'fairy':
+                    if (sender.role && fairyRoles.includes(sender.role) && game.fairiesFound) {
+                        canSend = true;
+                        chatField = 'fairyChatMessages';
+                    }
+                    break;
+                case 'lovers':
+                    if (sender.isLover) {
+                        canSend = true;
+                        chatField = 'loversChatMessages';
+                    }
+                    break;
+                 case 'twin':
+                    if (game.twins?.includes(senderId)) {
+                        canSend = true;
+                        chatField = 'twinChatMessages';
+                    }
+                    break;
+                case 'ghost':
+                    if (!sender.isAlive) {
+                        canSend = true;
+                        chatField = 'ghostChatMessages';
+                    }
+                    break;
+            }
+
+            if (!canSend) {
+                throw new Error("No tienes permiso para enviar mensajes en este chat.");
+            }
+
+            const messageData: ChatMessage = {
+                id: `${Date.now()}_${senderId}`,
+                senderId, senderName, text: text.trim(),
+                round: game.currentRound, createdAt: Timestamp.now(),
+            };
+
+            transaction.update(gameRef, { [chatField]: arrayUnion(toPlainObject(messageData)) });
+        });
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error(`Error sending ${chatType} chat message: `, error);
+        return { success: false, error: error.message || 'No se pudo enviar el mensaje.' };
+    }
+}
+
+export const sendWolfChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'wolf');
+export const sendFairyChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'fairy');
+export const sendLoversChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'lovers');
+export const sendTwinChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'twin');
+export const sendGhostChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'ghost');
+
+
+async function triggerAIChat(gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
+    const { firestore } = getSdks();
+    try {
+        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
+        if (!gameDoc.exists()) return;
+
+        const game = gameDoc.data() as Game;
+        if (game.status === 'finished') return;
+
+        const aiPlayersToTrigger = game.players.filter(p => p.isAI && p.isAlive);
+
+        for (const aiPlayer of aiPlayersToTrigger) {
+             const isAccused = triggerMessage.toLowerCase().includes(aiPlayer.displayName.toLowerCase());
+             const shouldTrigger = isAccused ? Math.random() < 0.95 : Math.random() < 0.35;
+
+             if (shouldTrigger) {
+                const perspective: AIPlayerPerspective = {
+                    game: toPlainObject(game),
+                    aiPlayer: toPlainObject(aiPlayer),
+                    trigger: triggerMessage,
+                    players: toPlainObject(game.players),
+                    chatType,
+                };
+
+                generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
+                    if (shouldSend && message) {
+                        await new Promise(resolve => setTimeout(resolve, Math.random() * 4000 + 1000));
+                        await sendChatMessage(gameId, aiPlayer.userId, aiPlayer.displayName, message, true);
+                    }
+                }).catch(aiError => console.error(`Error generating AI chat for ${aiPlayer.displayName}:`, aiError));
+            }
+        }
+    } catch (e) {
+        console.error("Error in triggerAIChat:", e);
+    }
+}
+
 
 export async function processNight(gameId: string) {
     const { firestore } = getSdks();
@@ -384,5 +564,3 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
         return { success: false, error: error.message };
     }
 }
-
-    

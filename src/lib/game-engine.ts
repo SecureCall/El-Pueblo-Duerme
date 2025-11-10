@@ -433,5 +433,3 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
 
     return { isGameOver: false, message: "", winners: [] };
 }
-
-  

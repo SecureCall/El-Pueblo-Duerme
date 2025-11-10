@@ -332,5 +332,3 @@ export const defaultRoleDetail: RoleDetail = {
     bgImageId: "role-bg-villager",
     team: "Aldeanos",
 };
-
-  

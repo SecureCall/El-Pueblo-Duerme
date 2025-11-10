@@ -1,4 +1,3 @@
-
 import type { Game, Player, NightAction, GameEvent } from ".";
 
 // Representa un cambio en el estado del juego que debe aplicarse

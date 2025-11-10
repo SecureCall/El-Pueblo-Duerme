@@ -30,6 +30,7 @@ import { Checkbox } from "../ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 import type { PlayerRole } from "@/types";
 import { roleDetails } from "@/lib/roles";
+import { useFirebase } from "@/firebase";
 
 // Define an interface for the form values without Zod
 interface CreateGameFormValues {
@@ -86,6 +87,7 @@ export function CreateGameForm() {
   const { userId, displayName, setDisplayName, avatarUrl, isSessionLoaded } = useGameSession();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { firestore } = useFirebase();
 
   const form = useForm<CreateGameFormValues>({
     defaultValues: {
@@ -142,6 +144,10 @@ export function CreateGameForm() {
   };
 
   async function onSubmit(data: CreateGameFormValues) {
+    if (!firestore) {
+        toast({ variant: "destructive", title: "Error", description: "La base de datos no está lista." });
+        return;
+    }
     if (!isSessionLoaded || !userId) {
       toast({
             variant: "destructive",
@@ -186,7 +192,7 @@ export function CreateGameForm() {
         ...roleSettings
     };
     
-    const response = await createGame({
+    const response = await createGame(firestore, {
         userId,
         displayName: trimmedDisplayName,
         avatarUrl,

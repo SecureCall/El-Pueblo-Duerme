@@ -1,5 +1,5 @@
 
-"use client";
+'use client';
 
 import { useState, useRef, useEffect } from 'react';
 import type { ChatMessage, Player } from '@/types';
@@ -7,21 +7,21 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../ui/card
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
-import { Send, Users2 } from 'lucide-react';
-import { sendTwinChatMessage } from '@/lib/firebase-actions';
+import { Send } from 'lucide-react';
+import { sendWolfChatMessage } from '@/lib/firebase-actions';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getMillis } from '@/lib/utils';
 
-interface TwinChatProps {
+interface WolfChatProps {
     gameId: string;
     currentPlayer: Player;
     messages: ChatMessage[];
 }
 
-export function TwinChat({ gameId, currentPlayer, messages }: TwinChatProps) {
+export function WolfChat({ gameId, currentPlayer, messages }: WolfChatProps) {
     const [newMessage, setNewMessage] = useState('');
     const { toast } = useToast();
     const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -35,7 +35,7 @@ export function TwinChat({ gameId, currentPlayer, messages }: TwinChatProps) {
     const handleSendMessage = async () => {
         if (!newMessage.trim()) return;
         
-        const res = await sendTwinChatMessage(gameId, currentPlayer.userId, currentPlayer.displayName, newMessage);
+        const res = await sendWolfChatMessage(gameId, currentPlayer.userId, currentPlayer.displayName, newMessage);
 
         if (res.success) {
             setNewMessage('');
@@ -49,18 +49,15 @@ export function TwinChat({ gameId, currentPlayer, messages }: TwinChatProps) {
     };
     
     return (
-        <Card className="bg-blue-900/20 border-blue-400/40 flex flex-col h-full max-h-80">
+        <Card className="bg-destructive/10 border-destructive/30 flex flex-col h-full max-h-96">
             <CardHeader className='pb-2'>
-                <CardTitle className="font-headline text-blue-300 text-lg flex items-center gap-2">
-                    <Users2 className="h-5 w-5" />
-                    Chat de Gemelas
-                </CardTitle>
+                <CardTitle className="font-headline text-destructive text-lg">Chat de la Manada</CardTitle>
             </CardHeader>
             <CardContent className="flex-1 overflow-hidden p-0">
                 <ScrollArea className="h-full" ref={scrollAreaRef}>
                     <div className="p-4 space-y-3">
                         {messages.length === 0 ? (
-                            <p className="text-center text-sm text-muted-foreground">Vuestro vínculo os permite hablar en secreto. Usadlo con sabiduría.</p>
+                            <p className="text-center text-sm text-muted-foreground">La caza comienza. Coordinad vuestro ataque.</p>
                         ) : (
                             messages.map((msg, index) => {
                                 const isOwnMessage = msg.senderId === currentPlayer.userId;
@@ -71,7 +68,7 @@ export function TwinChat({ gameId, currentPlayer, messages }: TwinChatProps) {
                                 )}>
                                     <div className={cn(
                                         "rounded-lg px-3 py-2 max-w-xs",
-                                        isOwnMessage ? "bg-blue-600 text-white" : "bg-card"
+                                        isOwnMessage ? "bg-destructive text-destructive-foreground" : "bg-card"
                                     )}>
                                         <p className="font-bold text-sm">{msg.senderName}</p>
                                         <p className="text-base break-words">{msg.text}</p>
@@ -85,7 +82,7 @@ export function TwinChat({ gameId, currentPlayer, messages }: TwinChatProps) {
                     </div>
                 </ScrollArea>
             </CardContent>
-            <CardFooter className="p-2 border-t border-blue-400/30">
+            <CardFooter className="p-2 border-t border-destructive/30">
                 <form 
                     onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} 
                     className="w-full flex items-center gap-2"
@@ -93,10 +90,10 @@ export function TwinChat({ gameId, currentPlayer, messages }: TwinChatProps) {
                     <Input
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
-                        placeholder="Habla con tu gemela..."
+                        placeholder="Habla con la manada..."
                         className="bg-card/50"
                     />
-                    <Button type="submit" size="icon" variant="outline" className="bg-blue-600 hover:bg-blue-700" disabled={!newMessage.trim()}>
+                    <Button type="submit" size="icon" variant="destructive" disabled={!newMessage.trim()}>
                         <Send className="h-4 w-4" />
                     </Button>
                 </form>

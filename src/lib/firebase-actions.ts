@@ -1,4 +1,3 @@
-
 'use server';
 import { 
   doc,
@@ -15,7 +14,8 @@ import {
   type Game, 
   type Player, 
   type NightAction, 
-  type GameEvent, type PlayerRole, 
+  type GameEvent, 
+  type PlayerRole, 
   type NightActionType, 
   type ChatMessage,
   type AIPlayerPerspective
@@ -383,5 +383,3 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
         return { success: false, error: error.message };
     }
 }
-
-  
