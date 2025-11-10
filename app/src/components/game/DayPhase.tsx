@@ -53,7 +53,7 @@ function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, curre
         if (!firestore) return;
 
         setIsSubmitting(true);
-        const result = await submitTroublemakerAction(firestore, game.id, currentPlayer.userId, selectedPlayerIds[0], selectedPlayerIds[1]);
+        const result = await submitTroublemakerAction(game.id, currentPlayer.userId, selectedPlayerIds[0], selectedPlayerIds[1]);
         if (result.success) {
             toast({ title: '¡Caos desatado!', description: 'Has provocado una pelea mortal.' });
         } else {
@@ -137,7 +137,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
     };
 
     const handleVoteSubmit = async () => {
-        if (!selectedPlayerId || !firestore) {
+        if (!selectedPlayerId) {
             if (!isCharmed) { // Only show toast if not charmed, as charmed vote is automatic
                 toast({ variant: 'destructive', title: 'Debes seleccionar un jugador para votar.' });
             }
@@ -145,7 +145,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
         }
 
         setIsSubmitting(true);
-        const result = await submitVote(firestore, game.id, currentPlayer.userId, selectedPlayerId);
+        const result = await submitVote(game.id, currentPlayer.userId, selectedPlayerId);
 
         if (result.error) {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
@@ -300,5 +300,3 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
         </Card>
     );
 }
-
-    

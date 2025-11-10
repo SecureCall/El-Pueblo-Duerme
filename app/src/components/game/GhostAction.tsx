@@ -4,12 +4,13 @@
 import { useState } from "react";
 import type { Game, Player } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { sendGhostMessage } from "@/lib/firebase-actions";
+import { sendGhostMessage } from "@/lib/firebase-client-actions";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Ghost, Loader2 } from "lucide-react";
+import { useFirebase } from "@/firebase";
 
 interface GhostActionProps {
     game: Game;
@@ -22,6 +23,7 @@ export function GhostAction({ game, currentPlayer, players }: GhostActionProps) 
     const [message, setMessage] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
+    const { firestore } = useFirebase();
 
     const handleSubmit = async () => {
         if (!targetId) {
@@ -36,6 +38,7 @@ export function GhostAction({ game, currentPlayer, players }: GhostActionProps) 
             toast({ variant: "destructive", title: "El mensaje es demasiado largo (máx. 280 caracteres)." });
             return;
         }
+        if (!firestore) return;
 
         setIsSubmitting(true);
         const result = await sendGhostMessage(game.id, currentPlayer.userId, targetId, message);
@@ -43,7 +46,6 @@ export function GhostAction({ game, currentPlayer, players }: GhostActionProps) 
 
         if (result.success) {
             toast({ title: "Mensaje enviado desde el más allá." });
-            // The component will disappear once the player state updates
         } else {
             toast({ variant: "destructive", title: "Error", description: result.error });
         }
@@ -98,5 +100,3 @@ export function GhostAction({ game, currentPlayer, players }: GhostActionProps) 
         </Card>
     );
 }
-
-    

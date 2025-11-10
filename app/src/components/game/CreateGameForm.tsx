@@ -31,7 +31,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/
 import type { PlayerRole } from "@/types";
 import { roleDetails } from "@/lib/roles";
 
-// Define an interface for the form values without Zod
 interface CreateGameFormValues {
   gameName: string;
   displayName: string;
@@ -383,5 +382,3 @@ export function CreateGameForm() {
     </Card>
   );
 }
-
-    

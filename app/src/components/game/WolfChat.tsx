@@ -8,7 +8,7 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Send } from 'lucide-react';
-import { sendWolfChatMessage } from '@/lib/firebase-actions';
+import { sendWolfChatMessage } from '@/lib/firebase-client-actions';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';

@@ -15,10 +15,10 @@ export function toPlainObject<T>(obj: T): T {
         return obj;
     }
     if (obj instanceof Timestamp) {
-        return obj.toDate().toISOString() as any; 
+        return obj as any; 
     }
     if (obj instanceof Date) {
-        return obj.toISOString() as any;
+        return Timestamp.fromDate(obj) as any;
     }
     if (Array.isArray(obj)) {
         return obj.map(item => toPlainObject(item)) as any;

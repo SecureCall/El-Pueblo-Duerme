@@ -2,10 +2,69 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read/write access to all documents for any authenticated user.
-    // This is insecure and should not be used in production.
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    
+    function isPlayer(gameId) {
+      return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p => p.userId == request.auth.uid);
+    }
+    
+    function getPlayer(players) {
+      return players.filter(p => p.userId == request.auth.uid)[0];
+    }
+    
+    function getRequestPlayer() {
+      return request.resource.data.players.filter(p => p.userId == request.auth.uid)[0];
+    }
+
+    match /games/{gameId} {
+      allow read: if request.auth != null;
+      
+      allow create: if request.auth != null &&
+                      request.resource.data.creator == request.auth.uid;
+                      
+      allow update: if request.auth != null && (
+        // Allow joining a waiting game
+        (
+          resource.data.status == 'waiting' &&
+          request.resource.data.players.size() == resource.data.players.size() + 1 &&
+          getRequestPlayer().userId == request.auth.uid
+        ) ||
+        // Allow updating own avatar
+        (
+          isPlayer(gameId) &&
+          request.resource.data.players.size() == resource.data.players.size() &&
+          getRequestPlayer().avatarUrl != getPlayer(resource.data.players).avatarUrl
+        ) ||
+        // Allow submitting a vote
+        (
+          resource.data.phase == 'day' &&
+          getPlayer(resource.data.players).votedFor == null &&
+          getRequestPlayer().votedFor != null
+        ) ||
+         // Allow submitting a night action
+        (
+          resource.data.phase == 'night' &&
+          getPlayer(resource.data.players).usedNightAbility == false &&
+          getRequestPlayer().usedNightAbility == true
+        ) ||
+        // Allow creator to start or manage game state
+        (
+          request.auth.uid == resource.data.creator &&
+          (
+            (resource.data.status == 'waiting' && request.resource.data.status == 'in_progress') ||
+            (resource.data.phase != request.resource.data.phase) ||
+            (resource.data.status == 'finished' && request.resource.data.status == 'waiting')
+          )
+        ) ||
+         // Allow any player to submit a special message
+        (
+            (request.resource.data.chatMessages.size() == resource.data.chatMessages.size() + 1) ||
+            (request.resource.data.wolfChatMessages.size() == resource.data.wolfChatMessages.size() + 1) ||
+            (request.resource.data.fairyChatMessages.size() == resource.data.fairyChatMessages.size() + 1) ||
+            (request.resource.data.twinChatMessages.size() == resource.data.twinChatMessages.size() + 1) ||
+            (request.resource.data.loversChatMessages.size() == resource.data.loversChatMessages.size() + 1) ||
+            (request.resource.data.ghostChatMessages.size() == resource.data.ghostChatMessages.size() + 1)
+        )
+      );
     }
   }
 }

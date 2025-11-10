@@ -78,5 +78,3 @@ export function StartGameButton({ game, playerCount }: StartGameButtonProps) {
     </TooltipProvider>
   );
 }
-
-    

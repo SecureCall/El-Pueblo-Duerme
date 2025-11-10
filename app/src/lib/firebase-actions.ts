@@ -1,4 +1,3 @@
-
 'use server';
 import { 
   doc,
@@ -27,7 +26,7 @@ import { getSdks } from "@/firebase/server-init";
 import { secretObjectives } from "./objectives";
 import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
-import { getDeterministicAIAction } from './server-ai-actions';
+import { getDeterministicAIAction, runAIActions as runAIActionsServer } from './server-ai-actions';
 
 
 const PHASE_DURATION_SECONDS = 60;
@@ -49,7 +48,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     role: null,
     isAlive: true,
     votedFor: null,
-    joinedAt: new Date(), // Changed from Timestamp.now()
+    joinedAt: Timestamp.now(),
     isAI,
     isExiled: false,
     lastHealedRound: 0,
@@ -96,15 +95,13 @@ export async function createGame(
   const gameId = generateGameId();
   const gameRef = doc(firestore, "games", gameId);
       
-  const creatorPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
-
   const gameData: Game = {
       id: gameId,
       name: gameName.trim(),
       status: "waiting",
       phase: "waiting", 
       creator: userId,
-      players: [creatorPlayer], // Add creator directly
+      players: [], // CRITICAL: Start with an empty player list. Creator will join in the GameRoom.
       events: [],
       chatMessages: [],
       wolfChatMessages: [],
@@ -152,13 +149,11 @@ const MINIMUM_PLAYERS = 3;
 const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
     let roles: PlayerRole[] = [];
     
-    // 1. Add Werewolves
     const numWerewolves = Math.max(1, Math.floor(playerCount / 5));
     for (let i = 0; i < numWerewolves; i++) {
         roles.push('werewolf');
     }
 
-    // 2. Add selected special roles
     const availableSpecialRoles: PlayerRole[] = (Object.keys(settings) as Array<keyof typeof settings>)
         .filter(key => {
             const roleKey = key as PlayerRole;
@@ -178,12 +173,10 @@ const generateRoles = (playerCount: number, settings: Game['settings']): (Player
         }
     }
     
-    // 3. Fill remaining spots with Villagers
     while (roles.length < playerCount) {
         roles.push('villager');
     }
 
-    // 4. Shuffle all roles
     return roles.sort(() => Math.random() - 0.5);
 };
 
@@ -236,7 +229,7 @@ export async function startGame(gameId: string, creatorId: string) {
                 if (p.role === 'cult_leader') {
                     p.isCultMember = true;
                 }
-                if (!p.isAI) {
+                 if (!p.isAI) {
                     const applicableObjectives = secretObjectives.filter(obj => 
                         obj.appliesTo.includes('any') || (p.role && obj.appliesTo.includes(p.role))
                     );
@@ -508,12 +501,11 @@ export async function processNight(gameId: string) {
             await processNightEngine(transaction, gameRef);
         });
         
-        // After night processing, trigger AI actions for the new day
         const gameDoc = await getDoc(gameRef);
         if (gameDoc.exists()) {
             const game = gameDoc.data();
             if (game.phase === 'day') {
-                await triggerAIVote(gameId);
+                await runAIActionsServer(gameId, 'day');
             }
         }
 
@@ -530,12 +522,11 @@ export async function processVotes(gameId: string) {
             await processVotesEngine(transaction, gameRef);
         });
 
-         // After vote processing, trigger AI actions for the new night
         const gameDoc = await getDoc(gameRef);
         if (gameDoc.exists()) {
             const game = gameDoc.data();
             if (game.phase === 'night') {
-                await runAIActions(gameId);
+                await runAIActionsServer(gameId, 'night');
             }
         }
     } catch (e) {
@@ -583,218 +574,4 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
         console.error("Error executing master action:", error);
         return { success: false, error: error.message };
     }
-}
-
-async function triggerAIVote(gameId: string) {
-    const { firestore } = getSdks();
-    try {
-        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
-        if (!gameDoc.exists()) return;
-        const game = gameDoc.data() as Game;
-        if (game.status === 'finished' || game.phase !== 'day') return;
-
-        const aiPlayersToVote = game.players.filter(p => p.isAI && p.isAlive && !p.votedFor);
-        const alivePlayers = game.players.filter(p => p.isAlive);
-        
-        for (const ai of aiPlayersToVote) {
-            const { targetId } = getDeterministicAIAction(ai, game, alivePlayers, []);
-            if (targetId) {
-                 await new Promise(resolve => setTimeout(resolve, Math.random() * 8000 + 2000));
-                 // This function is defined in firebase-client-actions, which can't be called from a server action.
-                 // We need to call a server action that can do the update.
-                 // This is a structural issue. Let's create a server-side vote function.
-                 // For now, this will fail. Let's assume there is a submitVoteServer.
-                 // await submitVote(gameId, ai.userId, targetId);
-                 // The submitVote function needs to be available here. 
-                 // Let's assume it's moved or a new server one is created.
-                 // As it is, submitVote is a client-action.
-            }
-        }
-
-    } catch(e) {
-        console.error("Error in triggerAIVote:", e);
-    }
-}
-
-async function runAIActions(gameId: string) {
-    const { firestore } = getSdks();
-    try {
-        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
-        if (!gameDoc.exists()) return;
-        const game = gameDoc.data() as Game;
-
-        if(game.phase !== 'night' || game.status === 'finished') return;
-
-        await triggerPrivateAIChats(gameId, "La noche ha caído. ¿Cuál es nuestro plan?");
-
-        const aiPlayers = game.players.filter(p => p.isAI && p.isAlive && !p.usedNightAbility);
-        const alivePlayers = game.players.filter(p => p.isAlive);
-        const deadPlayers = game.players.filter(p => !p.isAlive);
-
-        for (const ai of aiPlayers) {
-            const { actionType, targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
-
-            if (!actionType || actionType === 'NONE' || !targetId || actionType === 'VOTE' || actionType === 'SHOOT') continue;
-
-            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
-            // Same problem as triggerAIVote. This needs to be a server action.
-            // await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
-        }
-    } catch(e) {
-        console.error("Error in AI Actions:", e);
-    }
-}
-async function triggerPrivateAIChats(gameId: string, triggerMessage: string) {
-    const { firestore } = getSdks();
-     try {
-        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
-        if (!gameDoc.exists()) return;
-
-        const game = gameDoc.data() as Game;
-        if (game.status === 'finished') return;
-
-        const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
-        const twinIds = game.twins || [];
-        const loverIds = game.lovers || [];
-
-        const wolves = game.players.filter(p => p.isAI && p.isAlive && p.role && wolfRoles.includes(p.role));
-        const twins = game.players.filter(p => p.isAI && p.isAlive && twinIds.includes(p.userId));
-        const lovers = game.players.filter(p => p.isAI && p.isAlive && loverIds.includes(p.userId));
-
-        const processChat = async (players: Player[], chatType: 'wolf' | 'twin' | 'lovers', sendMessageFn: Function) => {
-            for (const aiPlayer of players) {
-                if (Math.random() < 0.8) { 
-                    const perspective: AIPlayerPerspective = {
-                        game: toPlainObject(game), aiPlayer: toPlainObject(aiPlayer), trigger: triggerMessage,
-                        players: toPlainObject(game.players), chatType,
-                    };
-                    generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
-                        if (shouldSend && message) {
-                            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
-                            await sendMessageFn(gameId, aiPlayer.userId, aiPlayer.displayName, message);
-                        }
-                    }).catch(err => console.error(`Error in private AI chat for ${aiPlayer.displayName}:`, err));
-                }
-            }
-        };
-
-        if (wolves.length > 1) await processChat(wolves, 'wolf', sendWolfChatMessage);
-        if (twins.length > 1) await processChat(twins, 'twin', sendTwinChatMessage);
-        if (lovers.length > 1) await processChat(lovers, 'lovers', sendLoversChatMessage);
-
-    } catch (e) {
-        console.error("Error in triggerPrivateAIChats:", e);
-    }
-}
-
-// These actions are now part of the server-side logic, but were previously client-side.
-// We need to define them here so they can be called by other server actions.
-
-export async function submitVote(gameId: string, voterId: string, targetId: string) {
-    const { firestore } = getSdks();
-    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
-    
-    try {
-       await runTransaction(firestore, async (transaction) => {
-            const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found");
-            
-            let game = gameSnap.data()!;
-            if (game.phase !== 'day' || game.status === 'finished') return;
-            
-            const playerIndex = game.players.findIndex(p => p.userId === voterId && p.isAlive);
-            if (playerIndex === -1) throw new Error("Player not found or is not alive");
-            
-            if (game.players[playerIndex].votedFor) return;
-
-            const siren = game.players.find(p => p.role === 'river_siren');
-            const charmedPlayerId = siren?.riverSirenTargetId;
-
-            if (voterId === charmedPlayerId && siren && siren.isAlive) {
-                if (siren.votedFor) {
-                    game.players[playerIndex].votedFor = siren.votedFor;
-                } else {
-                    throw new Error("Debes esperar a que la Sirena vote primero.");
-                }
-            } else {
-                 game.players[playerIndex].votedFor = targetId;
-            }
-            
-            transaction.update(gameRef, { players: toPlainObject(game.players) });
-        });
-        return { success: true };
-    } catch (error: any) {
-        console.error("Error submitting vote: ", error);
-        return { error: "No se pudo registrar tu voto." };
-    }
-}
-
-export async function submitNightAction(action: Omit<NightAction, 'createdAt'>) {
-  const { firestore } = getSdks();
-  const { gameId, playerId, actionType, targetId } = action;
-  const gameRef = doc(firestore, 'games', gameId);
-  try {
-    await runTransaction(firestore, async (transaction) => {
-        const gameSnap = await transaction.get(gameRef as DocumentReference<Game>);
-        if (!gameSnap.exists()) throw new Error("Game not found");
-        
-        let game = gameSnap.data()!;
-        if (game.phase !== 'night' || game.status === 'finished') return;
-
-        const player = game.players.find(p => p.userId === playerId);
-        if (!player || !player.isAlive) throw new Error("Jugador no válido o muerto.");
-        if (game.exiledPlayerId === playerId) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
-        if (player.usedNightAbility) return;
-        
-        const newAction: NightAction = { ...action, createdAt: Timestamp.now() };
-        
-        const updatedPlayers = game.players.map(p => {
-          if (p.userId === playerId) {
-            let updatedPlayer = { ...p, usedNightAbility: true };
-            switch (actionType) {
-                case 'hechicera_poison':
-                    updatedPlayer.potions = { ...updatedPlayer.potions, poison: game.currentRound };
-                    break;
-                case 'hechicera_save':
-                    updatedPlayer.potions = { ...updatedPlayer.potions, save: game.currentRound };
-                    break;
-                case 'priest_bless':
-                    if (targetId === playerId) updatedPlayer.priestSelfHealUsed = true;
-                    break;
-                case 'guardian_protect':
-                     if (targetId === playerId) updatedPlayer.guardianSelfProtects = (updatedPlayer.guardianSelfProtects || 0) + 1;
-                    break;
-                case 'lookout_spy':
-                    updatedPlayer.lookoutUsed = true;
-                    break;
-                case 'resurrect':
-                    updatedPlayer.resurrectorAngelUsed = true;
-                    break;
-                case 'shapeshifter_select':
-                    if(game.currentRound === 1) updatedPlayer.shapeshifterTargetId = targetId;
-                    break;
-                case 'virginia_woolf_link':
-                    if(game.currentRound === 1) updatedPlayer.virginiaWoolfTargetId = targetId;
-                    break;
-                case 'river_siren_charm':
-                     if(game.currentRound === 1) updatedPlayer.riverSirenTargetId = targetId;
-                    break;
-            }
-            return updatedPlayer;
-          }
-          return p;
-        });
-
-        transaction.update(gameRef, { 
-          nightActions: arrayUnion(toPlainObject(newAction)), 
-          players: toPlainObject(updatedPlayers) 
-        });
-    });
-
-    return { success: true };
-
-  } catch (error: any) {
-    console.error("Error submitting night action: ", error);
-    return { success: false, error: error.message || "No se pudo registrar tu acción." };
-  }
 }

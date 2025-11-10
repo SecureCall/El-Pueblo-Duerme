@@ -11,12 +11,15 @@ import {
   type NightActionType, 
   type AIPlayerPerspective
 } from "@/types";
-import { toPlainObject } from "./utils";
 import { getSdks } from "@/firebase/server-init";
-import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
-import { runAIActions, getDeterministicAIAction } from "./server-ai-actions";
+import { getDeterministicAIAction, runAIActions as runAIActionsServer } from "./server-ai-actions";
+import { submitHunterShot } from "./firebase-client-actions";
 
-export { runAIActions, getDeterministicAIAction };
+export { getDeterministicAIAction };
+
+export async function runAIActions(gameId: string, phase: 'day' | 'night') {
+  await runAIActionsServer(gameId, phase);
+}
 
 export async function runAIHunterShot(gameId: string, hunter: Player) {
     const { firestore } = getSdks();
@@ -33,10 +36,7 @@ export async function runAIHunterShot(gameId: string, hunter: Player) {
 
         if (targetId) {
             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
-            // submitHunterShot is a client action and cannot be called from a server action directly.
-            // This architecture needs rethinking or a way to trigger client actions from server.
-            // For now, logging the intent.
-             console.log(`AI Hunter ${hunter.displayName} decided to shoot ${targetId}, but cannot execute action from server.`);
+            await submitHunterShot(gameId, hunter.userId, targetId);
         } else {
              console.error(`AI Hunter ${hunter.displayName} could not find a target to shoot.`);
         }
@@ -45,5 +45,3 @@ export async function runAIHunterShot(gameId: string, hunter: Player) {
          console.error("Error in runAIHunterShot:", e);
     }
 }
-
-    
