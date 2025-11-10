@@ -1,6 +1,7 @@
 
+
 import { z } from 'zod';
-import { PlayerRoleEnum } from '.';
+import { PlayerRoleEnum } from './player-role.enum';
 
 const TimestampSchema = z.union([
   z.object({
@@ -20,14 +21,15 @@ export const PlayerRoleSchema = z.nativeEnum(PlayerRoleEnum).nullable();
 export const PlayerSchema = z.object({
   userId: z.string(),
   gameId: z.string(),
+  displayName: z.string(),
+  avatarUrl: z.string(),
   role: PlayerRoleSchema,
   isAlive: z.boolean(),
   votedFor: z.string().nullable(),
-  displayName: z.string(),
-  avatarUrl: z.string(),
   joinedAt: z.union([TimestampSchema, z.string()]).nullable(),
   lastHealedRound: z.number(),
   isAI: z.boolean(),
+  isExiled: z.boolean(),
   potions: z.object({
     poison: z.number().nullable().optional(),
     save: z.number().nullable().optional(),
@@ -50,17 +52,19 @@ export const PlayerSchema = z.object({
   secretObjectiveId: z.string().nullable(),
 });
 
-export const NightActionSchema = z.object({
-  gameId: z.string(),
-  round: z.number(),
-  playerId: z.string(),
-  actionType: z.enum([
+export const NightActionTypeSchema = z.enum([
     "werewolf_kill", "seer_check", "doctor_heal", "hechicera_poison", 
     "hechicera_save", "guardian_protect", "priest_bless", "vampire_bite", "cult_recruit", 
     "fisherman_catch", "shapeshifter_select", "virginia_woolf_link", "river_siren_charm",
     "silencer_silence", "elder_leader_exile", "witch_hunt", "banshee_scream", "lookout_spy",
     "fairy_find", "fairy_kill", "resurrect", "cupid_love"
-  ]),
+  ]);
+
+export const NightActionSchema = z.object({
+  gameId: z.string(),
+  round: z.number(),
+  playerId: z.string(),
+  actionType: NightActionTypeSchema,
   targetId: z.string(),
   createdAt: z.union([TimestampSchema, z.string()]).refine((v): v is NonNullable<typeof v> => v !== null),
 });
@@ -163,6 +167,14 @@ export const GameSchema = z.object({
   fairyKillUsed: z.boolean(),
   juryVotes: z.record(z.string()).optional(),
   masterKillUsed: z.boolean().optional(),
+});
+
+
+export const RoleDataSchema = z.object({
+  name: PlayerRoleSchema,
+  description: z.string(),
+  team: z.enum(['Aldeanos', 'Lobos', 'Neutral']),
+  alliance: z.enum(['Aldeanos', 'Lobos', 'Neutral', 'Enamorados']),
 });
 
 export const AIPlayerPerspectiveSchema = z.object({

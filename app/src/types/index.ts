@@ -1,20 +1,23 @@
 
+
 import type { Timestamp } from 'firebase/firestore';
 import { z } from 'zod';
-import { PlayerRoleEnum } from './player-role.enum';
 import { 
     GameSchema, 
     PlayerSchema, 
     NightActionSchema, 
-    RoleDataSchema,
     GameEventSchema,
     ChatMessageSchema,
     GameSettingsSchema,
-    NightActionTypeSchema
+    NightActionTypeSchema,
+    PlayerRoleSchema,
+    RoleDataSchema
 } from './zod';
 
-// Re-export the enum for convenience
-export { PlayerRoleEnum };
+// Re-export enums for convenience
+export { PlayerRoleEnum } from './player-role.enum';
+export type { NightActionType } from './zod';
+
 
 // Main data structures inferred from Zod schemas
 export type Game = z.infer<typeof GameSchema>;
@@ -24,7 +27,6 @@ export type PlayerRole = z.infer<typeof PlayerRoleSchema>;
 export type GameEvent = z.infer<typeof GameEventSchema>;
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type GameSettings = z.infer<typeof GameSettingsSchema>;
-export type NightActionType = z.infer<typeof NightActionTypeSchema>;
 
 
 export interface AIPlayerPerspective {
@@ -56,7 +58,7 @@ export interface IRole {
   readonly alliance: Alliance;
 
   performNightAction(context: GameContext, action: NightAction): GameStateChange | null;
-  onDeath(context: GameContext): GameStateChange | null;
+  onDeath(context: GameContext, cause: GameEvent['type']): GameStateChange | null;
   checkWinCondition(context: GameContext): boolean;
   getWinMessage(player: Player): string;
   
@@ -78,3 +80,4 @@ export interface GameStateChange {
 }
 
   
+

@@ -1,4 +1,4 @@
-import { IRole, PlayerRole } from "@/types";
+import { IRole, PlayerRole, PlayerRoleEnum } from "@/types";
 import { Aldeano } from "./Aldeano";
 import { Medico } from "./Medico";
 import { Vidente } from "./Vidente";
@@ -34,44 +34,44 @@ import { Banshee } from "./Banshee";
 import { Cupido } from "./Cupido";
 import { Verdugo } from "./Verdugo";
 
-const roleMap: Record<string, new () => IRole> = {
-  'villager': Aldeano,
-  'seer': Vidente,
-  'doctor': Medico,
-  'werewolf': Lobo,
-  'hunter': Cazador,
-  'prince': Principe,
-  'priest': Sacerdote,
-  'guardian': Guardian,
-  'lycanthrope': Licantropo,
-  'twin': Gemela,
-  'hechicera': Hechicera,
-  'ghost': Fantasma,
-  'virginia_woolf': VirginiaWoolf,
-  'leprosa': Leprosa,
-  'river_siren': SirenaRio,
-  'lookout': Vigia,
-  'troublemaker': Alborotadora,
-  'silencer': Silenciador,
-  'seer_apprentice': AprendizVidente,
-  'elder_leader': AncianaLider,
-  'resurrector_angel': AngelResucitador,
-  'wolf_cub': CriaLobo,
-  'cursed': Maldito,
-  'witch': Bruja,
-  'seeker_fairy': HadaBuscadora,
-  'sleeping_fairy': HadaDurmiente,
-  'shapeshifter': Cambiaformas,
-  'drunk_man': HombreEbrio,
-  'cult_leader': LiderCulto,
-  'fisherman': Pescador,
-  'vampire': Vampiro,
-  'banshee': Banshee,
-  'cupid': Cupido,
-  'executioner': Verdugo,
+const roleMap: Record<PlayerRoleEnum, new () => IRole> = {
+  [PlayerRoleEnum.villager]: Aldeano,
+  [PlayerRoleEnum.seer]: Vidente,
+  [PlayerRoleEnum.doctor]: Medico,
+  [PlayerRoleEnum.werewolf]: Lobo,
+  [PlayerRoleEnum.hunter]: Cazador,
+  [PlayerRoleEnum.prince]: Principe,
+  [PlayerRoleEnum.priest]: Sacerdote,
+  [PlayerRoleEnum.guardian]: Guardian,
+  [PlayerRoleEnum.lycanthrope]: Licantropo,
+  [PlayerRoleEnum.twin]: Gemela,
+  [PlayerRoleEnum.hechicera]: Hechicera,
+  [PlayerRoleEnum.ghost]: Fantasma,
+  [PlayerRoleEnum.virginia_woolf]: VirginiaWoolf,
+  [PlayerRoleEnum.leprosa]: Leprosa,
+  [PlayerRoleEnum.river_siren]: SirenaRio,
+  [PlayerRoleEnum.lookout]: Vigia,
+  [PlayerRoleEnum.troublemaker]: Alborotadora,
+  [PlayerRoleEnum.silencer]: Silenciador,
+  [PlayerRoleEnum.seer_apprentice]: AprendizVidente,
+  [PlayerRoleEnum.elder_leader]: AncianaLider,
+  [PlayerRoleEnum.resurrector_angel]: AngelResucitador,
+  [PlayerRoleEnum.wolf_cub]: CriaLobo,
+  [PlayerRoleEnum.cursed]: Maldito,
+  [PlayerRoleEnum.witch]: Bruja,
+  [PlayerRoleEnum.seeker_fairy]: HadaBuscadora,
+  [PlayerRoleEnum.sleeping_fairy]: HadaDurmiente,
+  [PlayerRoleEnum.shapeshifter]: Cambiaformas,
+  [PlayerRoleEnum.drunk_man]: HombreEbrio,
+  [PlayerRoleEnum.cult_leader]: LiderCulto,
+  [PlayerRoleEnum.fisherman]: Pescador,
+  [PlayerRoleEnum.vampire]: Vampiro,
+  [PlayerRoleEnum.banshee]: Banshee,
+  [PlayerRoleEnum.cupid]: Cupido,
+  [PlayerRoleEnum.executioner]: Verdugo,
 };
 
-export function createRoleInstance(roleName: PlayerRole | null): IRole {
+export function createRoleInstance(roleName: PlayerRole): IRole {
   if (!roleName || !roleMap[roleName]) {
     // Failsafe: if a role is somehow not in the map, default to Villager.
     // This prevents the server from crashing.

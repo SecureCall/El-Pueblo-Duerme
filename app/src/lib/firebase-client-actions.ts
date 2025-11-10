@@ -7,27 +7,49 @@ import {
   runTransaction,
   type Firestore,
   DocumentReference,
+  arrayUnion,
+  updateDoc,
 } from "firebase/firestore";
 import { 
   type Game, 
   type Player, 
   type NightAction, 
+  type GameEvent, 
+  type PlayerRole, 
 } from "@/types";
 import { toPlainObject } from "./utils";
-import { runAIActions } from "./ai-actions";
-import { createGame as createGameServer, startGame as startGameServer, submitHunterShot as submitHunterShotServer, submitTroublemakerAction as submitTroublemakerActionServer, sendWolfChatMessage, sendFairyChatMessage, sendLoversChatMessage, sendTwinChatMessage, sendGhostChatMessage, sendChatMessage as sendChatMessageServer, submitVote as submitVoteServer, submitNightAction as submitNightActionServer, submitJuryVote as submitJuryVoteServer, sendGhostMessage as sendGhostMessageServer } from './firebase-actions';
+import { 
+  createGame as createGameServer, 
+  startGame as startGameServer, 
+  submitHunterShot as submitHunterShotServer, 
+  submitTroublemakerAction as submitTroublemakerActionServer,
+  sendWolfChatMessage as sendWolfChatMessageServer,
+  sendFairyChatMessage as sendFairyChatMessageServer,
+  sendLoversChatMessage as sendLoversChatMessageServer,
+  sendTwinChatMessage as sendTwinChatMessageServer,
+  sendGhostChatMessage as sendGhostChatMessageServer,
+  sendChatMessage as sendChatMessageServer,
+  submitVote as submitVoteServer,
+  submitNightAction as submitNightActionServer,
+  submitJuryVote as submitJuryVoteServer,
+  sendGhostMessage as sendGhostMessageServer
+} from './firebase-actions';
 
+export { createGameServer as createGame };
+export { startGameServer as startGame };
+export { submitHunterShotServer as submitHunterShot };
+export { submitTroublemakerActionServer as submitTroublemakerAction };
+export { sendWolfChatMessageServer as sendWolfChatMessage };
+export { sendFairyChatMessageServer as sendFairyChatMessage };
+export { sendLoversChatMessageServer as sendLoversChatMessage };
+export { sendTwinChatMessageServer as sendTwinChatMessage };
+export { sendGhostChatMessageServer as sendGhostChatMessage };
+export { sendChatMessageServer as sendChatMessage };
+export { submitVoteServer as submitVote };
+export { submitNightActionServer as submitNightAction };
+export { submitJuryVoteServer as submitJuryVote };
+export { sendGhostMessageServer as sendGhostMessage };
 
-export async function createGame(options: {
-    userId: string;
-    displayName: string;
-    avatarUrl: string;
-    gameName: string;
-    maxPlayers: number;
-    settings: Game['settings'];
-}) {
-    return createGameServer(options);
-}
 
 export async function joinGame(
   firestore: Firestore,
@@ -101,7 +123,7 @@ export async function joinGame(
       };
 
       transaction.update(gameRef, {
-        players: toPlainObject([...game.players, newPlayer]),
+        players: arrayUnion(toPlainObject(newPlayer)),
         lastActiveAt: Timestamp.now(),
       });
     });
@@ -138,25 +160,6 @@ export async function updatePlayerAvatar(firestore: Firestore, gameId: string, u
     }
 }
 
-export async function submitNightAction(firestore: Firestore, action: Omit<NightAction, 'createdAt'>) {
-    return submitNightActionServer(action);
-}
-
-export async function submitVote(firestore: Firestore, gameId: string, voterId: string, targetId: string) {
-    return submitVoteServer(gameId, voterId, targetId);
-}
-
-export async function sendChatMessage(gameId: string, senderId: string, senderName: string, text: string) {
-    return sendChatMessageServer(gameId, senderId, senderName, text);
-}
-
-export async function submitJuryVote(firestore: Firestore, gameId: string, jurorId: string, targetId: string) {
-   return submitJuryVoteServer(gameId, jurorId, targetId);
-}
-
-export async function sendGhostMessage(gameId: string, ghostId: string, targetId: string, message: string) {
-    return sendGhostMessageServer(gameId, ghostId, targetId, message);
-}
 
 export async function getSeerResult(firestore: Firestore, gameId: string, seerId: string, targetId: string) {
     const gameDoc = await getDoc(doc(firestore, 'games', gameId));
@@ -175,17 +178,4 @@ export async function getSeerResult(firestore: Firestore, gameId: string, seerId
     const isWerewolf = !!(targetPlayer.role && (wolfRoles.includes(targetPlayer.role) || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope)));
 
     return { success: true, isWerewolf, targetName: targetPlayer.displayName };
-}
-
-// These functions now call the server action, which contains the full logic.
-export async function startGame(gameId: string, creatorId: string) {
-    return startGameServer(gameId, creatorId);
-}
-
-export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
-   return submitHunterShotServer(gameId, hunterId, targetId);
-}
-
-export async function submitTroublemakerAction(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
-    return submitTroublemakerActionServer(gameId, troublemakerId, target1Id, target2Id);
 }
