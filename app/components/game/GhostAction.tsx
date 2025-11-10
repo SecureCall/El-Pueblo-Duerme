@@ -4,7 +4,7 @@
 import { useState } from "react";
 import type { Game, Player } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { sendGhostMessage } from "@/lib/firebase-actions";
+import { sendGhostMessage } from "@/lib/firebase-client-actions";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -97,3 +97,5 @@ export function GhostAction({ game, currentPlayer, players }: GhostActionProps) 
         </Card>
     );
 }
+
+    

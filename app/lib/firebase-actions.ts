@@ -1,5 +1,5 @@
 
-'use client';
+'use server';
 import { 
   doc,
   setDoc,
@@ -10,7 +10,6 @@ import {
   runTransaction,
   type Transaction,
   DocumentReference,
-  type Firestore
 } from "firebase/firestore";
 import { 
   type Game, 
@@ -24,10 +23,11 @@ import {
 } from "@/types";
 import { toPlainObject } from "./utils";
 import { masterActions } from "./master-actions";
+import { getSdks } from "@/firebase/server-init";
 import { secretObjectives } from "./objectives";
 import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
-import { getDeterministicAIAction } from './server-ai-actions';
+import { runAIActions as runAIActionsServer } from './server-ai-actions';
 
 
 const PHASE_DURATION_SECONDS = 60;
@@ -74,7 +74,6 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
 
 
 export async function createGame(
-  firestore: Firestore,
   options: {
     userId: string;
     displayName: string;
@@ -84,6 +83,7 @@ export async function createGame(
     settings: Game['settings'];
   }
 ) {
+  const { firestore } = getSdks();
   const { userId, displayName, avatarUrl, gameName, maxPlayers, settings } = options;
 
   if (!userId || !displayName.trim() || !gameName.trim()) {
@@ -102,7 +102,7 @@ export async function createGame(
       status: "waiting",
       phase: "waiting", 
       creator: userId,
-      players: [], // CRITICAL CHANGE: Create with an empty player list. The creator will join in the GameRoom.
+      players: [], // CRITICAL: Start with an empty player list. Creator will join in the GameRoom.
       events: [],
       chatMessages: [],
       wolfChatMessages: [],
@@ -144,85 +144,6 @@ export async function createGame(
   }
 }
 
-export async function joinGame(
-  firestore: Firestore,
-  gameId: string,
-  userId: string,
-  displayName: string,
-  avatarUrl: string
-) {
-  const gameRef = doc(firestore, "games", gameId);
-  
-  try {
-    await runTransaction(firestore, async (transaction) => {
-      const gameSnap = await transaction.get(gameRef);
-
-      if (!gameSnap.exists()) {
-        throw new Error("Partida no encontrada.");
-      }
-
-      const game = gameSnap.data() as Game;
-
-      if (game.status !== "waiting" && !game.players.some(p => p.userId === userId)) {
-        if (!game.settings.isPublic) {
-            throw new Error("Esta es una partida privada y no se puede unir a través de un enlace.");
-        }
-        throw new Error("Esta partida ya ha comenzado.");
-      }
-      
-      const playerExists = game.players.some(p => p.userId === userId);
-      if (playerExists) {
-        return; 
-      }
-      
-      const nameExists = game.players.some(p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase());
-      if (nameExists) {
-        throw new Error("Ese nombre ya está en uso en esta partida.");
-      }
-
-      if (game.players.length >= game.maxPlayers) {
-        throw new Error("Esta partida está llena.");
-      }
-      
-      const newPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
-      transaction.update(gameRef, {
-        players: arrayUnion(toPlainObject(newPlayer)),
-        lastActiveAt: Timestamp.now(),
-      });
-    });
-
-    return { success: true };
-
-  } catch(error: any) {
-    console.error("Error joining game:", error);
-    return { error: `No se pudo unir a la partida: ${error.message}` };
-  }
-}
-
-export async function updatePlayerAvatar(firestore: Firestore, gameId: string, userId: string, newAvatarUrl: string) {
-    const gameRef = doc(firestore, 'games', gameId);
-    try {
-        await runTransaction(firestore, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error("Game not found.");
-
-            const gameData = gameDoc.data() as Game;
-            const playerIndex = gameData.players.findIndex(p => p.userId === userId);
-
-            if (playerIndex === -1) throw new Error("Player not found in game.");
-
-            const updatedPlayers = [...gameData.players];
-            updatedPlayers[playerIndex].avatarUrl = newAvatarUrl;
-
-            transaction.update(gameRef, { players: toPlainObject(updatedPlayers), lastActiveAt: Timestamp.now() });
-        });
-        return { success: true };
-    } catch (error: any) {
-        console.error("Error updating player avatar:", error);
-        return { success: false, error: error.message };
-    }
-}
-
 const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
 const MINIMUM_PLAYERS = 3;
 
@@ -260,7 +181,8 @@ const generateRoles = (playerCount: number, settings: Game['settings']): (Player
     return roles.sort(() => Math.random() - 0.5);
 };
 
-export async function startGame(firestore: Firestore, gameId: string, creatorId: string) {
+export async function startGame(gameId: string, creatorId: string) {
+    const { firestore } = getSdks();
     const gameRef = doc(firestore, 'games', gameId);
     
     try {
@@ -355,247 +277,50 @@ export async function startGame(firestore: Firestore, gameId: string, creatorId:
     }
 }
 
-export async function submitNightAction(firestore: Firestore, action: Omit<NightAction, 'createdAt'>) {
-  const { gameId, playerId, actionType, targetId } = action;
-  const gameRef = doc(firestore, 'games', gameId);
-  try {
-    await runTransaction(firestore, async (transaction) => {
-        const gameSnap = await transaction.get(gameRef as DocumentReference<Game>);
-        if (!gameSnap.exists()) throw new Error("Game not found");
-        
-        let game = gameSnap.data()!;
-        if (game.phase !== 'night' || game.status === 'finished') return;
-
-        const player = game.players.find(p => p.userId === playerId);
-        if (!player || !player.isAlive) throw new Error("Jugador no válido o muerto.");
-        if (game.exiledPlayerId === playerId) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
-        if (player.usedNightAbility) return;
-        
-        const newAction: NightAction = { ...action, createdAt: Timestamp.now() };
-        
-        const updatedPlayers = game.players.map(p => {
-          if (p.userId === playerId) {
-            let updatedPlayer = { ...p, usedNightAbility: true };
-             switch (actionType) {
-                case 'hechicera_poison':
-                    updatedPlayer.potions = { ...updatedPlayer.potions, poison: game.currentRound };
-                    break;
-                case 'hechicera_save':
-                    updatedPlayer.potions = { ...updatedPlayer.potions, save: game.currentRound };
-                    break;
-                case 'priest_bless':
-                    if (targetId === playerId) updatedPlayer.priestSelfHealUsed = true;
-                    break;
-                case 'guardian_protect':
-                     if (targetId === playerId) updatedPlayer.guardianSelfProtects = (updatedPlayer.guardianSelfProtects || 0) + 1;
-                    break;
-                case 'lookout_spy':
-                    updatedPlayer.lookoutUsed = true;
-                    break;
-                case 'resurrect':
-                    updatedPlayer.resurrectorAngelUsed = true;
-                    break;
-                case 'shapeshifter_select':
-                    if(game.currentRound === 1) updatedPlayer.shapeshifterTargetId = targetId;
-                    break;
-                case 'virginia_woolf_link':
-                    if(game.currentRound === 1) updatedPlayer.virginiaWoolfTargetId = targetId;
-                    break;
-                case 'river_siren_charm':
-                     if(game.currentRound === 1) updatedPlayer.riverSirenTargetId = targetId;
-                    break;
-            }
-            return updatedPlayer;
-          }
-          return p;
-        });
-
-        transaction.update(gameRef, { 
-          nightActions: arrayUnion(toPlainObject(newAction)), 
-          players: toPlainObject(updatedPlayers) 
-        });
-    });
-
-    return { success: true };
-
-  } catch (error: any) {
-    console.error("Error submitting night action: ", error);
-    return { success: false, error: error.message || "No se pudo registrar tu acción." };
-  }
-}
-
-export async function executeMasterAction(firestore: Firestore, gameId: string, actionId: string, sourceId: string | null, targetId: string) {
+export async function resetGame(gameId: string) {
+    const { firestore } = getSdks();
     const gameRef = doc(firestore, 'games', gameId);
-     try {
-        await runTransaction(firestore, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef as DocumentReference<Game>);
-            if (!gameDoc.exists()) throw new Error("Game not found");
-            let game = gameDoc.data()!;
-
-            if (actionId === 'master_kill') {
-                 if (game.masterKillUsed) throw new Error("El Zarpazo del Destino ya ha sido utilizado.");
-                 const { updatedGame } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, targetId, 'special');
-                 updatedGame.masterKillUsed = true;
-                 game = updatedGame;
-            } else {
-                const action = masterActions[actionId as keyof typeof masterActions];
-                if (action) {
-                    const { updatedGame } = action.execute(game, sourceId!, targetId);
-                    game = updatedGame;
-                }
-            }
-            transaction.update(gameRef, toPlainObject(game));
-        });
-        return { success: true };
-    } catch (error: any) {
-        console.error("Error executing master action:", error);
-        return { success: false, error: error.message };
-    }
-}
-
-export async function getSeerResult(firestore: Firestore, gameId: string, seerId: string, targetId: string) {
-    try {
-        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
-        if (!gameDoc.exists()) throw new Error("Game not found");
-        const game = gameDoc.data() as Game;
-
-        const seerPlayer = game.players.find(p => p.userId === seerId);
-        if (!seerPlayer || (seerPlayer.role !== 'seer' && !(seerPlayer.role === 'seer_apprentice' && game.seerDied))) {
-            throw new Error("No tienes el don de la videncia.");
-        }
-
-        const targetPlayer = game.players.find(p => p.userId === targetId);
-        if (!targetPlayer) throw new Error("Target player not found");
-
-        const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
-        const isWerewolf = !!(targetPlayer.role && (wolfRoles.includes(targetPlayer.role) || targetPlayer.role === 'lycanthrope'));
-
-        return { success: true, isWerewolf, targetName: targetPlayer.displayName };
-    } catch (error: any) {
-        console.error("Error getting seer result: ", error);
-        return { success: false, error: error.message };
-    }
-}
-
-export async function submitHunterShot(firestore: Firestore, gameId: string, hunterId: string, targetId: string) {
-    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
 
     try {
         await runTransaction(firestore, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found");
-            let game = gameSnap.data()!;
+            if (!gameSnap.exists()) throw new Error("Partida no encontrada.");
+            const game = gameSnap.data() as Game;
 
-            if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId || game.status === 'finished') {
-                return;
-            }
-            
-            const hunterPlayer = game.players.find(p => p.userId === hunterId)!;
-            const targetPlayer = game.players.find(p => p.userId === targetId)!;
+            const humanPlayers = game.players.filter(p => !p.isAI);
 
-            let { updatedGame, triggeredHunterId: newTriggeredHunter } = await killPlayerUnstoppable(transaction, gameRef, game, targetId, 'hunter_shot');
-            game = updatedGame;
-            
-             game.events.push({
-                id: `evt_huntershot_${Date.now()}`, gameId, round: game.currentRound, type: 'hunter_shot',
-                message: `En su último aliento, ${hunterPlayer.displayName} dispara y se lleva consigo a ${targetPlayer.displayName}.`,
-                createdAt: Timestamp.now(), data: {killedPlayerIds: [targetId]},
+            const resetHumanPlayers = humanPlayers.map(player => {
+                const newPlayer = createPlayerObject(player.userId, game.id, player.displayName, player.avatarUrl, player.isAI);
+                newPlayer.joinedAt = player.joinedAt; 
+                return newPlayer;
             });
-            
-            if (newTriggeredHunter) {
-                game.pendingHunterShot = newTriggeredHunter;
-                transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot }));
-                return;
-            }
 
-            const gameOverInfo = await checkGameOver(game, null);
-            if (gameOverInfo.isGameOver) {
-                game.status = "finished";
-                game.phase = "finished";
-                game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: Timestamp.now() });
-                transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: game.players, events: game.events }));
-                return;
-            }
-            
-            const hunterDeathEvent = [...game.events].sort((a, b) => toPlainObject(b.createdAt).getTime() - toPlainObject(a.createdAt).getTime()).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
-            
-            const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
-            const currentRound = game.currentRound;
-            const newRound = nextPhase === 'night' ? currentRound + 1 : currentRound;
-
-            game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; p.isExiled = false; });
-            const phaseEndsAt = Timestamp.fromMillis(Date.now() + PHASE_DURATION_SECONDS * 1000);
-            
             transaction.update(gameRef, toPlainObject({
-                players: game.players, events: game.events, phase: nextPhase, phaseEndsAt,
-                currentRound: newRound, pendingHunterShot: null
+                status: 'waiting', phase: 'waiting', currentRound: 0,
+                events: [], chatMessages: [], wolfChatMessages: [], fairyChatMessages: [],
+                twinChatMessages: [], loversChatMessages: [], ghostChatMessages: [], nightActions: [],
+                twins: null, lovers: null, phaseEndsAt: Timestamp.now(), pendingHunterShot: null,
+                wolfCubRevengeRound: 0, players: resetHumanPlayers, vampireKills: 0, boat: [],
+                leprosaBlockedRound: 0, witchFoundSeer: false, seerDied: false,
+                silencedPlayerId: null, exiledPlayerId: null, troublemakerUsed: false,
+                fairiesFound: false, fairyKillUsed: false, juryVotes: {}, masterKillUsed: false
             }));
         });
         return { success: true };
-    } catch (error: any) {
-        console.error("CRITICAL ERROR in submitHunterShot: ", error);
-        return { success: false, error: error.message || "No se pudo registrar el disparo." };
-    }
-}
-
-export async function submitVote(firestore: Firestore, gameId: string, voterId: string, targetId: string) {
-    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
-    
-    try {
-       await runTransaction(firestore, async (transaction) => {
-            const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found");
-            
-            let game = gameSnap.data()!;
-            if (game.phase !== 'day' || game.status === 'finished') return;
-            
-            const playerIndex = game.players.findIndex(p => p.userId === voterId && p.isAlive);
-            if (playerIndex === -1) throw new Error("Player not found or is not alive");
-            
-            if (game.players[playerIndex].votedFor) return;
-
-            const siren = game.players.find(p => p.role === 'river_siren');
-            const charmedPlayerId = siren?.riverSirenTargetId;
-
-            if (voterId === charmedPlayerId && siren && siren.isAlive) {
-                if (siren.votedFor) {
-                    game.players[playerIndex].votedFor = siren.votedFor;
-                } else {
-                    throw new Error("Debes esperar a que la Sirena vote primero.");
-                }
-            } else {
-                 game.players[playerIndex].votedFor = targetId;
-            }
-            
-            transaction.update(gameRef, { players: toPlainObject(game.players) });
-        });
-
-        const gameDoc = await getDoc(gameRef);
-        if(gameDoc.exists()){
-            const gameData = gameDoc.data();
-            const voter = gameData.players.find(p => p.userId === voterId);
-            const target = gameData.players.find(p => p.userId === targetId);
-            if (voter && target && !voter.isAI) {
-                await triggerAIChat(firestore, gameId, `${voter.displayName} ha votado por ${target.displayName}.`, 'public');
-            }
-        }
-
-        return { success: true };
-
-    } catch (error: any) {
-        console.error("Error submitting vote: ", error);
-        return { error: "No se pudo registrar tu voto." };
+    } catch (e: any) {
+        console.error("Error resetting game:", e);
+        return { error: e.message || 'No se pudo reiniciar la partida.' };
     }
 }
 
 export async function sendChatMessage(
-    firestore: Firestore,
     gameId: string,
     senderId: string,
     senderName: string,
     text: string,
     isFromAI: boolean = false
 ) {
+    const { firestore } = getSdks();
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
@@ -630,7 +355,7 @@ export async function sendChatMessage(
 
         if (!isFromAI && latestGame) {
             const triggerMessage = `${senderName} dijo: "${text.trim()}"`;
-            await triggerAIChat(firestore, gameId, triggerMessage, 'public');
+            await triggerAIChat(gameId, triggerMessage, 'public');
         }
 
         return { success: true };
@@ -642,13 +367,13 @@ export async function sendChatMessage(
 }
 
 async function sendSpecialChatMessage(
-    firestore: Firestore,
     gameId: string,
     senderId: string,
     senderName: string,
     text: string,
     chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost'
 ) {
+    const { firestore } = getSdks();
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
@@ -724,153 +449,15 @@ async function sendSpecialChatMessage(
     }
 }
 
-export const sendWolfChatMessage = (firestore: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(firestore, gameId, senderId, senderName, text, 'wolf');
-export const sendFairyChatMessage = (firestore: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(firestore, gameId, senderId, senderName, text, 'fairy');
-export const sendLoversChatMessage = (firestore: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(firestore, gameId, senderId, senderName, text, 'lovers');
-export const sendTwinChatMessage = (firestore: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(firestore, gameId, senderId, senderName, text, 'twin');
-export const sendGhostChatMessage = (firestore: Firestore, gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(firestore, gameId, senderId, senderName, text, 'ghost');
+export const sendWolfChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'wolf');
+export const sendFairyChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'fairy');
+export const sendLoversChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'lovers');
+export const sendTwinChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'twin');
+export const sendGhostChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'ghost');
 
 
-export async function resetGame(firestore: Firestore, gameId: string) {
-    const gameRef = doc(firestore, 'games', gameId);
-
-    try {
-        await runTransaction(firestore, async (transaction) => {
-            const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Partida no encontrada.");
-            const game = gameSnap.data() as Game;
-
-            const humanPlayers = game.players.filter(p => !p.isAI);
-
-            const resetHumanPlayers = humanPlayers.map(player => {
-                const newPlayer = createPlayerObject(player.userId, game.id, player.displayName, player.avatarUrl, player.isAI);
-                newPlayer.joinedAt = player.joinedAt; 
-                return newPlayer;
-            });
-
-            transaction.update(gameRef, toPlainObject({
-                status: 'waiting', phase: 'waiting', currentRound: 0,
-                events: [], chatMessages: [], wolfChatMessages: [], fairyChatMessages: [],
-                twinChatMessages: [], loversChatMessages: [], ghostChatMessages: [], nightActions: [],
-                twins: null, lovers: null, phaseEndsAt: Timestamp.now(), pendingHunterShot: null,
-                wolfCubRevengeRound: 0, players: resetHumanPlayers, vampireKills: 0, boat: [],
-                leprosaBlockedRound: 0, witchFoundSeer: false, seerDied: false,
-                silencedPlayerId: null, exiledPlayerId: null, troublemakerUsed: false,
-                fairiesFound: false, fairyKillUsed: false, juryVotes: {}, masterKillUsed: false
-            }));
-        });
-        return { success: true };
-    } catch (e: any) {
-        console.error("Error resetting game:", e);
-        return { error: e.message || 'No se pudo reiniciar la partida.' };
-    }
-}
-
-export async function submitJuryVote(firestore: Firestore, gameId: string, jurorId: string, targetId: string) {
-    const gameRef = doc(firestore, 'games', gameId);
-    try {
-        await runTransaction(firestore, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error("Game not found");
-            const game = gameDoc.data() as Game;
-
-            if (game.phase !== 'jury_voting') throw new Error("No es momento de votar como jurado.");
-            const juror = game.players.find(p => p.userId === jurorId);
-            if (!juror || juror.isAlive) throw new Error("Solo los muertos pueden ser jurado.");
-            if (game.juryVotes && game.juryVotes[jurorId]) throw new Error("Ya has votado.");
-
-            const updatedJuryVotes = { ...(game.juryVotes || {}), [jurorId]: targetId };
-            transaction.update(gameRef, { juryVotes: updatedJuryVotes });
-        });
-        return { success: true };
-    } catch (error: any) {
-        console.error("Error submitting jury vote:", error);
-        return { success: false, error: error.message };
-    }
-}
-
-export async function submitTroublemakerAction(firestore: Firestore, gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
-  const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
-
-  try {
-    await runTransaction(firestore, async (transaction) => {
-      const gameSnap = await transaction.get(gameRef);
-      if (!gameSnap.exists()) throw new Error("Partida no encontrada");
-      let game = gameSnap.data()!;
-
-      if (game.status === 'finished') return;
-
-      const player = game.players.find(p => p.userId === troublemakerId);
-      if (!player || player.role !== 'troublemaker' || game.troublemakerUsed) {
-        throw new Error("No puedes realizar esta acción.");
-      }
-
-      const target1 = game.players.find(p => p.userId === target1Id);
-      const target2 = game.players.find(p => p.userId === target2Id);
-
-      if (!target1 || !target2 || !target1.isAlive || !target2.isAlive) {
-        throw new Error("Los objetivos seleccionados no son válidos.");
-      }
-      
-      let { updatedGame } = await killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, target1Id, 'troublemaker_duel');
-      game = updatedGame;
-      
-      let finalResult = await killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, target2Id, 'troublemaker_duel');
-      game = finalResult.updatedGame;
-
-      game.events.push({
-        id: `evt_trouble_${Date.now()}`, gameId, round: game.currentRound, type: 'special',
-        message: `${player.displayName} ha provocado una pelea mortal. ${target1.displayName} y ${target2.displayName} han sido eliminados.`,
-        createdAt: Timestamp.now(), data: { killedPlayerIds: [target1Id, target2Id] }
-      });
-      game.troublemakerUsed = true;
-      
-      transaction.update(gameRef, toPlainObject(game));
-    });
-
-    return { success: true };
-  } catch (error: any) {
-    console.error("Error submitting troublemaker action:", error);
-    return { success: false, error: error.message || "No se pudo realizar la acción." };
-  }
-}
-
-export async function sendGhostMessage(firestore: Firestore, gameId: string, ghostId: string, targetId: string, message: string) {
-    const gameRef = doc(firestore, 'games', gameId);
-    try {
-        await runTransaction(firestore, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error("Game not found");
-            const game = gameDoc.data() as Game;
-            const playerIndex = game.players.findIndex(p => p.userId === ghostId);
-
-            if (playerIndex === -1) throw new Error("Player not found.");
-            const player = game.players[playerIndex];
-
-            if (player.role !== 'ghost' || player.isAlive || player.ghostMessageSent) {
-                throw new Error("No tienes permiso para realizar esta acción.");
-            }
-
-            const ghostEvent: GameEvent = {
-                id: `evt_ghost_${Date.now()}`, gameId, round: game.currentRound, type: 'special',
-                message: `Has recibido un misterioso mensaje desde el más allá: "${message}"`,
-                createdAt: Timestamp.now(), data: { targetId: targetId, originalMessage: message },
-            };
-
-            game.players[playerIndex].ghostMessageSent = true;
-            game.events.push(ghostEvent);
-
-            transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events }));
-        });
-        return { success: true };
-    } catch (error: any) {
-        console.error("Error sending ghost message:", error);
-        return { success: false, error: error.message || "No se pudo enviar el mensaje." };
-    }
-}
-
-
-async function triggerAIChat(firestore: Firestore, gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
+async function triggerAIChat(gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
+    const { firestore } = getSdks();
     try {
         const gameDoc = await getDoc(doc(firestore, 'games', gameId));
         if (!gameDoc.exists()) return;
@@ -896,7 +483,7 @@ async function triggerAIChat(firestore: Firestore, gameId: string, triggerMessag
                 generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
                     if (shouldSend && message) {
                         await new Promise(resolve => setTimeout(resolve, Math.random() * 4000 + 1000));
-                        await sendChatMessage(firestore, gameId, aiPlayer.userId, aiPlayer.displayName, message, true);
+                        await sendChatMessage(gameId, aiPlayer.userId, aiPlayer.displayName, message, true);
                     }
                 }).catch(aiError => console.error(`Error generating AI chat for ${aiPlayer.displayName}:`, aiError));
             }
@@ -907,29 +494,38 @@ async function triggerAIChat(firestore: Firestore, gameId: string, triggerMessag
 }
 
 
-export async function processNight(firestore: Firestore, gameId: string) {
+export async function processNight(gameId: string) {
+    const { firestore } = getSdks();
     const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
     try {
         await runTransaction(firestore, async (transaction) => {
             await processNightEngine(transaction, gameRef);
         });
+        
+        await runAIActionsServer(gameId, 'day');
+
     } catch (e) {
         console.error("Failed to process night", e);
     }
 }
 
-export async function processVotes(firestore: Firestore, gameId: string) {
+export async function processVotes(gameId: string) {
+    const { firestore } = getSdks();
     const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
     try {
         await runTransaction(firestore, async (transaction) => {
             await processVotesEngine(transaction, gameRef);
         });
+
+        await runAIActionsServer(gameId, 'night');
+        
     } catch (e) {
         console.error("Failed to process votes", e);
     }
 }
 
-export async function processJuryVotes(firestore: Firestore, gameId: string) {
+export async function processJuryVotes(gameId: string) {
+    const { firestore } = getSdks();
     const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
     try {
         await runTransaction(firestore, async (transaction) => {
@@ -937,6 +533,36 @@ export async function processJuryVotes(firestore: Firestore, gameId: string) {
         });
     } catch (e) {
         console.error("Failed to process jury votes", e);
+    }
+}
+
+export async function executeMasterAction(gameId: string, actionId: string, sourceId: string | null, targetId: string) {
+    const { firestore } = getSdks();
+    const gameRef = doc(firestore, 'games', gameId);
+     try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef as DocumentReference<Game>);
+            if (!gameDoc.exists()) throw new Error("Game not found");
+            let game = gameDoc.data()!;
+
+            if (actionId === 'master_kill') {
+                 if (game.masterKillUsed) throw new Error("El Zarpazo del Destino ya ha sido utilizado.");
+                 const { updatedGame } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, targetId, 'special');
+                 updatedGame.masterKillUsed = true;
+                 game = updatedGame;
+            } else {
+                const action = masterActions[actionId as keyof typeof masterActions];
+                if (action) {
+                    const { updatedGame } = action.execute(game, sourceId!, targetId);
+                    game = updatedGame;
+                }
+            }
+            transaction.update(gameRef, toPlainObject(game));
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error executing master action:", error);
+        return { success: false, error: error.message };
     }
 }
 

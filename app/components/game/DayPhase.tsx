@@ -7,12 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
-import { submitVote, submitTroublemakerAction } from '@/lib/firebase-actions';
+import { submitVote, submitTroublemakerAction } from '@/lib/firebase-client-actions';
 import { Loader2, Zap, Scale } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { HeartCrack, SunIcon, Users, BrainCircuit } from 'lucide-react';
 import type { MasterActionState } from './MasterActionBar';
-import { useFirebase } from '@/firebase';
 
 interface DayPhaseProps {
     game: Game;
@@ -27,7 +26,6 @@ interface DayPhaseProps {
 function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, currentPlayer: Player, players: Player[] }) {
     const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const { firestore } = useFirebase();
     const { toast } = useToast();
     const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
 
@@ -50,10 +48,9 @@ function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, curre
             toast({ variant: 'destructive', title: 'Debes seleccionar exactamente a dos jugadores.' });
             return;
         }
-        if (!firestore) return;
 
         setIsSubmitting(true);
-        const result = await submitTroublemakerAction(firestore, game.id, currentPlayer.userId, selectedPlayerIds[0], selectedPlayerIds[1]);
+        const result = await submitTroublemakerAction(game.id, currentPlayer.userId, selectedPlayerIds[0], selectedPlayerIds[1]);
         if (result.success) {
             toast({ title: '¡Caos desatado!', description: 'Has provocado una pelea mortal.' });
         } else {
@@ -107,7 +104,6 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
-    const { firestore } = useFirebase();
     const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
 
     const siren = players.find(p => p.role === 'river_siren');
@@ -143,13 +139,9 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
             }
             return;
         }
-        if (!firestore) {
-            toast({ variant: 'destructive', title: 'Error', description: 'La base de datos no está disponible.' });
-            return;
-        }
 
         setIsSubmitting(true);
-        const result = await submitVote(firestore, game.id, currentPlayer.userId, selectedPlayerId);
+        const result = await submitVote(game.id, currentPlayer.userId, selectedPlayerId);
 
         if (result.error) {
             toast({ variant: 'destructive', title: 'Error', description: result.error });

@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
-import { submitJuryVote } from '@/lib/firebase-actions';
+import { submitJuryVote } from '@/lib/firebase-client-actions';
 import { Loader2, Scale } from 'lucide-react';
 import type { MasterActionState } from './MasterActionBar';
 
@@ -95,3 +95,5 @@ export function JuryVote({ game, players, currentPlayer, tiedPlayerIds }: JuryVo
         </Card>
     );
 }
+
+    
