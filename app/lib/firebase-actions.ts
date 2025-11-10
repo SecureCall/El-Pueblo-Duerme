@@ -49,7 +49,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     role: null,
     isAlive: true,
     votedFor: null,
-    joinedAt: new Date(),
+    joinedAt: Timestamp.now(),
     isAI,
     isExiled: false,
     lastHealedRound: 0,
@@ -373,7 +373,7 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt'>) 
 
         const player = game.players.find(p => p.userId === playerId);
         if (!player || !player.isAlive) throw new Error("Jugador no válido o muerto.");
-        if (player.isExiled) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
+        if (game.exiledPlayerId === playerId) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
         if (player.usedNightAbility) return;
         
         const newAction: NightAction = { ...action, createdAt: Timestamp.now() };
@@ -962,59 +962,5 @@ async function triggerPrivateAIChats(gameId: string, triggerMessage: string) {
     }
 }
 
-
-export async function runAIActions(gameId: string) {
-    const { firestore } = getSdks();
-    try {
-        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
-        if (!gameDoc.exists()) return;
-        const game = gameDoc.data() as Game;
-
-        if(game.phase !== 'night' || game.status === 'finished') return;
-
-        await triggerPrivateAIChats(gameId, "La noche ha caído. ¿Cuál es nuestro plan?");
-
-        const aiPlayers = game.players.filter(p => p.isAI && p.isAlive && !p.usedNightAbility);
-        const alivePlayers = game.players.filter(p => p.isAlive);
-        const deadPlayers = game.players.filter(p => !p.isAlive);
-
-        for (const ai of aiPlayers) {
-            const { actionType, targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
-
-            if (!actionType || actionType === 'NONE' || !targetId || actionType === 'VOTE' || actionType === 'SHOOT') continue;
-
-            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
-            await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
-        }
-    } catch(e) {
-        console.error("Error in AI Actions:", e);
-    }
-}
-
-
-export async function runAIHunterShot(gameId: string, hunter: Player) {
-    const { firestore } = getSdks();
-    try {
-        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
-        if (!gameDoc.exists()) return;
-        const game = gameDoc.data() as Game;
-
-        if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunter.userId) return;
-
-        const alivePlayers = game.players.filter(p => p.isAlive && p.userId !== hunter.userId);
-        
-        const { targetId } = getDeterministicAIAction(hunter, game, alivePlayers, []);
-
-        if (targetId) {
-            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
-            await submitHunterShot(gameId, hunter.userId, targetId);
-        } else {
-             console.error(`AI Hunter ${hunter.displayName} could not find a target to shoot.`);
-        }
-
-    } catch(e) {
-         console.error("Error in runAIHunterShot:", e);
-    }
-}
 
 export { processNight, processVotes, processJuryVotes } from './game-engine';
