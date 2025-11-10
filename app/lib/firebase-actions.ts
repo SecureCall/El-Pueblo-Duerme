@@ -25,8 +25,9 @@ import { toPlainObject } from "./utils";
 import { masterActions } from "./master-actions";
 import { getSdks } from "@/firebase/server-init";
 import { secretObjectives } from "./objectives";
-import { processJuryVotes, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes, processNight } from './game-engine';
+import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
+import { getDeterministicAIAction } from './server-ai-actions';
 
 
 const PHASE_DURATION_SECONDS = 60;
@@ -48,7 +49,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     role: null,
     isAlive: true,
     votedFor: null,
-    joinedAt: Timestamp.now(),
+    joinedAt: new Date(),
     isAI,
     isExiled: false,
     lastHealedRound: 0,
@@ -173,23 +174,7 @@ export async function joinGame(
       
       const playerExists = game.players.some(p => p.userId === userId);
       if (playerExists) {
-        const currentPlayers = game.players;
-        const playerIndex = currentPlayers.findIndex(p => p.userId === userId);
-        if (playerIndex !== -1) {
-            let changed = false;
-            if(currentPlayers[playerIndex].displayName !== displayName.trim()) {
-                currentPlayers[playerIndex].displayName = displayName.trim();
-                changed = true;
-            }
-             if(currentPlayers[playerIndex].avatarUrl !== avatarUrl) {
-                currentPlayers[playerIndex].avatarUrl = avatarUrl;
-                changed = true;
-            }
-            if(changed) {
-                transaction.update(gameRef, { players: toPlainObject(currentPlayers), lastActiveAt: Timestamp.now() });
-            }
-        }
-        return;
+        return; 
       }
       
       const nameExists = game.players.some(p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase());
@@ -247,13 +232,11 @@ const MINIMUM_PLAYERS = 3;
 const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
     let roles: PlayerRole[] = [];
     
-    // 1. Add Werewolves
     const numWerewolves = Math.max(1, Math.floor(playerCount / 5));
     for (let i = 0; i < numWerewolves; i++) {
         roles.push('werewolf');
     }
 
-    // 2. Add selected special roles
     const availableSpecialRoles: PlayerRole[] = (Object.keys(settings) as Array<keyof typeof settings>)
         .filter(key => {
             const roleKey = key as PlayerRole;
@@ -273,12 +256,10 @@ const generateRoles = (playerCount: number, settings: Game['settings']): (Player
         }
     }
     
-    // 3. Fill remaining spots with Villagers
     while (roles.length < playerCount) {
         roles.push('villager');
     }
 
-    // 4. Shuffle all roles
     return roles.sort(() => Math.random() - 0.5);
 };
 
@@ -331,8 +312,7 @@ export async function startGame(gameId: string, creatorId: string) {
                 if (p.role === 'cult_leader') {
                     p.isCultMember = true;
                 }
-                 // Assign a secret objective to human players
-                if (!p.isAI) {
+                 if (!p.isAI) {
                     const applicableObjectives = secretObjectives.filter(obj => 
                         obj.appliesTo.includes('any') || (p.role && obj.appliesTo.includes(p.role))
                     );
@@ -401,7 +381,6 @@ export async function submitNightAction(action: Omit<NightAction, 'createdAt'>) 
         const updatedPlayers = game.players.map(p => {
           if (p.userId === playerId) {
             let updatedPlayer = { ...p, usedNightAbility: true };
-            // Role specific logic that needs to be persisted immediately
              switch (actionType) {
                 case 'hechicera_poison':
                     updatedPlayer.potions = { ...updatedPlayer.potions, poison: game.currentRound };
@@ -903,10 +882,6 @@ export async function sendGhostMessage(gameId: string, ghostId: string, targetId
 }
 
 
-// ===============================================================================================
-// AI ACTIONS LOGIC
-// ===============================================================================================
-
 async function triggerAIChat(gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
     const { firestore } = getSdks();
     try {
@@ -1043,7 +1018,3 @@ export async function runAIHunterShot(gameId: string, hunter: Player) {
 }
 
 export { processNight, processVotes, processJuryVotes } from './game-engine';
-
-    
-
-    

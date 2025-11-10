@@ -5,14 +5,13 @@ import { useEffect, useState, useCallback } from 'react';
 import { useGameSession } from '@/hooks/use-game-session';
 import { useGameState } from '@/hooks/use-game-state';
 import { EnterNameModal } from './EnterNameModal';
-import { joinGame } from '@/lib/firebase-client-actions';
+import { joinGame } from '@/lib/firebase-actions';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { GameLobby } from './GameLobby';
 import { GameBoard } from './GameBoard';
 import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { GameMusic } from './GameMusic';
-import { useFirebase } from '@/firebase';
 import Link from 'next/link';
 import { Button } from '../ui/button';
 
@@ -21,8 +20,6 @@ export function GameRoom({ gameId }: { gameId: string }) {
   const { game, players, currentPlayer, loading, error: gameStateError } = useGameState(gameId);
   const [isJoining, setIsJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
-
-  const { firestore } = useFirebase();
 
   const handleNameSubmit = useCallback(
     (name: string) => {
@@ -33,7 +30,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
   );
 
   const handleJoinGame = useCallback(async () => {
-    if (!displayName || !firestore || !avatarUrl || !userId || !game) return;
+    if (!displayName || !avatarUrl || !userId || !game) return;
     
     const isPlayerInGame = game.players.some(p => p.userId === userId);
     if (isPlayerInGame) return;
@@ -50,7 +47,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
       }
     }
     setIsJoining(false);
-  }, [gameId, userId, displayName, avatarUrl, firestore, game, setDisplayName]);
+  }, [gameId, userId, displayName, avatarUrl, game, setDisplayName]);
 
   useEffect(() => {
     if (isSessionLoaded && game && displayName && !currentPlayer && game.status === 'waiting' && !isJoining) {
