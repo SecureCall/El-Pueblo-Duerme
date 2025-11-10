@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -12,8 +13,10 @@ service cloud.firestore {
       // READ: Any authenticated user can read game data to view lobbies or join games.
       allow read: if request.auth != null;
 
-      // CREATE: Allow creation if the user is authenticated and is the first player in the list.
-      allow create: if request.auth != null && request.resource.data.players[0].userId == request.auth.uid;
+      // CREATE: Allow creation if the user is authenticated and is the first and only player in the list.
+      allow create: if request.auth != null && 
+                       request.resource.data.players.size() == 1 &&
+                       request.resource.data.players[0].userId == request.auth.uid;
       
       // UPDATE: More granular rules for updating a game document.
       allow update: if 
@@ -24,7 +27,8 @@ service cloud.firestore {
             // Allow a player to join a game that is in 'waiting' state.
             (
               resource.data.status == 'waiting' &&
-              request.resource.data.players.size() == resource.data.players.size() + 1
+              request.resource.data.players.size() == resource.data.players.size() + 1 &&
+              !isPlayer(gameId) // Ensure the user is not already in the game
             ) ||
 
             // --- STARTING THE GAME ---
@@ -48,8 +52,6 @@ service cloud.firestore {
             (
               isPlayer(gameId) &&
               request.resource.data.players.size() == resource.data.players.size()
-              // More specific checks could be added here for voting/night actions,
-              // but we trust the server-side logic for now. The important part is that only a player can update.
             ) ||
             
             // --- RESETTING THE GAME ---

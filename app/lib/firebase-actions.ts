@@ -73,75 +73,71 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
 
 
 export async function createGame(
-  userId: string,
-  displayName: string,
-  avatarUrl: string,
-  gameName: string,
-  maxPlayers: number,
-  settings: Game['settings']
+  options: {
+    userId: string;
+    displayName: string;
+    avatarUrl: string;
+    gameName: string;
+    maxPlayers: number;
+    settings: Game['settings'];
+  }
 ) {
   const { firestore } = getSdks();
+  const { userId, displayName, avatarUrl, gameName, maxPlayers, settings } = options;
+
+  if (!userId || !displayName.trim() || !gameName.trim()) {
+    return { error: "Datos incompletos para crear la partida." };
+  }
+  if (maxPlayers < 3 || maxPlayers > 32) {
+    return { error: "El número de jugadores debe ser entre 3 y 32." };
+  }
+
+  const gameId = generateGameId();
+  const gameRef = doc(firestore, "games", gameId);
+      
+  const creatorPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
+
+  const gameData: Game = {
+      id: gameId,
+      name: gameName.trim(),
+      status: "waiting",
+      phase: "waiting", 
+      creator: userId,
+      players: [creatorPlayer], 
+      events: [],
+      chatMessages: [],
+      wolfChatMessages: [],
+      fairyChatMessages: [],
+      twinChatMessages: [],
+      loversChatMessages: [],
+      ghostChatMessages: [],
+      maxPlayers: maxPlayers,
+      createdAt: Timestamp.now(),
+      lastActiveAt: Timestamp.now(),
+      currentRound: 0,
+      settings,
+      phaseEndsAt: Timestamp.now(),
+      pendingHunterShot: null,
+      twins: null,
+      lovers: null,
+      wolfCubRevengeRound: 0,
+      nightActions: [],
+      vampireKills: 0,
+      boat: [],
+      leprosaBlockedRound: 0,
+      witchFoundSeer: false,
+      seerDied: false,
+      silencedPlayerId: null,
+      exiledPlayerId: null,
+      troublemakerUsed: false,
+      fairiesFound: false,
+      fairyKillUsed: false,
+      juryVotes: {},
+      masterKillUsed: false,
+  };
+    
   try {
-    if (typeof displayName !== 'string' || typeof gameName !== 'string') {
-        return { error: "El nombre del jugador y de la partida deben ser texto." };
-    }
-    if (!userId || !displayName.trim() || !gameName.trim()) {
-      return { error: "Datos incompletos para crear la partida." };
-    }
-    if (maxPlayers < 3 || maxPlayers > 32) {
-      return { error: "El número de jugadores debe ser entre 3 y 32." };
-    }
-
-    const gameId = generateGameId();
-    const gameRef = doc(firestore, "games", gameId);
-        
-    const gameData: Game = {
-        id: gameId,
-        name: gameName.trim(),
-        status: "waiting",
-        phase: "waiting", 
-        creator: userId,
-        players: [], 
-        events: [],
-        chatMessages: [],
-        wolfChatMessages: [],
-        fairyChatMessages: [],
-        twinChatMessages: [],
-        loversChatMessages: [],
-        ghostChatMessages: [],
-        maxPlayers: maxPlayers,
-        createdAt: Timestamp.now(),
-        lastActiveAt: Timestamp.now(),
-        currentRound: 0,
-        settings,
-        phaseEndsAt: Timestamp.now(),
-        pendingHunterShot: null,
-        twins: null,
-        lovers: null,
-        wolfCubRevengeRound: 0,
-        nightActions: [],
-        vampireKills: 0,
-        boat: [],
-        leprosaBlockedRound: 0,
-        witchFoundSeer: false,
-        seerDied: false,
-        silencedPlayerId: null,
-        exiledPlayerId: null,
-        troublemakerUsed: false,
-        fairiesFound: false,
-        fairyKillUsed: false,
-        juryVotes: {},
-        masterKillUsed: false,
-    };
-    
     await setDoc(gameRef, toPlainObject(gameData));
-    
-    const joinResult = await joinGame(gameId, userId, displayName, avatarUrl);
-    if (joinResult.error) {
-      console.error(`Game created (${gameId}), but creator failed to join:`, joinResult.error);
-      return { error: `La partida se creó, pero no se pudo unir: ${joinResult.error}` };
-    }
-
     return { gameId };
   } catch (error: any) {
     console.error("--- CATASTROPHIC ERROR IN createGame ---", error);
@@ -1094,9 +1090,9 @@ export const getDeterministicAIAction = (
             }
 
             const playersWhoVotedForWolves = game.players.filter(p => {
-                const lastVote = game.events.find(e => e.type === 'vote_result' && e.round === currentRound -1);
-                if (!lastVote) return false;
-                const lynchedPlayer = game.players.find(p => p.userId === lastVote.data.lynchedPlayerId);
+                const lastVoteEvent = game.events.find(e => e.type === 'vote_result' && e.round === currentRound -1);
+                if (!lastVoteEvent) return false;
+                const lynchedPlayer = game.players.find(p => p.userId === lastVoteEvent.data.lynchedPlayerId);
                 return p.votedFor === lynchedPlayer?.userId && lynchedPlayer?.role && wolfRoles.includes(lynchedPlayer.role);
             }).map(p => p.userId);
 
