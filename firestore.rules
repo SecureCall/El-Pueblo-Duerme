@@ -31,14 +31,14 @@ service cloud.firestore {
               request.auth.uid == resource.data.creator
             ) ||
             
-            // --- IN-GAME ACTIONS (by the creator) ---
+            // --- IN-GAME ACTIONS (by the creator for phase changes) ---
             (
               resource.data.status == 'in_progress' &&
               request.auth.uid == resource.data.creator &&
               resource.data.phase != request.resource.data.phase
             ) ||
 
-            // --- IN-GAME ACTIONS (by players) ---
+            // --- IN-GAME ACTIONS (by players for votes, actions, etc.) ---
             (
               isPlayer(gameId) &&
               request.resource.data.players.size() == resource.data.players.size()

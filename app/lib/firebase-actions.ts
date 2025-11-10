@@ -102,7 +102,7 @@ export async function createGame(
       status: "waiting",
       phase: "waiting", 
       creator: userId,
-      players: [],
+      players: [], // CRITICAL CHANGE: Create with an empty player list. The creator will join in the GameRoom.
       events: [],
       chatMessages: [],
       wolfChatMessages: [],
