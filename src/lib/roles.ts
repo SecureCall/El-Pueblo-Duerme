@@ -11,7 +11,7 @@ export type RoleDetail = {
     team: 'Aldeanos' | 'Lobos' | 'Neutral';
 }
 
-export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> = {
+export const roleDetails: Record<NonNullable<PlayerRole>, RoleDetail> = {
     // ==== Equipo del Pueblo ====
     villager: {
         name: "Aldeano",
@@ -221,6 +221,15 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         bgImageId: "role-bg-werewolf",
         team: "Lobos",
     },
+    witch: {
+        name: "Bruja",
+        description: "Eres aliada de los lobos. Cada noche, eliges a un jugador. Si eliges a la Vidente, la descubrirás y los lobos serán informados. Desde ese momento, los lobos no podrán matarte.",
+        atmosphere: "Tu magia oscura busca apagar la única luz del pueblo.",
+        image: "/roles/Witch.png",
+        color: "text-purple-500",
+        bgImageId: "role-bg-werewolf",
+        team: "Lobos",
+    },
     seeker_fairy: {
         name: "Hada Buscadora",
         description: "Equipo de los Lobos. Cada noche, buscas al Hada Durmiente. Si la encuentras, ambas despertáis un poder de un solo uso para matar a un jugador.",
@@ -323,3 +332,5 @@ export const defaultRoleDetail: RoleDetail = {
     bgImageId: "role-bg-villager",
     team: "Aldeanos",
 };
+
+  

@@ -9,8 +9,7 @@ import {
 import { 
   type Game, 
   type Player, 
-  type GameEvent, 
-  type PlayerRole,
+  type GameEvent, type PlayerRole,
 } from "@/types";
 import { toPlainObject } from "./utils";
 import { roleDetails } from "./roles";
@@ -434,3 +433,5 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
 
     return { isGameOver: false, message: "", winners: [] };
 }
+
+  
