@@ -1,56 +1,11 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function isPlayer(gameId) {
-      return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p => p.userId == request.auth.uid);
-    }
-    
-    match /games/{gameId} {
-      allow read: if request.auth != null;
-
-      allow create: if request.auth != null &&
-                       request.resource.data.creator == request.auth.uid;
-      
-      allow update: if 
-          request.auth != null &&
-          (
-            // --- JOINING ---
-            (
-              resource.data.status == 'waiting' &&
-              request.resource.data.players.size() == resource.data.players.size() + 1 &&
-              !isPlayer(gameId) 
-            ) ||
-
-            // --- STARTING THE GAME ---
-            (
-              resource.data.status == 'waiting' &&
-              request.resource.data.status == 'in_progress' &&
-              request.auth.uid == resource.data.creator
-            ) ||
-            
-            // --- IN-GAME ACTIONS (by the creator for phase changes) ---
-            (
-              resource.data.status == 'in_progress' &&
-              request.auth.uid == resource.data.creator &&
-              resource.data.phase != request.resource.data.phase
-            ) ||
-
-            // --- IN-GAME ACTIONS (by players for votes, actions, etc.) ---
-            (
-              isPlayer(gameId) &&
-              request.resource.data.players.size() == resource.data.players.size()
-            ) ||
-            
-            // --- RESETTING THE GAME ---
-            (
-               resource.data.status == 'finished' &&
-               request.resource.data.status == 'waiting' &&
-               request.auth.uid == resource.data.creator
-            )
-          );
+    // Allow read/write access to all documents for any authenticated user.
+    // This is insecure and should not be used in production.
+    match /{document=**} {
+      allow read, write: if request.auth != null;
     }
   }
 }

@@ -31,7 +31,7 @@ export async function runAIHunterShot(firestore: Firestore, gameId: string, hunt
 
         if (targetId) {
             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
-            await submitHunterShot(firestore, gameId, hunter.userId, targetId);
+            await submitHunterShot(gameId, hunter.userId, targetId);
         } else {
              console.error(`AI Hunter ${hunter.displayName} could not find a target to shoot.`);
         }
