@@ -1,3 +1,4 @@
+
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { Timestamp } from "firebase/firestore";
@@ -14,10 +15,10 @@ export function toPlainObject<T>(obj: T): T {
         return obj;
     }
     if (obj instanceof Timestamp) {
-        return obj.toDate() as any; 
+        return obj.toDate().toISOString() as any; 
     }
     if (obj instanceof Date) {
-        return obj as any;
+        return obj.toISOString() as any;
     }
     if (Array.isArray(obj)) {
         return obj.map(item => toPlainObject(item)) as any;
