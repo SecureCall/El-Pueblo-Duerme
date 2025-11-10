@@ -20,7 +20,7 @@ export function PhaseTimer({ timeLeft }: PhaseTimerProps) {
             <Progress 
                 value={progress} 
                 className={cn(
-                    "h-2 bg-primary/20",
+                    "h-2 bg-primary/20 transition-all duration-1000",
                     isUrgent && "bg-destructive/50"
                 )}
                 indicatorClassName={cn(

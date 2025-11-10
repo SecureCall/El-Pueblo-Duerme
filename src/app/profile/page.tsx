@@ -107,7 +107,7 @@ export default function ProfilePage() {
 
                      <Card className="bg-card/80">
                         <CardHeader>
-                            <CardTitle className="font-headline text-3xl">Historial y Logros</CardTitle>
+                            <CardTitle className="font-headline text-3xl">Diario de la Aldea</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
@@ -148,3 +148,5 @@ export default function ProfilePage() {
         </>
     );
 }
+
+    
