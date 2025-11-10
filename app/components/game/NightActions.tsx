@@ -190,7 +190,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         
         setIsSubmitting(true);
 
-        const result = await submitNightAction({
+        const result = await submitNightAction(firestore, {
             gameId: game.id,
             round: game.currentRound,
             playerId: currentPlayer.userId,
@@ -436,3 +436,5 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         </Card>
     );
 }
+
+    

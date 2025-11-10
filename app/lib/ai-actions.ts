@@ -1,42 +1,24 @@
 
 'use server';
 import { 
-  getDoc,
   doc,
   type Firestore,
 } from "firebase/firestore";
 import { 
-  type Game, 
   type Player, 
-  type PlayerRole, 
-  type NightActionType, 
-  type AIPlayerPerspective
 } from "@/types";
-import { getDeterministicAIAction } from "./server-ai-actions";
-import { submitHunterShot, submitVote } from "./firebase-actions";
+import { runAIActions as runAIActionsServer } from "./server-ai-actions";
+import { submitHunterShot } from "./firebase-actions";
+import { getSdks } from "@/firebase/server-init";
 
-export { getDeterministicAIAction };
 
-export async function runAIHunterShot(firestore: Firestore, gameId: string, hunter: Player) {
-    try {
-        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
-        if (!gameDoc.exists()) return;
-        const game = gameDoc.data() as Game;
-
-        if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunter.userId) return;
-
-        const alivePlayers = game.players.filter(p => p.isAlive && p.userId !== hunter.userId);
-        
-        const { targetId } = getDeterministicAIAction(hunter, game, alivePlayers, []);
-
-        if (targetId) {
-            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
-            await submitHunterShot(gameId, hunter.userId, targetId);
-        } else {
-             console.error(`AI Hunter ${hunter.displayName} could not find a target to shoot.`);
-        }
-
-    } catch(e) {
-         console.error("Error in runAIHunterShot:", e);
-    }
+export async function runAIActions(gameId: string, phase: 'day' | 'night') {
+  await runAIActionsServer(gameId, phase);
 }
+
+export async function runAIHunterShot(gameId: string, hunter: Player) {
+    const { firestore } = getSdks();
+    await submitHunterShot(firestore, gameId, hunter.userId, 'some-random-id-for-now');
+}
+
+    

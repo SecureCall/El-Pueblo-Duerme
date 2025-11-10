@@ -939,3 +939,5 @@ export async function processJuryVotes(firestore: Firestore, gameId: string) {
         console.error("Failed to process jury votes", e);
     }
 }
+
+    
