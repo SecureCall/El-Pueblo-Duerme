@@ -96,7 +96,18 @@ export async function createGame(
   const { firestore } = getAuthenticatedSdks();
   const { userId, displayName, avatarUrl, gameName, maxPlayers, settings } = options;
 
-  if (!userId || !displayName.trim() || !gameName.trim()) {
+  console.log("--- AUDITORÍA DE CREACIÓN DE PARTIDA ---");
+  console.log("Paso 1: Se ha llamado a la función 'createGame'.");
+  
+  if (!userId) {
+    console.error("Paso 2: ¡FALLO FATAL! El 'userId' es NULO o indefinido al intentar crear la partida.");
+    console.log("------------------------------------------");
+    return { error: "Error: No estás autenticado. Por favor, inicia sesión de nuevo."};
+  }
+  
+  console.log("Paso 2: Usuario confirmado. El ID es:", userId);
+
+  if (!displayName.trim() || !gameName.trim()) {
     return { error: "Datos incompletos para crear la partida." };
   }
   if (maxPlayers < 3 || maxPlayers > 32) {
@@ -148,10 +159,15 @@ export async function createGame(
   };
     
   try {
+    console.log("Paso 3: Intentando escribir los siguientes datos en Firestore:", JSON.stringify(gameData, null, 2));
     await setDoc(gameRef, toPlainObject(gameData));
+    console.log("Paso 4: ¡ÉXITO! La partida se ha creado en Firestore con el ID:", gameId);
+    console.log("------------------------------------------");
     return { gameId };
   } catch (error: any) {
-    console.error("--- CATASTROPHIC ERROR IN createGame ---", error);
+    console.error("Paso 4: ¡FALLO EN FIRESTORE! El servidor ha denegado la escritura.");
+    console.error("El error completo es:", error);
+    console.log("------------------------------------------");
     return { error: `Error de servidor: ${error.message || 'Error desconocido al crear la partida.'}` };
   }
 }

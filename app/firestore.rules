@@ -3,32 +3,34 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    
     match /games/{gameId} {
-      // PERMITIR LEER: Cualquier usuario autenticado puede leer cualquier partida.
+      // PERMITIR CREAR: Si el usuario está logueado y el 'creator' del nuevo documento
+      // es su propio ID.
+      allow create: if request.auth != null && request.resource.data.creator == request.auth.uid;
+
+      // PERMITIR LEER: Cualquier usuario logueado puede leer los datos de la partida.
       allow read: if request.auth != null;
 
-      // PERMITIR CREAR: Un usuario autenticado puede crear una partida si el 'creator' del nuevo documento es su propio UID.
-      allow create: if request.auth != null && request.resource.data.creator == request.auth.uid;
-      
-      // PERMITIR ACTUALIZAR: Un usuario autenticado puede actualizar una partida si...
-      allow update: if request.auth != null && 
+      // PERMITIR ACTUALIZAR:
+      allow update: if request.auth != null &&
         (
-          // ...es el creador de la partida (para iniciarla, reiniciarla o procesar fases).
+          // El creador de la partida puede actualizarla (para iniciar, cambiar configuración en lobby, etc.)
           resource.data.creator == request.auth.uid ||
-          // ...o es un jugador que se une a una partida en espera.
+          
+          // Un jugador puede unirse a una partida que está en 'waiting'.
           (
             resource.data.status == 'waiting' &&
             request.resource.data.players.size() == resource.data.players.size() + 1 &&
             request.resource.data.players[request.resource.data.players.size() - 1].userId == request.auth.uid
           ) ||
-          // ...o es un jugador existente que actualiza su propio estado (votar, usar habilidad, cambiar avatar).
+          
+          // Un jugador ya existente puede actualizar su propio estado (votar, usar habilidad, cambiar avatar).
           (
-            resource.data.players.exists(p => p.userId == request.auth.uid) &&
-            request.resource.data.players.size() == resource.data.players.size()
+             resource.data.players.exists(p => p.userId == request.auth.uid) &&
+             request.resource.data.players.size() == resource.data.players.size()
           )
         );
     }
   }
 }
-
-    

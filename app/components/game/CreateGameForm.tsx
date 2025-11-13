@@ -141,7 +141,10 @@ export function CreateGameForm() {
   };
 
   async function onSubmit(data: CreateGameFormValues) {
+    console.log("Paso 1 del cliente: Se ha pulsado el botón 'Crear y Unirse'.");
+    
     if (!isSessionLoaded || !userId) {
+      console.error("Paso 2 del cliente: ¡FALLO FATAL! `isSessionLoaded` es falso o `userId` es nulo.");
       toast({
             variant: "destructive",
             title: "Sesión no lista",
