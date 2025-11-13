@@ -16,7 +16,7 @@ import { useFirebase } from '@/firebase';
 import Link from 'next/link';
 import { Button } from '../ui/button';
 
-export function GameRoom({ gameId }: { gameId: string }) {
+export default function GameRoom({ gameId }: { gameId: string }) {
   const { userId, displayName, setDisplayName, isSessionLoaded, avatarUrl } = useGameSession();
   const { game, players, currentPlayer, loading, error: gameStateError } = useGameState(gameId);
   const [isJoining, setIsJoining] = useState(false);
