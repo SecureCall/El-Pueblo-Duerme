@@ -1,3 +1,4 @@
+
 'use server';
 import { 
   doc,
@@ -22,11 +23,22 @@ import {
 } from "@/types";
 import { toPlainObject } from "./utils";
 import { masterActions } from "./master-actions";
-import { getSdks } from "@/firebase/server-init";
 import { secretObjectives } from "./objectives";
 import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
-import { getDeterministicAIAction, runAIActions as runAIActionsServer } from './server-ai-actions';
+import { runAIActions as runAIActionsServer } from './server-ai-actions';
+import { getApp, getApps, initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { firebaseConfig } from "@/lib/firebase-config";
+
+
+function getAuthenticatedSdks() {
+  const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+  const auth = getAuth(app);
+  const firestore = getFirestore(app);
+  return { auth, firestore, app };
+}
 
 
 const PHASE_DURATION_SECONDS = 60;
@@ -82,7 +94,7 @@ export async function createGame(
     settings: Game['settings'];
   }
 ) {
-  const { firestore } = getSdks();
+  const { firestore } = getAuthenticatedSdks();
   const { userId, displayName, avatarUrl, gameName, maxPlayers, settings } = options;
 
   if (!userId || !displayName.trim() || !gameName.trim()) {
@@ -101,7 +113,7 @@ export async function createGame(
       status: "waiting",
       phase: "waiting", 
       creator: userId,
-      players: [], // CRITICAL: Start with an empty player list. Creator will join in the GameRoom.
+      players: [], 
       events: [],
       chatMessages: [],
       wolfChatMessages: [],
@@ -181,7 +193,7 @@ const generateRoles = (playerCount: number, settings: Game['settings']): (Player
 };
 
 export async function startGame(gameId: string, creatorId: string) {
-    const { firestore } = getSdks();
+    const { firestore } = getAuthenticatedSdks();
     const gameRef = doc(firestore, 'games', gameId);
     
     try {
@@ -277,7 +289,7 @@ export async function startGame(gameId: string, creatorId: string) {
 }
 
 export async function resetGame(gameId: string) {
-    const { firestore } = getSdks();
+    const { firestore } = getAuthenticatedSdks();
     const gameRef = doc(firestore, 'games', gameId);
 
     try {
@@ -319,7 +331,7 @@ export async function sendChatMessage(
     text: string,
     isFromAI: boolean = false
 ) {
-    const { firestore } = getSdks();
+    const { firestore } = getAuthenticatedSdks();
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
@@ -372,7 +384,7 @@ async function sendSpecialChatMessage(
     text: string,
     chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost'
 ) {
-    const { firestore } = getSdks();
+    const { firestore } = getAuthenticatedSdks();
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
@@ -456,7 +468,7 @@ export const sendGhostChatMessage = (gameId: string, senderId: string, senderNam
 
 
 async function triggerAIChat(gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
-    const { firestore } = getSdks();
+    const { firestore } = getAuthenticatedSdks();
     try {
         const gameDoc = await getDoc(doc(firestore, 'games', gameId));
         if (!gameDoc.exists()) return;
@@ -494,7 +506,7 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
 
 
 export async function processNight(gameId: string) {
-    const { firestore } = getSdks();
+    const { firestore } = getAuthenticatedSdks();
     const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
     try {
         await runTransaction(firestore, async (transaction) => {
@@ -515,7 +527,7 @@ export async function processNight(gameId: string) {
 }
 
 export async function processVotes(gameId: string) {
-    const { firestore } = getSdks();
+    const { firestore } = getAuthenticatedSdks();
     const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
     try {
         await runTransaction(firestore, async (transaction) => {
@@ -535,7 +547,7 @@ export async function processVotes(gameId: string) {
 }
 
 export async function processJuryVotes(gameId: string) {
-    const { firestore } = getSdks();
+    const { firestore } = getAuthenticatedSdks();
     const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
     try {
         await runTransaction(firestore, async (transaction) => {
@@ -547,7 +559,7 @@ export async function processJuryVotes(gameId: string) {
 }
 
 export async function executeMasterAction(gameId: string, actionId: string, sourceId: string | null, targetId: string) {
-    const { firestore } = getSdks();
+    const { firestore } = getAuthenticatedSdks();
     const gameRef = doc(firestore, 'games', gameId);
      try {
         await runTransaction(firestore, async (transaction) => {
@@ -575,3 +587,5 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
         return { success: false, error: error.message };
     }
 }
+
+    

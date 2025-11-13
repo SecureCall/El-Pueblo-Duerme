@@ -1,3 +1,4 @@
+
 'use client';
 import { 
   doc,
@@ -118,3 +119,5 @@ export async function updatePlayerAvatar(firestore: Firestore, gameId: string, u
         return { success: false, error: error.message };
     }
 }
+
+    
