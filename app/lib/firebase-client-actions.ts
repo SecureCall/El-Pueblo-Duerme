@@ -14,6 +14,9 @@ import {
 } from "@/types";
 import { toPlainObject } from "./utils";
 
+// These actions are explicitly client-side and require a Firestore instance from the client.
+// They typically handle real-time interactions or initial setup that depends on the client's auth state.
+
 export { 
   createGame,
   startGame,
