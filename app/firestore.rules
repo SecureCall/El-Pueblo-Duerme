@@ -27,7 +27,7 @@ service cloud.firestore {
           
           // Un jugador ya existente puede actualizar su propio estado (votar, usar habilidad, cambiar avatar).
           (
-             resource.data.players.exists(p => p.userId == request.auth.uid) &&
+             resource.data.players.some(p => p.userId == request.auth.uid) &&
              request.resource.data.players.size() == resource.data.players.size()
           )
         );

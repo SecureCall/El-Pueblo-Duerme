@@ -96,16 +96,17 @@ export async function createGame(
   const { firestore } = getAuthenticatedSdks();
   const { userId, displayName, avatarUrl, gameName, maxPlayers, settings } = options;
 
+  // --- AUDITORÍA DE CREACIÓN DE PARTIDA ---
   console.log("--- AUDITORÍA DE CREACIÓN DE PARTIDA ---");
   console.log("Paso 1: Se ha llamado a la función 'createGame'.");
-  
+
   if (!userId) {
     console.error("Paso 2: ¡FALLO FATAL! El 'userId' es NULO o indefinido al intentar crear la partida.");
     console.log("------------------------------------------");
     return { error: "Error: No estás autenticado. Por favor, inicia sesión de nuevo."};
   }
   
-  console.log("Paso 2: Usuario confirmado. El ID es:", userId);
+  console.log("Paso 2: Usuario confirmado. El ID para la regla 'request.auth.uid' es:", userId);
 
   if (!displayName.trim() || !gameName.trim()) {
     return { error: "Datos incompletos para crear la partida." };
@@ -124,7 +125,7 @@ export async function createGame(
       name: gameName.trim(),
       status: "waiting",
       phase: "waiting", 
-      creator: userId,
+      creator: userId, // Este es el campo que la regla de seguridad validará
       players: [creatorPlayer], 
       events: [],
       chatMessages: [],
@@ -159,7 +160,13 @@ export async function createGame(
   };
     
   try {
-    console.log("Paso 3: Intentando escribir los siguientes datos en Firestore:", JSON.stringify(gameData, null, 2));
+    // --- DATOS PARA EL SIMULADOR DE FIREBASE ---
+    console.log("Paso 3.1: DATOS PARA EL SIMULADOR DE FIREBASE");
+    console.log("  - Pega esto en el campo 'UID del usuario':", userId);
+    console.log("  - Pega este objeto COMPLETO en el cuerpo del 'Documento':", JSON.stringify(toPlainObject(gameData), null, 2));
+    console.log("-----------------------------------------");
+    
+    console.log("Paso 3.2: Intentando escribir en Firestore...");
     await setDoc(gameRef, toPlainObject(gameData));
     console.log("Paso 4: ¡ÉXITO! La partida se ha creado en Firestore con el ID:", gameId);
     console.log("------------------------------------------");
@@ -559,7 +566,7 @@ export async function processVotes(gameId: string) {
             } else if (game.phase === 'hunter_shot') {
                 const hunter = game.players.find(p => p.userId === game.pendingHunterShot);
                 if (hunter?.isAI) {
-                    await runAIHunterShot(gameId, hunter);
+                    await runAIHunterShot(game.id, hunter);
                 }
             }
         }

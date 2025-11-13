@@ -1,6 +1,5 @@
 
-
-// --- AÑADE ESTE BLOQUE DE CÓDIGO ---
+// --- AUDITORÍA DE CONFIGURACIÓN DE FIREBASE ---
 console.log("--- AUDITORÍA DE CONFIGURACIÓN DE FIREBASE ---");
 console.log("API Key Cargada:", process.env.NEXT_PUBLIC_FIREBASE_API_KEY ? "Sí" : "¡NO!");
 console.log("Project ID Cargado:", process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ? "Sí" : "¡NO!");
