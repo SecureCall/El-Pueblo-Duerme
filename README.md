@@ -2,55 +2,47 @@
 
 Este es un juego de misterio, engaño y supervivencia, similar al clásico juego de mesa Werewolf o Mafia, implementado como una aplicación web con Next.js y Firebase.
 
-## Cómo subir los cambios a GitHub (Solución Definitiva)
+---
 
-Has encontrado un problema de autenticación persistente al intentar subir los cambios desde el entorno de desarrollo online. Esto se debe a un **fallo de configuración de ese entorno específico**, no a un error tuyo.
+## Cómo Subir Cambios a GitHub (Guía Definitiva)
 
-La solución es subir el código desde tu propio ordenador. Aquí tienes los pasos exactos para hacerlo:
+Has encontrado problemas persistentes para subir tu código. La causa era una configuración incorrecta del repositorio (un "submódulo"). El problema ya está solucionado.
 
-1.  **Descarga el Proyecto:** Asegúrate de tener todos los archivos del proyecto (la versión más reciente) en una carpeta en tu ordenador.
+**A partir de ahora, puedes seguir el proceso normal sin problemas.**
 
-2.  **Abre un Terminal en tu PC:** Abre una línea de comandos (Terminal, PowerShell, Git Bash, etc.) y navega hasta la carpeta donde has guardado el proyecto.
+### El Proceso para Subir Cambios
 
-3.  **Inicializa Git y Conecta con GitHub (si es la primera vez):**
-    *   `git init -b main`
-    *   `git remote add origin https://github.com/SecureCall/El-Pueblo-Duerme.git`
-    *(Si te da un error diciendo que `origin already exists`, puedes saltarte este paso).*
+Cada vez que quieras guardar una nueva versión de tu código en GitHub, sigue estos 3 pasos:
 
-4.  **Fuerza la URL a HTTPS (¡Paso Clave!):** Ejecuta este comando para asegurarte de que `git` use el método de autenticación correcto.
-    ```bash
-    git remote set-url origin https://github.com/SecureCall/El-Pueblo-Duerme.git
-    ```
+**Paso 1: Añadir todos tus archivos nuevos y modificados**
+Este comando prepara todos los archivos que has modificado.
 
-5.  **Añade todos los cambios:**
-    ```bash
-    git add .
-    ```
+```bash
+git add .
+```
 
-6.  **Crea un "commit" con un mensaje:**
-    ```bash
-    git commit -m "Versión final con correcciones de audio y errores del Cazador"
-    ```
+**Paso 2: Crear un punto de guardado con un mensaje descriptivo**
+Esto crea un punto de guardado con un mensaje que describe los cambios.
 
-7.  **Sube los cambios a la rama principal (`main`):**
-    ```bash
-    git push -u origin main --force
-    ```
-    *(Usa `--force` solo esta primera vez para sobrescribir el historial si es necesario, ya que el proyecto en GitHub puede estar desactualizado).*
+```bash
+git commit -m "Describe aquí el cambio que has hecho, ej: ¡Versión final! El juego termina correctamente."
+```
+
+**Paso 3: Subir todos los cambios a GitHub**
+Este es el comando final que sube tus cambios.
+
+```bash
+git push origin main
+```
 
 ---
 
 ### **Nota MUY IMPORTANTE sobre la Autenticación**
 
-Al ejecutar `git push`, es posible que el terminal te pida tu `Username` y `Password`.
+Si al ejecutar `git push`, el terminal te pide tu `Username` y `Password`:
 
 *   **Username:** Tu nombre de usuario de GitHub (`SecureCall`).
-*   **Password:** **NO uses tu contraseña de GitHub.** Debes usar un **Token de Acceso Personal (Personal Access Token)**. Puedes generar uno nuevo aquí:
-1457
-    *   [Generar nuevo token en GitHub](https://github.com/settings/tokens/new)
+*   **Password:** **NO uses tu contraseña de GitHub.** Debes usar un **Token de Acceso Personal (Personal Access Token)**.
+    *   Puedes generar uno nuevo aquí: [Generar nuevo token en GitHub](https://github.com/settings/tokens/new)
     *   Asegúrate de darle permisos de **`repo`**.
     *   **¡Copia el token en un lugar seguro, solo se muestra una vez!**
-
----
-
-Lamento muchísimo las frustraciones y el tiempo perdido. El código está listo, solo necesita salir de este entorno defectuoso para llegar a su destino final. Siguiendo estos pasos en tu máquina, funcionará.
