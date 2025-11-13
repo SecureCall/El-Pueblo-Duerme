@@ -14,11 +14,6 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 // app can be initialized here because layout is a client component
 const app = initializeApp(firebaseConfig);
 
-// export const metadata: Metadata = {
-//   title: 'El Pueblo Duerme',
-//   description: 'Un juego de misterio, engaño y supervivencia.',
-// };
-
 export default function RootLayout({
   children,
 }: Readonly<{
