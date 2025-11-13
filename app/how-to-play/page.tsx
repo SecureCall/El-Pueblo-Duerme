@@ -166,7 +166,7 @@ export default function HowToPlayPage() {
                                     <strong>Prioridad de Protección:</strong> La bendición del **Sacerdote** anula un único ataque o habilidad negativa. Le siguen las protecciones del Guardián/Doctor (contra lobos) y finalmente la poción de la Hechicera, que revierte una muerte ya ocurrida.
                                 </li>
                                 <li>
-                                    <strong>Habilidades "Disparadas" (Triggers):** Habilidades como la del Cazador (al morir), los Enamorados o Virginia Woolf pausan el juego y se resuelven inmediatamente, incluso creando reacciones en cadena, antes de que el juego continúe.
+                                    **Habilidades "Disparadas" (Triggers):** Habilidades como la del Cazador (al morir), los Enamorados o Virginia Woolf pausan el juego y se resuelven inmediatamente, incluso creando reacciones en cadena, antes de que el juego continúe.
                                 </li>
                                  <li>
                                     **El Fracaso del Verdugo:** Si el objetivo del **Verdugo** muere por cualquier otra causa que no sea el linchamiento del pueblo, el Verdugo pierde y se convierte en un simple Aldeano, teniendo que ganar con ellos.
