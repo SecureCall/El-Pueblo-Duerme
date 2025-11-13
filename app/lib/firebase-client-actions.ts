@@ -35,22 +35,25 @@ import {
   sendGhostMessage as sendGhostMessageServer,
 } from './firebase-actions';
 
-export { createGameServer as createGame };
-export { startGameServer as startGame };
-export { resetGameServer as resetGame };
-export { sendWolfChatMessageServer as sendWolfChatMessage };
-export { sendFairyChatMessageServer as sendFairyChatMessage };
-export { sendLoversChatMessageServer as sendLoversChatMessage };
-export { sendTwinChatMessageServer as sendTwinChatMessage };
-export { sendGhostChatMessageServer as sendGhostChatMessage };
-export { sendChatMessageServer as sendChatMessage };
-export { executeMasterActionServer as executeMasterAction };
-export { submitNightActionServer as submitNightAction };
-export { submitHunterShotServer as submitHunterShot };
-export { submitJuryVoteServer as submitJuryVote };
-export { submitTroublemakerActionServer as submitTroublemakerAction };
-export { submitVoteServer as submitVote };
-export { sendGhostMessageServer as sendGhostMessage };
+// Server actions can be directly called from client components in Next.js App Router
+export { 
+    createGame, 
+    startGame, 
+    resetGame,
+    sendWolfChatMessage,
+    sendFairyChatMessage,
+    sendLoversChatMessage,
+    sendTwinChatMessage,
+    sendGhostChatMessage,
+    sendChatMessage,
+    executeMasterAction,
+    submitNightAction,
+    submitHunterShot,
+    submitJuryVote,
+    submitTroublemakerAction,
+    submitVote,
+    sendGhostMessage
+} from './firebase-actions';
 
 
 export async function joinGame(
