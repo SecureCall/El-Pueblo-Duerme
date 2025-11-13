@@ -2,6 +2,7 @@
 
 import type { Game, GameEvent } from "@/types";
 import { Timestamp } from "firebase/firestore";
+import { roleDetails } from "./roles";
 
 export type MasterActionId = 'reveal_role' | 'master_kill';
 
@@ -29,7 +30,7 @@ const revealRoleAction: MasterAction = {
             round: game.currentRound,
             type: 'special',
             message: `El Máster te ha revelado un secreto. Has visto que ${targetPlayer.displayName} es un(a) ${roleDetails[targetPlayer.role!]?.name || 'Desconocido'}.`,
-            createdAt: Timestamp.now(),
+            createdAt: new Date(),
             data: { 
                 targetId: sourceId, // The event is directed TO the source player
                 revealedPlayerId: targetId,
@@ -41,9 +42,6 @@ const revealRoleAction: MasterAction = {
         return { updatedGame };
     }
 };
-
-// This needs to be imported to avoid a circular dependency issue with roleDetails
-import { roleDetails } from './roles';
 
 export const masterActions: Record<MasterActionId, MasterAction> = {
     reveal_role: revealRoleAction,
