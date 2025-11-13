@@ -1,4 +1,3 @@
-
 'use client';
 import { CreateGameForm } from '@/components/game/CreateGameForm';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -9,6 +8,8 @@ import { playNarration } from '@/lib/sounds';
 
 export default function CreateGamePage() {
     const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
+    
+    console.log("CLAVE API LEÍDA POR EL CLIENTE:", process.env.NEXT_PUBLIC_FIREBASE_API_KEY);
 
     useEffect(() => {
         playNarration('salas.mp3');

@@ -1,4 +1,3 @@
-
 'use server';
 import { 
   doc,
@@ -900,5 +899,3 @@ export async function updatePlayerAvatar(gameId: string, userId: string, newAvat
         return { success: false, error: error.message };
     }
 }
-
-    
