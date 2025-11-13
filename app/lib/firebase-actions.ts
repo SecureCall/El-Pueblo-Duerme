@@ -30,7 +30,7 @@ import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { firebaseConfig } from "@/lib/firebase-config";
-import { runAIActions, runAIHunterShot } from './ai-actions';
+import { runAIActions, runAIHunterShot } from './server-ai-actions';
 
 function getAuthenticatedSdks() {
   const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -96,7 +96,6 @@ export async function createGame(
   const { firestore } = getAuthenticatedSdks();
   const { userId, displayName, avatarUrl, gameName, maxPlayers, settings } = options;
 
-  // --- AUDITORÍA DE CREACIÓN DE PARTIDA ---
   console.log("--- AUDITORÍA DE CREACIÓN DE PARTIDA ---");
   console.log("Paso 1: Se ha llamado a la función 'createGame'.");
 
@@ -125,7 +124,7 @@ export async function createGame(
       name: gameName.trim(),
       status: "waiting",
       phase: "waiting", 
-      creator: userId, // Este es el campo que la regla de seguridad validará
+      creator: userId, 
       players: [creatorPlayer], 
       events: [],
       chatMessages: [],
@@ -160,8 +159,7 @@ export async function createGame(
   };
     
   try {
-    // --- DATOS PARA EL SIMULADOR DE FIREBASE ---
-    console.log("Paso 3.1: DATOS PARA EL SIMULADOR DE FIREBASE");
+    console.log("--- DATOS PARA EL SIMULADOR DE FIREBASE ---");
     console.log("  - Pega esto en el campo 'UID del usuario':", userId);
     console.log("  - Pega este objeto COMPLETO en el cuerpo del 'Documento':", JSON.stringify(toPlainObject(gameData), null, 2));
     console.log("-----------------------------------------");

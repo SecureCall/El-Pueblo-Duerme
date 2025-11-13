@@ -16,7 +16,7 @@ import { useFirebase } from '@/firebase';
 import Link from 'next/link';
 import { Button } from '../ui/button';
 
-export default function GameRoom({ gameId }: { gameId: string }) {
+export function GameRoom({ gameId }: { gameId: string }) {
   const { userId, displayName, setDisplayName, isSessionLoaded, avatarUrl } = useGameSession();
   const { game, players, currentPlayer, loading, error: gameStateError } = useGameState(gameId);
   const [isJoining, setIsJoining] = useState(false);
@@ -41,7 +41,7 @@ export default function GameRoom({ gameId }: { gameId: string }) {
     setIsJoining(true);
     setJoinError(null);
 
-    const result = await joinGame(firestore, gameId, userId, displayName, avatarUrl);
+    const result = await joinGame({ firestore, gameId, userId, displayName, avatarUrl });
 
     if (result.error) {
       setJoinError(result.error);
