@@ -26,12 +26,11 @@ import { masterActions } from "./master-actions";
 import { secretObjectives } from "./objectives";
 import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
-import { runAIActions as runAIActionsServer } from './server-ai-actions';
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { firebaseConfig } from "@/lib/firebase-config";
-
+import { runAIActions as runAIActionsServer } from './server-ai-actions';
 
 function getAuthenticatedSdks() {
   const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -587,5 +586,3 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
         return { success: false, error: error.message };
     }
 }
-
-    

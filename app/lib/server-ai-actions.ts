@@ -32,7 +32,7 @@ export async function runAIActions(gameId: string, phase: 'day' | 'night' | 'hun
                 const { actionType, targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
                 if (!actionType || actionType === 'NONE' || !targetId || actionType === 'VOTE' || actionType === 'SHOOT') continue;
                 await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
-                await submitNightAction(firestore, { gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
+                await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
             }
         } else if (phase === 'day') {
             const aiPlayersToVote = game.players.filter(p => p.isAI && p.isAlive && !p.votedFor);
@@ -40,7 +40,7 @@ export async function runAIActions(gameId: string, phase: 'day' | 'night' | 'hun
                 const { targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
                 if (targetId) {
                     await new Promise(resolve => setTimeout(resolve, Math.random() * 8000 + 2000));
-                    await submitVote(firestore, gameId, ai.userId, targetId);
+                    await submitVote(gameId, ai.userId, targetId);
                 }
             }
         }
@@ -256,5 +256,3 @@ export const getDeterministicAIAction = (
             return { actionType: 'NONE', targetId: '' };
     }
 };
-
-    

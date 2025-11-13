@@ -1,8 +1,9 @@
 
 'use server';
 import { 
+  getDoc,
   doc,
-  type Firestore,
+  type Firestore
 } from "firebase/firestore";
 import { 
   type Game, 
@@ -10,7 +11,6 @@ import {
 } from "@/types";
 import { runAIActions as runAIActionsServer } from "./server-ai-actions";
 import { submitHunterShot } from "./firebase-actions";
-import { getDoc } from "firebase/firestore";
 
 
 export async function runAIActions(gameId: string, phase: 'day' | 'night') {
