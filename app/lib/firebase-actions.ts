@@ -29,7 +29,7 @@ import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { firebaseConfig } from "@/lib/firebase-config";
-import { runAIActions, runAIHunterShot } from './server-ai-actions';
+import { runAIActions, runAIHunterShot as runAIHunterShotServer } from './server-ai-actions';
 
 export function getAuthenticatedSdks() {
   const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -619,7 +619,7 @@ export async function processVotes(gameId: string) {
             } else if (game.phase === 'hunter_shot') {
                 const hunter = game.players.find(p => p.userId === game.pendingHunterShot);
                 if (hunter?.isAI) {
-                    await runAIHunterShot(game.id, hunter);
+                    await runAIHunterShotServer(game.id, hunter);
                 }
             }
         }
@@ -871,6 +871,31 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
         return { success: true, isWerewolf, targetName: targetPlayer.displayName };
     } catch (error: any) {
         console.error("Error getting seer result: ", error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function updatePlayerAvatar(gameId: string, userId: string, newAvatarUrl: string) {
+    const { firestore } = getAuthenticatedSdks();
+    const gameRef = doc(firestore, 'games', gameId);
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error("Game not found.");
+
+            const gameData = gameDoc.data() as Game;
+            const playerIndex = gameData.players.findIndex(p => p.userId === userId);
+
+            if (playerIndex === -1) throw new Error("Player not found in game.");
+
+            const updatedPlayers = [...gameData.players];
+            updatedPlayers[playerIndex].avatarUrl = newAvatarUrl;
+
+            transaction.update(gameRef, { players: toPlainObject(updatedPlayers), lastActiveAt: Timestamp.now() });
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error updating player avatar:", error);
         return { success: false, error: error.message };
     }
 }
