@@ -179,3 +179,5 @@ export async function getSeerResult(firestore: Firestore, gameId: string, seerId
 
     return { success: true, isWerewolf, targetName: targetPlayer.displayName };
 }
+
+    
