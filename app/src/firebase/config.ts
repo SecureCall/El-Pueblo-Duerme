@@ -1,8 +1,8 @@
 export const firebaseConfig = {
-  "projectId": "pueblo-duerme-428612",
-  "appId": "1:642307238240:web:8c53893505c2157c917232",
-  "apiKey": "AIzaSyAz_-_F3Mv5e2j9yS7k493_T05sFk1bH4o",
-  "authDomain": "pueblo-duerme-428612.firebaseapp.com",
-  "storageBucket": "pueblo-duerme-428612.appspot.com",
-  "messagingSenderId": "642307238240"
+  apiKey: "AIzaSyCl3guWzQNlp7KasDyzIAAu6RPCG03Mw-U",
+  authDomain: "studio-9015007721-ac536.firebaseapp.com",
+  projectId: "studio-9015007721-ac536",
+  storageBucket: "studio-9015007721-ac536.firebasestorage.app",
+  messagingSenderId: "1064367864733",
+  appId: "1:1064367864733:web:19aa83d24a7fb388b28d74"
 };
