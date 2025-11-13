@@ -3,6 +3,7 @@
 import { 
   getDoc,
   doc,
+  type Firestore,
 } from "firebase/firestore";
 import { 
   type Game, 
@@ -11,18 +12,15 @@ import {
   type NightActionType, 
   type AIPlayerPerspective
 } from "@/types";
-import { getSdks } from "@/firebase/server-init";
-import { getDeterministicAIAction, runAIActions as runAIActionsServer } from "./server-ai-actions";
-import { submitHunterShot } from "./firebase-client-actions";
+import { runAIActions as runAIActionsServer } from "./server-ai-actions";
+import { submitHunterShot } from "./firebase-actions";
 
-export { getDeterministicAIAction };
 
 export async function runAIActions(gameId: string, phase: 'day' | 'night') {
   await runAIActionsServer(gameId, phase);
 }
 
-export async function runAIHunterShot(gameId: string, hunter: Player) {
-    const { firestore } = getSdks();
+export async function runAIHunterShot(firestore: Firestore, gameId: string, hunter: Player) {
     try {
         const gameDoc = await getDoc(doc(firestore, 'games', gameId));
         if (!gameDoc.exists()) return;
@@ -32,6 +30,7 @@ export async function runAIHunterShot(gameId: string, hunter: Player) {
 
         const alivePlayers = game.players.filter(p => p.isAlive && p.userId !== hunter.userId);
         
+        const { getDeterministicAIAction } = await import('./server-ai-actions');
         const { targetId } = getDeterministicAIAction(hunter, game, alivePlayers, []);
 
         if (targetId) {

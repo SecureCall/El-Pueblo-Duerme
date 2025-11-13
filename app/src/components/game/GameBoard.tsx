@@ -38,6 +38,7 @@ import { useFirebase } from "@/firebase";
 
 export function GameBoard({ gameId }: { gameId: string }) {
     const { updateStats, userId } = useGameSession();
+    const { firestore } = useFirebase();
     const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, loading, error } = useGameState(gameId);
     const { toast } = useToast();
 
@@ -52,10 +53,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
 
     const handleAcknowledgeRole = useCallback(async () => {
         setShowRole(false);
-        if (game && game.phase === 'role_reveal' && game.creator === userId) {
-            await processNight(game.id);
-        }
-    }, [game, userId]);
+    }, []);
 
     const handlePhaseEnd = useCallback(async () => {
         if (!game || !userId) return;
@@ -86,7 +84,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
     }, [game?.status, events, currentPlayer, game, updateStats]);
 
     useEffect(() => {
-        if (!game || !userId || game.status === 'finished') return;
+        if (!game || !userId || game.status === 'finished' || !firestore) return;
 
         const isCreator = game.creator === userId;
         const prevPhase = prevPhaseRef.current;
@@ -115,13 +113,13 @@ export function GameBoard({ gameId }: { gameId: string }) {
                 case 'hunter_shot':
                     if (isCreator) {
                         const pendingHunter = game.players.find(p => p.userId === game.pendingHunterShot);
-                        if (pendingHunter?.isAI) runAIHunterShot(game.id, pendingHunter);
+                        if (pendingHunter?.isAI) runAIHunterShot(firestore, game.id, pendingHunter);
                     }
                     break;
                 case 'role_reveal':
                     if (isCreator) {
                         const timer = setTimeout(() => {
-                            handleAcknowledgeRole();
+                            processNight(game.id);
                         }, 15000);
                         return () => clearTimeout(timer);
                     }
@@ -140,7 +138,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
 
         prevPhaseRef.current = game.phase;
 
-    }, [game?.phase, game?.currentRound, game?.id, game?.creator, game?.status, game?.players, game?.pendingHunterShot, userId, events, handleAcknowledgeRole]);
+    }, [game?.phase, game?.currentRound, game?.id, game?.creator, game?.status, game?.players, game?.pendingHunterShot, userId, events, firestore]);
 
     useEffect(() => {
         if (!game?.phaseEndsAt || game.status === 'finished') {
@@ -187,7 +185,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
 
     const handleMasterActionClick = async (player: Player) => {
-        if (!masterActionState.active || !masterActionState.actionId) return;
+        if (!game || !masterActionState.active || !masterActionState.actionId) return;
 
         if (masterActionState.actionId === 'master_kill') {
             await executeMasterAction(game.id, 'master_kill', null, player.userId);
@@ -223,6 +221,24 @@ export function GameBoard({ gameId }: { gameId: string }) {
         return <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />;
     }
     
+    if (game.phase === 'role_reveal') {
+        return (
+            <div className="flex flex-col items-center justify-center h-screen w-screen">
+                <Card className="text-center bg-card/80 animate-in fade-in zoom-in-95">
+                    <CardHeader>
+                        <CardTitle className="font-headline text-3xl">
+                            Comenzando...
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-lg text-muted-foreground">Se están repartiendo los roles. La primera noche caerá pronto.</p>
+                        <Loader2 className="h-12 w-12 animate-spin text-primary mt-4" />
+                    </CardContent>
+                </Card>
+            </div>
+        )
+    }
+
     const isHunterWaitingToShoot = game.phase === 'hunter_shot' && game.pendingHunterShot === currentPlayer.userId;
     if (isHunterWaitingToShoot) {
         const hunterAlivePlayers = players.filter(p => p.isAlive && p.userId !== currentPlayer.userId);
@@ -362,24 +378,6 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
     }));
 
 
-    if (game.phase === 'role_reveal') {
-        return (
-            <div className="flex flex-col items-center justify-center h-screen w-screen">
-                <Card className="text-center bg-card/80 animate-in fade-in zoom-in-95">
-                    <CardHeader>
-                        <CardTitle className="font-headline text-3xl">
-                            Comenzando...
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-lg text-muted-foreground">Se están repartiendo los roles. La primera noche caerá pronto.</p>
-                        <Loader2 className="h-12 w-12 animate-spin text-primary mt-4" />
-                    </CardContent>
-                </Card>
-            </div>
-        )
-    }
-
     const showGhostAction = !!(currentPlayer.role === 'ghost' && !currentPlayer.isAlive && !currentPlayer.ghostMessageSent);
     const showGhostChat = !currentPlayer.isAlive;
     const showJuryVote = game.phase === 'jury_voting' && !currentPlayer.isAlive && game.settings.juryVoting;
@@ -488,4 +486,3 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
     );
 }
 
-    
