@@ -570,7 +570,7 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
 
             if (actionId === 'master_kill') {
                  if (game.masterKillUsed) throw new Error("El Zarpazo del Destino ya ha sido utilizado.");
-                 const { updatedGame } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, targetId, 'special');
+                 const { updatedGame } = await killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, targetId, 'special', `Por intervención divina, ${game.players.find(p=>p.userId === targetId)?.displayName} ha sido eliminado.`);
                  updatedGame.masterKillUsed = true;
                  game = updatedGame;
             } else {
@@ -603,7 +603,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
                 return;
             }
 
-            const { updatedGame, triggeredHunterId: anotherHunterId } = await killPlayer(transaction, gameRef, game, targetId, 'hunter_shot');
+            const { updatedGame, triggeredHunterId: anotherHunterId } = await killPlayerUnstoppable(transaction, gameRef, game, targetId, 'hunter_shot', `En su último aliento, el Cazador dispara y se lleva consigo a ${game.players.find(p=>p.userId === targetId)?.displayName}.`);
             game = updatedGame;
             
             if (anotherHunterId) {
@@ -709,9 +709,11 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
             let game = gameSnap.data();
             const player = game.players.find(p => p.userId === troublemakerId);
             if (!player || player.role !== 'troublemaker' || game.troublemakerUsed) throw new Error("No puedes realizar esta acción.");
+            
+            const message = `${game.players.find(p => p.userId === target1Id)?.displayName} y ${game.players.find(p => p.userId === target2Id)?.displayName} han muerto en una pelea mortal provocada por la Alborotadora.`;
 
-            let { updatedGame: gameAfterKill1 } = await killPlayer(transaction, gameRef, game, target1Id, 'troublemaker_duel');
-            let { updatedGame: gameAfterKill2 } = await killPlayer(transaction, gameRef, gameAfterKill1, target2Id, 'troublemaker_duel');
+            let { updatedGame: gameAfterKill1 } = await killPlayer(transaction, gameRef, game, target1Id, 'troublemaker_duel', message);
+            let { updatedGame: gameAfterKill2 } = await killPlayer(transaction, gameRef, gameAfterKill1, target2Id, 'troublemaker_duel', message);
             game = gameAfterKill2;
             
             game.troublemakerUsed = true;

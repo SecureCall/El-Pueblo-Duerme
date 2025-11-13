@@ -3,7 +3,6 @@
 import { 
   getDoc,
   doc,
-  type Firestore
 } from "firebase/firestore";
 import { 
   type Game, 
@@ -11,7 +10,7 @@ import {
   type PlayerRole, 
   type NightActionType
 } from "@/types";
-import { submitNightAction, submitVote } from "./firebase-actions";
+import { submitNightAction, submitVote, submitHunterShot } from "./firebase-actions";
 import { getSdks } from "@/firebase/server-init";
 
 export async function runAIActions(gameId: string, phase: 'day' | 'night' | 'hunter_shot') {
@@ -43,6 +42,15 @@ export async function runAIActions(gameId: string, phase: 'day' | 'night' | 'hun
                     await submitVote(gameId, ai.userId, targetId);
                 }
             }
+        } else if (phase === 'hunter_shot') {
+             const hunter = game.players.find(p => p.userId === game.pendingHunterShot);
+             if (hunter && hunter.isAI) {
+                const { targetId } = getDeterministicAIAction(hunter, game, alivePlayers, deadPlayers);
+                 if (targetId) {
+                    await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+                    await submitHunterShot(gameId, hunter.userId, targetId);
+                 }
+             }
         }
 
     } catch(e) {
@@ -126,7 +134,7 @@ export const getDeterministicAIAction = (
             }
 
             const playersWhoVotedForWolves = game.players.filter(p => {
-                const lastVoteEvent = game.events.find(e => e.type === 'vote_result' && e.round === currentRound -1);
+                const lastVoteEvent = game.events.find(e => e.type === 'vote_result' && e.round === currentRound - 1);
                 if (!lastVoteEvent) return false;
                 const lynchedPlayer = game.players.find(p => p.userId === lastVoteEvent.data.lynchedPlayerId);
                 return p.votedFor === lynchedPlayer?.userId && lynchedPlayer?.role && wolfRoles.includes(lynchedPlayer.role);
@@ -256,3 +264,4 @@ export const getDeterministicAIAction = (
             return { actionType: 'NONE', targetId: '' };
     }
 };
+

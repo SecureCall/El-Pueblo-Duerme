@@ -29,6 +29,11 @@ import {
   submitJuryVote as submitJuryVoteServer,
   sendGhostMessage as sendGhostMessageServer
 } from './firebase-actions';
+import { getApp, getApps, initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { firebaseConfig } from "@/lib/firebase-config";
+import { getDoc } from 'firebase/firestore';
 
 // These functions now call the server action, which contains the full logic.
 export { createGameServer as createGame };
@@ -181,11 +186,3 @@ function getAuthenticatedSdks() {
   const firestore = getFirestore(app);
   return { auth, firestore, app };
 }
-
-// We also need the config on the client for this helper
-import { getApp, getApps, initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { firebaseConfig } from "@/lib/firebase-config";
-
-    
