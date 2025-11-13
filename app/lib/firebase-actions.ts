@@ -1,4 +1,3 @@
-
 'use server';
 import { 
   doc,
@@ -96,15 +95,13 @@ export async function createGame(
   const gameId = generateGameId();
   const gameRef = doc(firestore, "games", gameId);
       
-  const creatorPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
-
   const gameData: Game = {
       id: gameId,
       name: gameName.trim(),
       status: "waiting",
       phase: "waiting", 
       creator: userId,
-      players: [creatorPlayer], // ADD CREATOR DIRECTLY
+      players: [], 
       events: [],
       chatMessages: [],
       wolfChatMessages: [],
@@ -504,7 +501,13 @@ export async function processNight(gameId: string) {
             await processNightEngine(transaction, gameRef);
         });
         
-        await runAIActionsServer(gameId, 'day');
+        const gameDoc = await getDoc(gameRef);
+        if (gameDoc.exists()) {
+            const game = gameDoc.data();
+            if (game.phase === 'day') {
+                await runAIActionsServer(gameId, 'day');
+            }
+        }
 
     } catch (e) {
         console.error("Failed to process night", e);
@@ -519,8 +522,13 @@ export async function processVotes(gameId: string) {
             await processVotesEngine(transaction, gameRef);
         });
 
-        await runAIActionsServer(gameId, 'night');
-        
+        const gameDoc = await getDoc(gameRef);
+        if (gameDoc.exists()) {
+            const game = gameDoc.data();
+            if (game.phase === 'night') {
+                await runAIActionsServer(gameId, 'night');
+            }
+        }
     } catch (e) {
         console.error("Failed to process votes", e);
     }
@@ -567,5 +575,3 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
         return { success: false, error: error.message };
     }
 }
-
-    

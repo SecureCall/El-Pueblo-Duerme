@@ -1,4 +1,3 @@
-
 'use client';
 import { 
   doc,
@@ -6,33 +5,12 @@ import {
   type Firestore,
   arrayUnion,
   Timestamp,
-  getDoc
 } from "firebase/firestore";
 import { 
   type Game, 
   type Player, 
 } from "@/types";
 import { toPlainObject } from "./utils";
-
-// These actions are explicitly client-side and require a Firestore instance from the client.
-// They typically handle real-time interactions or initial setup that depends on the client's auth state.
-
-export { 
-  createGame,
-  startGame,
-  sendChatMessage,
-  sendWolfChatMessage,
-  sendFairyChatMessage,
-  sendLoversChatMessage,
-  sendTwinChatMessage,
-  sendGhostChatMessage,
-  submitNightAction,
-  submitVote,
-  submitJuryVote,
-  submitHunterShot,
-  submitTroublemakerAction,
-  sendGhostMessage
-} from './firebase-actions';
 
 
 export async function joinGame(
@@ -139,24 +117,4 @@ export async function updatePlayerAvatar(firestore: Firestore, gameId: string, u
         console.error("Error updating player avatar:", error);
         return { success: false, error: error.message };
     }
-}
-
-
-export async function getSeerResult(firestore: Firestore, gameId: string, seerId: string, targetId: string) {
-    const gameDoc = await getDoc(doc(firestore, 'games', gameId));
-    if (!gameDoc.exists()) throw new Error("Game not found");
-    const game = gameDoc.data() as Game;
-
-    const seerPlayer = game.players.find(p => p.userId === seerId);
-    if (!seerPlayer || (seerPlayer.role !== 'seer' && !(seerPlayer.role === 'seer_apprentice' && game.seerDied))) {
-        throw new Error("No tienes el don de la videncia.");
-    }
-
-    const targetPlayer = game.players.find(p => p.userId === targetId);
-    if (!targetPlayer) throw new Error("Target player not found");
-
-    const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
-    const isWerewolf = !!(targetPlayer.role && (wolfRoles.includes(targetPlayer.role) || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope)));
-
-    return { success: true, isWerewolf, targetName: targetPlayer.displayName };
 }
