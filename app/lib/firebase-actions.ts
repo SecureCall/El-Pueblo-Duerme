@@ -1,5 +1,4 @@
 
-
 'use server';
 import { 
   doc,
@@ -795,3 +794,5 @@ export async function sendGhostMessage(gameId: string, ghostId: string, targetId
         return { success: false, error: (error as Error).message };
     }
 }
+
+    
