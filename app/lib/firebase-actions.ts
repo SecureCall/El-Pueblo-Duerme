@@ -30,7 +30,7 @@ import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { firebaseConfig } from "@/lib/firebase-config";
-import { runAIActions as runAIActionsServer } from './server-ai-actions';
+import { runAIActions } from './server-ai-actions';
 
 function getAuthenticatedSdks() {
   const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -106,13 +106,15 @@ export async function createGame(
   const gameId = generateGameId();
   const gameRef = doc(firestore, "games", gameId);
       
+  const creatorPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
+
   const gameData: Game = {
       id: gameId,
       name: gameName.trim(),
       status: "waiting",
       phase: "waiting", 
       creator: userId,
-      players: [], 
+      players: [creatorPlayer], 
       events: [],
       chatMessages: [],
       wolfChatMessages: [],
@@ -516,7 +518,7 @@ export async function processNight(gameId: string) {
         if (gameDoc.exists()) {
             const game = gameDoc.data();
             if (game.phase === 'day') {
-                await runAIActionsServer(gameId, 'day');
+                await runAIActions(gameId, 'day');
             }
         }
 
@@ -537,7 +539,7 @@ export async function processVotes(gameId: string) {
         if (gameDoc.exists()) {
             const game = gameDoc.data();
             if (game.phase === 'night') {
-                await runAIActionsServer(gameId, 'night');
+                await runAIActions(gameId, 'night');
             }
         }
     } catch (e) {
@@ -586,3 +588,184 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
         return { success: false, error: error.message };
     }
 }
+
+export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
+    const { firestore } = getAuthenticatedSdks();
+    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found");
+            let game = gameSnap.data();
+
+            if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId || game.status === 'finished') {
+                return;
+            }
+
+            const { updatedGame, triggeredHunterId: anotherHunterId } = await killPlayer(transaction, gameRef, game, targetId, 'hunter_shot');
+            game = updatedGame;
+            
+            if (anotherHunterId) {
+                game.pendingHunterShot = anotherHunterId;
+                transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot }));
+                return;
+            }
+
+            const gameOverInfo = checkGameOver(game);
+            if (gameOverInfo.isGameOver) {
+                game.status = "finished";
+                game.phase = "finished";
+                game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: new Date() });
+                transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: game.players, events: game.events, pendingHunterShot: null }));
+                return;
+            }
+
+            const hunterDeathEvent = [...game.events].sort((a, b) => toPlainObject(b.createdAt) - toPlainObject(a.createdAt)).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
+            const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
+            const nextRound = nextPhase === 'night' ? game.currentRound + 1 : game.currentRound;
+
+            game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; });
+            const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
+
+            transaction.update(gameRef, toPlainObject({
+                players: game.players, events: game.events, phase: nextPhase, phaseEndsAt,
+                currentRound: nextRound, pendingHunterShot: null
+            }));
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error submitting hunter shot:", error);
+        return { success: false, error: error.message || "No se pudo registrar el disparo." };
+    }
+}
+export async function submitVote(gameId: string, voterId: string, targetId: string) {
+    const { firestore } = getAuthenticatedSdks();
+    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found");
+            let game = gameSnap.data();
+            if (game.phase !== 'day' || game.status === 'finished') return;
+            const playerIndex = game.players.findIndex(p => p.userId === voterId && p.isAlive);
+            if (playerIndex === -1) throw new Error("Player not found or is not alive");
+            if (game.players[playerIndex].votedFor) return;
+
+            const siren = game.players.find(p => p.role === 'river_siren');
+            const charmedPlayerId = siren?.riverSirenTargetId;
+
+            if (voterId === charmedPlayerId && siren && siren.isAlive) {
+                if (siren.votedFor) {
+                    game.players[playerIndex].votedFor = siren.votedFor;
+                } else {
+                    throw new Error("Debes esperar a que la Sirena vote primero.");
+                }
+            } else {
+                 game.players[playerIndex].votedFor = targetId;
+            }
+            transaction.update(gameRef, { players: toPlainObject(game.players) });
+        });
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: "No se pudo registrar tu voto." };
+    }
+}
+
+export async function submitNightAction(data: {gameId: string, round: number, playerId: string, actionType: NightActionType, targetId: string}) {
+    const { firestore } = getAuthenticatedSdks();
+    const { gameId, playerId, actionType, targetId } = data;
+    const gameRef = doc(firestore, 'games', gameId);
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found");
+            let game = gameSnap.data() as Game;
+            if (game.phase !== 'night' || game.status === 'finished') return;
+            const playerIndex = game.players.findIndex(p => p.userId === playerId && p.isAlive);
+            if (playerIndex === -1) throw new Error("Player not found or is not alive");
+            const player = game.players[playerIndex];
+            if (game.exiledPlayerId === playerId) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
+            if (player.usedNightAbility) return;
+            
+            // Apply action-specific validations and state changes
+            game.players[playerIndex].usedNightAbility = true;
+            const newAction: NightAction = { ...data, createdAt: Timestamp.now() };
+            transaction.update(gameRef, { nightActions: arrayUnion(toPlainObject(newAction)), players: toPlainObject(game.players) });
+        });
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: (error as Error).message };
+    }
+}
+
+export async function submitTroublemakerAction(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
+    const { firestore } = getAuthenticatedSdks();
+    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Partida no encontrada");
+            let game = gameSnap.data();
+            const player = game.players.find(p => p.userId === troublemakerId);
+            if (!player || player.role !== 'troublemaker' || game.troublemakerUsed) throw new Error("No puedes realizar esta acción.");
+
+            let { updatedGame: gameAfterKill1 } = await killPlayer(transaction, gameRef, game, target1Id, 'troublemaker_duel');
+            let { updatedGame: gameAfterKill2 } = await killPlayer(transaction, gameRef, gameAfterKill1, target2Id, 'troublemaker_duel');
+            game = gameAfterKill2;
+            
+            game.troublemakerUsed = true;
+            transaction.update(gameRef, toPlainObject(game));
+        });
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: (error as Error).message };
+    }
+}
+
+export async function submitJuryVote(gameId: string, voterId: string, targetId: string) {
+    const { firestore } = getAuthenticatedSdks();
+    const gameRef = doc(firestore, 'games', gameId);
+    try {
+        await updateDoc(gameRef, {
+            [`juryVotes.${voterId}`]: targetId,
+        });
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: (error as Error).message };
+    }
+}
+
+export async function sendGhostMessage(gameId: string, ghostId: string, targetId: string, message: string) {
+    const { firestore } = getAuthenticatedSdks();
+    const gameRef = doc(firestore, 'games', gameId);
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error("Game not found");
+            const game = gameDoc.data() as Game;
+            const playerIndex = game.players.findIndex(p => p.userId === ghostId);
+            if (playerIndex === -1) throw new Error("Player not found.");
+            const player = game.players[playerIndex];
+            if (player.role !== 'ghost' || player.isAlive || player.ghostMessageSent) {
+                throw new Error("No tienes permiso para realizar esta acción.");
+            }
+            
+            const ghostEvent: GameEvent = {
+                id: `evt_ghost_${Date.now()}`, gameId, round: game.currentRound, type: 'special',
+                message: `Has recibido un misterioso mensaje desde el más allá: "${message}"`,
+                createdAt: Timestamp.now(), data: { targetId: targetId, originalMessage: message },
+            };
+            game.players[playerIndex].ghostMessageSent = true;
+            transaction.update(gameRef, { 
+                events: arrayUnion(toPlainObject(ghostEvent)),
+                players: toPlainObject(game.players)
+             });
+        });
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: (error as Error).message };
+    }
+}
+
+    
