@@ -1,4 +1,5 @@
 
+
 'use server';
 import { 
   type Game, 
@@ -6,10 +7,10 @@ import {
   type PlayerRole, 
   type NightActionType
 } from "@/types";
-import { submitNightAction, submitVote } from "./firebase-actions";
+import { submitNightAction, submitVote, getAuthenticatedSdks } from "./firebase-actions";
 import { getDeterministicAIAction as getAction } from './ai-logic';
 import { getDoc, doc } from 'firebase/firestore';
-import { getAuthenticatedSdks } from './firebase-actions'; // This is problematic if it has client-side code, but let's assume it's server-safe for now.
+
 
 export async function runAIActions(gameId: string, phase: 'day' | 'night') {
     const { firestore } = getAuthenticatedSdks();

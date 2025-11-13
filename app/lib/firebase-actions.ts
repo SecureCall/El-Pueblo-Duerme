@@ -1,4 +1,5 @@
 
+
 'use server';
 import { 
   doc,
@@ -32,7 +33,7 @@ import { getFirestore } from "firebase/firestore";
 import { firebaseConfig } from "@/lib/firebase-config";
 import { runAIActions, runAIHunterShot } from './server-ai-actions';
 
-function getAuthenticatedSdks() {
+export function getAuthenticatedSdks() {
   const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   const auth = getAuth(app);
   const firestore = getFirestore(app);

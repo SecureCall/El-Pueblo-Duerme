@@ -3,7 +3,6 @@
 import { 
   getDoc,
   doc,
-  type Firestore
 } from "firebase/firestore";
 import { 
   type Game, 
@@ -11,6 +10,7 @@ import {
 } from "@/types";
 import { runAIActions as runAIActionsServer } from "./server-ai-actions";
 import { submitHunterShot } from "./firebase-actions";
+import { getAuthenticatedSdks } from "./firebase-actions";
 
 
 export async function runAIActions(gameId: string, phase: 'day' | 'night') {
@@ -18,7 +18,7 @@ export async function runAIActions(gameId: string, phase: 'day' | 'night') {
 }
 
 export async function runAIHunterShot(gameId: string, hunter: Player) {
-    const { firestore } = await import('@/lib/firebase-actions').then(m => m.getAuthenticatedSdks());
+    const { firestore } = getAuthenticatedSdks();
     try {
         const gameDoc = await getDoc(doc(firestore, 'games', gameId));
         if (!gameDoc.exists()) return;
