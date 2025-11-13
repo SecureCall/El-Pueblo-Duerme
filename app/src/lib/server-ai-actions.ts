@@ -1,10 +1,17 @@
 
 'use server';
-
-import { type Game, type Player, type PlayerRole, type NightActionType } from "@/types";
+import { 
+  getDoc,
+  doc,
+} from "firebase/firestore";
+import { 
+  type Game, 
+  type Player, 
+  type PlayerRole, 
+  type NightActionType
+} from "@/types";
+import { submitNightAction, submitVote } from "./firebase-actions";
 import { getSdks } from "@/firebase/server-init";
-import { submitNightAction, submitVote, sendChatMessage } from "./firebase-actions";
-
 
 export async function runAIActions(gameId: string, phase: 'day' | 'night' | 'hunter_shot') {
     const { firestore } = getSdks();
@@ -118,9 +125,9 @@ export const getDeterministicAIAction = (
             }
 
             const playersWhoVotedForWolves = game.players.filter(p => {
-                const lastVote = game.events.find(e => e.type === 'vote_result' && e.round === currentRound -1);
-                if (!lastVote) return false;
-                const lynchedPlayer = game.players.find(p => p.userId === lastVote.data.lynchedPlayerId);
+                const lastVoteEvent = game.events.find(e => e.type === 'vote_result' && e.round === currentRound - 1);
+                if (!lastVoteEvent) return false;
+                const lynchedPlayer = game.players.find(p => p.userId === lastVoteEvent.data.lynchedPlayerId);
                 return p.votedFor === lynchedPlayer?.userId && lynchedPlayer?.role && wolfRoles.includes(lynchedPlayer.role);
             }).map(p => p.userId);
 

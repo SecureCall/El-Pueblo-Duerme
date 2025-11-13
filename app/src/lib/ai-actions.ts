@@ -3,14 +3,11 @@
 import { 
   getDoc,
   doc,
-  type Firestore,
+  type Firestore
 } from "firebase/firestore";
 import { 
   type Game, 
   type Player, 
-  type PlayerRole, 
-  type NightActionType, 
-  type AIPlayerPerspective
 } from "@/types";
 import { runAIActions as runAIActionsServer } from "./server-ai-actions";
 import { submitHunterShot } from "./firebase-actions";
