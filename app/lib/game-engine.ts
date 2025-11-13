@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { 
@@ -453,7 +454,8 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
     }
     
     const alivePlayers = gameData.players.filter(p => p.isAlive);
-    
+    const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'witch', 'seeker_fairy'];
+
     if (lynchedPlayer) {
         if (lynchedPlayer.role === 'drunk_man' && gameData.settings.drunk_man) {
             return {
@@ -467,6 +469,11 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
         if (gameData.settings.executioner) {
             const executioner = gameData.players.find(p => p.role === 'executioner' && p.isAlive);
             if (executioner && executioner.executionerTargetId === lynchedPlayer.userId) {
+                 const newGameData = { ...gameData };
+                 const executionerIndex = newGameData.players.findIndex(p => p.userId === executioner.userId);
+                 if (executionerIndex !== -1) {
+                    newGameData.players[executionerIndex].role = 'villager';
+                 }
                 return {
                     isGameOver: true,
                     winnerCode: 'executioner',
@@ -476,26 +483,17 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
             }
         }
     }
-
-    const aliveWolves = alivePlayers.filter(p => p.role && ['werewolf', 'wolf_cub', 'cursed'].includes(p.role));
-    const aliveVillagers = alivePlayers.filter(p => p.role && !['werewolf', 'wolf_cub', 'cursed'].includes(p.role));
-
-    if (aliveWolves.length === 0 && alivePlayers.length > 0) {
-        return {
-            isGameOver: true,
-            winnerCode: 'villagers',
-            message: "¡El pueblo ha ganado! Todas las amenazas han sido eliminadas.",
-            winners: aliveVillagers,
-        };
+    
+    // Majority check
+    const aliveWolvesCount = alivePlayers.filter(p => p.role && wolfRoles.includes(p.role)).length;
+    if (aliveWolvesCount > 0 && aliveWolvesCount >= alivePlayers.length / 2) {
+        return { isGameOver: true, winnerCode: 'wolves', message: "¡Los hombres lobo han ganado! Superan en número a los aldeanos y la oscuridad consume el pueblo.", winners: gameData.players.filter(p => p.role && wolfRoles.includes(p.role)) };
     }
     
-    if (aliveWolves.length >= aliveVillagers.length) {
-        return {
-            isGameOver: true,
-            winnerCode: 'wolves',
-            message: "¡Los hombres lobo han ganado! Superan en número a los aldeanos y la oscuridad consume el pueblo.",
-            winners: aliveWolves,
-        };
+    // No threats left
+    const threats = alivePlayers.filter(p => p.role && wolfRoles.includes(p.role));
+    if (threats.length === 0 && alivePlayers.length > 0) {
+        return { isGameOver: true, winnerCode: 'villagers', message: "¡El pueblo ha ganado! Todas las amenazas han sido eliminadas.", winners: alivePlayers };
     }
     
     if (alivePlayers.length === 0) {
@@ -504,3 +502,6 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
 
     return { isGameOver: false, message: "", winners: [] };
 }
+
+
+  
