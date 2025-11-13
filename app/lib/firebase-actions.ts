@@ -630,7 +630,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
             const nextRound = nextPhase === 'night' ? game.currentRound + 1 : game.currentRound;
 
-            game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; });
+            game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; p.isExiled = false; });
             const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
 
             transaction.update(gameRef, toPlainObject({

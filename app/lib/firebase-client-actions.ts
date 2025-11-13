@@ -12,27 +12,25 @@ import {
 import { 
   type Game, 
   type Player, 
-  type NightActionType,
-  type ChatMessage
 } from "@/types";
 import { toPlainObject } from "./utils";
 import { 
-  createGame as createGameServer, 
-  startGame as startGameServer,
-  resetGame as resetGameServer,
-  sendWolfChatMessage as sendWolfChatMessageServer,
-  sendFairyChatMessage as sendFairyChatMessageServer,
-  sendLoversChatMessage as sendLoversChatMessageServer,
-  sendTwinChatMessage as sendTwinChatMessageServer,
-  sendGhostChatMessage as sendGhostChatMessageServer,
-  sendChatMessage as sendChatMessageServer,
-  executeMasterAction as executeMasterActionServer,
-  submitNightAction as submitNightActionServer,
-  submitHunterShot as submitHunterShotServer,
-  submitJuryVote as submitJuryVoteServer,
-  submitTroublemakerAction as submitTroublemakerActionServer,
-  submitVote as submitVoteServer,
-  sendGhostMessage as sendGhostMessageServer,
+  createGame, 
+  startGame,
+  resetGame,
+  sendWolfChatMessage,
+  sendFairyChatMessage,
+  sendLoversChatMessage,
+  sendTwinChatMessage,
+  sendGhostChatMessage,
+  sendChatMessage,
+  executeMasterAction,
+  submitNightAction,
+  submitHunterShot,
+  submitJuryVote,
+  submitTroublemakerAction,
+  submitVote,
+  sendGhostMessage
 } from './firebase-actions';
 
 // Server actions can be directly called from client components in Next.js App Router
@@ -53,7 +51,7 @@ export {
     submitTroublemakerAction,
     submitVote,
     sendGhostMessage
-} from './firebase-actions';
+};
 
 
 export async function joinGame(
