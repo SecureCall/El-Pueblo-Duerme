@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState } from "react";
@@ -109,3 +108,5 @@ export function GhostAction({ game, currentPlayer, players }: GhostActionProps) 
         </Card>
     );
 }
+
+    

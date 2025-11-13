@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState } from 'react';
@@ -96,5 +95,7 @@ export function JuryVote({ game, players, currentPlayer, tiedPlayerIds }: JuryVo
         </Card>
     );
 }
+
+    
 
     

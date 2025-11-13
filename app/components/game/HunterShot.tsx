@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState } from 'react';
@@ -84,5 +83,7 @@ export function HunterShot({ game, players, currentPlayer }: HunterShotProps) {
         </Card>
     );
 }
+
+    
 
     

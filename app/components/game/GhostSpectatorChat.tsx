@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -105,5 +104,7 @@ export function GhostSpectatorChat({ gameId, currentPlayer, messages }: GhostSpe
         </Card>
     );
 }
+
+    
 
     

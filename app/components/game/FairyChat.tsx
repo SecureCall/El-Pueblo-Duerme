@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useRef, useEffect } from 'react';
@@ -105,5 +104,7 @@ export function FairyChat({ gameId, currentPlayer, messages }: FairyChatProps) {
         </Card>
     );
 }
+
+    
 
     
