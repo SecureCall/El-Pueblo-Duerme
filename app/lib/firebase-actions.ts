@@ -1,4 +1,3 @@
-
 'use server';
 import { 
   doc,
@@ -174,6 +173,62 @@ export async function createGame(
     console.error("El error completo es:", error);
     console.log("------------------------------------------");
     return { error: `Error de servidor: ${error.message || 'Error desconocido al crear la partida.'}` };
+  }
+}
+
+export async function joinGame(
+  options: {
+    gameId: string;
+    userId: string;
+    displayName: string;
+    avatarUrl: string;
+  }
+) {
+  const { firestore } = getAuthenticatedSdks();
+  const { gameId, userId, displayName, avatarUrl } = options;
+  const gameRef = doc(firestore, "games", gameId);
+  
+  try {
+    await runTransaction(firestore, async (transaction) => {
+      const gameSnap = await transaction.get(gameRef);
+
+      if (!gameSnap.exists()) {
+        throw new Error("Partida no encontrada.");
+      }
+
+      const game = gameSnap.data() as Game;
+
+      if (game.status !== "waiting" && !game.players.some(p => p.userId === userId)) {
+        throw new Error("Esta partida ya ha comenzado.");
+      }
+      
+      const playerExists = game.players.some(p => p.userId === userId);
+      if (playerExists) {
+        return; // Player is already in the game, no action needed.
+      }
+      
+      const nameExists = game.players.some(p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase());
+      if (nameExists) {
+        throw new Error("Ese nombre ya está en uso en esta partida.");
+      }
+
+      if (game.players.length >= game.maxPlayers) {
+        throw new Error("Esta partida está llena.");
+      }
+      
+      const newPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
+
+      transaction.update(gameRef, {
+        players: arrayUnion(toPlainObject(newPlayer)),
+        lastActiveAt: Timestamp.now(),
+      });
+    });
+
+    return { success: true };
+
+  } catch(error: any) {
+    console.error("Error joining game:", error);
+    return { error: `No se pudo unir a la partida: ${error.message}` };
   }
 }
 
@@ -795,4 +850,27 @@ export async function sendGhostMessage(gameId: string, ghostId: string, targetId
     }
 }
 
-    
+export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
+    const { firestore } = getAuthenticatedSdks();
+    try {
+        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
+        if (!gameDoc.exists()) throw new Error("Game not found");
+        const game = gameDoc.data() as Game;
+
+        const seerPlayer = game.players.find(p => p.userId === seerId);
+        if (!seerPlayer || (seerPlayer.role !== 'seer' && !(seerPlayer.role === 'seer_apprentice' && game.seerDied))) {
+            throw new Error("No tienes el don de la videncia.");
+        }
+
+        const targetPlayer = game.players.find(p => p.userId === targetId);
+        if (!targetPlayer) throw new Error("Target player not found");
+
+        const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
+        const isWerewolf = !!(targetPlayer.role && (wolfRoles.includes(targetPlayer.role) || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope)));
+
+        return { success: true, isWerewolf, targetName: targetPlayer.displayName };
+    } catch (error: any) {
+        console.error("Error getting seer result: ", error);
+        return { success: false, error: error.message };
+    }
+}
