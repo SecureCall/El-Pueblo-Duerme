@@ -6,49 +6,50 @@ import {
   type Firestore,
   arrayUnion,
   Timestamp,
+  getDoc,
+  updateDoc
 } from "firebase/firestore";
 import { 
   type Game, 
   type Player, 
-  type NightActionType
+  type NightActionType,
+  type ChatMessage
 } from "@/types";
 import { toPlainObject } from "./utils";
 import { 
   createGame as createGameServer, 
-  startGame as startGameServer, 
-  submitHunterShot as submitHunterShotServer, 
-  submitTroublemakerAction as submitTroublemakerActionServer,
+  startGame as startGameServer,
+  resetGame as resetGameServer,
   sendWolfChatMessage as sendWolfChatMessageServer,
   sendFairyChatMessage as sendFairyChatMessageServer,
   sendLoversChatMessage as sendLoversChatMessageServer,
   sendTwinChatMessage as sendTwinChatMessageServer,
   sendGhostChatMessage as sendGhostChatMessageServer,
   sendChatMessage as sendChatMessageServer,
-  submitVote as submitVoteServer,
+  executeMasterAction as executeMasterActionServer,
   submitNightAction as submitNightActionServer,
+  submitHunterShot as submitHunterShotServer,
   submitJuryVote as submitJuryVoteServer,
-  sendGhostMessage as sendGhostMessageServer
+  submitTroublemakerAction as submitTroublemakerActionServer,
+  submitVote as submitVoteServer,
+  sendGhostMessage as sendGhostMessageServer,
 } from './firebase-actions';
-import { getApp, getApps, initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { firebaseConfig } from "@/lib/firebase-config";
-import { getDoc } from 'firebase/firestore';
 
-// These functions now call the server action, which contains the full logic.
 export { createGameServer as createGame };
 export { startGameServer as startGame };
-export { submitHunterShotServer as submitHunterShot };
-export { submitTroublemakerActionServer as submitTroublemakerAction };
+export { resetGameServer as resetGame };
 export { sendWolfChatMessageServer as sendWolfChatMessage };
 export { sendFairyChatMessageServer as sendFairyChatMessage };
 export { sendLoversChatMessageServer as sendLoversChatMessage };
 export { sendTwinChatMessageServer as sendTwinChatMessage };
 export { sendGhostChatMessageServer as sendGhostChatMessage };
 export { sendChatMessageServer as sendChatMessage };
-export { submitVoteServer as submitVote };
+export { executeMasterActionServer as executeMasterAction };
 export { submitNightActionServer as submitNightAction };
+export { submitHunterShotServer as submitHunterShot };
 export { submitJuryVoteServer as submitJuryVote };
+export { submitTroublemakerActionServer as submitTroublemakerAction };
+export { submitVoteServer as submitVote };
 export { sendGhostMessageServer as sendGhostMessage };
 
 
@@ -77,7 +78,7 @@ export async function joinGame(
       
       const playerExists = game.players.some(p => p.userId === userId);
       if (playerExists) {
-        return; // Player is already in the game, no action needed.
+        return; 
       }
       
       const nameExists = game.players.some(p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase());
@@ -160,8 +161,7 @@ export async function updatePlayerAvatar(firestore: Firestore, gameId: string, u
 
 
 export async function getSeerResult(firestore: Firestore, gameId: string, seerId: string, targetId: string) {
-    const { firestore: serverFirestore } = getAuthenticatedSdks();
-    const gameDoc = await getDoc(doc(serverFirestore, 'games', gameId));
+    const gameDoc = await getDoc(doc(firestore, 'games', gameId));
     if (!gameDoc.exists()) throw new Error("Game not found");
     const game = gameDoc.data() as Game;
 
@@ -177,12 +177,4 @@ export async function getSeerResult(firestore: Firestore, gameId: string, seerId
     const isWerewolf = !!(targetPlayer.role && (wolfRoles.includes(targetPlayer.role) || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope)));
 
     return { success: true, isWerewolf, targetName: targetPlayer.displayName };
-}
-
-// We need this function client-side for getSeerResult, so we need the server-side SDK helper here too
-function getAuthenticatedSdks() {
-  const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-  const auth = getAuth(app);
-  const firestore = getFirestore(app);
-  return { auth, firestore, app };
 }

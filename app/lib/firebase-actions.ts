@@ -1,5 +1,4 @@
 
-
 'use server';
 import { 
   doc,
@@ -31,7 +30,7 @@ import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { firebaseConfig } from "@/lib/firebase-config";
-import { runAIActions } from './server-ai-actions';
+import { runAIActions, runAIHunterShot } from './ai-actions';
 
 function getAuthenticatedSdks() {
   const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -541,6 +540,11 @@ export async function processVotes(gameId: string) {
             const game = gameDoc.data();
             if (game.phase === 'night') {
                 await runAIActions(gameId, 'night');
+            } else if (game.phase === 'hunter_shot') {
+                const hunter = game.players.find(p => p.userId === game.pendingHunterShot);
+                if (hunter?.isAI) {
+                    await runAIHunterShot(gameId, hunter);
+                }
             }
         }
     } catch (e) {
@@ -613,7 +617,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
                 return;
             }
 
-            const gameOverInfo = checkGameOver(game);
+            const gameOverInfo = await checkGameOver(game);
             if (gameOverInfo.isGameOver) {
                 game.status = "finished";
                 game.phase = "finished";
@@ -689,7 +693,6 @@ export async function submitNightAction(data: {gameId: string, round: number, pl
             if (game.exiledPlayerId === playerId) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
             if (player.usedNightAbility) return;
             
-            // Apply action-specific validations and state changes
             game.players[playerIndex].usedNightAbility = true;
             const newAction: NightAction = { ...data, createdAt: Timestamp.now() };
             transaction.update(gameRef, { nightActions: arrayUnion(toPlainObject(newAction)), players: toPlainObject(game.players) });
@@ -770,6 +773,3 @@ export async function sendGhostMessage(gameId: string, ghostId: string, targetId
         return { success: false, error: (error as Error).message };
     }
 }
-
-    
-

@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { 
@@ -36,17 +35,16 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
   const initialPlayerState = JSON.parse(JSON.stringify(game.players));
   const actions = game.nightActions?.filter(a => a.round === game.currentRound) || [];
 
-  // PHASE 1: MANIPULACIÓN Y CONTROL
+  // FASE 1: MANIPULACIÓN Y CONTROL
   actions.forEach(action => {
       const playerIndex = game.players.findIndex(p => p.userId === action.playerId);
-      const targetIndex = game.players.findIndex(p => p.userId === action.targetId);
       if (playerIndex === -1) return;
 
       if (action.actionType === 'silencer_silence') game.silencedPlayerId = action.targetId;
       if (action.actionType === 'elder_leader_exile') game.exiledPlayerId = action.targetId;
   });
   
-  // PHASE 2: PROTECCIÓN
+  // FASE 2: PROTECCIÓN
   const protections: { targetId: string, type: 'bless' | 'potion' | 'guard' }[] = [];
   actions.forEach(action => {
       if (action.actionType === 'priest_bless') protections.push({ targetId: action.targetId, type: 'bless' });
@@ -57,10 +55,9 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
   });
 
 
-  // PHASE 3: ACCIONES LETALES Y DE CONVERSIÓN
+  // FASE 3: ACCIONES LETALES Y DE CONVERSIÓN
   let pendingDeaths: { playerId: string; cause: GameEvent['type']; message: string; }[] = [];
   
-  // Wolf Attack
   if (game.leprosaBlockedRound !== game.currentRound) {
       const wolfVotes = actions.filter(a => a.actionType === 'werewolf_kill').map(a => a.targetId);
       const getConsensusTarget = (votes: string[]) => {
@@ -72,13 +69,12 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
           const maxVotes = Math.max(...Object.values(voteCounts), 0);
           if (maxVotes === 0) return null;
           const mostVotedTargets = Object.keys(voteCounts).filter(id => voteCounts[id] === maxVotes);
-          return mostVotedTargets[0] || null; // Pick one if tie
+          return mostVotedTargets[0] || null;
       };
       const wolfTargetId = getConsensusTarget(wolfVotes);
       
       if (wolfTargetId) {
           const targetPlayer = game.players.find(p => p.userId === wolfTargetId);
-          // Check for Cursed transformation
           if(targetPlayer?.role === 'cursed' && game.settings.cursed && !protections.some(p => p.targetId === wolfTargetId)) {
                const cursedPlayerIndex = game.players.findIndex(p => p.userId === wolfTargetId);
                if (cursedPlayerIndex !== -1) {
@@ -91,19 +87,16 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
       }
   }
 
-  // Hechicera (Poison) Attack
   const hechiceraPoisonAction = actions.find(a => a.actionType === 'hechicera_poison');
   if(hechiceraPoisonAction) {
     pendingDeaths.push({ playerId: hechiceraPoisonAction.targetId, cause: 'special', message: `Yace sin una sola herida, pero con un rictus de dolor. Parece haber sido envenenado.` });
   }
   
-  // Fairy Attack
   const fairyKillAction = actions.find(a => a.actionType === 'fairy_kill');
   if(fairyKillAction) {
     pendingDeaths.push({ playerId: fairyKillAction.targetId, cause: 'special', message: `Un aura de magia oscura rodea el cuerpo. Ha sido víctima de una maldición fatal.` });
   }
 
-  // Vampire Attack
   actions.filter(a => a.actionType === 'vampire_bite').forEach(action => {
       const targetIndex = game.players.findIndex(p => p.userId === action.targetId);
       if (targetIndex === -1) return;
@@ -115,7 +108,7 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
   });
 
 
-  // PHASE 4: INVESTIGACIÓN Y RECLUTAMIENTO (Run before resolving deaths to inform Vidente, etc.)
+  // FASE 4: INVESTIGACIÓN Y RECLUTAMIENTO
   actions.forEach(action => {
       if (action.actionType === 'cult_recruit') {
           const targetIndex = game.players.findIndex(p => p.userId === action.targetId);
@@ -128,7 +121,7 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
   });
 
 
-  // PHASE 5: RESOLUCIÓN FINAL (DEATHS, TRIGGERS, AND GAME STATE)
+  // FASE 5: RESOLUCIÓN FINAL
   let savedPlayerIds = new Set<string>();
   let finalDeaths = pendingDeaths.filter(death => {
       const isBlessed = protections.some(p => p.targetId === death.playerId && p.type === 'bless');
@@ -177,6 +170,11 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
       nightMessage = "La noche transcurre en un inquietante silencio. Nadie ha muerto.";
   }
   
+  const leprosaDeath = newlyKilledPlayers.find(p => p.role === 'leprosa');
+  if (leprosaDeath && game.leprosaBlockedRound === game.currentRound + 1) {
+      nightMessage += ` Como consecuencia de la muerte de la Leprosa, los lobos no podrán atacar la próxima noche.`;
+  }
+
   game.events.push({ id: `evt_night_${game.currentRound}`, gameId: game.id, round: game.currentRound, type: 'night_result', message: nightMessage, data: { killedPlayerIds: newlyKilledPlayers.map(p => p.userId), savedPlayerIds: Array.from(savedPlayerIds) }, createdAt: new Date() });
 
   game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; p.isExiled = false; });
@@ -195,7 +193,7 @@ export async function processVotes(transaction: Transaction, gameRef: DocumentRe
     let game = gameSnap.data()!;
     if (game.phase !== 'day') return;
 
-    const lastVoteEvent = [...game.events].sort((a,b) => toPlainObject(b.createdAt).getTime() - toPlainObject(a.createdAt).getTime()).find(e => e.type === 'vote_result');
+    const lastVoteEvent = [...game.events].sort((a,b) => getMillis(b.createdAt) - getMillis(a.createdAt)).find(e => e.type === 'vote_result');
     const isTiebreaker = Array.isArray(lastVoteEvent?.data?.tiedPlayerIds) && !lastVoteEvent?.data?.final;
 
     const alivePlayers = game.players.filter(p => p.isAlive);
@@ -303,7 +301,6 @@ export async function processJuryVotes(transaction: Transaction, gameRef: Docume
         }
     }
     
-    // On final tie, random selection
     if (tie && mostVotedPlayerId) {
         const tiedPlayers = Object.keys(voteCounts).filter(id => voteCounts[id] === maxVotes);
         mostVotedPlayerId = tiedPlayers[Math.floor(Math.random() * tiedPlayers.length)];
@@ -456,6 +453,7 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
     const alivePlayers = gameData.players.filter(p => p.isAlive);
     const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'witch', 'seeker_fairy'];
 
+    // Individual win conditions take priority
     if (lynchedPlayer) {
         if (lynchedPlayer.role === 'drunk_man' && gameData.settings.drunk_man) {
             return {
@@ -466,34 +464,39 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
             };
         }
         
-        if (gameData.settings.executioner) {
-            const executioner = gameData.players.find(p => p.role === 'executioner' && p.isAlive);
-            if (executioner && executioner.executionerTargetId === lynchedPlayer.userId) {
-                 const newGameData = { ...gameData };
-                 const executionerIndex = newGameData.players.findIndex(p => p.userId === executioner.userId);
-                 if (executionerIndex !== -1) {
-                    newGameData.players[executionerIndex].role = 'villager';
-                 }
-                return {
-                    isGameOver: true,
-                    winnerCode: 'executioner',
-                    message: `¡El Verdugo ha ganado! Ha logrado su objetivo de que el pueblo linche a ${lynchedPlayer.displayName}.`,
-                    winners: [executioner],
-                };
-            }
+        const executioner = gameData.players.find(p => p.role === 'executioner' && p.isAlive);
+        if (executioner && executioner.executionerTargetId === lynchedPlayer.userId) {
+            return {
+                isGameOver: true,
+                winnerCode: 'executioner',
+                message: `¡El Verdugo ha ganado! Ha logrado su objetivo de que el pueblo linche a ${lynchedPlayer.displayName}.`,
+                winners: [executioner],
+            };
         }
     }
-    
-    // Majority check
+
+    if (gameData.lovers) {
+        const aliveLovers = alivePlayers.filter(p => gameData.lovers!.includes(p.userId));
+        if (aliveLovers.length === alivePlayers.length && alivePlayers.length >= 2) {
+            return {
+                isGameOver: true, winnerCode: 'lovers',
+                message: '¡El amor ha triunfado! Los enamorados son los únicos supervivientes.',
+                winners: aliveLovers
+            };
+        }
+    }
+
+    // Team win conditions
     const aliveWolvesCount = alivePlayers.filter(p => p.role && wolfRoles.includes(p.role)).length;
-    if (aliveWolvesCount > 0 && aliveWolvesCount >= alivePlayers.length / 2) {
-        return { isGameOver: true, winnerCode: 'wolves', message: "¡Los hombres lobo han ganado! Superan en número a los aldeanos y la oscuridad consume el pueblo.", winners: gameData.players.filter(p => p.role && wolfRoles.includes(p.role)) };
+    const aliveCivilians = alivePlayers.filter(p => p.role && !wolfRoles.includes(p.role));
+
+    if (aliveWolvesCount > 0 && aliveWolvesCount >= aliveCivilians.length) {
+        return { isGameOver: true, winnerCode: 'wolves', message: "¡Los hombres lobo han ganado! Superan en número al pueblo.", winners: gameData.players.filter(p => p.role && wolfRoles.includes(p.role)) };
     }
     
-    // No threats left
     const threats = alivePlayers.filter(p => p.role && wolfRoles.includes(p.role));
     if (threats.length === 0 && alivePlayers.length > 0) {
-        return { isGameOver: true, winnerCode: 'villagers', message: "¡El pueblo ha ganado! Todas las amenazas han sido eliminadas.", winners: alivePlayers };
+        return { isGameOver: true, winnerCode: 'villagers', message: "¡El pueblo ha ganado! Todas las amenazas han sido eliminadas.", winners: aliveCivilians };
     }
     
     if (alivePlayers.length === 0) {
@@ -504,4 +507,19 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
 }
 
 
-  
+function getMillis(timestamp: any): number {
+    if (!timestamp) return 0;
+    if (timestamp instanceof Timestamp) {
+        return timestamp.toMillis();
+    }
+    if (typeof timestamp === 'object' && timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
+        return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
+    }
+     if (typeof timestamp === 'string') {
+        const date = new Date(timestamp);
+        if (!isNaN(date.getTime())) {
+            return date.getTime();
+        }
+    }
+    return 0;
+};

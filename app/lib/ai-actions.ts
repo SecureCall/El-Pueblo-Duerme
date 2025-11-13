@@ -1,5 +1,4 @@
 
-
 'use server';
 import { 
   getDoc,
@@ -18,7 +17,8 @@ export async function runAIActions(gameId: string, phase: 'day' | 'night') {
   await runAIActionsServer(gameId, phase);
 }
 
-export async function runAIHunterShot(firestore: Firestore, gameId: string, hunter: Player) {
+export async function runAIHunterShot(gameId: string, hunter: Player) {
+    const { firestore } = await import('@/lib/firebase-actions').then(m => m.getAuthenticatedSdks());
     try {
         const gameDoc = await getDoc(doc(firestore, 'games', gameId));
         if (!gameDoc.exists()) return;
@@ -42,4 +42,3 @@ export async function runAIHunterShot(firestore: Firestore, gameId: string, hunt
          console.error("Error in runAIHunterShot:", e);
     }
 }
-

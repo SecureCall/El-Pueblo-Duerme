@@ -1,5 +1,4 @@
 
-
 import {
     Accordion,
     AccordionContent,
@@ -193,6 +192,3 @@ export default function HowToPlayPage() {
         </>
     );
 }
-
-
-  
