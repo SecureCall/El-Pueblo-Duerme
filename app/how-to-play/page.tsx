@@ -100,41 +100,16 @@ export default function HowToPlayPage() {
 
                     <Card className="bg-card/80">
                         <CardHeader>
-                            <CardTitle className="font-headline text-3xl">El Comienzo</CardTitle>
+                            <CardTitle className="font-headline text-3xl">La Regla Cero</CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-4 text-lg text-muted-foreground">
-                            <p>
-                               Pueblo Duerme es un juego de misterio y engaño donde se te asignará un rol secreto. Es fundamental que no lo reveles; el misterio es la clave.
-                            </p>
-                            <p>
-                                Cuando el juego anuncie "Pueblo, duerme", comenzará la fase de noche. Deberás cerrar los ojos (simbólicamente) y solo actuar cuando tu rol sea llamado. El silencio durante esta fase es crucial.
-                            </p>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-card/80">
-                        <CardHeader>
-                            <CardTitle className="font-headline text-3xl">Objetivo del Juego</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4 text-lg">
-                            <div>
-                                <h3 className="font-bold text-blue-400">Para los Aldeanos (Equipo Azul):</h3>
-                                <p className="text-muted-foreground">
-                                    Vuestro objetivo es descubrir y eliminar a todos los Hombres Lobo mediante las votaciones del día. ¡La supervivencia del pueblo depende de vuestra astucia!
-                                </p>
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-destructive">Para los Lobos (Equipo Rojo):</h3>
-                                <p className="text-muted-foreground">
-                                    Vuestra misión es asesinar a los aldeanos cada noche hasta que vuestro número iguale o supere al de los aldeanos restantes. La noche es vuestra aliada.
-                                </p>
-                            </div>
-                             <div>
-                                <h3 className="font-bold text-pink-400">Para los Enamorados y Solitarios:</h3>
-                                <p className="text-muted-foreground">
-                                    Algunos roles tienen objetivos únicos. Si eres un Enamorado, tu objetivo es ser el último superviviente junto a tu pareja. Otros, como el Hombre Ebrio o el Líder del Culto, tienen sus propias condiciones de victoria.
-                                </p>
-                            </div>
+                        <CardContent className="space-y-4 text-base text-muted-foreground">
+                           <p className='font-bold text-lg text-primary'>La única información válida es la que se genera a través de las mecánicas del juego. Toda la información debe permanecer dentro del 'círculo mágico' de la partida.</p>
+                           <ul className='list-disc list-inside space-y-2'>
+                               <li>**Tu carta es secreta:** Nunca puedes mostrar tu carta de rol a nadie.</li>
+                               <li>**No a los pactos externos:** Cualquier pacto, código o señal debe ser creado y comunicado durante el transcurso del juego, visible para todos.</li>
+                               <li>**Respeta la eliminación:** Un jugador eliminado no puede hablar ni comunicarse con los jugadores vivos, excepto a través de la mecánica del Jurado Fantasma.</li>
+                               <li>**La palabra del Máster es ley:** En caso de una situación no contemplada en las reglas, la decisión del Máster (o del motor del juego) es final.</li>
+                           </ul>
                         </CardContent>
                     </Card>
 
@@ -161,6 +136,12 @@ export default function HowToPlayPage() {
                                     Tras el debate, cada jugador vivo vota por alguien que crea que es un hombre lobo. El jugador con más votos es "linchado", revela su rol y queda eliminado.
                                 </p>
                             </div>
+                             <div className="space-y-2">
+                                <h3 className="text-2xl font-bold text-gray-400">4. Voto del Jurado (Ocasional)</h3>
+                                 <p className="text-muted-foreground text-base">
+                                    Si la votación del pueblo resulta en un empate irresoluble, los espíritus de los jugadores eliminados (el Jurado Fantasma) emitirán el voto decisivo.
+                                </p>
+                            </div>
                             <p className="text-center italic pt-4 text-base">El ciclo de noche y día se repite hasta que uno de los bandos cumpla su objetivo de victoria.</p>
                         </CardContent>
                     </Card>
@@ -170,31 +151,26 @@ export default function HowToPlayPage() {
                             <CardTitle className="font-headline text-3xl">Reglas Avanzadas y Orden Nocturno</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4 text-base text-muted-foreground">
-                            <h4 className="font-bold text-xl text-primary-foreground">Orden de Acciones en la Noche</h4>
-                            <p>Las habilidades nocturnas se resuelven en un orden estricto para evitar conflictos. El motor del juego sigue esta secuencia:</p>
+                            <h4 className="font-bold text-xl text-primary-foreground">Orden de Acciones en la Noche (La Pila de Acciones)</h4>
+                            <p>Las habilidades nocturnas se resuelven en un orden estricto para evitar conflictos. El motor del juego sigue esta secuencia inmutable:</p>
                             <ol className="list-decimal list-inside space-y-2 pl-4">
-                                <li>**Acciones de Bloqueo/Manipulación:** Anciana Líder (Exilio), Silenciador.</li>
-                                <li>**Acciones de Protección:** Sacerdote (Bendición), Guardián, Doctor.</li>
-                                <li>**Acciones de Asesinato/Ataque:** Hombres Lobo, Hechicera (Veneno).</li>
-                                <li>**Acciones de Salvación (Post-Ataque):** Hechicera (Poción de Vida).</li>
+                                <li>**Fase 1: Manipulación y Control:** Acciones que afectan las habilidades de otros (Anciana Líder, Silenciador).</li>
+                                <li>**Fase 2: Protección y Prevención:** Habilidades defensivas (Sacerdote, Guardián, Doctor, poción de la Hechicera).</li>
+                                <li>**Fase 3: Acciones Letales y de Conversión:** Intentos de asesinato o transformación (Lobos, Veneno de Hechicera, Vampiro, Maldito).</li>
+                                <li>**Fase 4: Investigación y Reclutamiento:** Obtención de información o nuevos miembros (Vidente, Líder de Culto).</li>
+                                 <li>**Fase 5: Resolución Final:** El motor del juego calcula el resultado final de la noche, aplicando protecciones a los ataques y determinando quién muere.</li>
                             </ol>
 
-                            <h4 className="font-bold text-xl text-primary-foreground mt-4">Resolución de Conflictos y Habilidades</h4>
+                            <h4 className="font-bold text-xl text-primary-foreground mt-4">Resolución de Conflictos y Habilidades ("Triggers")</h4>
                             <ul className="list-disc list-inside space-y-2 pl-4">
-                                <li>
-                                    <strong>Prioridad de Protección:</strong> La bendición del **Sacerdote** es la protección más fuerte y anula cualquier ataque nocturno o habilidad negativa, pero solo un ataque. Le siguen las protecciones del Guardián y el Doctor, que solo protegen del ataque de los lobos. La poción de vida de la Hechicera actúa en último lugar, revirtiendo una muerte ya ocurrida esa noche.
+                                 <li>
+                                    <strong>Prioridad de Protección:</strong> La bendición del **Sacerdote** anula un único ataque o habilidad negativa. Le siguen las protecciones del Guardián/Doctor (contra lobos) y finalmente la poción de la Hechicera, que revierte una muerte ya ocurrida.
                                 </li>
                                 <li>
-                                    **Vínculos Inquebrantables:** La muerte causada por el vínculo de **Virginia Woolf** o la de los **Enamorados** es automática e inevitable. Ninguna protección puede salvar al jugador vinculado si su pareja muere.
+                                    <strong>Habilidades "Disparadas" (Triggers):** Habilidades como la del Cazador (al morir), los Enamorados o Virginia Woolf pausan el juego y se resuelven inmediatamente, incluso creando reacciones en cadena, antes de que el juego continúe.
                                 </li>
-                                <li>
-                                    **El Último Disparo del Cazador:** La habilidad del **Cazador** al morir es ineludible. Si dispara a un jugador, este muere sin importar si estaba protegido o bendecido esa noche o si es el Príncipe.
-                                </li>
-                                <li>
-                                    **El Fracaso del Verdugo:** Si el objetivo del **Verdugo** muere por cualquier otra causa que no sea el linchamiento del pueblo, el Verdugo pierde su condición de victoria y se convierte en un simple Aldeano, teniendo que ganar con ellos.
-                                </li>
-                                <li>
-                                    **Objetivos (Líder de Culto, Pescador):** Las condiciones de victoria de estos roles se aplican únicamente a los jugadores que siguen **vivos** en la partida y deben cumplirse al inicio del día.
+                                 <li>
+                                    **El Fracaso del Verdugo:** Si el objetivo del **Verdugo** muere por cualquier otra causa que no sea el linchamiento del pueblo, el Verdugo pierde y se convierte en un simple Aldeano, teniendo que ganar con ellos.
                                 </li>
                             </ul>
                         </CardContent>

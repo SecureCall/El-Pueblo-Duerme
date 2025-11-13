@@ -96,7 +96,7 @@ export function GhostAction({ game, currentPlayer, players }: GhostActionProps) 
                 
                 {messageTemplate.includes('{player}') ? (
                      <div>
-                        <label className="text-sm font-medium mb-2 block">¿Sobre quién quieres susurrar?</label>
+                        <label className="text-sm font-medium mb-2 block">¿A qué jugador quieres señalar?</label>
                         <Select onValueChange={setSecondaryTargetId} value={secondaryTargetId}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Selecciona un jugador..." />
@@ -131,7 +131,7 @@ export function GhostAction({ game, currentPlayer, players }: GhostActionProps) 
                 <Button 
                     className="w-full"
                     onClick={handleSubmit}
-                    disabled={isSubmitting || !messageTemplate}
+                    disabled={isSubmitting || !messageTemplate || (messageTemplate.includes('{player}') ? !secondaryTargetId : !targetId)}
                 >
                     {isSubmitting ? <Loader2 className="animate-spin" /> : "Enviar Mensaje Espectral"}
                 </Button>

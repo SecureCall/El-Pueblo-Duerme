@@ -1,4 +1,5 @@
 
+
 'use server';
 import { 
   getDoc,
@@ -41,3 +42,4 @@ export async function runAIHunterShot(firestore: Firestore, gameId: string, hunt
          console.error("Error in runAIHunterShot:", e);
     }
 }
+
