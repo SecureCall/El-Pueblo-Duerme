@@ -7,10 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
-import { submitJuryVote } from '@/lib/firebase-client-actions';
+import { submitJuryVote } from '@/lib/firebase-actions';
 import { Loader2, Scale } from 'lucide-react';
 import type { MasterActionState } from './MasterActionBar';
-import { useFirebase } from '@/firebase';
 
 interface JuryVoteProps {
     game: Game;
@@ -23,7 +22,6 @@ export function JuryVote({ game, players, currentPlayer, tiedPlayerIds }: JuryVo
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
-    const { firestore } = useFirebase();
 
     const hasVoted = game.juryVotes && game.juryVotes[currentPlayer.userId];
 
@@ -35,7 +33,7 @@ export function JuryVote({ game, players, currentPlayer, tiedPlayerIds }: JuryVo
     };
 
     const handleVoteSubmit = async () => {
-        if (!selectedPlayerId || !firestore) {
+        if (!selectedPlayerId) {
             toast({ variant: 'destructive', title: 'Debes seleccionar un jugador para condenar.' });
             return;
         }
