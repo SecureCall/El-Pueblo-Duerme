@@ -18,7 +18,7 @@ import { EnterNameModal } from '@/components/game/EnterNameModal';
 import { useGameSession } from '@/hooks/use-game-session';
 import { useToast } from '@/hooks/use-toast';
 import { getMillis } from '@/lib/utils';
-import { joinGame } from '@/lib/firebase-client-actions';
+import { joinGame } from '@/lib/firebase-actions';
 
 function GameCard({ game }: { game: Game }) {
     const { displayName, userId, avatarUrl } = useGameSession();
@@ -186,3 +186,5 @@ export default function PublicGamesPage() {
         </>
     );
 }
+
+    

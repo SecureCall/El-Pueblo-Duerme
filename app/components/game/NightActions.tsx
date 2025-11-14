@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
-import { submitNightAction, getSeerResult } from '@/lib/firebase-client-actions';
+import { submitNightAction, getSeerResult } from '@/lib/firebase-actions';
 import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, BotIcon, Eye, Wand2, UserX } from 'lucide-react';
 import { SeerResult } from './SeerResult';
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
@@ -433,3 +433,5 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         </Card>
     );
 }
+
+    

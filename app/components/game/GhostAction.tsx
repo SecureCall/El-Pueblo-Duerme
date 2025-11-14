@@ -4,7 +4,7 @@
 import { useState } from "react";
 import type { Game, Player } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { sendGhostMessage } from "@/lib/firebase-client-actions";
+import { sendGhostMessage } from "@/lib/firebase-actions";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -108,5 +108,7 @@ export function GhostAction({ game, currentPlayer, players }: GhostActionProps) 
         </Card>
     );
 }
+
+    
 
     
