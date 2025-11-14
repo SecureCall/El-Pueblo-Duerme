@@ -11,7 +11,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Ghost, Loader2 } from "lucide-react";
-import { useFirebase } from "@/firebase";
 
 interface GhostActionProps {
     game: Game;
@@ -30,16 +29,11 @@ export function GhostAction({ game, currentPlayer, players }: GhostActionProps) 
     const [selectedPlayer, setSelectedPlayer] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
-    const { firestore } = useFirebase();
 
     const handleSubmit = async () => {
         if (!messageTemplate || !selectedPlayer) {
             toast({ variant: "destructive", title: "Debes elegir un mensaje y un jugador." });
             return;
-        }
-        if (!firestore) {
-             toast({ variant: "destructive", title: "Error de conexión." });
-             return;
         }
 
         let finalMessage = messageTemplate;
@@ -49,7 +43,7 @@ export function GhostAction({ game, currentPlayer, players }: GhostActionProps) 
         }
 
         setIsSubmitting(true);
-        const result = await sendGhostMessage(firestore, game.id, currentPlayer.userId, selectedPlayer, finalMessage);
+        const result = await sendGhostMessage(game.id, currentPlayer.userId, selectedPlayer, finalMessage);
         setIsSubmitting(false);
 
         if (result.success) {

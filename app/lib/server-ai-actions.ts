@@ -1,3 +1,4 @@
+
 'use server';
 import { 
   type Game, 
@@ -5,14 +6,15 @@ import {
   type PlayerRole, 
   type NightActionType
 } from "@/types";
-import { submitNightAction, submitVote } from "./firebase-actions";
+import { submitNightAction, submitVote, submitHunterShot } from "./firebase-actions";
 import { getDeterministicAIAction as getAction } from './ai-logic';
+import { getAuthenticatedSdks } from "./firebase-actions";
 
 export async function runAIActions(gameId: string, phase: 'day' | 'night') {
-    const { firestore } = await import('@/lib/firebase-actions').then(m => m.getAuthenticatedSdks());
-    const { getDoc, doc } = await import('firebase/firestore');
+    const { firestore } = getAuthenticatedSdks();
 
     try {
+        const { getDoc, doc } = await import('firebase/firestore');
         const gameDoc = await getDoc(doc(firestore, 'games', gameId));
         if (!gameDoc.exists()) return;
         const game = gameDoc.data() as Game;
@@ -47,10 +49,10 @@ export async function runAIActions(gameId: string, phase: 'day' | 'night') {
 
 
 export async function runAIHunterShot(gameId: string, hunter: Player) {
-    const { firestore } = await import('@/lib/firebase-actions').then(m => m.getAuthenticatedSdks());
-    const { getDoc, doc } = await import('firebase/firestore');
+    const { firestore } = getAuthenticatedSdks();
     
     try {
+        const { getDoc, doc } = await import('firebase/firestore');
         const gameDoc = await getDoc(doc(firestore, 'games', gameId));
         if (!gameDoc.exists()) return;
         const game = gameDoc.data() as Game;
@@ -73,5 +75,3 @@ export async function runAIHunterShot(gameId: string, hunter: Player) {
          console.error("Error in runAIHunterShot:", e);
     }
 }
-
-    

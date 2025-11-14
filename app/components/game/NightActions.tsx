@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -196,8 +197,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         
         if (result.success) {
             if (actionType === 'seer_check') {
-                const { firestore } = await import('@/firebase');
-                 const seerResultData = await getSeerResult(firestore, game.id, currentPlayer.userId, selectedPlayerIds[0]);
+                 const seerResultData = await getSeerResult(game.id, currentPlayer.userId, selectedPlayerIds[0]);
                 if (seerResultData.success) {
                     setSeerResult({
                         targetName: seerResultData.targetName!,
@@ -433,5 +433,3 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         </Card>
     );
 }
-
-    

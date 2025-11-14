@@ -1,3 +1,4 @@
+
 'use server';
 import { 
   doc,
@@ -829,4 +830,45 @@ export async function sendGhostMessage(gameId: string, ghostId: string, targetId
     }
 }
 
-    
+export async function updatePlayerAvatar(firestore: any, gameId: string, userId: string, newAvatarUrl: string) {
+    const gameRef = doc(firestore, 'games', gameId);
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error("Game not found.");
+
+            const gameData = gameDoc.data() as Game;
+            const playerIndex = gameData.players.findIndex(p => p.userId === userId);
+
+            if (playerIndex === -1) throw new Error("Player not found in game.");
+
+            const updatedPlayers = [...gameData.players];
+            updatedPlayers[playerIndex].avatarUrl = newAvatarUrl;
+
+            transaction.update(gameRef, { players: toPlainObject(updatedPlayers), lastActiveAt: Timestamp.now() });
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error updating player avatar:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function getSeerResult(firestore: any, gameId: string, seerId: string, targetId: string) {
+    const gameDoc = await getDoc(doc(firestore, 'games', gameId));
+    if (!gameDoc.exists()) throw new Error("Game not found");
+    const game = gameDoc.data() as Game;
+
+    const seerPlayer = game.players.find(p => p.userId === seerId);
+    if (!seerPlayer || (seerPlayer.role !== 'seer' && !(seerPlayer.role === 'seer_apprentice' && game.seerDied))) {
+        throw new Error("No tienes el don de la videncia.");
+    }
+
+    const targetPlayer = game.players.find(p => p.userId === targetId);
+    if (!targetPlayer) throw new Error("Target player not found");
+
+    const wolfRoles: Player['role'][] = ['werewolf', 'wolf_cub', 'cursed'];
+    const isWerewolf = !!(targetPlayer.role && (wolfRoles.includes(targetPlayer.role) || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope)));
+
+    return { success: true, isWerewolf, targetName: targetPlayer.displayName };
+}

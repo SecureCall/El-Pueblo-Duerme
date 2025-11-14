@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -6,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
-import { submitHunterShot } from '@/lib/firebase-actions';
+import { submitHunterShot } from '@/lib/firebase-client-actions';
 import { Loader2, Crosshair } from 'lucide-react';
 import type { MasterActionState } from './MasterActionBar';
 
@@ -82,7 +83,3 @@ export function HunterShot({ game, players, currentPlayer }: HunterShotProps) {
         </Card>
     );
 }
-
-    
-
-    
