@@ -13,7 +13,8 @@ import { useGameSession } from "@/hooks/use-game-session";
 import { PlayerGrid } from "./PlayerGrid";
 import type { MasterActionState } from "./MasterActionBar";
 import Link from "next/link";
-import { updatePlayerAvatar } from "@/lib/firebase-client-actions";
+import { updatePlayerAvatar as updatePlayerAvatarClient } from "@/lib/firebase-client-actions";
+import { joinGame } from "@/lib/firebase-actions";
 
 interface GameLobbyProps {
   game: Game;
@@ -40,11 +41,10 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
       const { firestore } = await import('@/firebase');
       if (!firestore) return;
       
-      // Optimistically update local state via session hook
       setAvatarUrl(newAvatarUrl);
       setIsAvatarModalOpen(false);
 
-      const result = await updatePlayerAvatar(firestore, game.id, userId, newAvatarUrl);
+      const result = await updatePlayerAvatarClient(firestore, game.id, userId, newAvatarUrl);
       if(result?.error) {
            toast({
               variant: "destructive",
@@ -168,5 +168,3 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
     </>
   );
 }
-
-    

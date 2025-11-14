@@ -7,14 +7,9 @@ import {
   type Game, 
   type Player, 
 } from "@/types";
-import { runAIActions as runAIActionsServer } from "./server-ai-actions";
 import { submitHunterShot } from "./firebase-actions";
 import { getAuthenticatedSdks } from "./firebase-actions";
 
-
-export async function runAIActions(gameId: string, phase: 'day' | 'night') {
-  await runAIActionsServer(gameId, phase);
-}
 
 export async function runAIHunterShot(gameId: string, hunter: Player) {
     const { firestore } = getAuthenticatedSdks();

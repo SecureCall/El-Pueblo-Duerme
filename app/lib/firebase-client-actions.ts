@@ -28,23 +28,37 @@ import {
   submitVote as submitVoteServer,
   submitNightAction as submitNightActionServer,
   submitJuryVote as submitJuryVoteServer,
-  sendGhostMessage as sendGhostMessageServer
+  sendGhostMessage as sendGhostMessageServer,
+  resetGame as resetGameServer,
+  executeMasterAction as executeMasterActionServer,
+  processNight as processNightServer,
+  processVotes as processVotesServer,
+  processJuryVotes as processJuryVotesServer,
 } from './firebase-actions';
 
-export { createGameServer as createGame };
-export { startGameServer as startGame };
-export { submitHunterShotServer as submitHunterShot };
-export { submitTroublemakerActionServer as submitTroublemakerAction };
-export { sendWolfChatMessageServer as sendWolfChatMessage };
-export { sendFairyChatMessageServer as sendFairyChatMessage };
-export { sendLoversChatMessageServer as sendLoversChatMessage };
-export { sendTwinChatMessageServer as sendTwinChatMessage };
-export { sendGhostChatMessageServer as sendGhostChatMessage };
-export { sendChatMessageServer as sendChatMessage };
-export { submitVoteServer as submitVote };
-export { submitNightActionServer as submitNightAction };
-export { submitJuryVoteServer as submitJuryVote };
-export { sendGhostMessageServer as sendGhostMessage };
+// Export server actions to be used in client components
+export { 
+    createGameServer as createGame,
+    startGameServer as startGame,
+    submitHunterShotServer as submitHunterShot,
+    submitTroublemakerActionServer as submitTroublemakerAction,
+    sendWolfChatMessageServer as sendWolfChatMessage,
+    sendFairyChatMessageServer as sendFairyChatMessage,
+    sendLoversChatMessageServer as sendLoversChatMessage,
+    sendTwinChatMessageServer as sendTwinChatMessage,
+    sendGhostChatMessageServer as sendGhostChatMessage,
+    sendChatMessageServer as sendChatMessage,
+    submitVoteServer as submitVote,
+    submitNightActionServer as submitNightAction,
+    submitJuryVoteServer as submitJuryVote,
+    sendGhostMessageServer as sendGhostMessage,
+    resetGameServer as resetGame,
+    executeMasterActionServer as executeMasterAction,
+    processNightServer as processNight,
+    processVotesServer as processVotes,
+    processJuryVotesServer as processJuryVotes
+};
+
 
 export async function getSeerResult(firestore: Firestore, gameId: string, seerId: string, targetId: string) {
     const gameDoc = await getDoc(doc(firestore, 'games', gameId));
