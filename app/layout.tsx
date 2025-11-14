@@ -2,11 +2,11 @@
 
 import './globals.css';
 import { Inter } from 'next/font/google';
-import { Toaster } from '@/components/ui/toaster';
-import { FirebaseClientProvider } from '@/firebase/client-provider';
+import { Toaster } from '../components/ui/toaster';
+import { FirebaseClientProvider } from '../firebase/client-provider';
 import { useEffect } from 'react';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
-import { firebaseConfig } from '@/lib/firebase-config';
+import { firebaseConfig } from './lib/firebase-config';
 import { initializeApp } from 'firebase/app';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });

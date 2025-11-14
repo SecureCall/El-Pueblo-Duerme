@@ -106,5 +106,3 @@ export function FairyChat({ gameId, currentPlayer, messages }: FairyChatProps) {
 }
 
     
-
-    
