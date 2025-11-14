@@ -14,5 +14,3 @@ export async function runAIActions(gameId: string, phase: 'day' | 'night') {
 export async function runAIHunterShot(gameId: string, hunter: Player) {
    await runAIHunterShotServer(gameId, hunter);
 }
-
-    
