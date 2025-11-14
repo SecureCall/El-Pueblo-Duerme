@@ -875,3 +875,6 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
 
     return { success: true, isWerewolf, targetName: targetPlayer.displayName };
 }
+
+
+    

@@ -104,3 +104,5 @@ export function GhostSpectatorChat({ gameId, currentPlayer, messages }: GhostSpe
         </Card>
     );
 }
+
+    
