@@ -15,7 +15,6 @@ import { PlayerGrid } from "./PlayerGrid";
 import type { MasterActionState } from "./MasterActionBar";
 import Link from "next/link";
 import { updatePlayerAvatar } from "@/lib/firebase-actions";
-import { useFirebase } from "@/firebase";
 
 interface GameLobbyProps {
   game: Game;
