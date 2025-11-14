@@ -151,7 +151,7 @@ export async function createGame(
     await setDoc(gameRef, toPlainObject(gameData));
     return { gameId };
   } catch (error: any) {
-    console.error("Error creating game:", error);
+    console.error("--- CATASTROPHIC ERROR IN createGame ---", error);
     return { error: `Error de servidor: ${error.message || 'Error desconocido al crear la partida.'}` };
   }
 }
@@ -852,7 +852,7 @@ export async function updatePlayerAvatar(gameId: string, userId: string, newAvat
         return { success: true };
     } catch (error: any) {
         console.error("Error updating player avatar:", error);
-        return { success: false, error: error.message };
+        return { success: false, error: (error as Error).message };
     }
 }
 
