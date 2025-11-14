@@ -8,7 +8,7 @@ import {
 } from "@/types";
 import { submitNightAction, submitVote, submitHunterShot } from "./firebase-actions";
 import { getDoc, doc } from "firebase/firestore";
-import { getAuthenticatedSdks } from "./firebase-actions";
+import { getAuthenticatedSdks } from "./firebase-config";
 
 
 export async function runAIActions(gameId: string, phase: 'day' | 'night') {
