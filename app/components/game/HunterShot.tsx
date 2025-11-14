@@ -83,5 +83,3 @@ export function HunterShot({ game, players, currentPlayer }: HunterShotProps) {
         </Card>
     );
 }
-
-    

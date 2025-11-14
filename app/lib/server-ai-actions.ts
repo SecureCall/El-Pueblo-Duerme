@@ -6,7 +6,7 @@ import {
   type PlayerRole, 
   type NightActionType
 } from "@/types";
-import { submitNightAction, submitVote } from "./firebase-actions";
+import { submitNightAction, submitVote, submitHunterShot } from "./firebase-actions";
 import { getDoc, doc } from "firebase/firestore";
 import { getAuthenticatedSdks } from "./firebase-actions";
 
@@ -116,7 +116,7 @@ export const getDeterministicAIAction = (
         return { actionType: 'SHOOT', targetId: randomTarget(potentialTargets) };
     }
 
-    if (game.phase !== 'night' || aiPlayer.isExiled) {
+    if (game.phase !== 'night' || (aiPlayer.isExiled && game.exiledPlayerId === userId)) {
         return { actionType: 'NONE', targetId: '' };
     }
 
@@ -149,7 +149,7 @@ export const getDeterministicAIAction = (
 
             const playersWhoVotedForWolves = game.players.filter(p => {
                 const lastVoteEvent = game.events.find(e => e.type === 'vote_result' && e.round === currentRound - 1);
-                if (!lastVoteEvent) return false;
+                if (!lastVoteEvent || !lastVoteEvent.data.lynchedPlayerId) return false;
                 const lynchedPlayer = game.players.find(p => p.userId === lastVoteEvent.data.lynchedPlayerId);
                 return p.votedFor === lynchedPlayer?.userId && lynchedPlayer?.role && wolfRoles.includes(lynchedPlayer.role);
             }).map(p => p.userId);
@@ -176,11 +176,13 @@ export const getDeterministicAIAction = (
                 
                 if(lastVoteEvent?.data) {
                     const lynchedPlayerId = lastVoteEvent.data.lynchedPlayerId;
-                    const lynchedPlayer = game.players.find(p => p.userId === lynchedPlayerId);
-                    if(lynchedPlayer?.role === 'villager') {
-                         game.players.filter(p => p.votedFor === lynchedPlayerId).forEach(voter => {
-                            if (suspicionMap[voter.userId]) suspicionMap[voter.userId] += 10;
-                         });
+                    if (lynchedPlayerId) {
+                        const lynchedPlayer = game.players.find(p => p.userId === lynchedPlayerId);
+                        if(lynchedPlayer?.role === 'villager') {
+                             game.players.filter(p => p.votedFor === lynchedPlayerId).forEach(voter => {
+                                if (suspicionMap[voter.userId]) suspicionMap[voter.userId] += 10;
+                             });
+                        }
                     }
                     (lastVoteEvent.data.tiedPlayerIds || []).forEach((id: string) => {
                          if (suspicionMap[id]) suspicionMap[id] += 5;
@@ -278,5 +280,3 @@ export const getDeterministicAIAction = (
             return { actionType: 'NONE', targetId: '' };
     }
 };
-
-    

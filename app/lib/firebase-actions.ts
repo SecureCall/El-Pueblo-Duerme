@@ -600,7 +600,7 @@ export async function processVotes(gameId: string) {
             } else if (game.phase === 'hunter_shot') {
                 const hunter = game.players.find(p => p.userId === game.pendingHunterShot);
                 if (hunter?.isAI) {
-                    await runAIHunterShotServer(game.id, hunter);
+                    await runAIHunterShotServer(gameId, hunter);
                 }
             }
         }
@@ -875,6 +875,3 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
 
     return { success: true, isWerewolf, targetName: targetPlayer.displayName };
 }
-
-
-    
