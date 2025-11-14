@@ -112,7 +112,7 @@ export async function createGame(
       name: gameName.trim(),
       status: "waiting",
       phase: "waiting", 
-      creator: userId, 
+      creator: userId,
       players: [creatorPlayer], 
       events: [],
       chatMessages: [],
