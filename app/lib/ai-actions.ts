@@ -1,3 +1,4 @@
+
 'use server';
 import { 
   getDoc,
@@ -22,7 +23,7 @@ export async function runAIHunterShot(gameId: string, hunter: Player) {
 
         const alivePlayers = game.players.filter(p => p.isAlive && p.userId !== hunter.userId);
         
-        const { getDeterministicAIAction } = await import('./ai-logic');
+        const { getDeterministicAIAction } = await import('./server-ai-actions');
         const { targetId } = getDeterministicAIAction(hunter, game, alivePlayers, []);
 
         if (targetId) {
