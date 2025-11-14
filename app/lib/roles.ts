@@ -1,4 +1,3 @@
-
 import type { PlayerRole } from "@/types";
 
 export type RoleDetail = {

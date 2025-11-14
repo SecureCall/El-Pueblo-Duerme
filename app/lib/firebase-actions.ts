@@ -95,18 +95,7 @@ export async function createGame(
   const { firestore } = getAuthenticatedSdks();
   const { userId, displayName, avatarUrl, gameName, maxPlayers, settings } = options;
 
-  console.log("--- AUDITORÍA DE CREACIÓN DE PARTIDA ---");
-  console.log("Paso 1: Se ha llamado a la función 'createGame'.");
-
-  if (!userId) {
-    console.error("Paso 2: ¡FALLO FATAL! El 'userId' es NULO o indefinido al intentar crear la partida.");
-    console.log("------------------------------------------");
-    return { error: "Error: No estás autenticado. Por favor, inicia sesión de nuevo."};
-  }
-  
-  console.log("Paso 2: Usuario confirmado. El ID para la regla 'request.auth.uid' es:", userId);
-
-  if (!displayName.trim() || !gameName.trim()) {
+  if (!userId || !displayName.trim() || !gameName.trim()) {
     return { error: "Datos incompletos para crear la partida." };
   }
   if (maxPlayers < 3 || maxPlayers > 32) {
@@ -158,20 +147,10 @@ export async function createGame(
   };
     
   try {
-    console.log("--- DATOS PARA EL SIMULADOR DE FIREBASE ---");
-    console.log("  - Pega esto en el campo 'UID del usuario':", userId);
-    console.log("  - Pega este objeto COMPLETO en el cuerpo del 'Documento':", JSON.stringify(toPlainObject(gameData), null, 2));
-    console.log("-----------------------------------------");
-    
-    console.log("Paso 3.2: Intentando escribir en Firestore...");
     await setDoc(gameRef, toPlainObject(gameData));
-    console.log("Paso 4: ¡ÉXITO! La partida se ha creado en Firestore con el ID:", gameId);
-    console.log("------------------------------------------");
     return { gameId };
   } catch (error: any) {
-    console.error("Paso 4: ¡FALLO EN FIRESTORE! El servidor ha denegado la escritura.");
-    console.error("El error completo es:", error);
-    console.log("------------------------------------------");
+    console.error("Error creating game:", error);
     return { error: `Error de servidor: ${error.message || 'Error desconocido al crear la partida.'}` };
   }
 }
@@ -204,7 +183,7 @@ export async function joinGame(
       
       const playerExists = game.players.some(p => p.userId === userId);
       if (playerExists) {
-        return; // Player is already in the game, no action needed.
+        return; 
       }
       
       const nameExists = game.players.some(p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase());

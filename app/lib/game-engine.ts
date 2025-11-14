@@ -1,4 +1,3 @@
-
 'use server';
 
 import { 
@@ -35,7 +34,7 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
   const initialPlayerState = JSON.parse(JSON.stringify(game.players));
   const actions = game.nightActions?.filter(a => a.round === game.currentRound) || [];
 
-  // FASE 1: MANIPULACIÓN Y CONTROL
+  // PHASE 1: MANIPULACIÓN Y CONTROL
   actions.forEach(action => {
       const playerIndex = game.players.findIndex(p => p.userId === action.playerId);
       if (playerIndex === -1) return;

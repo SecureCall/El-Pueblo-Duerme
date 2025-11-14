@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -7,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
-import { submitNightAction, getSeerResult } from '@/lib/firebase-actions';
+import { submitNightAction, getSeerResult } from '@/lib/firebase-client-actions';
 import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, BotIcon, Eye, Wand2, UserX } from 'lucide-react';
 import { SeerResult } from './SeerResult';
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
@@ -197,7 +196,8 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         
         if (result.success) {
             if (actionType === 'seer_check') {
-                 const seerResultData = await getSeerResult(game.id, currentPlayer.userId, selectedPlayerIds[0]);
+                const { firestore } = await import('@/firebase');
+                 const seerResultData = await getSeerResult(firestore, game.id, currentPlayer.userId, selectedPlayerIds[0]);
                 if (seerResultData.success) {
                     setSeerResult({
                         targetName: seerResultData.targetName!,
