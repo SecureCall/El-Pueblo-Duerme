@@ -14,8 +14,7 @@ import { useGameSession } from "@/hooks/use-game-session";
 import { PlayerGrid } from "./PlayerGrid";
 import type { MasterActionState } from "./MasterActionBar";
 import Link from "next/link";
-import { updatePlayerAvatar } from "@/lib/firebase-client-actions";
-import { useFirebase } from "@/firebase";
+import { updatePlayerAvatar } from "@/lib/firebase-actions";
 
 interface GameLobbyProps {
   game: Game;
@@ -26,7 +25,6 @@ interface GameLobbyProps {
 export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
   const { toast } = useToast();
   const { userId, setAvatarUrl, currentPlayer } = useGameSession();
-  const { firestore } = useFirebase();
   const [canShare, setCanShare] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
@@ -39,13 +37,13 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
   }, []);
 
   const handleAvatarChange = async (newAvatarUrl: string) => {
-      if (!userId || !firestore || !currentPlayer) return;
+      if (!userId || !currentPlayer) return;
       
       // Optimistically update local state via session hook
       setAvatarUrl(newAvatarUrl);
       setIsAvatarModalOpen(false);
 
-      const result = await updatePlayerAvatar(firestore, game.id, userId, newAvatarUrl);
+      const result = await updatePlayerAvatar(game.id, userId, newAvatarUrl);
       if(result?.error) {
            toast({
               variant: "destructive",

@@ -830,7 +830,8 @@ export async function sendGhostMessage(gameId: string, ghostId: string, targetId
     }
 }
 
-export async function updatePlayerAvatar(firestore: any, gameId: string, userId: string, newAvatarUrl: string) {
+export async function updatePlayerAvatar(gameId: string, userId: string, newAvatarUrl: string) {
+    const { firestore } = getAuthenticatedSdks();
     const gameRef = doc(firestore, 'games', gameId);
     try {
         await runTransaction(firestore, async (transaction) => {
@@ -854,7 +855,8 @@ export async function updatePlayerAvatar(firestore: any, gameId: string, userId:
     }
 }
 
-export async function getSeerResult(firestore: any, gameId: string, seerId: string, targetId: string) {
+export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
+    const { firestore } = getAuthenticatedSdks();
     const gameDoc = await getDoc(doc(firestore, 'games', gameId));
     if (!gameDoc.exists()) throw new Error("Game not found");
     const game = gameDoc.data() as Game;

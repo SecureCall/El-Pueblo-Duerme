@@ -36,5 +36,3 @@ export async function runAIHunterShot(gameId: string, hunter: Player) {
          console.error("Error in runAIHunterShot:", e);
     }
 }
-
-    

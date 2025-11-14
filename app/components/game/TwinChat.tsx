@@ -104,7 +104,3 @@ export function TwinChat({ gameId, currentPlayer, messages }: TwinChatProps) {
         </Card>
     );
 }
-
-    
-
-    

@@ -101,7 +101,3 @@ export function WolfChat({ gameId, currentPlayer, messages }: WolfChatProps) {
         </Card>
     );
 }
-
-    
-
-    

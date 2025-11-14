@@ -95,5 +95,3 @@ export function JuryVote({ game, players, currentPlayer, tiedPlayerIds }: JuryVo
         </Card>
     );
 }
-
-    
