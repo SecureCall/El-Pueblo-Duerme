@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef, useEffect } from 'react';
@@ -7,7 +8,7 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Send, Heart } from 'lucide-react';
-import { sendLoversChatMessage } from '@/lib/firebase-actions';
+import { sendLoversChatMessage } from '@/lib/firebase-client-actions';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -103,7 +104,5 @@ export function LoversChat({ gameId, currentPlayer, messages }: LoversChatProps)
         </Card>
     );
 }
-
-    
 
     

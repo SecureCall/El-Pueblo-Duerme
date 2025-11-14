@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Game, Player } from "@/types";
@@ -13,8 +14,8 @@ import { useGameSession } from "@/hooks/use-game-session";
 import { PlayerGrid } from "./PlayerGrid";
 import type { MasterActionState } from "./MasterActionBar";
 import Link from "next/link";
-import { updatePlayerAvatar as updatePlayerAvatarClient } from "@/lib/firebase-client-actions";
-import { joinGame } from "@/lib/firebase-actions";
+import { updatePlayerAvatar } from "@/lib/firebase-client-actions";
+import { useFirebase } from "@/firebase";
 
 interface GameLobbyProps {
   game: Game;
@@ -25,6 +26,7 @@ interface GameLobbyProps {
 export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
   const { toast } = useToast();
   const { userId, setAvatarUrl, currentPlayer } = useGameSession();
+  const { firestore } = useFirebase();
   const [canShare, setCanShare] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
@@ -37,20 +39,20 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
   }, []);
 
   const handleAvatarChange = async (newAvatarUrl: string) => {
-      if (!userId || !currentPlayer) return;
-      const { firestore } = await import('@/firebase');
-      if (!firestore) return;
+      if (!userId || !firestore || !currentPlayer) return;
       
+      // Optimistically update local state via session hook
       setAvatarUrl(newAvatarUrl);
       setIsAvatarModalOpen(false);
 
-      const result = await updatePlayerAvatarClient(firestore, game.id, userId, newAvatarUrl);
+      const result = await updatePlayerAvatar(firestore, game.id, userId, newAvatarUrl);
       if(result?.error) {
            toast({
               variant: "destructive",
               title: "Error",
               description: "No se pudo actualizar el avatar en la base de datos.",
           });
+          // Note: Reverting optimistic update could be complex, for now we just show an error.
       }
   };
 

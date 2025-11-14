@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -6,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
-import { submitVote, submitTroublemakerAction } from '@/lib/firebase-actions';
+import { submitVote, submitTroublemakerAction } from '@/lib/firebase-client-actions';
 import { Loader2, Zap, Scale } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { HeartCrack, SunIcon, Users, BrainCircuit } from 'lucide-react';
@@ -295,7 +296,5 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
         </Card>
     );
 }
-
-    
 
     

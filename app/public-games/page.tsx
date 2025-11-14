@@ -1,3 +1,4 @@
+
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -17,20 +18,21 @@ import { EnterNameModal } from '@/components/game/EnterNameModal';
 import { useGameSession } from '@/hooks/use-game-session';
 import { useToast } from '@/hooks/use-toast';
 import { getMillis } from '@/lib/utils';
-import { joinGame } from '@/lib/firebase-actions';
+import { joinGame } from '@/lib/firebase-client-actions';
 
 function GameCard({ game }: { game: Game }) {
     const { displayName, userId, avatarUrl } = useGameSession();
     const router = useRouter();
     const [isJoining, setIsJoining] = useState(false);
+    const { firestore } = useFirebase();
 
     const handleJoin = async () => {
-        if (!displayName || !userId || !avatarUrl) {
+        if (!displayName || !userId || !avatarUrl || !firestore) {
             // Logic to handle missing name is in the parent component
             return;
         }
         setIsJoining(true);
-        const result = await joinGame({gameId: game.id, userId, displayName, avatarUrl});
+        const result = await joinGame(firestore, game.id, userId, displayName, avatarUrl);
         if (result.error) {
             alert(result.error);
             setIsJoining(false);
@@ -185,5 +187,3 @@ export default function PublicGamesPage() {
         </>
     );
 }
-
-    
