@@ -26,18 +26,8 @@ import { masterActions } from "./master-actions";
 import { secretObjectives } from "./objectives";
 import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
-import { getApp, getApps, initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { firebaseConfig } from "@/lib/firebase-config";
+import { getAuthenticatedSdks } from "./firebase-config";
 import { runAIActions, runAIHunterShot as runAIHunterShotServer } from './server-ai-actions';
-
-export function getAuthenticatedSdks() {
-  const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-  const auth = getAuth(app);
-  const firestore = getFirestore(app);
-  return { auth, firestore, app };
-}
 
 
 const PHASE_DURATION_SECONDS = 60;
