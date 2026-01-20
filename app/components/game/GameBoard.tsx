@@ -243,86 +243,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
         );
     }
 
-    if (!currentPlayer.isAlive && game.status === 'in_progress') {
-        const isAngelInPlay = !!(game.settings.resurrector_angel && players.some(p => p.role === 'resurrector_angel' && p.isAlive && !p.resurrectorAngelUsed));
-
-        const renderDeathOverlay = () => {
-            switch (deathCause) {
-                case 'vote_result': return <BanishedOverlay angelInPlay={isAngelInPlay} />;
-                case 'hunter_shot': return <HunterKillOverlay angelInPlay={isAngelInPlay} />;
-                case 'vampire_kill': return <VampireKillOverlay angelInPlay={isAngelInPlay} />;
-                case 'werewolf_kill': return <YouAreDeadOverlay angelInPlay={isAngelInPlay} isWolfKill={true} />;
-                case 'troublemaker_duel':
-                case 'special':
-                case 'lover_death':
-                default:
-                    return <YouAreDeadOverlay angelInPlay={isAngelInPlay} isWolfKill={false} />;
-            }
-        };
-        return (
-            <>
-                {renderDeathOverlay()}
-                <SpectatorContent
-                    game={game}
-                    players={players}
-                    events={events}
-                    messages={messages}
-                    wolfMessages={wolfMessages}
-                    fairyMessages={fairyMessages}
-                    twinMessages={twinMessages}
-                    loversMessages={loversMessages}
-                    ghostMessages={ghostMessages}
-                    currentPlayer={currentPlayer}
-                    getCauseOfDeath={getCauseOfDeath}
-                    timeLeft={timeLeft}
-                    masterActionState={masterActionState}
-                    setMasterActionState={setMasterActionState}
-                    onMasterActionClick={handleMasterActionClick}
-                />
-            </>
-        );
-    }
-
-    return (
-        <SpectatorContent
-            game={game}
-            players={players}
-            events={events}
-            messages={messages}
-            wolfMessages={wolfMessages}
-            fairyMessages={fairyMessages}
-            twinMessages={twinMessages}
-            loversMessages={loversMessages}
-            ghostMessages={ghostMessages}
-            currentPlayer={currentPlayer}
-            getCauseOfDeath={getCauseOfDeath}
-            timeLeft={timeLeft}
-            masterActionState={masterActionState}
-            setMasterActionState={setMasterActionState}
-            onMasterActionClick={handleMasterActionClick}
-        />
-    );
-}
-
-interface SpectatorContentProps {
-    game: Game;
-    players: Player[];
-    events: GameEvent[];
-    messages: ChatMessage[];
-    wolfMessages: ChatMessage[];
-    fairyMessages: ChatMessage[];
-    twinMessages: ChatMessage[];
-    loversMessages: ChatMessage[];
-    ghostMessages: ChatMessage[];
-    currentPlayer: Player;
-    getCauseOfDeath: (playerId: string) => GameEvent['type'] | 'other';
-    timeLeft: number;
-    masterActionState: MasterActionState;
-    setMasterActionState: React.Dispatch<React.SetStateAction<MasterActionState>>;
-    onMasterActionClick: (player: Player) => void;
-}
-
-function SpectatorContent({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, currentPlayer, getCauseOfDeath, timeLeft, masterActionState, setMasterActionState, onMasterActionClick }: SpectatorContentProps) {
+    // Combine GameBoard and SpectatorContent
     const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
     const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
     const voteEvent = events.find(e => e.type === 'vote_result' && e.round === (game.phase === 'day' || game.phase === 'jury_voting' ? game.currentRound : game.currentRound - 1));
@@ -378,6 +299,33 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
     const showGhostChat = !currentPlayer.isAlive;
     const showJuryVote = game.phase === 'jury_voting' && !currentPlayer.isAlive && game.settings.juryVoting;
     const isMaster = game.creator === currentPlayer.userId;
+    
+    if (!currentPlayer.isAlive) {
+         const isAngelInPlay = !!(game.settings.resurrector_angel && players.some(p => p.role === 'resurrector_angel' && p.isAlive && !p.resurrectorAngelUsed));
+
+        const renderDeathOverlay = () => {
+            switch (deathCause) {
+                case 'vote_result': return <BanishedOverlay angelInPlay={isAngelInPlay} />;
+                case 'hunter_shot': return <HunterKillOverlay angelInPlay={isAngelInPlay} />;
+                case 'vampire_kill': return <VampireKillOverlay angelInPlay={isAngelInPlay} />;
+                case 'werewolf_kill': return <YouAreDeadOverlay angelInPlay={isAngelInPlay} isWolfKill={true} />;
+                case 'troublemaker_duel':
+                case 'special':
+                case 'lover_death':
+                default:
+                    return <YouAreDeadOverlay angelInPlay={isAngelInPlay} isWolfKill={false} />;
+            }
+        };
+
+        return (
+             <>
+                {renderDeathOverlay()}
+                <div className="w-full max-w-7xl mx-auto p-4 space-y-4">
+                    {/* Render spectator content here */}
+                </div>
+            </>
+        )
+    }
 
     return (
         <div className="w-full max-w-7xl mx-auto p-4 space-y-4">
@@ -412,7 +360,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                 game={game}
                 players={playersWithDeathCause}
                 currentPlayer={currentPlayer}
-                onPlayerClick={masterActionState.active ? onMasterActionClick : undefined}
+                onPlayerClick={masterActionState.active ? handleMasterActionClick : undefined}
                 masterActionState={masterActionState}
                 setMasterActionState={setMasterActionState}
             />
@@ -481,5 +429,3 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
         </div>
     );
 }
-
-    
