@@ -2,7 +2,7 @@
   "name": "el-pueblo-duerme",
   "version": "0.1.0",
   "private": false,
-  "description": "El Pueblo Duerme - A game of mystery and deception.",
+  "description": "El Pueblo Duerme - A game of mystery and deception, built with Next.js and Firebase.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -44,7 +44,7 @@
     "geist": "^1.3.0",
     "genkit": "^1.0.0",
     "lucide-react": "^0.363.0",
-    "next": "14.2.33",
+    "next": "14.2.35",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.0",
     "react-dom": "^18.3.1",
@@ -67,5 +67,3 @@
     "typescript": "^5.4.5"
   }
 }
-
-    

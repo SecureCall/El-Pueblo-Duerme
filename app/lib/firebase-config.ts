@@ -1,4 +1,5 @@
 
+
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
@@ -18,3 +19,4 @@ export function getAuthenticatedSdks() {
   const firestore = getFirestore(app);
   return { auth, firestore, app };
 }
+
