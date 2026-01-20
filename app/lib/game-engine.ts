@@ -503,3 +503,23 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
 
     return { isGameOver: false, message: "", winners: [] };
 }
+
+function getMillis(timestamp: any): number {
+    if (!timestamp) return 0;
+    if (timestamp instanceof Timestamp) {
+        return timestamp.toMillis();
+    }
+     if (timestamp instanceof Date) {
+        return timestamp.getTime();
+    }
+    if (typeof timestamp === 'object' && timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
+        return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
+    }
+     if (typeof timestamp === 'string') {
+        const date = new Date(timestamp);
+        if (!isNaN(date.getTime())) {
+            return date.getTime();
+        }
+    }
+    return 0;
+};

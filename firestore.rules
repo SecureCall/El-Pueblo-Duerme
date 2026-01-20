@@ -3,34 +3,20 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
     match /games/{gameId} {
-      // PERMITIR CREAR: Si el usuario está logueado y el 'creator' del nuevo documento
-      // es su propio ID.
-      allow create: if request.auth != null && request.resource.data.creator == request.auth.uid;
-
-      // PERMITIR LEER: Cualquier usuario logueado puede leer los datos de la partida.
+      // Allow anyone to read game data. This is necessary for players to join and see the lobby.
+      // More restrictive rules could be applied if game data should be private.
       allow read: if request.auth != null;
 
-      // PERMITIR ACTUALIZAR:
-      allow update: if request.auth != null &&
-        (
-          // El creador de la partida puede actualizarla (para iniciar, cambiar configuración en lobby, etc.)
-          resource.data.creator == request.auth.uid ||
-          
-          // Un jugador puede unirse a una partida que está en 'waiting'.
-          (
-            resource.data.status == 'waiting' &&
-            request.resource.data.players.size() == resource.data.players.size() + 1 &&
-            request.resource.data.players[request.resource.data.players.size() - 1].userId == request.auth.uid
-          ) ||
-          
-          // Un jugador ya existente puede actualizar su propio estado (votar, usar habilidad, cambiar avatar).
-          (
-             resource.data.players.some(p => p.userId == request.auth.uid) &&
-             request.resource.data.players.size() == resource.data.players.size()
-          )
-        );
+      // Allow any authenticated user to create a game document.
+      // The creator's ID is validated in the document itself.
+      allow create: if request.auth != null && request.resource.data.creator == request.auth.uid;
+      
+      // Allow updates only from authenticated users who are players in the game.
+      // All complex logic (phase transitions, actions) is handled by trusted Server Actions,
+      // which run with admin privileges and bypass these rules.
+      // These rules are a safeguard against basic client-side manipulation.
+      allow update: if request.auth != null && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p => p.userId == request.auth.uid);
     }
   }
 }
