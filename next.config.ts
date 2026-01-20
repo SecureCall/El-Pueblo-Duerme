@@ -26,7 +26,11 @@ const nextConfig: NextConfig = {
   experimental: {
     allowedDevOrigins: [
         "https://*.cloudworkstations.dev",
-    ]
+    ],
+    // This tells Turbopack where the root of your project is, fixing the workspace error.
+    turbopack: {
+        rootDir: process.cwd(),
+    },
   }
 };
 
