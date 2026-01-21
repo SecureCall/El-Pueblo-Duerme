@@ -260,7 +260,7 @@ export function CreateGameForm() {
 
             <div>
               <Label className="text-base">Roles Especiales</Label>
-              <FormDescription>Selecciona los roles que quieres incluir en la partida.</FormDescription>
+              <p className="text-sm text-muted-foreground">Selecciona los roles que quieres incluir en la partida.</p>
               <div className="flex gap-2 mt-2 mb-4">
                   <Button type="button" variant="outline" size="sm" onClick={() => selectAllRoles(true)}>
                       Seleccionar Todos
