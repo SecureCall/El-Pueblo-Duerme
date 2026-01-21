@@ -12,8 +12,7 @@ interface SecretObjectiveWithLogic extends SecretObjective {
      checkCompletion: (player: Player, game: Game) => boolean;
 }
 
-// Dummy checkGameOver to satisfy TypeScript in this file. The real one is in firebase-actions.
-const checkGameOver = (game: Game): { winnerCode?: string; winners: Player[] } => {
+const getGameOverInfo = (game: Game): { winnerCode?: string; winners: Player[] } => {
     const lastEvent = game.events.find(e => e.type === 'game_over');
     if (lastEvent) {
         return {
@@ -32,7 +31,7 @@ const allObjectives: SecretObjectiveWithLogic[] = [
         description: 'Sobrevive hasta el final de la partida y gana con el pueblo.',
         appliesTo: ['villager', 'seer', 'doctor', 'hunter', 'guardian', 'priest', 'prince', 'twin', 'ghost'],
         checkCompletion: (player, game) => {
-            const gameOver = checkGameOver(game);
+            const gameOver = getGameOverInfo(game);
             return player.isAlive && gameOver.winnerCode === 'villagers';
         }
     },
@@ -67,7 +66,7 @@ const allObjectives: SecretObjectiveWithLogic[] = [
         description: 'Gana la partida y sobrevive como Hombre Lobo.',
         appliesTo: ['werewolf', 'wolf_cub'],
         checkCompletion: (player, game) => {
-            const gameOver = checkGameOver(game);
+            const gameOver = getGameOverInfo(game);
             return player.isAlive && gameOver.winnerCode === 'wolves';
         }
     },
@@ -94,7 +93,7 @@ const allObjectives: SecretObjectiveWithLogic[] = [
         description: 'Consigue que el pueblo linche a otro miembro de la manada, y sobrevive para ganar.',
         appliesTo: ['werewolf'],
         checkCompletion: (player, game) => {
-             const gameOver = checkGameOver(game);
+             const gameOver = getGameOverInfo(game);
              if (!player.isAlive || gameOver.winnerCode !== 'wolves') return false;
 
              return game.events.some(event => {
@@ -114,7 +113,7 @@ const allObjectives: SecretObjectiveWithLogic[] = [
         appliesTo: ['any'], // Any role can be a lover
         checkCompletion: (player, game) => {
             if (!player.isLover) return false;
-            const gameOver = checkGameOver(game);
+            const gameOver = getGameOverInfo(game);
             return gameOver.winnerCode === 'lovers';
         }
     },
@@ -124,7 +123,7 @@ const allObjectives: SecretObjectiveWithLogic[] = [
         description: 'Como Verdugo, cumple tu objetivo y haz que el pueblo linche a tu presa.',
         appliesTo: ['executioner'],
         checkCompletion: (player, game) => {
-            const gameOver = checkGameOver(game);
+            const gameOver = getGameOverInfo(game);
             return gameOver.winnerCode === 'executioner';
         }
     },
@@ -134,7 +133,7 @@ const allObjectives: SecretObjectiveWithLogic[] = [
         description: 'Como Hombre Ebrio, consigue que te linchen.',
         appliesTo: ['drunk_man'],
         checkCompletion: (player, game) => {
-             const gameOver = checkGameOver(game);
+             const gameOver = getGameOverInfo(game);
              return gameOver.winnerCode === 'drunk_man';
         }
     }
@@ -147,3 +146,5 @@ export const secretObjectives: SecretObjective[] = allObjectives.map(({ checkCom
 export const getObjectiveLogic = (id: string): ((player: Player, game: Game) => boolean) | undefined => {
     return allObjectives.find(obj => obj.id === id)?.checkCompletion;
 };
+
+    
