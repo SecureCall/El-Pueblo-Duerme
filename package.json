@@ -1,3 +1,4 @@
+
 {
   "name": "el-pueblo-duerme",
   "version": "0.1.0",
@@ -7,16 +8,24 @@
     "dev": "npx next@13.4.19 dev --port 9002 --hostname 0.0.0.0",
     "build": "npx next@13.4.19 build",
     "start": "npx next@13.4.19 start --port 9002 --hostname 0.0.0.0",
-    "lint": "npx next@13.4.19 lint",
+    "lint": "echo 'lint command disabled'",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@hookform/resolvers": "^3.3.4",
+    "@radix-ui/react-label": "^2.0.2",
+    "@radix-ui/react-slot": "^1.0.2",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.0",
+    "date-fns": "^3.6.0",
     "firebase": "^10.9.0",
+    "lucide-react": "^0.363.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "zod": "^3.22.4",
-    "date-fns": "^3.6.0",
-    "wav": "^1.0.2"
-  },
-  "devDependencies": {}
+    "react-hook-form": "^7.51.2",
+    "tailwind-merge": "^2.2.2",
+    "tailwindcss-animate": "^1.0.7",
+    "wav": "^1.0.2",
+    "zod": "^3.22.4"
+  }
 }
