@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 /** @type {import('next').NextConfig} */
@@ -21,11 +22,6 @@ const nextConfig: NextConfig = {
         hostname: 'storage.googleapis.com',
       }
     ],
-  },
-  experimental: {
-    turbopack: {
-      root: process.cwd(),
-    },
   },
 };
 

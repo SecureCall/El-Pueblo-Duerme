@@ -1,91 +1,87 @@
 
 "use client";
 
-import { useEffect } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 
 import { useGameSession } from "@/hooks/use-game-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Card, CardContent } from "@/components/ui/card";
-
-const formSchema = z.object({
-  gameId: z.string().length(5, { message: "El ID debe tener 5 caracteres." }).regex(/^[A-Z0-9]+$/, "El ID solo puede contener letras mayúsculas y números."),
-  displayName: z.string().min(2, "El nombre debe tener entre 2 y 20 caracteres.").max(20, "El nombre debe tener entre 2 y 20 caracteres."),
-});
-
 
 export function JoinGameForm() {
   const router = useRouter();
-  const { displayName, setDisplayName } = useGameSession();
+  const { displayName: sessionDisplayName, setDisplayName } = useGameSession();
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      gameId: "",
-      displayName: displayName || "",
-    },
-  });
+  const [gameId, setGameId] = useState("");
+  const [displayName, setDisplayNameState] = useState(sessionDisplayName || "");
+  const [errors, setErrors] = useState<{ gameId?: string; displayName?: string }>({});
 
   useEffect(() => {
-    if (displayName) {
-        form.setValue("displayName", displayName);
+    if (sessionDisplayName) {
+      setDisplayNameState(sessionDisplayName);
     }
-  }, [displayName, form]);
+  }, [sessionDisplayName]);
 
-  const onSubmit = (data: z.infer<typeof formSchema>) => {
-    setDisplayName(data.displayName.trim());
-    router.push(`/game/${data.gameId.toUpperCase().trim()}`);
+  const validate = () => {
+    const newErrors: { gameId?: string; displayName?: string } = {};
+
+    const trimmedGameId = gameId.trim();
+    if (!trimmedGameId || trimmedGameId.length !== 5) {
+      newErrors.gameId = "El ID debe tener 5 caracteres.";
+    } else if (!/^[A-Z0-9]+$/.test(trimmedGameId)) {
+      newErrors.gameId = "El ID solo puede contener letras mayúsculas y números.";
+    }
+
+    const trimmedDisplayName = displayName.trim();
+    if (!trimmedDisplayName || trimmedDisplayName.length < 2 || trimmedDisplayName.length > 20) {
+      newErrors.displayName = "El nombre debe tener entre 2 y 20 caracteres.";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (validate()) {
+      setDisplayName(displayName.trim());
+      router.push(`/game/${gameId.toUpperCase().trim()}`);
+    }
   };
 
   return (
     <Card className="bg-card/80 border-border/50 backdrop-blur-sm w-full">
-        <CardContent className="p-6">
-            <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                control={form.control}
-                name="gameId"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormControl>
-                        <Input 
-                          placeholder="ID DE LA PARTIDA" 
-                          {...field} 
-                          className="text-center text-lg tracking-widest uppercase"
-                          onChange={(e) => field.onChange(e.target.value.toUpperCase())}
-                        />
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <FormField
-                control={form.control}
-                name="displayName"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormControl>
-                        <Input 
-                          placeholder="Tu nombre" 
-                          {...field} 
-                          className="text-center text-lg"
-                        />
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <Button type="submit" className="w-full font-bold text-lg" variant="secondary">
-                    Unirse a la Partida
-                </Button>
-            </form>
-            </Form>
-        </CardContent>
+      <CardContent className="p-6">
+        <form onSubmit={onSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <Input
+              id="gameId"
+              placeholder="ID DE LA PARTIDA"
+              value={gameId}
+              onChange={(e) => setGameId(e.target.value.toUpperCase())}
+              className="text-center text-lg tracking-widest uppercase"
+              maxLength={5}
+            />
+            {errors.gameId && <p className="text-sm font-medium text-destructive">{errors.gameId}</p>}
+          </div>
+          <div className="space-y-1">
+            <Input
+              id="displayName"
+              placeholder="Tu nombre"
+              value={displayName}
+              onChange={(e) => setDisplayNameState(e.target.value)}
+              className="text-center text-lg"
+              minLength={2}
+              maxLength={20}
+            />
+            {errors.displayName && <p className="text-sm font-medium text-destructive">{errors.displayName}</p>}
+          </div>
+          <Button type="submit" className="w-full font-bold text-lg" variant="secondary">
+            Unirse a la Partida
+          </Button>
+        </form>
+      </CardContent>
     </Card>
   );
 }

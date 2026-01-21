@@ -27,6 +27,7 @@ import { secretObjectives } from "./objectives";
 import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { getAuthenticatedSdks } from "./firebase-config";
+import { runAIActions, runAIHunterShot } from "./ai-actions";
 
 
 const PHASE_DURATION_SECONDS = 60;
@@ -564,7 +565,7 @@ export async function processNight(gameId: string) {
         if (gameDoc.exists()) {
             const game = gameDoc.data();
             if (game.phase === 'day') {
-                // AI logic for day start can be triggered here if needed
+                await runAIActions(gameId, 'day');
             }
         }
 
@@ -581,6 +582,15 @@ export async function processVotes(gameId: string) {
             await processVotesEngine(transaction, gameRef);
         });
 
+        const gameDoc = await getDoc(gameRef);
+        if (gameDoc.exists()) {
+            const game = gameDoc.data();
+            if (game.phase === 'night') {
+                await runAIActions(gameId, 'night');
+            } else if (game.phase === 'hunter_shot') {
+                await runAIActions(gameId, 'hunter_shot');
+            }
+        }
     } catch (e) {
         console.error("Failed to process votes", e);
     }

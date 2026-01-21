@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -40,7 +41,7 @@ export interface UseCollectionResult<T> {
  * @returns {UseCollectionResult<T>} Object with data, isLoading, error.
  */
 export function useCollection<T = any>(
-    memoizedTargetRefOrQuery: ((CollectionReference<DocumentData> | Query<DocumentData>) & {__memo?: boolean})  | null | undefined,
+    memoizedTargetRefOrQuery: ((CollectionReference<DocumentData> | Query<DocumentData>))  | null | undefined,
 ): UseCollectionResult<T> {
   type ResultItemType = WithId<T>;
   type StateDataType = ResultItemType[] | null;
@@ -60,7 +61,6 @@ export function useCollection<T = any>(
     setIsLoading(true);
     setError(null);
 
-    // Directly use memoizedTargetRefOrQuery as it's assumed to be the final query
     const unsubscribe = onSnapshot(
       memoizedTargetRefOrQuery,
       (snapshot: QuerySnapshot<DocumentData>) => {
@@ -75,12 +75,10 @@ export function useCollection<T = any>(
       (error: FirestoreError) => {
         let path = 'unknown/path';
         try {
-            if (memoizedTargetRefOrQuery.type === 'collection') {
+            if ('path' in memoizedTargetRefOrQuery) {
                 path = (memoizedTargetRefOrQuery as CollectionReference).path;
-            } else if (memoizedTargetRefOrQuery.type === 'query') {
-                 // The 'query' type gives us access to the underlying collection reference path.
-                 // This is a much safer way to get the path than accessing internal properties.
-                 path = (memoizedTargetRefOrQuery as Query)._query.path.toString()
+            } else if ('_query' in memoizedTargetRefOrQuery) {
+                 path = (memoizedTargetRefOrQuery as any)._query.path.toString()
             }
         } catch (e) {
             console.warn("Could not determine path for Firestore permission error reporting.", e);
@@ -95,15 +93,12 @@ export function useCollection<T = any>(
         setData(null)
         setIsLoading(false)
 
-        // trigger global error propagation
         errorEmitter.emit('permission-error', contextualError);
       }
     );
 
     return () => unsubscribe();
-  }, [memoizedTargetRefOrQuery]); // Re-run if the target query/reference changes.
-  if(memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
-    throw new Error('useCollection target query must be memoized with useMemoFirebase');
-  }
+  }, [memoizedTargetRefOrQuery]);
+  
   return { data, isLoading, error };
 }
