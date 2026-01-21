@@ -1,7 +1,7 @@
 
 'use server';
 
-import { ai } from '@/ai/genkit';
+import { ai } from '../../../src/ai/genkit';
 import { z } from 'genkit';
 import type { AIPlayerPerspective, GenerateAIChatMessageOutput, NightAction, PlayerRole } from '@/types';
 import { AIPlayerPerspectiveSchema, GenerateAIChatMessageOutputSchema } from '@/types/zod';
@@ -159,5 +159,4 @@ export async function generateAIChatMessage(
         return { message: '', shouldSend: false };
     }
 }
-
     
