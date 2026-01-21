@@ -25,7 +25,7 @@ export async function runAIActions(gameId: string, phase: 'day' | 'night' | 'hun
         if (phase === 'night') {
             const aiPlayersToDoAction = game.players.filter(p => p.isAI && p.isAlive && !p.usedNightAbility);
             for (const ai of aiPlayersToDoAction) {
-                const { actionType, targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
+                const { actionType, targetId } = await getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
                 if (!actionType || actionType === 'NONE' || !targetId || actionType === 'VOTE' || actionType === 'SHOOT') continue;
                 await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
                 await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
@@ -33,7 +33,7 @@ export async function runAIActions(gameId: string, phase: 'day' | 'night' | 'hun
         } else if (phase === 'day') {
             const aiPlayersToVote = game.players.filter(p => p.isAI && p.isAlive && !p.votedFor);
             for (const ai of aiPlayersToVote) {
-                const { targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
+                const { targetId } = await getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
                 if (targetId) {
                     await new Promise(resolve => setTimeout(resolve, Math.random() * 8000 + 2000));
                     await submitVote(gameId, ai.userId, targetId);
@@ -62,7 +62,7 @@ export async function runAIHunterShot(gameId: string, hunter: Player) {
 
         const alivePlayers = game.players.filter(p => p.isAlive && p.userId !== hunter.userId);
         
-        const { targetId } = getDeterministicAIAction(hunter, game, alivePlayers, []);
+        const { targetId } = await getDeterministicAIAction(hunter, game, alivePlayers, []);
 
         if (targetId) {
             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
@@ -76,12 +76,12 @@ export async function runAIHunterShot(gameId: string, hunter: Player) {
     }
 }
 
-export function getDeterministicAIAction(
+export async function getDeterministicAIAction(
     aiPlayer: Player,
     game: Game,
     alivePlayers: Player[],
     deadPlayers: Player[],
-): { actionType: NightActionType | 'VOTE' | 'SHOOT' | 'NONE', targetId: string } {
+): Promise<{ actionType: NightActionType | 'VOTE' | 'SHOOT' | 'NONE', targetId: string }> {
     const { role, userId } = aiPlayer;
     const { currentRound, nightActions = [] } = game;
     const wolfRoles: PlayerRoleEnum[] = [PlayerRoleEnum.werewolf, PlayerRoleEnum.wolf_cub];

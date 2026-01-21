@@ -1,3 +1,4 @@
+
 {
   "name": "el-pueblo-duerme",
   "version": "0.1.0",
@@ -10,6 +11,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@genkit-ai/google-genai": "*",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.1.2",
     "@radix-ui/react-avatar": "^1.0.4",
@@ -30,6 +32,7 @@
     "clsx": "^2.1.0",
     "date-fns": "^3.6.0",
     "firebase": "^10.9.0",
+    "genkit": "*",
     "lucide-react": "^0.363.0",
     "next": "^14.2.3",
     "react": "^18.2.0",
