@@ -6,7 +6,6 @@ let musicAudio: HTMLAudioElement | null = null;
 let audioUnlocked = false;
 let currentMusicSrc: string | null = null;
 
-// This function initializes the audio elements.
 const initializeAudio = () => {
     if (typeof window === 'undefined') return;
 
@@ -14,11 +13,11 @@ const initializeAudio = () => {
         narrationAudio = new Audio();
         narrationAudio.volume = 1.0;
         narrationAudio.onended = () => {
-            if (musicAudio) musicAudio.volume = 0.3; // Restore music volume
+            if (musicAudio) musicAudio.volume = 0.3; 
         };
         narrationAudio.onplay = () => {
             if (musicAudio && !musicAudio.paused) {
-                musicAudio.volume = 0.1; // Lower music volume during narration
+                musicAudio.volume = 0.1; 
             }
         };
         narrationAudio.onerror = (e) => console.error(`Failed to load or play narration: ${narrationAudio?.src}`, e);
@@ -32,54 +31,38 @@ const initializeAudio = () => {
     }
 };
 
-// Initialize on module load
 initializeAudio();
 
-// Function to unlock audio context. This must be called from a user interaction event.
 export const unlockAudio = () => {
     if (audioUnlocked || typeof window === 'undefined') return;
     
-    const unlockAndPause = (audio: HTMLAudioElement | null) => {
+    const unlock = (audio: HTMLAudioElement | null) => {
         if (!audio) return;
-        // Check if context is suspended. It's a good practice.
-        const audioContext = (audio as any).context;
-        if (audioContext && audioContext.state === 'suspended') {
-           audioContext.resume();
-        }
-
-        // Try playing and pausing to unlock.
         const promise = audio.play();
         if (promise !== undefined) {
             promise.then(() => {
                 audio.pause();
-                if (audio.loop) {
-                    audio.currentTime = 0;
-                }
+                if (audio.loop) audio.currentTime = 0;
             }).catch(error => {
-                if (error.name !== 'NotAllowedError') {
-                    console.warn(`Audio unlock for one channel failed unexpectedly.`, error);
+                if (error.name !== 'NotAllowedError' && error.name !== 'AbortError') {
+                    console.warn(`Audio unlock failed:`, error);
                 }
             });
         }
     };
     
-    unlockAndPause(narrationAudio);
-    unlockAndPause(musicAudio);
+    unlock(narrationAudio);
+    unlock(musicAudio);
     
     audioUnlocked = true;
     
-    // Once unlocked, immediately try to play the correct music if it was set before.
     if (currentMusicSrc) {
         setMusic(currentMusicSrc);
     }
 };
 
-// Function to play a narration file.
 export const playNarration = (narrationFile: string) => {
-    if (!narrationAudio) return;
-    if (!audioUnlocked) {
-        return;
-    }
+    if (!narrationAudio || !audioUnlocked) return;
     
     const audioSrc = `/audio/voz/${narrationFile}`;
     
@@ -103,7 +86,6 @@ export const playNarration = (narrationFile: string) => {
     }
 };
 
-// Function to play a sound effect.
 export const playSoundEffect = (soundFile: string) => {
     if (!audioUnlocked) return;
     
@@ -115,7 +97,6 @@ export const playSoundEffect = (soundFile: string) => {
     }
 };
 
-// Function to set and play the background music.
 export const setMusic = (musicFile: string | null) => {
     if (!musicAudio) return;
 

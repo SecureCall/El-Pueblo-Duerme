@@ -282,7 +282,7 @@ export function CreateGameForm() {
                         <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 bg-background/50">
                           <FormControl>
                             <Checkbox
-                              checked={field.value as boolean}
+                              checked={!!field.value}
                               onCheckedChange={field.onChange}
                             />
                           </FormControl>
