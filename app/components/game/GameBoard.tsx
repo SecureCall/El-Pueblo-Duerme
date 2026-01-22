@@ -3,7 +3,7 @@
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
 import { RoleReveal } from "@/components/game/RoleReveal";
-import { PlayerGrid } from "./PlayerGrid";
+import { PlayerGrid } from "@/components/game/PlayerGrid";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { NightActions } from "@/components/game/NightActions";
@@ -12,9 +12,9 @@ import { DayPhase } from "@/components/game/DayPhase";
 import { GameOver } from "@/components/game/GameOver";
 import { Moon, Sun, Loader2, UserX, Scale } from "lucide-react";
 import { HunterShot } from "@/components/game/HunterShot";
-import { GameChronicle } from "./GameChronicle";
+import { GameChronicle } from "@/components/game/GameChronicle";
 import { PhaseTimer } from "@/components/game/PhaseTimer";
-import { CurrentPlayerRole } from "./CurrentPlayerRole";
+import { CurrentPlayerRole } from "@/components/game/CurrentPlayerRole";
 import { YouAreDeadOverlay } from "@/components/game/YouAreDeadOverlay";
 import { BanishedOverlay } from "@/components/game/BanishedOverlay";
 import { HunterKillOverlay } from "@/components/game/HunterKillOverlay";
