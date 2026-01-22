@@ -26,7 +26,7 @@ import { masterActions } from "./master-actions";
 import { secretObjectives } from "./objectives";
 import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
-import { getAuthenticatedSdks } from "./firebase-config";
+import { getAuthenticatedSdks } from "./firebase-server";
 import { runAIActions, runAIHunterShot } from "./ai-actions";
 
 
@@ -863,4 +863,3 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
     return { success: true, isWerewolf, targetName: targetPlayer.displayName };
 }
 
-    
