@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react"
-import { Progress } from '../ui/progress';
+import { Progress } from '@/components/ui/progress';
 import { cn } from "@/lib/utils";
 
 const PHASE_DURATION_SECONDS = 60;

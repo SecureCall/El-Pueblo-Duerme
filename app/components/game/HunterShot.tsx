@@ -3,9 +3,9 @@
 
 import { useState } from 'react';
 import type { Game, Player } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
-import { Button } from '../ui/button';
-import { PlayerGrid } from './PlayerGrid';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { PlayerGrid } from '@/components/game/PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
 import { submitHunterShot } from '@/lib/firebase-actions';
 import { Loader2, Crosshair } from 'lucide-react';

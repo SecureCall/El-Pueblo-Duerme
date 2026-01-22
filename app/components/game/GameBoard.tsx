@@ -2,36 +2,36 @@
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage } from "@/types";
-import { RoleReveal } from "./RoleReveal";
-import { PlayerGrid } from "./PlayerGrid";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
+import { RoleReveal } from "@/components/game/RoleReveal";
+import { PlayerGrid } from "@/components/game/PlayerGrid";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useEffect, useState, useRef, useCallback } from "react";
-import { NightActions } from "./NightActions";
+import { NightActions } from "@/components/game/NightActions";
 import { processJuryVotes, executeMasterAction, processNight, processVotes } from "@/lib/firebase-actions";
-import { DayPhase } from "./DayPhase";
-import { GameOver } from "./GameOver";
+import { DayPhase } from "@/components/game/DayPhase";
+import { GameOver } from "@/components/game/GameOver";
 import { Moon, Sun, Loader2, UserX, Scale } from "lucide-react";
-import { HunterShot } from "./HunterShot";
-import { GameChronicle } from "./GameChronicle";
-import { PhaseTimer } from "./PhaseTimer";
-import { CurrentPlayerRole } from "./CurrentPlayerRole";
-import { YouAreDeadOverlay } from "./YouAreDeadOverlay";
-import { BanishedOverlay } from "./BanishedOverlay";
-import { HunterKillOverlay } from "./HunterKillOverlay";
-import { GhostAction } from "./GhostAction";
-import { GameChat } from "./GameChat";
-import { TwinChat } from "./TwinChat";
-import { FairyChat } from "./FairyChat";
-import { VampireKillOverlay } from "./VampireKillOverlay";
-import { LoversChat } from "./LoversChat";
+import { HunterShot } from "@/components/game/HunterShot";
+import { GameChronicle } from "@/components/game/GameChronicle";
+import { PhaseTimer } from "@/components/game/PhaseTimer";
+import { CurrentPlayerRole } from "@/components/game/CurrentPlayerRole";
+import { YouAreDeadOverlay } from "@/components/game/YouAreDeadOverlay";
+import { BanishedOverlay } from "@/components/game/BanishedOverlay";
+import { HunterKillOverlay } from "@/components/game/HunterKillOverlay";
+import { GhostAction } from "@/components/game/GhostAction";
+import { GameChat } from "@/components/game/GameChat";
+import { TwinChat } from "@/components/game/TwinChat";
+import { FairyChat } from "@/components/game/FairyChat";
+import { VampireKillOverlay } from "@/components/game/VampireKillOverlay";
+import { LoversChat } from "@/components/game/LoversChat";
 import { getMillis } from "@/lib/utils";
-import { GhostSpectatorChat } from "./GhostSpectatorChat";
-import { JuryVote } from "./JuryVote";
-import { MasterActionBar, type MasterActionState } from "./MasterActionBar";
+import { GhostSpectatorChat } from "@/components/game/GhostSpectatorChat";
+import { JuryVote } from "@/components/game/JuryVote";
+import { MasterActionBar, type MasterActionState } from "@/components/game/MasterActionBar";
 import { useGameSession } from "@/hooks/use-game-session";
 import { playNarration, playSoundEffect } from '@/lib/sounds';
 import { useGameState } from "@/hooks/use-game-state";
-import { RoleManual } from "./RoleManual";
+import { RoleManual } from "@/components/game/RoleManual";
 import { useToast } from "@/hooks/use-toast";
 import { runAIHunterShot, runAIActions } from "@/lib/ai-actions";
 
@@ -457,4 +457,3 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
         </div>
     );
 }
-

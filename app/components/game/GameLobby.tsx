@@ -2,16 +2,16 @@
 "use client";
 
 import type { Game, Player } from "@/types";
-import { StartGameButton } from "./StartGameButton";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
+import { StartGameButton } from "@/components/game/StartGameButton";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Copy, Share2, User } from "lucide-react";
-import { Button } from "../ui/button";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { AvatarSelectionModal } from "./AvatarSelectionModal";
 import { useGameSession } from "@/hooks/use-game-session";
-import { PlayerGrid } from "./PlayerGrid";
+import { PlayerGrid } from "@/components/game/PlayerGrid";
 import type { MasterActionState } from "./MasterActionBar";
 import Link from "next/link";
 import { updatePlayerAvatar } from "@/lib/firebase-actions";
@@ -66,27 +66,6 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
   const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/game/${game.id}` : '';
   const shareText = `¡Únete a mi partida de El Pueblo Duerme! Entra a la sala "${game.name}" con el ID: ${game.id}`;
   const fullShareText = `${shareText}\nO usa este enlace: ${shareUrl}`;
-
-  const handleShare = async () => {
-    if (!canShare) return;
-    try {
-      await navigator.share({
-        title: `¡Únete a mi partida de El Pueblo Duerme!`,
-        text: shareText,
-        url: shareUrl,
-      });
-      toast({ title: "¡Enlace compartido!" });
-    } catch (err) {
-      if (err instanceof Error && err.name !== 'AbortError') {
-        console.error("Share failed:", err);
-        toast({
-          variant: "destructive",
-          title: "Error al compartir",
-          description: "No se pudo compartir. Copia el ID manualmente.",
-        });
-      }
-    }
-  };
 
   if (!currentPlayer) return null;
 

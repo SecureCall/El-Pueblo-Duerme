@@ -4,11 +4,11 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { startGame } from "@/lib/firebase-actions";
-import { Button } from "../ui/button";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useGameSession } from "@/hooks/use-game-session";
 import type { Game } from "@/types";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface StartGameButtonProps {
   game: Game;

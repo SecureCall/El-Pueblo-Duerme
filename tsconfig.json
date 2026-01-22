@@ -1,4 +1,3 @@
-
 {
   "compilerOptions": {
     "lib": ["dom", "dom.iterable", "esnext"],
@@ -24,5 +23,5 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "src"]
+  "exclude": ["node_modules", "src", "app/src", "client", "server", "workspace", "ulah", "vercel"]
 }

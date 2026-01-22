@@ -3,8 +3,8 @@
 
 import { useEffect, useState } from 'react';
 import type { GameEvent, Game, Player } from '@/types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Milestone, Loader2, Play } from 'lucide-react';
 import { playNarration } from '@/lib/sounds';
@@ -12,7 +12,7 @@ import { roleDetails } from '@/lib/roles';
 import { useGameSession } from '@/hooks/use-game-session';
 import { resetGame } from '@/lib/firebase-actions';
 import { useToast } from '@/hooks/use-toast';
-import { ScrollArea } from '../ui/scroll-area';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Shield, Bot, Wand2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';

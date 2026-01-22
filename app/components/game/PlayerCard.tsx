@@ -7,11 +7,11 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { Bot, Crown, Gavel, Skull, Heart, Swords, Edit, MicOff, UserX } from "lucide-react";
-import { Badge } from "../ui/badge";
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
+import { Badge } from "@/components/ui/badge";
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { roleDetails, defaultRoleDetail } from "@/lib/roles";
 import Image from "next/image";
-import { VampireIcon } from "../icons";
+import { VampireIcon } from "@/components/icons";
 
 interface PlayerCardProps {
   player: Player & { causeOfDeath?: GameEvent['type'] | 'other' };
