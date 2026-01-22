@@ -7,11 +7,11 @@ import {
   type NightActionType,
   PlayerRoleEnum,
 } from "@/types";
-import { getAuthenticatedSdks } from "./firebase-config";
+import { getAuthenticatedSdks } from "./firebase-server";
 import { submitNightAction, submitHunterShot, submitVote } from "./firebase-actions";
 
 export async function runAIActions(gameId: string, phase: 'day' | 'night' | 'hunter_shot') {
-    const { firestore } = getAuthenticatedSdks();
+    const { firestore } = await getAuthenticatedSdks();
     try {
         const gameDoc = await getDoc(doc(firestore, 'games', gameId));
         if (!gameDoc.exists()) return;
@@ -52,7 +52,7 @@ export async function runAIActions(gameId: string, phase: 'day' | 'night' | 'hun
 
 
 export async function runAIHunterShot(gameId: string, hunter: Player) {
-    const { firestore } = getAuthenticatedSdks();
+    const { firestore } = await getAuthenticatedSdks();
     try {
         const gameDoc = await getDoc(doc(firestore, 'games', gameId));
         if (!gameDoc.exists()) return;
@@ -283,3 +283,4 @@ export async function getDeterministicAIAction(
             return { actionType: 'NONE', targetId: '' };
     }
 }
+    

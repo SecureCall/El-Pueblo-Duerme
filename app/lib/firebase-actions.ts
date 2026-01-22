@@ -83,7 +83,7 @@ export async function createGame(
     settings: Game['settings'];
   }
 ) {
-  const { firestore } = getAuthenticatedSdks();
+  const { firestore } = await getAuthenticatedSdks();
   const { userId, displayName, avatarUrl, gameName, maxPlayers, settings } = options;
 
   if (!userId || !displayName.trim() || !gameName.trim()) {
@@ -154,7 +154,7 @@ export async function joinGame(
     avatarUrl: string;
   }
 ) {
-  const { firestore } = getAuthenticatedSdks();
+  const { firestore } = await getAuthenticatedSdks();
   const { gameId, userId, displayName, avatarUrl } = options;
   const gameRef = doc(firestore, "games", gameId);
   
@@ -241,7 +241,7 @@ const generateRoles = (playerCount: number, settings: Game['settings']): (Player
 };
 
 export async function startGame(gameId: string, creatorId: string) {
-    const { firestore } = getAuthenticatedSdks();
+    const { firestore } = await getAuthenticatedSdks();
     const gameRef = doc(firestore, 'games', gameId);
     
     try {
@@ -337,7 +337,7 @@ export async function startGame(gameId: string, creatorId: string) {
 }
 
 export async function resetGame(gameId: string) {
-    const { firestore } = getAuthenticatedSdks();
+    const { firestore } = await getAuthenticatedSdks();
     const gameRef = doc(firestore, 'games', gameId);
 
     try {
@@ -379,7 +379,7 @@ export async function sendChatMessage(
     text: string,
     isFromAI: boolean = false
 ) {
-    const { firestore } = getAuthenticatedSdks();
+    const { firestore } = await getAuthenticatedSdks();
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
@@ -432,7 +432,7 @@ async function sendSpecialChatMessage(
     text: string,
     chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost'
 ) {
-    const { firestore } = getAuthenticatedSdks();
+    const { firestore } = await getAuthenticatedSdks();
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
@@ -516,7 +516,7 @@ export const sendGhostChatMessage = (gameId: string, senderId: string, senderNam
 
 
 async function triggerAIChat(gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
-    const { firestore } = getAuthenticatedSdks();
+    const { firestore } = await getAuthenticatedSdks();
     try {
         const gameDoc = await getDoc(doc(firestore, 'games', gameId));
         if (!gameDoc.exists()) return;
@@ -554,7 +554,7 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
 
 
 export async function processNight(gameId: string) {
-    const { firestore } = getAuthenticatedSdks();
+    const { firestore } = await getAuthenticatedSdks();
     const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
     try {
         await runTransaction(firestore, async (transaction) => {
@@ -575,7 +575,7 @@ export async function processNight(gameId: string) {
 }
 
 export async function processVotes(gameId: string) {
-    const { firestore } = getAuthenticatedSdks();
+    const { firestore } = await getAuthenticatedSdks();
     const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
     try {
         await runTransaction(firestore, async (transaction) => {
@@ -597,7 +597,7 @@ export async function processVotes(gameId: string) {
 }
 
 export async function processJuryVotes(gameId: string) {
-    const { firestore } = getAuthenticatedSdks();
+    const { firestore } = await getAuthenticatedSdks();
     const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
     try {
         await runTransaction(firestore, async (transaction) => {
@@ -609,7 +609,7 @@ export async function processJuryVotes(gameId: string) {
 }
 
 export async function executeMasterAction(gameId: string, actionId: string, sourceId: string | null, targetId: string) {
-    const { firestore } = getAuthenticatedSdks();
+    const { firestore } = await getAuthenticatedSdks();
     const gameRef = doc(firestore, 'games', gameId);
      try {
         await runTransaction(firestore, async (transaction) => {
@@ -639,7 +639,7 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
 }
 
 export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
-    const { firestore } = getAuthenticatedSdks();
+    const { firestore } = await getAuthenticatedSdks();
     const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
 
     try {
@@ -689,7 +689,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
     }
 }
 export async function submitVote(gameId: string, voterId: string, targetId: string) {
-    const { firestore } = getAuthenticatedSdks();
+    const { firestore } = await getAuthenticatedSdks();
     const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
     try {
         await runTransaction(firestore, async (transaction) => {
@@ -722,7 +722,7 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
 }
 
 export async function submitNightAction(data: {gameId: string, round: number, playerId: string, actionType: NightActionType, targetId: string}) {
-    const { firestore } = getAuthenticatedSdks();
+    const { firestore } = await getAuthenticatedSdks();
     const { gameId, playerId, actionType, targetId } = data;
     const gameRef = doc(firestore, 'games', gameId);
     try {
@@ -748,7 +748,7 @@ export async function submitNightAction(data: {gameId: string, round: number, pl
 }
 
 export async function submitTroublemakerAction(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
-    const { firestore } = getAuthenticatedSdks();
+    const { firestore } = await getAuthenticatedSdks();
     const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
     try {
         await runTransaction(firestore, async (transaction) => {
@@ -774,7 +774,7 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
 }
 
 export async function submitJuryVote(gameId: string, voterId: string, targetId: string) {
-    const { firestore } = getAuthenticatedSdks();
+    const { firestore } = await getAuthenticatedSdks();
     const gameRef = doc(firestore, 'games', gameId);
     try {
         await updateDoc(gameRef, {
@@ -787,7 +787,7 @@ export async function submitJuryVote(gameId: string, voterId: string, targetId: 
 }
 
 export async function sendGhostMessage(gameId: string, ghostId: string, targetId: string, message: string) {
-    const { firestore } = getAuthenticatedSdks();
+    const { firestore } = await getAuthenticatedSdks();
     const gameRef = doc(firestore, 'games', gameId);
     try {
         await runTransaction(firestore, async (transaction) => {
@@ -819,7 +819,7 @@ export async function sendGhostMessage(gameId: string, ghostId: string, targetId
 }
 
 export async function updatePlayerAvatar(gameId: string, userId: string, newAvatarUrl: string) {
-    const { firestore } = getAuthenticatedSdks();
+    const { firestore } = await getAuthenticatedSdks();
     const gameRef = doc(firestore, 'games', gameId);
     try {
         await runTransaction(firestore, async (transaction) => {
@@ -844,7 +844,7 @@ export async function updatePlayerAvatar(gameId: string, userId: string, newAvat
 }
 
 export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
-    const { firestore } = getAuthenticatedSdks();
+    const { firestore } = await getAuthenticatedSdks();
     const gameDoc = await getDoc(doc(firestore, 'games', gameId));
     if (!gameDoc.exists()) throw new Error("Game not found");
     const game = gameDoc.data() as Game;
@@ -863,3 +863,5 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
     return { success: true, isWerewolf, targetName: targetPlayer.displayName };
 }
 
+
+    
