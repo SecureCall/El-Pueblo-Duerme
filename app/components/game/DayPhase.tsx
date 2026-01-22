@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import type { Game, Player, GameEvent } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlayerGrid } from '@/components/game/PlayerGrid';
+import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
 import { submitVote, submitTroublemakerAction } from '@/lib/firebase-actions';
 import { Loader2, Zap, Scale } from 'lucide-react';
