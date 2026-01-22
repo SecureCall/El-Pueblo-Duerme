@@ -2,18 +2,18 @@
 "use client";
 
 import { useEffect, useState, useCallback } from 'react';
-import { useGameSession } from '@/hooks/use-game-session';
-import { useGameState } from '@/hooks/use-game-state';
-import { EnterNameModal } from '@/components/game/EnterNameModal';
-import { joinGame } from '@/lib/firebase-actions';
+import { useGameSession } from '../../hooks/use-game-session';
+import { useGameState } from '../../hooks/use-game-state';
+import { EnterNameModal } from './EnterNameModal';
+import { joinGame } from '../../lib/firebase-actions';
 import { Loader2, ArrowLeft } from 'lucide-react';
-import { GameLobby } from '@/components/game/GameLobby';
-import { GameBoard } from '@/components/game/GameBoard';
+import { GameLobby } from './GameLobby';
+import { GameBoard } from './GameBoard';
 import Image from 'next/image';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { GameMusic } from '@/components/game/GameMusic';
+import { PlaceHolderImages } from '../../lib/placeholder-images';
+import { GameMusic } from './GameMusic';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { Button } from '../ui/button';
 
 export function GameRoom({ gameId }: { gameId: string }) {
   const { userId, displayName, setDisplayName, isSessionLoaded, avatarUrl } = useGameSession();
