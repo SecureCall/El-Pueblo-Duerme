@@ -818,31 +818,6 @@ export async function sendGhostMessage(gameId: string, ghostId: string, targetId
     }
 }
 
-export async function updatePlayerAvatar(gameId: string, userId: string, newAvatarUrl: string) {
-    const { firestore } = await getAuthenticatedSdks();
-    const gameRef = doc(firestore, 'games', gameId);
-    try {
-        await runTransaction(firestore, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error("Game not found.");
-
-            const gameData = gameDoc.data() as Game;
-            const playerIndex = gameData.players.findIndex(p => p.userId === userId);
-
-            if (playerIndex === -1) throw new Error("Player not found in game.");
-
-            const updatedPlayers = [...gameData.players];
-            updatedPlayers[playerIndex].avatarUrl = newAvatarUrl;
-
-            transaction.update(gameRef, { players: toPlainObject(updatedPlayers), lastActiveAt: Timestamp.now() });
-        });
-        return { success: true };
-    } catch (error: any) {
-        console.error("Error updating player avatar:", error);
-        return { success: false, error: (error as Error).message };
-    }
-}
-
 export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
     const { firestore } = await getAuthenticatedSdks();
     const gameDoc = await getDoc(doc(firestore, 'games', gameId));
