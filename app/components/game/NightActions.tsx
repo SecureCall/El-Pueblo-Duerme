@@ -1,19 +1,20 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
 import type { Game, Player, NightActionType, ChatMessage } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlayerGrid } from './PlayerGrid';
+import { PlayerGrid } from '@/components/game/PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
 import { submitNightAction, getSeerResult } from '@/lib/firebase-actions';
 import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, BotIcon, Eye, Wand2, UserX } from 'lucide-react';
-import { SeerResult } from './SeerResult';
-import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
-import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
-import { WolfChat } from './WolfChat';
-import { FairyChat } from './FairyChat';
-import type { MasterActionState } from './MasterActionBar';
+import { SeerResult } from '@/components/game/SeerResult';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { WolfChat } from '@/components/game/WolfChat';
+import { FairyChat } from '@/components/game/FairyChat';
+import type { MasterActionState } from '@/components/game/MasterActionBar';
 
 interface NightActionsProps {
     game: Game;
@@ -225,7 +226,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
         if (canFairiesKill) {
             return '¡Las hadas están unidas! Elegid a quién lanzar la maldición. Este poder solo se puede usar una vez.';
         }
-        const apprenticeIsActive = currentPlayer.role === 'seer_apprentice' && game.seerDied;
+        const apprenticeIsActive = currentPlayer.role === 'seer_apprentice' && !!game.seerDied;
         switch (currentPlayer.role) {
             case 'werewolf':
             case 'wolf_cub':

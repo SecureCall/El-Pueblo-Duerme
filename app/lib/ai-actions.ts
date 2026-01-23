@@ -7,8 +7,8 @@ import {
   type NightActionType,
   PlayerRoleEnum,
 } from "@/types";
-import { getAuthenticatedSdks } from "./firebase-server";
-import { submitNightAction, submitHunterShot, submitVote } from "./firebase-actions";
+import { getAuthenticatedSdks } from "@/lib/firebase-server";
+import { submitNightAction, submitHunterShot, submitVote } from "@/lib/firebase-actions";
 
 export async function runAIActions(gameId: string, phase: 'day' | 'night' | 'hunter_shot') {
     const { firestore } = await getAuthenticatedSdks();

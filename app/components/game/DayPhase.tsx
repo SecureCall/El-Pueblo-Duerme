@@ -1,16 +1,17 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
-import type { Game, Player, GameEvent } from '../../types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
-import { PlayerGrid } from './PlayerGrid';
-import { useToast } from '../../hooks/use-toast';
-import { submitVote, submitTroublemakerAction } from '../../lib/firebase-actions';
+import type { Game, Player, GameEvent } from '@/types';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { PlayerGrid } from '@/components/game/PlayerGrid';
+import { useToast } from '@/hooks/use-toast';
+import { submitVote, submitTroublemakerAction } from '@/lib/firebase-actions';
 import { Loader2, Zap, Scale } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { HeartCrack, SunIcon, Users, BrainCircuit } from 'lucide-react';
-import type { MasterActionState } from './MasterActionBar';
+import type { MasterActionState } from '@/components/game/MasterActionBar';
 
 interface DayPhaseProps {
     game: Game;
@@ -295,3 +296,4 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
         </Card>
     );
 }
+

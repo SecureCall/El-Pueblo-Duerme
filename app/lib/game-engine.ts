@@ -11,8 +11,8 @@ import {
   type Player, 
   type GameEvent, type PlayerRole,
 } from "@/types";
-import { toPlainObject } from "./utils";
-import { roleDetails } from "./roles";
+import { toPlainObject } from "@/lib/utils";
+import { roleDetails } from "@/lib/roles";
 
 const PHASE_DURATION_SECONDS = 60;
 

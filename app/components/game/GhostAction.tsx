@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -5,10 +6,10 @@ import type { Game, Player } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { sendGhostMessage } from "@/lib/firebase-actions";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Ghost, Loader2 } from "lucide-react";
-import { Textarea } from "../ui/textarea";
+import { Textarea } from "@/components/ui/textarea";
 
 interface GhostActionProps {
     game: Game;
