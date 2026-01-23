@@ -1,17 +1,16 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
 import type { Game, Player, NightActionType, ChatMessage } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlayerGrid } from '@/components/game/PlayerGrid';
+import { PlayerGrid } from './PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
 import { submitNightAction, getSeerResult } from '@/lib/firebase-actions';
 import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, BotIcon, Eye, Wand2, UserX } from 'lucide-react';
 import { SeerResult } from './SeerResult';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { WolfChat } from './WolfChat';
 import { FairyChat } from './FairyChat';
 import type { MasterActionState } from './MasterActionBar';
