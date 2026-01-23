@@ -4,20 +4,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /games/{gameId} {
-      // Allow any client to create a game. The server action will validate the creator.
-      // This is necessary because server actions with the client SDK run as unauthenticated.
-      allow create: if true;
-
-      // Allow any client to read game data.
-      allow read: if true;
-      
-      // Allow an authenticated user to update a game if they are the creator or a player.
-      allow update: if request.auth != null && 
-                    (request.auth.uid == resource.data.creator || 
-                     request.auth.uid in resource.data.players.map(p => p.userId));
-      
-      // Do not allow clients to delete games.
-      allow delete: if false;
+      allow read, write: if true;
     }
   }
 }
