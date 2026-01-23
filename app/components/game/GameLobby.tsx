@@ -1,19 +1,20 @@
+
 "use client";
 
-import type { Game, Player } from "@/types";
+import type { Game, Player } from "../../types";
 import { StartGameButton } from "./StartGameButton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Copy, Share2, User } from "lucide-react";
 import { Button } from "../ui/button";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "../../hooks/use-toast";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { AvatarSelectionModal } from "./AvatarSelectionModal";
-import { useGameSession } from "@/hooks/use-game-session";
+import { useGameSession } from "../../hooks/use-game-session";
 import { PlayerGrid } from "./PlayerGrid";
 import type { MasterActionState } from "./MasterActionBar";
 import Link from "next/link";
-import { updatePlayerAvatar } from "@/lib/firebase-actions";
+import { updatePlayerAvatar } from "../../lib/firebase-actions";
 
 interface GameLobbyProps {
   game: Game;

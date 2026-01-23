@@ -1,7 +1,8 @@
+
 "use client";
 
 import React from 'react';
-import type { Player, GameEvent } from "@/types";
+import type { Player, GameEvent } from "../../types";
 import { Card, CardContent, CardFooter } from "../ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { cn } from "../../lib/utils";
