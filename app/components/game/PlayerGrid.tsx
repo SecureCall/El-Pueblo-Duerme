@@ -1,11 +1,10 @@
-
 "use client";
 
 import React from 'react';
 import type { Game, Player, GameEvent } from "@/types";
-import { PlayerCard } from "@/components/game/PlayerCard";
-import type { MasterActionState } from '@/components/game/MasterActionBar';
-import { cn } from "@/lib/utils";
+import { PlayerCard } from "./PlayerCard";
+import type { MasterActionState } from './MasterActionBar';
+import { cn } from "../../lib/utils";
 
 interface PlayerGridProps {
     game: Game;
