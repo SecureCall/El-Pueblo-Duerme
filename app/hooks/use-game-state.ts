@@ -1,8 +1,9 @@
 
+
 'use client';
 
 import { useEffect, useState } from 'react';
-import { doc } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import type { Game, Player, GameEvent, ChatMessage, PlayerPublicData, PlayerPrivateData } from '../types';
 import { useFirebase, useDoc } from '../firebase';
 import { useGameSession } from './use-game-session';
@@ -65,6 +66,10 @@ export const useGameState = (gameId: string): CombinedGameState => {
 
         if (selfPublicData && privateData) {
             finalCurrentPlayer = { ...selfPublicData, ...privateData };
+        } else if (selfPublicData) {
+            // This might happen briefly before privateData loads
+            // We can construct a partial player object
+             finalCurrentPlayer = { ...selfPublicData } as Player;
         }
 
         setCombinedState({

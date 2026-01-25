@@ -27,9 +27,6 @@ export const PlayerPublicSchema = z.object({
   isAI: z.boolean(),
   isExiled: z.boolean(),
   princeRevealed: z.boolean().optional(),
-  biteCount: z.number(),
-  isCultMember: z.boolean(),
-  isLover: z.boolean(),
   joinedAt: z.union([TimestampSchema, z.string()]).nullable(),
   votedFor: z.string().nullable(),
 });
@@ -53,6 +50,9 @@ export const PlayerPrivateSchema = z.object({
   bansheeScreams: z.record(z.string()).optional(),
   lookoutUsed: z.boolean().optional(),
   lastHealedRound: z.number(),
+  isCultMember: z.boolean(),
+  isLover: z.boolean(),
+  biteCount: z.number(),
 });
 
 export const PlayerSchema = PlayerPublicSchema.merge(PlayerPrivateSchema);
@@ -181,6 +181,7 @@ export const RoleDataSchema = z.object({
   team: z.enum(['Aldeanos', 'Lobos', 'Neutral']),
   alliance: z.enum(['Aldeanos', 'Lobos', 'Neutral', 'Enamorados']),
 });
+
 
 const AIPlayerPublicSchema = PlayerPublicSchema.extend({
     role: PlayerRoleSchema.optional().transform(() => 'unknown'),

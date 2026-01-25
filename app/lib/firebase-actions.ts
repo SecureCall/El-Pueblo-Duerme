@@ -79,30 +79,38 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
 function splitPlayerData(player: Player): { publicData: PlayerPublicData, privateData: PlayerPrivateData } {
   const { 
     userId, gameId, displayName, avatarUrl, isAlive, isAI, isExiled, 
-    princeRevealed, biteCount, isCultMember, isLover, joinedAt, votedFor 
+    princeRevealed, joinedAt, votedFor,
+    // Explicitly destructure private fields to exclude them from public data
+    role, secretObjectiveId, executionerTargetId, potions, priestSelfHealUsed, guardianSelfProtects,
+    usedNightAbility, shapeshifterTargetId, virginiaWoolfTargetId, riverSirenTargetId,
+    ghostMessageSent, resurrectorAngelUsed, bansheeScreams, lookoutUsed, lastHealedRound,
+    isCultMember, isLover, biteCount
   } = player;
 
   const publicData: PlayerPublicData = {
     userId, gameId, displayName, avatarUrl, isAlive, isAI, isExiled,
-    princeRevealed, biteCount, isCultMember, isLover, joinedAt, votedFor
+    princeRevealed, joinedAt, votedFor
   };
 
   const privateData: PlayerPrivateData = {
-    role: player.role,
-    secretObjectiveId: player.secretObjectiveId,
-    executionerTargetId: player.executionerTargetId,
-    potions: player.potions,
-    priestSelfHealUsed: player.priestSelfHealUsed,
-    guardianSelfProtects: player.guardianSelfProtects,
-    usedNightAbility: player.usedNightAbility,
-    shapeshifterTargetId: player.shapeshifterTargetId,
-    virginiaWoolfTargetId: player.virginiaWoolfTargetId,
-    riverSirenTargetId: player.riverSirenTargetId,
-    ghostMessageSent: player.ghostMessageSent,
-    resurrectorAngelUsed: player.resurrectorAngelUsed,
-    bansheeScreams: player.bansheeScreams,
-    lookoutUsed: player.lookoutUsed,
-    lastHealedRound: player.lastHealedRound,
+    role,
+    secretObjectiveId,
+    executionerTargetId,
+    potions,
+    priestSelfHealUsed,
+    guardianSelfProtects,
+    usedNightAbility,
+    shapeshifterTargetId,
+    virginiaWoolfTargetId,
+    riverSirenTargetId,
+    ghostMessageSent,
+    resurrectorAngelUsed,
+    bansheeScreams,
+    lookoutUsed,
+    lastHealedRound,
+    isCultMember,
+    isLover,
+    biteCount,
   };
 
   return { publicData, privateData };
@@ -300,8 +308,8 @@ export async function startGame(gameId: string, creatorId: string) {
             
             const playerDocs = await Promise.all(game.players.map(p => transaction.get(doc(firestore, `games/${gameId}/playerData/${p.userId}`))));
             let allPlayersFullData: Player[] = game.players.map((publicPlayer, index) => {
-                const privateData = playerDocs[index]?.data() as PlayerPrivateData;
-                return { ...publicPlayer, ...privateData };
+                const privateData = playerDocs[index]?.data() as PlayerPrivateData || {};
+                return { ...publicPlayer, ...privateData } as Player;
             });
             
             if (game.settings.fillWithAI && allPlayersFullData.length < game.maxPlayers) {
@@ -363,12 +371,15 @@ export async function startGame(gameId: string, creatorId: string) {
                 twins: twinUserIds.length === 2 ? [twinUserIds[0], twinUserIds[1]] as [string, string] : null,
                 status: 'in_progress',
                 phase: 'role_reveal',
-                currentRound: 1,
+                currentRound: 0,
             }));
         });
         
         // Schedule first night
-        setTimeout(() => { processNight(gameId); }, 15000);
+        setTimeout(() => {
+            processNight(gameId);
+        }, 15000);
+
 
         return { success: true };
 
@@ -383,13 +394,6 @@ export async function processNight(gameId: string) {
     const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
     try {
         await runTransaction(firestore, async (transaction) => {
-             const gameSnap = await transaction.get(gameRef);
-             if (!gameSnap.exists()) throw new Error("Game not found!");
-             const game = gameSnap.data()!;
-
-             if (game.phase !== 'night' && game.phase !== 'role_reveal') return;
-             if (game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now() && game.phase !== 'role_reveal') return;
-            
             await processNightEngine(transaction, gameRef);
         });
         
@@ -398,6 +402,8 @@ export async function processNight(gameId: string) {
             const game = gameDoc.data();
             if (game.phase === 'day') {
                 await runAIActions(gameId, 'day');
+            } else if (game.phase === 'night') { // This would be the first night
+                await runAIActions(gameId, 'night');
             }
         }
 
@@ -411,13 +417,6 @@ export async function processVotes(gameId: string) {
     const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
     try {
         await runTransaction(firestore, async (transaction) => {
-            const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found!");
-            const game = gameSnap.data()!;
-
-            if (game.phase !== 'day') return;
-            if (game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now()) return;
-
             await processVotesEngine(transaction, gameRef);
         });
 
@@ -559,7 +558,9 @@ async function sendSpecialChatMessage(
             if(!privateSnap.exists()) throw new Error("Sender not found.");
             const senderPrivateData = privateSnap.data() as PlayerPrivateData;
 
-            const sender: Player = { ...game.players.find(p => p.userId === senderId)!, ...senderPrivateData };
+            const senderPublicData = game.players.find(p => p.userId === senderId);
+            if(!senderPublicData) throw new Error("Sender not found.");
+            const sender: Player = { ...senderPublicData!, ...senderPrivateData };
 
 
             const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
@@ -673,7 +674,7 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
                 const sanitizedPlayers = fullPlayerList.map(p => {
                     const { privateData, ...publicData } = splitPlayerData(p);
                      // AI can see roles of dead players.
-                    const role = (p.userId === aiPlayer.userId || !p.isAlive) ? p.role : null;
+                    const role = (p.userId === aiPlayer.userId || !p.isAlive) ? p.role : 'unknown';
                     return { ...publicData, role };
                 });
                 
@@ -785,7 +786,15 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
             const nextRound = nextPhase === 'night' ? game.currentRound + 1 : game.currentRound;
 
-            game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; p.isExiled = false; });
+            game.players.forEach(p => { p.votedFor = null; });
+            const privateRefs = game.players.map(p => doc(firestore, `games/${gameId}/playerData/${p.userId}`));
+            const privateSnaps = await Promise.all(privateRefs.map(ref => transaction.get(ref)));
+            privateSnaps.forEach((snap, index) => {
+                if(snap.exists()) {
+                    transaction.update(snap.ref, { usedNightAbility: false });
+                }
+            });
+
             const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
 
             transaction.update(gameRef, toPlainObject({
@@ -807,24 +816,35 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
             let game = gameSnap.data();
-            if (game.phase !== 'day' || game.status === 'finished') return;
-            const playerIndex = game.players.findIndex(p => p.userId === voterId && p.isAlive);
-            if (playerIndex === -1) throw new Error("Player not found or is not alive");
-            if (game.players[playerIndex].votedFor) return;
 
-            const siren = game.players.find(p => p.role === 'river_siren');
+            if (game.phase !== 'day' || game.status === 'finished') return;
+
+            const playerPublicDataIndex = game.players.findIndex(p => p.userId === voterId && p.isAlive);
+            if (playerPublicDataIndex === -1) throw new Error("Player not found or is not alive");
+            
+            const playerPublicData = game.players[playerPublicDataIndex];
+            if (playerPublicData.votedFor) return; // Already voted
+
+            const fullPlayers = await getFullPlayers(gameId, game);
+            const siren = fullPlayers.find(p => p.role === 'river_siren');
+            
             const charmedPlayerId = siren?.riverSirenTargetId;
 
             if (voterId === charmedPlayerId && siren && siren.isAlive) {
-                if (siren.votedFor) {
-                    game.players[playerIndex].votedFor = siren.votedFor;
+                const sirenPublicData = game.players.find(p => p.userId === siren.userId);
+                if (sirenPublicData?.votedFor) {
+                    playerPublicData.votedFor = sirenPublicData.votedFor;
                 } else {
                     throw new Error("Debes esperar a que la Sirena vote primero.");
                 }
             } else {
-                 game.players[playerIndex].votedFor = targetId;
+                 playerPublicData.votedFor = targetId;
             }
-            transaction.update(gameRef, { players: toPlainObject(game.players) });
+            
+            const newPlayers = [...game.players];
+            newPlayers[playerPublicDataIndex] = playerPublicData;
+            
+            transaction.update(gameRef, { players: toPlainObject(newPlayers) });
         });
         return { success: true };
     } catch (error: any) {
@@ -873,7 +893,8 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Partida no encontrada");
             let game = gameSnap.data();
-            const player = game.players.find(p => p.userId === troublemakerId);
+            const fullPlayers = await getFullPlayers(gameId, game);
+            const player = fullPlayers.find(p => p.userId === troublemakerId);
             if (!player || player.role !== 'troublemaker' || game.troublemakerUsed) throw new Error("No puedes realizar esta acción.");
             
             const message = `${game.players.find(p => p.userId === target1Id)?.displayName} y ${game.players.find(p => p.userId === target2Id)?.displayName} han muerto en una pelea mortal provocada por la Alborotadora.`;
