@@ -20,6 +20,7 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: 'storage.googleapis.com',
+        pathname: '/v0/b/studio-9015007721-ac536.appspot.com/**',
       }
     ],
   },

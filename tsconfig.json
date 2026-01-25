@@ -1,3 +1,4 @@
+
 {
   "compilerOptions": {
     "lib": ["dom", "dom.iterable", "esnext"],
@@ -19,7 +20,7 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./app/*", "./*"],
+      "@/*": ["./app/*"],
       "components/*": ["./app/components/*"],
       "utils": ["./app/lib/utils"]
     }
