@@ -96,7 +96,7 @@ export const PlayerCard = React.memo(function PlayerCard({
             );
         default:
           return (
-             <div className={baseClasses}>
+             <div className={cn(baseClasses)}>
                 <Skull className={cn(iconClasses, "text-gray-400")} />
             </div>
           );
