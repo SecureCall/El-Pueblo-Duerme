@@ -1,0 +1,21 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /games/{gameId} {
+      // Public game data is readable by any authenticated user.
+      allow read: if request.auth != null;
+
+      // Direct client writes are forbidden. All mutations must go through server actions.
+      allow write: if false;
+    }
+
+    match /games/{gameId}/playerData/{userId} {
+      // A player can only read their OWN private data.
+      allow read: if request.auth.uid == userId;
+
+      // Direct client writes are forbidden.
+      allow write: if false;
+    }
+  }
+}
