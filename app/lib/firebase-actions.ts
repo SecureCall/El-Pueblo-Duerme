@@ -847,15 +847,22 @@ export async function submitNightAction(data: {gameId: string, round: number, pl
             if (!gameSnap.exists()) throw new Error("Game not found");
             let game = gameSnap.data() as Game;
             if (game.phase !== 'night' || game.status === 'finished') return;
-            const playerIndex = game.players.findIndex(p => p.userId === playerId && p.isAlive);
-            if (playerIndex === -1) throw new Error("Player not found or is not alive");
-            const player = game.players[playerIndex];
-            if (game.exiledPlayerId === playerId) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
-            if (player.usedNightAbility) return;
             
-            game.players[playerIndex].usedNightAbility = true;
+            const playerPrivateRef = doc(firestore, `games/${gameId}/playerData/${playerId}`);
+            const playerPrivateSnap = await transaction.get(playerPrivateRef);
+            if (!playerPrivateSnap.exists()) throw new Error("Player private data not found");
+            
+            const privateData = playerPrivateSnap.data() as PlayerPrivateData;
+            
+            if(privateData.usedNightAbility) return;
+            if (game.exiledPlayerId === playerId) throw new Error("Has sido exiliado esta noche y no puedes usar tu habilidad.");
+            
+            privateData.usedNightAbility = true;
+            
             const newAction: NightAction = { ...data, createdAt: Timestamp.now() };
-            transaction.update(gameRef, { nightActions: arrayUnion(toPlainObject(newAction)), players: toPlainObject(game.players) });
+            transaction.update(gameRef, { nightActions: arrayUnion(toPlainObject(newAction)) });
+            transaction.set(playerPrivateRef, privateData);
+
         });
         return { success: true };
     } catch (error: any) {
@@ -912,8 +919,13 @@ export async function sendGhostMessage(gameId: string, ghostId: string, targetId
             const game = gameDoc.data() as Game;
             const playerIndex = game.players.findIndex(p => p.userId === ghostId);
             if (playerIndex === -1) throw new Error("Player not found.");
-            const player = game.players[playerIndex];
-            if (player.role !== 'ghost' || player.isAlive || player.ghostMessageSent) {
+            
+            const playerPrivateRef = doc(firestore, `games/${gameId}/playerData/${ghostId}`);
+            const playerPrivateSnap = await transaction.get(playerPrivateRef);
+            if (!playerPrivateSnap.exists()) throw new Error("Player private data not found");
+            const privateData = playerPrivateSnap.data() as PlayerPrivateData;
+
+            if (privateData.role !== 'ghost' || game.players[playerIndex].isAlive || privateData.ghostMessageSent) {
                 throw new Error("No tienes permiso para realizar esta acción.");
             }
             
@@ -922,11 +934,10 @@ export async function sendGhostMessage(gameId: string, ghostId: string, targetId
                 message: `Has recibido un misterioso mensaje desde el más allá: "${message}"`,
                 createdAt: Timestamp.now(), data: { targetId: targetId, originalMessage: message },
             };
-            game.players[playerIndex].ghostMessageSent = true;
-            transaction.update(gameRef, { 
-                events: arrayUnion(toPlainObject(ghostEvent)),
-                players: toPlainObject(game.players)
-             });
+            
+            privateData.ghostMessageSent = true;
+            transaction.update(gameRef, { events: arrayUnion(toPlainObject(ghostEvent)) });
+            transaction.set(playerPrivateRef, privateData);
         });
         return { success: true };
     } catch (error: any) {
