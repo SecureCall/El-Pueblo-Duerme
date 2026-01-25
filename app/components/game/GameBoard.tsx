@@ -33,7 +33,6 @@ import { playNarration, playSoundEffect } from '@/lib/sounds';
 import { useGameState } from "@/hooks/use-game-state";
 import { RoleManual } from "@/components/game/RoleManual";
 import { useToast } from "@/hooks/use-toast";
-import { runAIHunterShot, runAIActions } from "@/lib/ai-actions";
 
 export function GameBoard({ gameId }: { gameId: string }) {
     const { updateStats, userId } = useGameSession();
@@ -102,7 +101,6 @@ export function GameBoard({ gameId }: { gameId: string }) {
                     } else {
                         playNarration('noche_pueblo_duerme.mp3');
                     }
-                    if (isCreator) runAIActions(game.id, 'night');
                     break;
                 case 'day':
                     playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
@@ -110,17 +108,8 @@ export function GameBoard({ gameId }: { gameId: string }) {
                         playNarration('dia_pueblo_despierta.mp3');
                         setTimeout(() => {
                             playNarration('inicio_debate.mp3');
-                            if (isCreator) runAIActions(game.id, 'day');
                         }, 2000);
                     }, 1500);
-                    break;
-                case 'hunter_shot':
-                     if (isCreator) {
-                        const hunter = game.players.find(p => p.userId === game.pendingHunterShot);
-                        if (hunter && hunter.isAI) {
-                            runAIHunterShot(game.id, hunter);
-                        }
-                    }
                     break;
             }
         }
@@ -479,4 +468,4 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
     );
 }
 
-    
+  

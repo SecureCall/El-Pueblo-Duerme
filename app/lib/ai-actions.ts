@@ -1,16 +1,34 @@
 
 'use server';
-import { getDoc, doc } from "firebase/firestore";
+import { getDoc, doc, collection, getDocs } from "firebase/firestore";
 import { 
   type Game, 
   type Player, 
+  type PlayerPrivateData,
   type NightActionType,
   PlayerRoleEnum,
 } from "@/types";
 import { getAuthenticatedSdks } from "@/lib/firebase-server";
 import { submitNightAction, submitHunterShot, submitVote } from "@/lib/firebase-actions";
 
-export async function runAIActions(gameId: string, phase: 'day' | 'night' | 'hunter_shot') {
+async function getFullPlayers(gameId: string, game: Game): Promise<Player[]> {
+    const { firestore } = await getAuthenticatedSdks();
+    const privateDataSnapshot = await getDocs(collection(firestore, 'games', gameId, 'playerData'));
+    const privateDataMap = new Map<string, PlayerPrivateData>();
+    privateDataSnapshot.forEach(doc => {
+        privateDataMap.set(doc.id, doc.data() as PlayerPrivateData);
+    });
+
+    const fullPlayers: Player[] = game.players.map(publicData => {
+        const privateData = privateDataMap.get(publicData.userId);
+        return { ...publicData, ...privateData } as Player;
+    });
+
+    return fullPlayers;
+}
+
+
+export async function runAIActions(gameId: string, phase: 'day' | 'night') {
     const { firestore } = await getAuthenticatedSdks();
     try {
         const gameDoc = await getDoc(doc(firestore, 'games', gameId));
@@ -19,11 +37,12 @@ export async function runAIActions(gameId: string, phase: 'day' | 'night' | 'hun
 
         if (game.status === 'finished') return;
 
-        const alivePlayers = game.players.filter(p => p.isAlive);
-        const deadPlayers = game.players.filter(p => !p.isAlive);
+        const fullPlayers = await getFullPlayers(gameId, game);
+        const alivePlayers = fullPlayers.filter(p => p.isAlive);
+        const deadPlayers = fullPlayers.filter(p => !p.isAlive);
 
         if (phase === 'night') {
-            const aiPlayersToDoAction = game.players.filter(p => p.isAI && p.isAlive && !p.usedNightAbility);
+            const aiPlayersToDoAction = alivePlayers.filter(p => p.isAI && !p.usedNightAbility);
             for (const ai of aiPlayersToDoAction) {
                 const { actionType, targetId } = await getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
                 if (!actionType || actionType === 'NONE' || !targetId || actionType === 'VOTE' || actionType === 'SHOOT') continue;
@@ -31,7 +50,7 @@ export async function runAIActions(gameId: string, phase: 'day' | 'night' | 'hun
                 await submitNightAction({ gameId, round: game.currentRound, playerId: ai.userId, actionType: actionType, targetId });
             }
         } else if (phase === 'day') {
-            const aiPlayersToVote = game.players.filter(p => p.isAI && p.isAlive && !p.votedFor);
+            const aiPlayersToVote = alivePlayers.filter(p => p.isAI && !p.votedFor);
             for (const ai of aiPlayersToVote) {
                 const { targetId } = await getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
                 if (targetId) {
@@ -39,11 +58,6 @@ export async function runAIActions(gameId: string, phase: 'day' | 'night' | 'hun
                     await submitVote(gameId, ai.userId, targetId);
                 }
             }
-        } else if (phase === 'hunter_shot') {
-             const hunter = game.players.find(p => p.userId === game.pendingHunterShot);
-             if (hunter && hunter.isAI) {
-                await runAIHunterShot(gameId, hunter);
-             }
         }
     } catch(e) {
         console.error("Error in AI Actions:", e);
@@ -51,16 +65,21 @@ export async function runAIActions(gameId: string, phase: 'day' | 'night' | 'hun
 }
 
 
-export async function runAIHunterShot(gameId: string, hunter: Player) {
+export async function runAIHunterShot(gameId: string) {
     const { firestore } = await getAuthenticatedSdks();
     try {
         const gameDoc = await getDoc(doc(firestore, 'games', gameId));
         if (!gameDoc.exists()) return;
         const game = gameDoc.data() as Game;
 
-        if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunter.userId) return;
+        if (game.phase !== 'hunter_shot' || !game.pendingHunterShot) return;
+        
+        const fullPlayers = await getFullPlayers(gameId, game);
+        const hunter = fullPlayers.find(p => p.userId === game.pendingHunterShot);
 
-        const alivePlayers = game.players.filter(p => p.isAlive && p.userId !== hunter.userId);
+        if (!hunter || !hunter.isAI) return;
+
+        const alivePlayers = fullPlayers.filter(p => p.isAlive && p.userId !== hunter.userId);
         
         const { targetId } = await getDeterministicAIAction(hunter, game, alivePlayers, []);
 
@@ -283,4 +302,5 @@ export async function getDeterministicAIAction(
             return { actionType: 'NONE', targetId: '' };
     }
 }
-    
+
+  
