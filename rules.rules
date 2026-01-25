@@ -3,43 +3,20 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function isPlayer(gameId) {
-      // Check if the user is in the public players array of the game document
-      return get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p => p.userId == request.auth.uid);
-    }
-    
-    function isCreator(gameId) {
-      return request.auth.uid == get(/databases/$(database)/documents/games/$(gameId)).data.creator;
-    }
-
     match /games/{gameId} {
-      // Anyone authenticated can read public game data
+      // Public game data is readable by any authenticated user.
       allow read: if request.auth != null;
 
-      // Creating a new game is allowed for any authenticated user
-      allow create: if request.auth != null;
-      
-      // Updates are only allowed via server-side functions (which use admin SDK)
-      // We can add granular rules here to allow specific client-side updates if needed,
-      // but for a truly authoritative server, this should be locked down.
-      // For now, we keep it simple: only players can update, and server actions do the heavy lifting.
-      allow update: if request.auth != null && isPlayer(gameId);
+      // Direct client writes are forbidden. All mutations must go through server actions.
+      allow write: if false;
     }
-    
+
     match /games/{gameId}/playerData/{userId} {
-        // A player can only read their OWN private data. This is the core security rule.
-        allow read: if request.auth != null && request.auth.uid == userId;
+      // A player can only read their OWN private data.
+      allow read: if request.auth.uid == userId;
 
-        // Players can create their own private data doc when joining.
-        allow create: if request.auth != null && request.auth.uid == userId;
-
-        // Only the server (admin SDK) or the player themselves should update their private data.
-        // The creator is allowed to update roles during game setup.
-        allow update: if request.auth != null && (request.auth.uid == userId || isCreator(gameId));
-
-        // No one can delete private data.
-        allow delete: if false;
+      // Direct client writes are forbidden.
+      allow write: if false;
     }
   }
 }

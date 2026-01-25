@@ -77,40 +77,35 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
 });
 
 function splitPlayerData(player: Player): { publicData: PlayerPublicData, privateData: PlayerPrivateData } {
-  return {
-    publicData: {
-      userId: player.userId,
-      gameId: player.gameId,
-      displayName: player.displayName,
-      avatarUrl: player.avatarUrl,
-      isAlive: player.isAlive,
-      isAI: player.isAI,
-      isExiled: player.isExiled,
-      princeRevealed: player.princeRevealed,
-      biteCount: player.biteCount,
-      isCultMember: player.isCultMember,
-      isLover: player.isLover,
-      joinedAt: player.joinedAt,
-      votedFor: player.votedFor,
-    },
-    privateData: {
-      role: player.role,
-      secretObjectiveId: player.secretObjectiveId,
-      executionerTargetId: player.executionerTargetId,
-      potions: player.potions,
-      priestSelfHealUsed: player.priestSelfHealUsed,
-      guardianSelfProtects: player.guardianSelfProtects,
-      usedNightAbility: player.usedNightAbility,
-      shapeshifterTargetId: player.shapeshifterTargetId,
-      virginiaWoolfTargetId: player.virginiaWoolfTargetId,
-      riverSirenTargetId: player.riverSirenTargetId,
-      ghostMessageSent: player.ghostMessageSent,
-      resurrectorAngelUsed: player.resurrectorAngelUsed,
-      bansheeScreams: player.bansheeScreams,
-      lookoutUsed: player.lookoutUsed,
-      lastHealedRound: player.lastHealedRound,
-    }
+  const { 
+    userId, gameId, displayName, avatarUrl, isAlive, isAI, isExiled, 
+    princeRevealed, biteCount, isCultMember, isLover, joinedAt, votedFor 
+  } = player;
+
+  const publicData: PlayerPublicData = {
+    userId, gameId, displayName, avatarUrl, isAlive, isAI, isExiled,
+    princeRevealed, biteCount, isCultMember, isLover, joinedAt, votedFor
   };
+
+  const privateData: PlayerPrivateData = {
+    role: player.role,
+    secretObjectiveId: player.secretObjectiveId,
+    executionerTargetId: player.executionerTargetId,
+    potions: player.potions,
+    priestSelfHealUsed: player.priestSelfHealUsed,
+    guardianSelfProtects: player.guardianSelfProtects,
+    usedNightAbility: player.usedNightAbility,
+    shapeshifterTargetId: player.shapeshifterTargetId,
+    virginiaWoolfTargetId: player.virginiaWoolfTargetId,
+    riverSirenTargetId: player.riverSirenTargetId,
+    ghostMessageSent: player.ghostMessageSent,
+    resurrectorAngelUsed: player.resurrectorAngelUsed,
+    bansheeScreams: player.bansheeScreams,
+    lookoutUsed: player.lookoutUsed,
+    lastHealedRound: player.lastHealedRound,
+  };
+
+  return { publicData, privateData };
 }
 
 
@@ -648,18 +643,17 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
         if (game.status === 'finished') return;
 
         const aiPlayersToTrigger = game.players.filter(p => p.isAI && p.isAlive);
-        const fullPlayerListForSeerCheck = await getFullPlayers(gameId, game);
+        if (aiPlayersToTrigger.length === 0) return;
+        
+        const fullPlayerList = await getFullPlayers(gameId, game);
 
         for (const publicAiPlayer of aiPlayersToTrigger) {
             const isAccused = triggerMessage.toLowerCase().includes(publicAiPlayer.displayName.toLowerCase());
             const shouldTrigger = isAccused ? Math.random() < 0.95 : Math.random() < 0.35;
 
             if (shouldTrigger) {
-                const privateDataDoc = await getDoc(doc(firestore, `games/${gameId}/playerData/${publicAiPlayer.userId}`));
-                if (!privateDataDoc.exists()) continue;
-                
-                const privateAiData = privateDataDoc.data() as PlayerPrivateData;
-                const aiPlayer: Player = { ...publicAiPlayer, ...privateAiData };
+                const aiPlayer = fullPlayerList.find(p => p.userId === publicAiPlayer.userId);
+                if (!aiPlayer) continue;
 
                 let seerChecks: AIPlayerPerspective['seerChecks'] = undefined;
                 const isSeerOrApprentice = aiPlayer.role === 'seer' || (aiPlayer.role === 'seer_apprentice' && game.seerDied);
@@ -670,7 +664,7 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
                     const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'lycanthrope'];
 
                     for (const action of seerActions) {
-                        const targetPlayer = fullPlayerListForSeerCheck.find(p => p.userId === action.targetId);
+                        const targetPlayer = fullPlayerList.find(p => p.userId === action.targetId);
                         if (targetPlayer?.role) {
                             seerChecks.push({
                                 targetName: targetPlayer.displayName,
@@ -680,19 +674,12 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
                     }
                 }
                 
-                const sanitizedPlayers = fullPlayerListForSeerCheck.map(p => {
-                    const isSelf = p.userId === aiPlayer.userId;
-                    const isRevealed = !p.isAlive; // Roles of dead players are public
-
-                    const { role, secretObjectiveId, executionerTargetId, ...publicData } = p;
-                    
-                    return { 
-                        ...publicData, 
-                        role: (isSelf || isRevealed) ? role : null,
-                        secretObjectiveId: isSelf ? secretObjectiveId : null,
-                        executionerTargetId: isSelf ? executionerTargetId : null,
-                    };
-                }) as Player[];
+                const sanitizedPlayers = fullPlayerList.map(p => {
+                    const { privateData, ...publicData } = splitPlayerData(p);
+                     // AI can see roles of dead players.
+                    const role = (p.userId === aiPlayer.userId || !p.isAlive) ? p.role : null;
+                    return { ...publicData, role };
+                });
                 
                 const perspective: AIPlayerPerspective = {
                     game: toPlainObject(game),
