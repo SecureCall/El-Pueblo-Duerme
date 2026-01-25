@@ -33,6 +33,7 @@ import { playNarration, playSoundEffect } from '@/lib/sounds';
 import { useGameState } from "@/hooks/use-game-state";
 import { RoleManual } from "@/components/game/RoleManual";
 import { useToast } from "@/hooks/use-toast";
+import { runAIHunterShot, runAIActions } from "@/lib/ai-actions";
 
 export function GameBoard({ gameId }: { gameId: string }) {
     const { updateStats, userId } = useGameSession();
@@ -82,7 +83,15 @@ export function GameBoard({ gameId }: { gameId: string }) {
     useEffect(() => {
         if (!game || !userId || game.status === 'finished') return;
 
+        const isCreator = game.creator === userId;
         const prevPhase = prevPhaseRef.current;
+
+        if (isCreator && game.phase === 'role_reveal' && prevPhase !== 'role_reveal') {
+            const timer = setTimeout(() => {
+                processNight(game.id);
+            }, 15000);
+            return () => clearTimeout(timer);
+        }
 
         if (prevPhase !== game.phase) {
             switch (game.phase) {
@@ -93,6 +102,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
                     } else {
                         playNarration('noche_pueblo_duerme.mp3');
                     }
+                    if (isCreator) runAIActions(game.id, 'night');
                     break;
                 case 'day':
                     playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
@@ -100,8 +110,14 @@ export function GameBoard({ gameId }: { gameId: string }) {
                         playNarration('dia_pueblo_despierta.mp3');
                         setTimeout(() => {
                             playNarration('inicio_debate.mp3');
+                            if (isCreator) runAIActions(game.id, 'day');
                         }, 2000);
                     }, 1500);
+                    break;
+                case 'hunter_shot':
+                     if (isCreator) {
+                        runAIHunterShot(game.id);
+                    }
                     break;
             }
         }
@@ -221,9 +237,9 @@ export function GameBoard({ gameId }: { gameId: string }) {
 
     const isHunterWaitingToShoot = game.phase === 'hunter_shot' && game.pendingHunterShot === currentPlayer.userId;
     if (isHunterWaitingToShoot) {
-        const hunterAlivePlayers = players.filter(p => p.isAlive && p.userId !== currentPlayer.userId);
+        const hunterAlivePlayers = players.filter(p => p.isAlive && p.userId !== currentPlayer.userId) as Player[];
         return (
-            <HunterShot game={game} currentPlayer={currentPlayer} players={hunterAlivePlayers as Player[]} />
+            <HunterShot game={game} currentPlayer={currentPlayer} players={hunterAlivePlayers} />
         );
     }
     

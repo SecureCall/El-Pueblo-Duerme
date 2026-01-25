@@ -4,8 +4,8 @@ import {
     AccordionContent,
     AccordionItem,
     AccordionTrigger,
-} from '../components/ui/accordion';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+} from '@/components/ui/accordion';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlaceHolderImages } from '../lib/placeholder-images';
 import Image from 'next/image';
 import Link from 'next/link';
