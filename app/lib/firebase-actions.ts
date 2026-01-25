@@ -646,36 +646,54 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
 
         const game = gameDoc.data() as Game;
         if (game.status === 'finished') return;
-        
-        const fullPlayers = await getFullPlayers(gameId, game);
-        const aiPlayersToTrigger = fullPlayers.filter(p => p.isAI && p.isAlive);
 
-        for (const aiPlayer of aiPlayersToTrigger) {
-             const isAccused = triggerMessage.toLowerCase().includes(aiPlayer.displayName.toLowerCase());
-             const shouldTrigger = isAccused ? Math.random() < 0.95 : Math.random() < 0.35;
+        const aiPlayersToTrigger = game.players.filter(p => p.isAI && p.isAlive);
+        const fullPlayerListForSeerCheck = await getFullPlayers(gameId, game);
 
-             if (shouldTrigger) {
-                let seerChecks: { targetName: string; isWerewolf: boolean; }[] = [];
+        for (const publicAiPlayer of aiPlayersToTrigger) {
+            const isAccused = triggerMessage.toLowerCase().includes(publicAiPlayer.displayName.toLowerCase());
+            const shouldTrigger = isAccused ? Math.random() < 0.95 : Math.random() < 0.35;
+
+            if (shouldTrigger) {
+                const privateDataDoc = await getDoc(doc(firestore, `games/${gameId}/playerData/${publicAiPlayer.userId}`));
+                if (!privateDataDoc.exists()) continue;
+                
+                const privateAiData = privateDataDoc.data() as PlayerPrivateData;
+                const aiPlayer: Player = { ...publicAiPlayer, ...privateAiData };
+
+                let seerChecks: AIPlayerPerspective['seerChecks'] = undefined;
                 const isSeerOrApprentice = aiPlayer.role === 'seer' || (aiPlayer.role === 'seer_apprentice' && game.seerDied);
+                
                 if (isSeerOrApprentice) {
+                    seerChecks = [];
                     const seerActions = game.nightActions?.filter(a => a.playerId === aiPlayer.userId && a.actionType === 'seer_check') || [];
                     const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'lycanthrope'];
+
                     for (const action of seerActions) {
-                        const targetPlayer = fullPlayers.find(p => p.userId === action.targetId);
-                        if (targetPlayer) {
+                        const targetPlayer = fullPlayerListForSeerCheck.find(p => p.userId === action.targetId);
+                        if (targetPlayer?.role) {
                             seerChecks.push({
                                 targetName: targetPlayer.displayName,
-                                isWerewolf: !!(targetPlayer.role && wolfRoles.includes(targetPlayer.role)),
+                                isWerewolf: wolfRoles.includes(targetPlayer.role),
                             });
                         }
                     }
                 }
                 
+                const sanitizedPlayers = fullPlayerListForSeerCheck.map(p => {
+                    if (p.userId === aiPlayer.userId || !p.isAlive) {
+                        return p; // AI sees its own full data and roles of dead players
+                    }
+                    // For other living players, return only public data with role nulled
+                    const { role, secretObjectiveId, ...publicData } = p;
+                    return { ...publicData, role: null, secretObjectiveId: null, executionerTargetId: null };
+                }) as Player[];
+                
                 const perspective: AIPlayerPerspective = {
                     game: toPlainObject(game),
                     aiPlayer: toPlainObject(aiPlayer),
                     trigger: triggerMessage,
-                    players: toPlainObject(fullPlayers),
+                    players: toPlainObject(sanitizedPlayers),
                     chatType,
                     seerChecks,
                 };

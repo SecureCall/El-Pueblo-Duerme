@@ -115,16 +115,10 @@ const generateAiChatMessageFlow = ai.defineFlow(
             }
         }
         
-        // Sanitize player roles before sending to prompt to prevent AI from "knowing" other roles
-        const sanitizedPerspective = {
-            ...perspective,
-            players: perspective.players.map(p => ({
-                ...p,
-                role: p.userId === perspective.aiPlayer.userId || !p.isAlive ? p.role : 'unknown',
-            })),
-        };
-
-        const { output } = await prompt(sanitizedPerspective);
+        // The perspective from the caller is already sanitized.
+        // It contains public data for others, and full data for the AI and dead players.
+        // We can pass it directly to the prompt.
+        const { output } = await prompt(perspective);
         return output || { message: '', shouldSend: false };
     }
 );
