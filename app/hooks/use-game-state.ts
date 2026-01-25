@@ -56,12 +56,34 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     switch (action.type) {
         case 'SET_GAME_DATA': {
             const { game, userId } = action.payload;
-            const sortedPlayers = [...game.players].sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
+
+            // Sanitize player data to prevent role leakage to client state
+            const sanitizedPlayers = game.players.map(p => {
+                // Show full data for myself or for dead players
+                if (p.userId === userId || !p.isAlive) {
+                    return p;
+                }
+
+                // For other living players, create a public version
+                const sanitizedPlayer = { ...p };
+                sanitizedPlayer.role = null;
+                sanitizedPlayer.secretObjectiveId = null;
+                sanitizedPlayer.executionerTargetId = null;
+                delete sanitizedPlayer.potions;
+                delete sanitizedPlayer.bansheeScreams;
+                
+                return sanitizedPlayer;
+            });
+            
+            const sortedPlayers = [...sanitizedPlayers].sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
+            // The current player object should have all its data, so we find it from the original unsanitized list
+            const currentPlayer = game.players.find(p => p.userId === userId) || null;
+
             return {
                 ...state,
-                game,
+                game: { ...game, players: sortedPlayers }, // Update game object with sanitized players for general use
                 players: sortedPlayers,
-                currentPlayer: sortedPlayers.find(p => p.userId === userId) || null,
+                currentPlayer: currentPlayer, // The current user still gets their full data object.
                 events: [...(game.events || [])].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)),
                 messages: (game.chatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
                 wolfMessages: (game.wolfChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),

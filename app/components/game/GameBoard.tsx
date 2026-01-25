@@ -54,19 +54,18 @@ export function GameBoard({ gameId }: { gameId: string }) {
     }, []);
 
     const handlePhaseEnd = useCallback(async () => {
-        if (!game || !userId) return;
+        if (!game) return;
         if (game.status === 'finished') return;
 
-        if (game.creator === userId) {
-            if (game.phase === 'day') {
-                await processVotes(game.id);
-            } else if (game.phase === 'night') {
-                await processNight(game.id);
-            } else if (game.phase === 'jury_voting') {
-                await processJuryVotes(game.id);
-            }
+        // Any player can attempt to end the phase. The server will validate if it's time.
+        if (game.phase === 'day') {
+            await processVotes(game.id);
+        } else if (game.phase === 'night') {
+            await processNight(game.id);
+        } else if (game.phase === 'jury_voting') {
+            await processJuryVotes(game.id);
         }
-    }, [game, userId]);
+    }, [game]);
 
     useEffect(() => {
         if (!game || !currentPlayer) return;

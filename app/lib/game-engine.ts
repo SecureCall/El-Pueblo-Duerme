@@ -11,7 +11,7 @@ import {
   type Player, 
   type GameEvent, type PlayerRole,
 } from "@/types";
-import { toPlainObject } from "@/lib/utils";
+import { toPlainObject, getMillis } from "@/lib/utils";
 import { roleDetails } from "@/lib/roles";
 
 const PHASE_DURATION_SECONDS = 60;
@@ -22,6 +22,11 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
   
   let game = gameSnap.data()!;
   
+  if (game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now()) {
+      console.warn("processNight called before phase end. Ignoring.");
+      return;
+  }
+
   if (game.phase === 'role_reveal' && game.status === 'in_progress') {
      const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
      transaction.update(gameRef, toPlainObject({ phase: 'night', phaseEndsAt }));
@@ -191,6 +196,11 @@ export async function processVotes(transaction: Transaction, gameRef: DocumentRe
     if (!gameSnap.exists()) throw new Error("Game not found.");
     let game = gameSnap.data()!;
     if (game.phase !== 'day') return;
+    
+    if (game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now()) {
+        console.warn("processVotes called before phase end. Ignoring.");
+        return;
+    }
 
     const lastVoteEvent = [...game.events].sort((a,b) => getMillis(b.createdAt) - getMillis(a.createdAt)).find(e => e.type === 'vote_result');
     const isTiebreaker = Array.isArray(lastVoteEvent?.data?.tiedPlayerIds) && !lastVoteEvent?.data?.final;
@@ -278,6 +288,11 @@ export async function processJuryVotes(transaction: Transaction, gameRef: Docume
     if (!gameSnap.exists()) throw new Error("Game not found.");
     let game = gameSnap.data()!;
     if (game.phase !== 'jury_voting') return;
+
+    if (game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now()) {
+        console.warn("processJuryVotes called before phase end. Ignoring.");
+        return;
+    }
 
     const juryVotes = game.juryVotes || {};
     const voteCounts: Record<string, number> = {};
@@ -503,25 +518,3 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
 
     return { isGameOver: false, message: "", winners: [] };
 }
-
-function getMillis(timestamp: any): number {
-    if (!timestamp) return 0;
-    if (timestamp instanceof Timestamp) {
-        return timestamp.toMillis();
-    }
-     if (timestamp instanceof Date) {
-        return timestamp.getTime();
-    }
-    if (typeof timestamp === 'object' && timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
-        return timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000;
-    }
-     if (typeof timestamp === 'string') {
-        const date = new Date(timestamp);
-        if (!isNaN(date.getTime())) {
-            return date.getTime();
-        }
-    }
-    return 0;
-};
-
-    
