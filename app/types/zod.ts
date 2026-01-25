@@ -18,28 +18,32 @@ const TimestampSchema = z.union([
 export const PlayerRoleSchema = z.nativeEnum(PlayerRoleEnum).nullable();
 
 
-export const PlayerSchema = z.object({
+export const PlayerPublicSchema = z.object({
   userId: z.string(),
   gameId: z.string(),
   displayName: z.string(),
   avatarUrl: z.string(),
-  role: PlayerRoleSchema,
   isAlive: z.boolean(),
-  votedFor: z.string().nullable(),
-  joinedAt: z.union([TimestampSchema, z.string()]).nullable(),
-  lastHealedRound: z.number(),
   isAI: z.boolean(),
   isExiled: z.boolean(),
+  princeRevealed: z.boolean().optional(),
+  biteCount: z.number(),
+  isCultMember: z.boolean(),
+  isLover: z.boolean(),
+  joinedAt: z.union([TimestampSchema, z.string()]).nullable(),
+  votedFor: z.string().nullable(),
+});
+
+export const PlayerPrivateSchema = z.object({
+  role: PlayerRoleSchema,
+  secretObjectiveId: z.string().nullable(),
+  executionerTargetId: z.string().nullable(),
   potions: z.object({
     poison: z.number().nullable().optional(),
     save: z.number().nullable().optional(),
   }).optional(),
   priestSelfHealUsed: z.boolean().optional(),
-  princeRevealed: z.boolean().optional(),
   guardianSelfProtects: z.number().optional(),
-  biteCount: z.number(),
-  isCultMember: z.boolean(),
-  isLover: z.boolean(),
   usedNightAbility: z.boolean(),
   shapeshifterTargetId: z.string().nullable().optional(),
   virginiaWoolfTargetId: z.string().nullable().optional(),
@@ -48,9 +52,10 @@ export const PlayerSchema = z.object({
   resurrectorAngelUsed: z.boolean().optional(),
   bansheeScreams: z.record(z.string()).optional(),
   lookoutUsed: z.boolean().optional(),
-  executionerTargetId: z.string().nullable(),
-  secretObjectiveId: z.string().nullable(),
+  lastHealedRound: z.number(),
 });
+
+export const PlayerSchema = PlayerPublicSchema.merge(PlayerPrivateSchema);
 
 export const NightActionTypeSchema = z.enum([
     "werewolf_kill", "seer_check", "doctor_heal", "hechicera_poison", 
@@ -134,7 +139,7 @@ export const GameSchema = z.object({
   status: z.enum(["waiting", "in_progress", "finished"]),
   phase: z.enum(["waiting", "role_reveal", "night", "day", "voting", "hunter_shot", "jury_voting", "finished"]),
   creator: z.string(),
-  players: z.array(PlayerSchema),
+  players: z.array(PlayerPublicSchema),
   events: z.array(GameEventSchema),
   chatMessages: z.array(ChatMessageSchema),
   wolfChatMessages: z.array(ChatMessageSchema),

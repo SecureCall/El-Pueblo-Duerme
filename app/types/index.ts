@@ -10,8 +10,9 @@ import {
     ChatMessageSchema,
     GameSettingsSchema,
     NightActionTypeSchema,
-    PlayerRoleSchema,
-    RoleDataSchema
+    RoleDataSchema,
+    PlayerPublicSchema,
+    PlayerPrivateSchema,
 } from './zod';
 
 // Re-export enums for convenience
@@ -21,6 +22,8 @@ export type { NightActionType } from './zod';
 
 // Main data structures inferred from Zod schemas
 export type Game = z.infer<typeof GameSchema>;
+export type PlayerPublicData = z.infer<typeof PlayerPublicSchema>;
+export type PlayerPrivateData = z.infer<typeof PlayerPrivateSchema>;
 export type Player = z.infer<typeof PlayerSchema>;
 export type NightAction = z.infer<typeof NightActionSchema>;
 export type PlayerRole = z.infer<typeof PlayerRoleSchema>;
