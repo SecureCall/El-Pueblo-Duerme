@@ -58,24 +58,26 @@ export const useGameState = (gameId: string): CombinedGameState => {
     }
 
     if (game) {
-        let allPlayers: (Player | PlayerPublicData)[] = game.players;
+        let playersForState: (Player | PlayerPublicData)[] = game.players;
         let finalCurrentPlayer: Player | null = null;
         
-        const selfIndex = game.players.findIndex(p => p.userId === userId);
+        const selfPublicData = game.players.find(p => p.userId === userId);
 
-        if (selfIndex !== -1 && privateData) {
-            const publicData = game.players[selfIndex];
-            finalCurrentPlayer = { ...publicData, ...privateData };
-            allPlayers = [
-                ...game.players.slice(0, selfIndex),
-                finalCurrentPlayer,
-                ...game.players.slice(selfIndex + 1)
-            ];
+        if (selfPublicData && privateData) {
+            finalCurrentPlayer = { ...selfPublicData, ...privateData };
+            const selfIndex = game.players.findIndex(p => p.userId === userId);
+            if (selfIndex !== -1) {
+                playersForState = [
+                    ...game.players.slice(0, selfIndex),
+                    finalCurrentPlayer,
+                    ...game.players.slice(selfIndex + 1)
+                ];
+            }
         }
 
         setCombinedState({
             game,
-            players: allPlayers,
+            players: playersForState,
             currentPlayer: finalCurrentPlayer,
             events: game.events || [],
             messages: game.chatMessages || [],

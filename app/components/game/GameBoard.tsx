@@ -1,7 +1,7 @@
 
 'use client';
 
-import type { Game, Player, GameEvent, ChatMessage } from "@/types";
+import type { Game, Player, GameEvent, ChatMessage, PlayerPublicData } from "@/types";
 import { RoleReveal } from "@/components/game/RoleReveal";
 import { PlayerGrid } from "@/components/game/PlayerGrid";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -59,7 +59,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
         // Any player can attempt to end the phase. The server will validate if it's time.
         if (game.phase === 'day') {
             await processVotes(game.id);
-        } else if (game.phase === 'night') {
+        } else if (game.phase === 'night' || game.phase === 'role_reveal') {
             await processNight(game.id);
         } else if (game.phase === 'jury_voting') {
             await processJuryVotes(game.id);
@@ -82,15 +82,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
     useEffect(() => {
         if (!game || !userId || game.status === 'finished') return;
 
-        const isCreator = game.creator === userId;
         const prevPhase = prevPhaseRef.current;
-
-        if (isCreator && game.phase === 'role_reveal' && prevPhase !== 'role_reveal') {
-            const timer = setTimeout(() => {
-                processNight(game.id);
-            }, 15000);
-            return () => clearTimeout(timer);
-        }
 
         if (prevPhase !== game.phase) {
             switch (game.phase) {
@@ -231,7 +223,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
     if (isHunterWaitingToShoot) {
         const hunterAlivePlayers = players.filter(p => p.isAlive && p.userId !== currentPlayer.userId);
         return (
-            <HunterShot game={game} currentPlayer={currentPlayer} players={hunterAlivePlayers} />
+            <HunterShot game={game} currentPlayer={currentPlayer} players={hunterAlivePlayers as Player[]} />
         );
     }
     
@@ -340,10 +332,10 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                 return {
                     ...playerWithFullData,
                     causeOfDeath: undefined,
+                    role: ('role' in playerWithFullData) ? playerWithFullData.role : null,
                 };
             }
 
-            // For dead players, find their role from events
             const deathEvent = events.find(e =>
                 (e.data?.killedPlayerIds && e.data.killedPlayerIds.includes(p.userId)) ||
                 e.data?.lynchedPlayerId === p.userId
@@ -353,7 +345,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
 
             return {
                 ...playerWithFullData,
-                role: revealedRole || ('role' in p ? p.role : null), // Use revealed role if available
+                role: revealedRole || ('role' in p ? p.role : null),
                 causeOfDeath: getCauseOfDeath(p.userId),
             };
         });

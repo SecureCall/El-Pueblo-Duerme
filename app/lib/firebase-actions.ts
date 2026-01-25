@@ -25,7 +25,7 @@ import {
   type PlayerPublicData,
   type PlayerPrivateData
 } from "@/types";
-import { toPlainObject } from "./utils";
+import { toPlainObject, getMillis } from "./utils";
 import { masterActions } from "./master-actions";
 import { secretObjectives } from "./objectives";
 import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
@@ -293,25 +293,12 @@ export async function startGame(gameId: string, creatorId: string) {
     try {
         await runTransaction(firestore, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-
-            if (!gameSnap.exists()) {
-                throw new Error('Partida no encontrada.');
-            }
-
+            if (!gameSnap.exists()) throw new Error('Partida no encontrada.');
             let game = gameSnap.data() as Game;
-
-            if (game.creator !== creatorId) {
-                throw new Error('Solo el creador puede iniciar la partida.');
-            }
-
-            if (game.status !== 'waiting') {
-                throw new Error('La partida ya ha comenzado.');
-            }
+            if (game.creator !== creatorId) throw new Error('Solo el creador puede iniciar la partida.');
+            if (game.status !== 'waiting') throw new Error('La partida ya ha comenzado.');
             
-            let finalPublicPlayers = [...game.players];
             let allPlayersFullData: Player[] = [];
-
-            // Reconstruct full data for existing players
             for (const publicPlayer of game.players) {
                 const privateDataDoc = await transaction.get(doc(firestore, `games/${gameId}/playerData/${publicPlayer.userId}`));
                 if(privateDataDoc.exists()){
@@ -319,11 +306,9 @@ export async function startGame(gameId: string, creatorId: string) {
                 }
             }
             
-            // Add AI players if needed
-            if (game.settings.fillWithAI && finalPublicPlayers.length < game.maxPlayers) {
-                const aiPlayerCount = game.maxPlayers - finalPublicPlayers.length;
-                const availableAINames = AI_NAMES.filter(name => !finalPublicPlayers.some(p => p.displayName === name));
-
+            if (game.settings.fillWithAI && allPlayersFullData.length < game.maxPlayers) {
+                const aiPlayerCount = game.maxPlayers - allPlayersFullData.length;
+                const availableAINames = AI_NAMES.filter(name => !allPlayersFullData.some(p => p.displayName === name));
                 for (let i = 0; i < aiPlayerCount; i++) {
                     const aiUserId = `ai_${Date.now()}_${i}`;
                     const aiName = availableAINames[i % availableAINames.length] || `Bot ${i + 1}`;
@@ -334,13 +319,10 @@ export async function startGame(gameId: string, creatorId: string) {
             }
             
             const totalPlayers = allPlayersFullData.length;
-            if (totalPlayers < MINIMUM_PLAYERS) {
-                throw new Error(`Se necesitan al menos ${MINIMUM_PLAYERS} jugadores para comenzar.`);
-            }
+            if (totalPlayers < MINIMUM_PLAYERS) throw new Error(`Se necesitan al menos ${MINIMUM_PLAYERS} jugadores para comenzar.`);
             
             const newRoles = generateRoles(totalPlayers, game.settings);
             
-            // Assign roles and objectives
             let finalPlayersWithRoles = allPlayersFullData.map((player, index) => {
                 const p = { ...player, role: newRoles[index] };
                 if (p.role === 'cult_leader') p.isCultMember = true;
@@ -370,7 +352,6 @@ export async function startGame(gameId: string, creatorId: string) {
 
             const twinUserIds = finalPlayersWithRoles.filter(p => p.role === 'twin').map(p => p.userId);
             
-            // Update all documents in a single transaction
             const publicPlayersData: PlayerPublicData[] = [];
             finalPlayersWithRoles.forEach(player => {
                 const { publicData, privateData } = splitPlayerData(player);
@@ -388,6 +369,9 @@ export async function startGame(gameId: string, creatorId: string) {
             }));
         });
         
+        // Schedule first night
+        setTimeout(() => { processNight(gameId); }, 15000);
+
         return { success: true };
 
     } catch (e: any) {
@@ -401,6 +385,13 @@ export async function processNight(gameId: string) {
     const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
     try {
         await runTransaction(firestore, async (transaction) => {
+             const gameSnap = await transaction.get(gameRef);
+             if (!gameSnap.exists()) throw new Error("Game not found!");
+             const game = gameSnap.data()!;
+
+             if (game.phase !== 'night' && game.phase !== 'role_reveal') return;
+             if (game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now() && game.phase !== 'role_reveal') return;
+            
             await processNightEngine(transaction, gameRef);
         });
         
@@ -422,6 +413,13 @@ export async function processVotes(gameId: string) {
     const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
     try {
         await runTransaction(firestore, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found!");
+            const game = gameSnap.data()!;
+
+            if (game.phase !== 'day') return;
+            if (game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now()) return;
+
             await processVotesEngine(transaction, gameRef);
         });
 
@@ -709,6 +707,13 @@ export async function processJuryVotes(gameId: string) {
     const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
     try {
         await runTransaction(firestore, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found!");
+            const game = gameSnap.data()!;
+
+            if (game.phase !== 'jury_voting') return;
+            if (game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now()) return;
+
             await processJuryVotesEngine(transaction, gameRef);
         });
     } catch (e) {
