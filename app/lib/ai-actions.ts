@@ -1,33 +1,17 @@
 
 'use server';
-import { getDoc, doc, collection, getDocs } from "firebase/firestore";
+import { getDoc, doc } from "firebase/firestore";
 import { 
   type Game, 
   type Player, 
-  type PlayerPrivateData,
 } from "@/types";
-import { getAuthenticatedSdks } from "@/lib/firebase-server";
 import { submitNightAction, submitHunterShot, submitVote } from "@/lib/firebase-actions";
 import { aiNightActionLogic, aiDayActionLogic, aiHunterActionLogic } from './ai-role-logic';
-
-async function getFullPlayers(gameId: string, game: Game): Promise<Player[]> {
-    const { firestore } = await getAuthenticatedSdks();
-    const privateDataSnapshot = await getDocs(collection(firestore, 'games', gameId, 'playerData'));
-    const privateDataMap = new Map<string, PlayerPrivateData>();
-    privateDataSnapshot.forEach(doc => {
-        privateDataMap.set(doc.id, doc.data() as PlayerPrivateData);
-    });
-
-    return game.players.map(publicData => {
-        const privateData = privateDataMap.get(publicData.userId);
-        return { ...publicData, ...privateData } as Player;
-    });
-}
+import { adminDb } from "./firebase-admin";
 
 export async function runAIActions(gameId: string, phase: 'day' | 'night') {
-    const { firestore } = await getAuthenticatedSdks();
     try {
-        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
+        const gameDoc = await getDoc(doc(adminDb, 'games', gameId));
         if (!gameDoc.exists()) return;
         const game = gameDoc.data() as Game;
 
@@ -66,9 +50,8 @@ export async function runAIActions(gameId: string, phase: 'day' | 'night') {
 }
 
 export async function runAIHunterShot(gameId: string) {
-    const { firestore } = await getAuthenticatedSdks();
     try {
-        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
+        const gameDoc = await getDoc(doc(adminDb, 'games', gameId));
         if (!gameDoc.exists()) return;
         const game = gameDoc.data() as Game;
 

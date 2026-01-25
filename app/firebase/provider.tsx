@@ -2,16 +2,11 @@
 'use client';
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { Firestore, getFirestore } from 'firebase/firestore';
-import { Auth, User, onAuthStateChanged, getAuth } from 'firebase/auth';
+import { FirebaseApp } from 'firebase/app';
+import { Firestore } from 'firebase/firestore';
+import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '../components/FirebaseErrorListener';
-import { firebaseConfig } from '../lib/firebase-config';
-
-// Centralized initialization
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const authInstance = getAuth(app);
-const firestoreInstance = getFirestore(app);
+import { app, auth, db } from '@/lib/firebase';
 
 // Internal state for user authentication
 interface UserAuthState {
@@ -67,7 +62,7 @@ export const FirebaseProvider: React.FC<{ children: ReactNode }> = ({
   // Effect to subscribe to Firebase auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(
-      authInstance,
+      auth,
       (firebaseUser) => { // Auth state determined
         setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
       },
@@ -82,10 +77,10 @@ export const FirebaseProvider: React.FC<{ children: ReactNode }> = ({
   // Memoize the context value
   const contextValue = useMemo((): FirebaseContextState => {
     return {
-      areServicesAvailable: !!(app && firestoreInstance && authInstance),
+      areServicesAvailable: !!(app && db && auth),
       firebaseApp: app,
-      firestore: firestoreInstance,
-      auth: authInstance,
+      firestore: db,
+      auth: auth,
       user: userAuthState.user,
       isUserLoading: userAuthState.isUserLoading,
       userError: userAuthState.userError,

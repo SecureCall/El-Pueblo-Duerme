@@ -30,8 +30,8 @@ import { masterActions } from "./master-actions";
 import { secretObjectives } from "./objectives";
 import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
-import { getAuthenticatedSdks } from "./firebase-server";
 import { runAIActions, runAIHunterShot } from "./ai-actions";
+import { adminDb } from './firebase-admin';
 
 
 const PHASE_DURATION_SECONDS = 60;
@@ -127,7 +127,6 @@ export async function createGame(
     settings: Game['settings'];
   }
 ) {
-  const { firestore } = await getAuthenticatedSdks();
   const { userId, displayName, avatarUrl, gameName, maxPlayers, settings } = options;
 
   if (!userId || !displayName.trim() || !gameName.trim()) {
@@ -138,7 +137,7 @@ export async function createGame(
   }
 
   const gameId = generateGameId();
-  const gameRef = doc(firestore, "games", gameId);
+  const gameRef = doc(adminDb, "games", gameId);
       
   const creatorPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
   const { publicData, privateData } = splitPlayerData(creatorPlayer);
@@ -183,9 +182,9 @@ export async function createGame(
   };
     
   try {
-    const creatorPrivateRef = doc(firestore, `games/${gameId}/playerData/${userId}`);
+    const creatorPrivateRef = doc(adminDb, `games/${gameId}/playerData/${userId}`);
     
-    await runTransaction(firestore, async (transaction) => {
+    await runTransaction(adminDb, async (transaction) => {
         transaction.set(gameRef, toPlainObject(gameData));
         transaction.set(creatorPrivateRef, toPlainObject(privateData));
     });
@@ -205,12 +204,11 @@ export async function joinGame(
     avatarUrl: string;
   }
 ) {
-  const { firestore } = await getAuthenticatedSdks();
   const { gameId, userId, displayName, avatarUrl } = options;
-  const gameRef = doc(firestore, "games", gameId);
+  const gameRef = doc(adminDb, "games", gameId);
   
   try {
-    await runTransaction(firestore, async (transaction) => {
+    await runTransaction(adminDb, async (transaction) => {
       const gameSnap = await transaction.get(gameRef);
 
       if (!gameSnap.exists()) {
@@ -239,7 +237,7 @@ export async function joinGame(
       
       const newPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
       const { publicData, privateData } = splitPlayerData(newPlayer);
-      const playerPrivateRef = doc(firestore, `games/${gameId}/playerData/${userId}`);
+      const playerPrivateRef = doc(adminDb, `games/${gameId}/playerData/${userId}`);
 
       transaction.update(gameRef, {
         players: arrayUnion(toPlainObject(publicData)),
@@ -295,18 +293,17 @@ const generateRoles = (playerCount: number, settings: Game['settings']): (Player
 };
 
 export async function startGame(gameId: string, creatorId: string) {
-    const { firestore } = await getAuthenticatedSdks();
-    const gameRef = doc(firestore, 'games', gameId);
+    const gameRef = doc(adminDb, 'games', gameId);
     
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(adminDb, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error('Partida no encontrada.');
             let game = gameSnap.data() as Game;
             if (game.creator !== creatorId) throw new Error('Solo el creador puede iniciar la partida.');
             if (game.status !== 'waiting') throw new Error('La partida ya ha comenzado.');
             
-            const playerDocs = await Promise.all(game.players.map(p => transaction.get(doc(firestore, `games/${gameId}/playerData/${p.userId}`))));
+            const playerDocs = await Promise.all(game.players.map(p => transaction.get(doc(adminDb, `games/${gameId}/playerData/${p.userId}`))));
             let allPlayersFullData: Player[] = game.players.map((publicPlayer, index) => {
                 const privateData = playerDocs[index]?.data() as PlayerPrivateData || {};
                 return { ...publicPlayer, ...privateData } as Player;
@@ -362,7 +359,7 @@ export async function startGame(gameId: string, creatorId: string) {
             finalPlayersWithRoles.forEach(player => {
                 const { publicData, privateData } = splitPlayerData(player);
                 publicPlayersData.push(publicData);
-                const playerPrivateRef = doc(firestore, `games/${gameId}/playerData/${player.userId}`);
+                const playerPrivateRef = doc(adminDb, `games/${gameId}/playerData/${player.userId}`);
                 transaction.set(playerPrivateRef, toPlainObject(privateData), { merge: true });
             });
 
@@ -390,10 +387,9 @@ export async function startGame(gameId: string, creatorId: string) {
 }
 
 export async function processNight(gameId: string) {
-    const { firestore } = await getAuthenticatedSdks();
-    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+    const gameRef = doc(adminDb, 'games', gameId) as DocumentReference<Game>;
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(adminDb, async (transaction) => {
             await processNightEngine(transaction, gameRef);
         });
         
@@ -413,10 +409,9 @@ export async function processNight(gameId: string) {
 }
 
 export async function processVotes(gameId: string) {
-    const { firestore } = await getAuthenticatedSdks();
-    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+    const gameRef = doc(adminDb, 'games', gameId) as DocumentReference<Game>;
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(adminDb, async (transaction) => {
             await processVotesEngine(transaction, gameRef);
         });
 
@@ -435,18 +430,17 @@ export async function processVotes(gameId: string) {
 }
 
 export async function resetGame(gameId: string) {
-  const { firestore } = await getAuthenticatedSdks();
-  const gameRef = doc(firestore, 'games', gameId);
+  const gameRef = doc(adminDb, 'games', gameId);
 
   try {
-      await runTransaction(firestore, async (transaction) => {
+      await runTransaction(adminDb, async (transaction) => {
           const gameSnap = await transaction.get(gameRef);
           if (!gameSnap.exists()) throw new Error("Partida no encontrada.");
           const game = gameSnap.data() as Game;
 
           const humanPlayers = game.players.filter(p => !p.isAI);
           
-          const privateDataRef = collection(firestore, `games/${gameId}/playerData`);
+          const privateDataRef = collection(adminDb, `games/${gameId}/playerData`);
           const privateDocs = await getDocs(privateDataRef);
           privateDocs.forEach(doc => {
               if(!humanPlayers.some(p => p.userId === doc.id)){
@@ -455,7 +449,7 @@ export async function resetGame(gameId: string) {
           });
 
           for(const player of humanPlayers) {
-              const playerRef = doc(firestore, `games/${gameId}/playerData/${player.userId}`);
+              const playerRef = doc(adminDb, `games/${gameId}/playerData/${player.userId}`);
               const newPlayer = createPlayerObject(player.userId, game.id, player.displayName, player.avatarUrl, player.isAI);
               const { privateData } = splitPlayerData(newPlayer);
               transaction.set(playerRef, toPlainObject(privateData));
@@ -487,16 +481,15 @@ export async function sendChatMessage(
     text: string,
     isFromAI: boolean = false
 ) {
-    const { firestore } = await getAuthenticatedSdks();
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
 
-    const gameRef = doc(firestore, 'games', gameId);
+    const gameRef = doc(adminDb, 'games', gameId);
 
     try {
         let latestGame: Game | null = null;
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(adminDb, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error('Game not found');
             const game = gameDoc.data() as Game;
@@ -540,20 +533,19 @@ async function sendSpecialChatMessage(
     text: string,
     chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost'
 ) {
-    const { firestore } = await getAuthenticatedSdks();
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
 
-    const gameRef = doc(firestore, 'games', gameId);
+    const gameRef = doc(adminDb, 'games', gameId);
 
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(adminDb, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error('Game not found');
             const game = gameDoc.data() as Game;
             
-            const playerPrivateRef = doc(firestore, `games/${gameId}/playerData/${senderId}`);
+            const playerPrivateRef = doc(adminDb, `games/${gameId}/playerData/${senderId}`);
             const privateSnap = await transaction.get(playerPrivateRef);
             if(!privateSnap.exists()) throw new Error("Sender not found.");
             const senderPrivateData = privateSnap.data() as PlayerPrivateData;
@@ -631,9 +623,8 @@ export const sendGhostChatMessage = (gameId: string, senderId: string, senderNam
 
 
 async function triggerAIChat(gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
-    const { firestore } = await getAuthenticatedSdks();
     try {
-        const gameDoc = await getDoc(doc(firestore, 'games', gameId));
+        const gameDoc = await getDoc(doc(adminDb, 'games', gameId));
         if (!gameDoc.exists()) return;
 
         const game = gameDoc.data() as Game;
@@ -702,10 +693,9 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
 
 
 export async function processJuryVotes(gameId: string) {
-    const { firestore } = await getAuthenticatedSdks();
-    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+    const gameRef = doc(adminDb, 'games', gameId) as DocumentReference<Game>;
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(adminDb, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found!");
             const game = gameSnap.data()!;
@@ -721,10 +711,9 @@ export async function processJuryVotes(gameId: string) {
 }
 
 export async function executeMasterAction(gameId: string, actionId: string, sourceId: string | null, targetId: string) {
-    const { firestore } = await getAuthenticatedSdks();
-    const gameRef = doc(firestore, 'games', gameId);
+    const gameRef = doc(adminDb, 'games', gameId);
      try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(adminDb, async (transaction) => {
             const gameDoc = await transaction.get(gameRef as DocumentReference<Game>);
             if (!gameDoc.exists()) throw new Error("Game not found");
             let game = gameDoc.data()!;
@@ -751,11 +740,10 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
 }
 
 export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
-    const { firestore } = await getAuthenticatedSdks();
-    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+    const gameRef = doc(adminDb, 'games', gameId) as DocumentReference<Game>;
 
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(adminDb, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
             let game = gameSnap.data();
@@ -787,7 +775,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
             const nextRound = nextPhase === 'night' ? game.currentRound + 1 : game.currentRound;
 
             game.players.forEach(p => { p.votedFor = null; });
-            const privateRefs = game.players.map(p => doc(firestore, `games/${gameId}/playerData/${p.userId}`));
+            const privateRefs = game.players.map(p => doc(adminDb, `games/${gameId}/playerData/${p.userId}`));
             const privateSnaps = await Promise.all(privateRefs.map(ref => transaction.get(ref)));
             privateSnaps.forEach((snap, index) => {
                 if(snap.exists()) {
@@ -809,10 +797,9 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
     }
 }
 export async function submitVote(gameId: string, voterId: string, targetId: string) {
-    const { firestore } = await getAuthenticatedSdks();
-    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+    const gameRef = doc(adminDb, 'games', gameId) as DocumentReference<Game>;
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(adminDb, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
             let game = gameSnap.data();
@@ -853,17 +840,16 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
 }
 
 export async function submitNightAction(data: {gameId: string, round: number, playerId: string, actionType: NightActionType, targetId: string}) {
-    const { firestore } = await getAuthenticatedSdks();
     const { gameId, playerId, actionType, targetId } = data;
-    const gameRef = doc(firestore, 'games', gameId);
+    const gameRef = doc(adminDb, 'games', gameId);
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(adminDb, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
             let game = gameSnap.data() as Game;
             if (game.phase !== 'night' || game.status === 'finished') return;
             
-            const playerPrivateRef = doc(firestore, `games/${gameId}/playerData/${playerId}`);
+            const playerPrivateRef = doc(adminDb, `games/${gameId}/playerData/${playerId}`);
             const playerPrivateSnap = await transaction.get(playerPrivateRef);
             if (!playerPrivateSnap.exists()) throw new Error("Player private data not found");
             
@@ -886,10 +872,9 @@ export async function submitNightAction(data: {gameId: string, round: number, pl
 }
 
 export async function submitTroublemakerAction(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
-    const { firestore } = await getAuthenticatedSdks();
-    const gameRef = doc(firestore, 'games', gameId) as DocumentReference<Game>;
+    const gameRef = doc(adminDb, 'games', gameId) as DocumentReference<Game>;
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(adminDb, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Partida no encontrada");
             let game = gameSnap.data();
@@ -913,8 +898,7 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
 }
 
 export async function submitJuryVote(gameId: string, voterId: string, targetId: string) {
-    const { firestore } = await getAuthenticatedSdks();
-    const gameRef = doc(firestore, 'games', gameId);
+    const gameRef = doc(adminDb, 'games', gameId);
     try {
         await updateDoc(gameRef, {
             [`juryVotes.${voterId}`]: targetId,
@@ -926,17 +910,16 @@ export async function submitJuryVote(gameId: string, voterId: string, targetId: 
 }
 
 export async function sendGhostMessage(gameId: string, ghostId: string, targetId: string, message: string) {
-    const { firestore } = await getAuthenticatedSdks();
-    const gameRef = doc(firestore, 'games', gameId);
+    const gameRef = doc(adminDb, 'games', gameId);
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(adminDb, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error("Game not found");
             const game = gameDoc.data() as Game;
             const playerIndex = game.players.findIndex(p => p.userId === ghostId);
             if (playerIndex === -1) throw new Error("Player not found.");
             
-            const playerPrivateRef = doc(firestore, `games/${gameId}/playerData/${ghostId}`);
+            const playerPrivateRef = doc(adminDb, `games/${gameId}/playerData/${ghostId}`);
             const playerPrivateSnap = await transaction.get(playerPrivateRef);
             if (!playerPrivateSnap.exists()) throw new Error("Player private data not found");
             const privateData = playerPrivateSnap.data() as PlayerPrivateData;
@@ -962,8 +945,7 @@ export async function sendGhostMessage(gameId: string, ghostId: string, targetId
 }
 
 export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
-    const { firestore } = await getAuthenticatedSdks();
-    const gameDoc = await getDoc(doc(firestore, 'games', gameId));
+    const gameDoc = await getDoc(doc(adminDb, 'games', gameId));
     if (!gameDoc.exists()) throw new Error("Game not found");
     const game = gameDoc.data() as Game;
 
@@ -984,8 +966,7 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
 }
 
 export async function getFullPlayers(gameId: string, game: Game): Promise<Player[]> {
-    const { firestore } = await getAuthenticatedSdks();
-    const privateDataSnapshot = await getDocs(collection(firestore, 'games', gameId, 'playerData'));
+    const privateDataSnapshot = await getDocs(collection(adminDb, 'games', gameId, 'playerData'));
     const privateDataMap = new Map<string, PlayerPrivateData>();
     privateDataSnapshot.forEach(doc => {
         privateDataMap.set(doc.id, doc.data() as PlayerPrivateData);
@@ -1000,11 +981,10 @@ export async function getFullPlayers(gameId: string, game: Game): Promise<Player
 }
 
 export async function updatePlayerAvatar(gameId: string, userId: string, newAvatarUrl: string) {
-    const { firestore } = await getAuthenticatedSdks();
-    const gameRef = doc(firestore, "games", gameId);
+    const gameRef = doc(adminDb, "games", gameId);
 
     try {
-        await runTransaction(firestore, async (transaction) => {
+        await runTransaction(adminDb, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found.");
             const game = gameSnap.data() as Game;
