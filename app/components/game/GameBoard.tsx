@@ -270,7 +270,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
 
 interface SpectatorContentProps {
     game: Game;
-    players: Player[];
+    players: (Player | PlayerPublicData)[];
     events: GameEvent[];
     messages: ChatMessage[];
     wolfMessages: ChatMessage[];
@@ -353,7 +353,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
 
             return {
                 ...playerWithFullData,
-                role: revealedRole || p.role, // Use revealed role if available
+                role: revealedRole || ('role' in p ? p.role : null), // Use revealed role if available
                 causeOfDeath: getCauseOfDeath(p.userId),
             };
         });
@@ -396,7 +396,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
 
             <PlayerGrid
                 game={game}
-                players={playersWithDeathCause}
+                players={playersWithDeathCause as Player[]}
                 currentPlayer={currentPlayer}
                 onPlayerClick={masterActionState.active ? onMasterActionClick : undefined}
                 masterActionState={masterActionState}
@@ -404,11 +404,11 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
             />
 
             {game.phase === 'night' && currentPlayer.isAlive && (
-                <NightActions game={game} players={players} currentPlayer={currentPlayer} wolfMessages={wolfMessages} fairyMessages={fairyMessages} />
+                <NightActions game={game} players={players as Player[]} currentPlayer={currentPlayer} wolfMessages={wolfMessages} fairyMessages={fairyMessages} />
             )}
 
             {showGhostAction && (
-                <GhostAction game={game} currentPlayer={currentPlayer} players={players.filter(p => p.isAlive)} />
+                <GhostAction game={game} currentPlayer={currentPlayer} players={players.filter(p => p.isAlive) as Player[]} />
             )}
 
             {(game.phase === 'day' || showGhostChat || game.phase === 'jury_voting') && (
@@ -417,7 +417,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                         {game.phase === 'day' && (
                             <DayPhase
                                 game={game}
-                                players={players}
+                                players={players as Player[]}
                                 currentPlayer={currentPlayer}
                                 nightEvent={nightEvent}
                                 loverDeathEvents={loverDeathEvents}
@@ -427,7 +427,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                         )}
 
                         {showJuryVote && voteEvent?.data?.tiedPlayerIds && (
-                            <JuryVote game={game} players={players} currentPlayer={currentPlayer} tiedPlayerIds={voteEvent.data.tiedPlayerIds} />
+                            <JuryVote game={game} players={players as Player[]} currentPlayer={currentPlayer} tiedPlayerIds={voteEvent.data.tiedPlayerIds} />
                         )}
 
                         {showGhostChat && ghostMessages && (

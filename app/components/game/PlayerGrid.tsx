@@ -2,14 +2,14 @@
 "use client";
 
 import React from 'react';
-import type { Game, Player, GameEvent } from "@/types";
+import type { Game, Player, GameEvent, PlayerPublicData } from "@/types";
 import { PlayerCard } from "@/components/game/PlayerCard";
 import type { MasterActionState } from '@/components/game/MasterActionBar';
 import { cn } from "@/lib/utils";
 
 interface PlayerGridProps {
     game: Game;
-    players: (Player & { causeOfDeath?: GameEvent['type'] | 'other' })[];
+    players: (Player | PlayerPublicData)[];
     currentPlayer: Player;
     onPlayerClick?: (player: Player) => void;
     clickable?: boolean;
@@ -57,14 +57,14 @@ export const PlayerGrid = React.memo(function PlayerGrid({
         return (
             <div key={player.userId} className="aspect-[3/4]">
                 <PlayerCard 
-                    player={player} 
+                    player={player as Player & { causeOfDeath?: GameEvent['type'] | 'other' }} 
                     isCreator={game.creator === player.userId}
                     isSelf={isSelf}
                     isLover={isLover}
                     isExecutionerTarget={currentPlayer.role === 'executioner' && player.userId === currentPlayer.executionerTargetId}
                     isSilenced={isSilenced}
                     isExiled={isExiled}
-                    onClick={onPlayerClick}
+                    onClick={onPlayerClick as any}
                     isClickable={clickable && !isSelf}
                     isSelected={selectedPlayerIds.includes(player.userId)}
                     highlightColor={highlightColor}

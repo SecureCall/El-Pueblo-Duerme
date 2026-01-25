@@ -10,6 +10,8 @@ import {
   runTransaction,
   type Transaction,
   DocumentReference,
+  collection,
+  getDocs,
 } from "firebase/firestore";
 import { 
   type Game, 
@@ -644,7 +646,7 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
 
         const game = gameDoc.data() as Game;
         if (game.status === 'finished') return;
-
+        
         const fullPlayers = await getFullPlayers(gameId, game);
         const aiPlayersToTrigger = fullPlayers.filter(p => p.isAI && p.isAlive);
 
@@ -934,4 +936,20 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
     const isWerewolf = !!(targetPlayer.role && (wolfRoles.includes(targetPlayer.role) || (targetPlayer.role === 'lycanthrope' && game.settings.lycanthrope)));
 
     return { success: true, isWerewolf, targetName: targetPlayer.displayName };
+}
+
+async function getFullPlayers(gameId: string, game: Game): Promise<Player[]> {
+    const { firestore } = await getAuthenticatedSdks();
+    const privateDataSnapshot = await getDocs(collection(firestore, 'games', gameId, 'playerData'));
+    const privateDataMap = new Map<string, PlayerPrivateData>();
+    privateDataSnapshot.forEach(doc => {
+        privateDataMap.set(doc.id, doc.data() as PlayerPrivateData);
+    });
+
+    const fullPlayers: Player[] = game.players.map(publicData => {
+        const privateData = privateDataMap.get(publicData.userId);
+        return { ...publicData, ...privateData } as Player;
+    });
+
+    return fullPlayers;
 }
