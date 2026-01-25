@@ -22,8 +22,8 @@ import {
   type NightActionType, 
   type ChatMessage,
   type AIPlayerPerspective,
-  PlayerPublicData,
-  PlayerPrivateData
+  type PlayerPublicData,
+  type PlayerPrivateData
 } from "@/types";
 import { toPlainObject } from "./utils";
 import { masterActions } from "./master-actions";
@@ -681,12 +681,17 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
                 }
                 
                 const sanitizedPlayers = fullPlayerListForSeerCheck.map(p => {
-                    if (p.userId === aiPlayer.userId || !p.isAlive) {
-                        return p; // AI sees its own full data and roles of dead players
-                    }
-                    // For other living players, return only public data with role nulled
-                    const { role, secretObjectiveId, ...publicData } = p;
-                    return { ...publicData, role: null, secretObjectiveId: null, executionerTargetId: null };
+                    const isSelf = p.userId === aiPlayer.userId;
+                    const isRevealed = !p.isAlive; // Roles of dead players are public
+
+                    const { role, secretObjectiveId, executionerTargetId, ...publicData } = p;
+                    
+                    return { 
+                        ...publicData, 
+                        role: (isSelf || isRevealed) ? role : null,
+                        secretObjectiveId: isSelf ? secretObjectiveId : null,
+                        executionerTargetId: isSelf ? executionerTargetId : null,
+                    };
                 }) as Player[];
                 
                 const perspective: AIPlayerPerspective = {
@@ -695,7 +700,7 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
                     trigger: triggerMessage,
                     players: toPlainObject(sanitizedPlayers),
                     chatType,
-                    seerChecks,
+                    seerChecks: seerChecks ? toPlainObject(seerChecks) : undefined,
                 };
 
                 generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {

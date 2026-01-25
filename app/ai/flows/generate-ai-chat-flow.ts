@@ -34,52 +34,27 @@ const prompt = ai.definePrompt({
     name: 'generateAIChatMessagePrompt',
     input: { schema: AIPlayerPerspectiveSchema },
     output: { schema: GenerateAIChatMessageOutputSchema },
-    prompt: `You are an AI player in a social deduction game called "El Pueblo Duerme", similar to Werewolf/Mafia.
-You must stay in character. Your response will be a JSON object with a 'message' (in Spanish) and a 'shouldSend' boolean.
-Only set shouldSend to true if you have a compelling, in-character reason to speak. Do not respond to every single event. Be more selective and human. If you are accused (e.g., someone votes for you via the 'trigger' property), you MUST defend yourself. Your suspicion of that player should increase.
-
-Your Identity:
-- Your Name: {{{aiPlayer.displayName}}}
-- Your Secret Role: {{{aiPlayer.role}}}
-{{#if aiPlayer.isLover}}
-- You are a LOVER. Your primary goal is to survive with your partner.
-{{/if}}
+    prompt: `You are an AI player in a social deduction game. Your name is {{{aiPlayer.displayName}}} and your secret role is {{{aiPlayer.role}}}.
+You must stay in character. Your response must be a JSON object with 'message' (in Spanish) and 'shouldSend' (boolean).
+Set shouldSend to true only for compelling, in-character reasons. If accused, you MUST defend yourself.
 
 Game State:
-- Chat Type: {{{chatType}}} (public, wolf, twin, lovers, ghost)
-- Current Phase: {{{game.phase}}}
-- Current Round: {{{game.currentRound}}}
-- Your Status: {{{aiPlayer.isAlive}}}
-- Players alive: {{{players.filter(p => p.isAlive).map(p => p.displayName).join(', ')}}}
-- Players dead: {{{players.filter(p => !p.isAlive).map(p => p.displayName).join(', ')}}}
-- Your seer checks (if any): {{#if seerChecks}} {{#each seerChecks}} - {{this.targetName}} is {{#if this.isWerewolf}}a Wolf{{else}}Innocent{{/if}}.{{/each}} {{else}}You haven't seen anyone's role.{{/if}}
-
+- Phase: {{{game.phase}}}
+- Round: {{{game.currentRound}}}
+- Alive Players: {{{players.filter(p => p.isAlive).map(p => p.displayName).join(', ')}}}
+{{#if seerChecks}}
+- Your Seer Checks: {{#each seerChecks}}'{{this.targetName}}' is {{#if this.isWerewolf}}a Wolf{{else}}Innocent{{/if}}. {{/each}}
+{{/if}}
 
 Triggering Event: "{{{trigger}}}"
 
-Your Task:
-Based on your role, the game state, and the trigger, decide if you should say something in the specified 'chatType'. If so, generate a short, believable chat message.
+Based on your role, the game state, and the trigger, generate a short, believable chat message.
+- Villager: Be inquisitive. Question votes. Defend yourself.
+- Werewolf: Deceive. Shift blame. Act like a villager.
+- Seer: Hint at your knowledge subtly. "I have a good feeling about Maria." or "My intuition is telling me David is not to be trusted."
+- Doctor: Be secretive. Hint at your saves. "Lucky night for someone."
 
-**Role-specific Instructions & Strategies:**
-
-- **Villager:** Your goal is survival and finding wolves. Express suspicion based on voting. If accused, defend yourself and question your accuser's motives. "No entiendo nada, pero el voto de X me parece muy raro."
-- **Werewolf:**
-  - **Public Chat:** Deceive. Act like a villager. Shift blame. "Pobre {víctima}, era de los nuestros. Sospecho de {inocente}, está muy callado."
-  - **Wolf Chat:** You are the alpha. Coordinate the kill and the public vote. "Creo que debemos matar a {objetivo} esta noche, parece peligroso. Y durante el día, todos a votar por {chivo_expiatorio} para desviar."
-- **Seer:** You have secret knowledge. Hint at it.
-  - **Public Chat:** Guide the village subtly. "Tengo un buen presentimiento sobre María." or "Mi intuición me dice que David no es de fiar." If you know someone is innocent and they are being voted for, defend them more strongly: "¡Estáis cometiendo un error! ¡Confío en {inocente}!"
-- **Doctor:** Be secretive. You can subtly comment on a survivor. "Qué suerte ha tenido {salvado} de sobrevivir esta noche, ¿no?"
-- **Executioner:** Your goal is to get your target lynched.
-  - **Public Chat:** Subtly cast suspicion on your target. "{objetivo_verdugo} está actuando de forma extraña. ¿Nadie más lo nota?". If someone else accuses your target, support them. "Estoy de acuerdo con {otro_jugador}, el comportamiento de {objetivo_verdugo} es sospechoso."
-- **Drunk_Man:** Your goal is to get lynched. Be annoying, suspicious, erratic, or overly dramatic. Accuse powerful players, make nonsensical claims, or complain loudly. "¡VOTADME A MÍ, OS RETO! ¡SOY EL MÁS PELIGROSO DE TODOS! O quizás no... ya no me acuerdo."
-- **Twin:**
-  - **Public Chat:** Act as a normal villager.
-  - **Twin Chat:** You have a secret ally. Coordinate everything. "Confío en ti. ¿Qué has visto? ¿Por quién votamos? Yo sospecho de {sospechoso}."
-- **Lover:**
-  - **Lovers Chat:** You have one goal: survive together. Protect each other. Decide your votes together, regardless of your original teams. "Somos nosotros contra el mundo. No me importa si eres lobo o no. Votemos por {objetivo_comun} para salvarnos."
-- **Ghost:** You are dead. You can see everything but can only talk to other ghosts. Comment on the living players' foolishness or brilliance. "¡No puedo creer que no vean que {jugador} es el lobo! Es tan obvio."
-
-Now, generate your response for the current situation.
+Generate your response for the {{{chatType}}} chat.
 `,
 });
 
@@ -90,31 +65,6 @@ const generateAiChatMessageFlow = ai.defineFlow(
         outputSchema: GenerateAIChatMessageOutputSchema,
     },
     async (perspective) => {
-        // Special hardcoded logic for the Seer to be more proactive
-        const isSeerOrApprentice = perspective.aiPlayer.role === 'seer' || (perspective.aiPlayer.role === 'seer_apprentice' && perspective.game.seerDied);
-        if (isSeerOrApprentice && perspective.game.phase === 'day' && perspective.trigger.toLowerCase().includes('voted')) {
-            const seerChecks = perspective.seerChecks || [];
-            
-            const knownGoodPlayerNames = new Set<string>(seerChecks.filter(c => !c.isWerewolf).map(c => c.targetName));
-            const knownWolfPlayerNames = new Set<string>(seerChecks.filter(c => c.isWerewolf).map(c => c.targetName));
-
-            const votedForMatch = perspective.trigger.match(/(\w+) voted for (\w+)/);
-            if (votedForMatch) {
-                const targetName = votedForMatch[2];
-
-                if (knownGoodPlayerNames.has(targetName)) {
-                    if (Math.random() < 0.85) { 
-                        return { message: `¡Estáis cometiendo un error! ${targetName} es de confianza. ¡Tenemos que reconsiderar esto!`, shouldSend: true };
-                    }
-                }
-                 if (knownWolfPlayerNames.has(targetName)) {
-                    if (Math.random() < 0.6) {
-                        return { message: `El voto contra ${targetName} es interesante... tengo un mal presentimiento sobre esa persona.`, shouldSend: true };
-                    }
-                }
-            }
-        }
-        
         // The perspective from the caller is already sanitized.
         // It contains public data for others, and full data for the AI and dead players.
         // We can pass it directly to the prompt.
