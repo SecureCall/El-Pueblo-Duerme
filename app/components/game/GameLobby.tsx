@@ -1,20 +1,20 @@
 
 "use client";
 
-import type { Game, Player } from "../../types";
-import { StartGameButton } from "./StartGameButton";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
+import type { Game, Player } from "@/types";
+import { StartGameButton } from "@/components/game/StartGameButton";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Copy, Share2, User } from "lucide-react";
-import { Button } from "../ui/button";
-import { useToast } from "../../hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { AvatarSelectionModal } from "./AvatarSelectionModal";
-import { useGameSession } from "../../hooks/use-game-session";
-import { PlayerGrid } from "./PlayerGrid";
-import type { MasterActionState } from "./MasterActionBar";
+import { AvatarSelectionModal } from "@/components/game/AvatarSelectionModal";
+import { useGameSession } from "@/hooks/use-game-session";
+import { PlayerGrid } from "@/components/game/PlayerGrid";
+import type { MasterActionState } from "@/components/game/MasterActionBar";
 import Link from "next/link";
-import { updatePlayerAvatar } from "../../lib/firebase-actions";
+import { updatePlayerAvatar } from "@/lib/firebase-actions";
 
 interface GameLobbyProps {
   game: Game;

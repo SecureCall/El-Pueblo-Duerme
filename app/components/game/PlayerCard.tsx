@@ -96,7 +96,7 @@ export const PlayerCard = React.memo(function PlayerCard({
             );
         default:
           return (
-             <div className={cn(baseClasses)}>
+             <div className={baseClasses}>
                 <Skull className={cn(iconClasses, "text-gray-400")} />
             </div>
           );
@@ -237,4 +237,3 @@ export const PlayerCard = React.memo(function PlayerCard({
     </TooltipProvider>
   );
 });
-
