@@ -9,12 +9,58 @@ import {
 import { 
   type Game, 
   type Player, 
-  type GameEvent, type PlayerRole,
+  type GameEvent, type PlayerRole, type NightActionType,
 } from "@/types";
 import { toPlainObject, getMillis } from "@/lib/utils";
 import { roleDetails } from "@/lib/roles";
 
 const PHASE_DURATION_SECONDS = 60;
+
+const getActionPriority = (actionType: NightActionType): number => {
+    const priorityMap: Record<NightActionType, number> = {
+        // Setup phase actions
+        'cupid_love': 10,
+        'shapeshifter_select': 15,
+        'virginia_woolf_link': 16,
+        'river_siren_charm': 17,
+        
+        // Control & Blocking
+        'elder_leader_exile': 20,
+        'silencer_silence': 25,
+
+        // Protection
+        'priest_bless': 30,
+        'guardian_protect': 35,
+        'doctor_heal': 35,
+
+        // Information Gathering
+        'seer_check': 50,
+        'witch_hunt': 55,
+        'seeker_fairy': 60,
+        'lookout_spy': 65,
+        
+        // Recruitment
+        'cult_recruit': 70,
+        'fisherman_catch': 71,
+
+        // Killing / Lethal Actions
+        'werewolf_kill': 80,
+        'vampire_bite': 81,
+        'hechicera_poison': 82,
+        'fairy_kill': 83,
+
+        // Post-Damage Saves
+        'hechicera_save': 90,
+        
+        // Resurrection
+        'resurrect': 95,
+        
+        // Prediction
+        'banshee_scream': 100,
+    };
+    return priorityMap[actionType] || 999;
+};
+
 
 export async function processNight(transaction: Transaction, gameRef: DocumentReference<Game>) {
   const gameSnap = await transaction.get(gameRef);
@@ -37,118 +83,130 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
       return;
   }
   
-  const initialPlayerState = JSON.parse(JSON.stringify(game.players));
-  const actions = game.nightActions?.filter(a => a.round === game.currentRound) || [];
+  const initialPlayers = JSON.parse(JSON.stringify(game.players));
+  const actions = (game.nightActions?.filter(a => a.round === game.currentRound) || [])
+      .sort((a, b) => getActionPriority(a.actionType) - getActionPriority(b.actionType));
 
-  // PHASE 1: MANIPULACIÓN Y CONTROL
-  actions.forEach(action => {
-      const playerIndex = game.players.findIndex(p => p.userId === action.playerId);
-      if (playerIndex === -1) return;
-
-      if (action.actionType === 'silencer_silence') game.silencedPlayerId = action.targetId;
-      if (action.actionType === 'elder_leader_exile') game.exiledPlayerId = action.targetId;
-  });
+  // =================================================================
+  // START DETERMINISTIC NIGHT RESOLUTION
+  // =================================================================
   
-  // FASE 2: PROTECCIÓN
-  const protections: { targetId: string, type: 'bless' | 'potion' | 'guard' }[] = [];
-  actions.forEach(action => {
-      if (action.actionType === 'priest_bless') protections.push({ targetId: action.targetId, type: 'bless' });
-      if (action.actionType === 'hechicera_save') protections.push({ targetId: action.targetId, type: 'potion' });
-      if (action.actionType === 'doctor_heal' || action.actionType === 'guardian_protect') {
-          protections.push({ targetId: action.targetId, type: 'guard' });
-      }
-  });
+  // 1. Initialize resolution context
+  const context = {
+      protections: new Map<string, Set<'guard' | 'bless'>>(), // targetId -> protection types
+      deathMarks: new Map<string, GameEvent['type']>(), // targetId -> cause of death
+      savedByHealPotion: new Set<string>(), // targetIds saved by Hechicera
+      bites: new Map<string, number>(), // targetId -> new bite count
+      gameUpdates: {} as Partial<Game>,
+      playerUpdates: new Map<string, Partial<Player>>(),
+      events: [] as GameEvent[],
+  };
 
+  const getPlayer = (userId: string) => {
+      const updatedPlayer = context.playerUpdates.get(userId);
+      const originalPlayer = game.players.find(p => p.userId === userId);
+      return { ...originalPlayer, ...updatedPlayer } as Player;
+  }
 
-  // FASE 3: ACCIONES LETALES Y DE CONVERSIÓN
-  let pendingDeaths: { playerId: string; cause: GameEvent['type']; message: string; }[] = [];
-  
-  if (game.leprosaBlockedRound !== game.currentRound) {
-      const wolfVotes = actions.filter(a => a.actionType === 'werewolf_kill').map(a => a.targetId);
-      const getConsensusTarget = (votes: string[]) => {
-          if (votes.length === 0) return null;
-          const voteCounts: Record<string, number> = {};
-          votes.forEach(vote => vote.split('|').forEach(target => {
-              if(target) voteCounts[target] = (voteCounts[target] || 0) + 1;
-          }));
-          const maxVotes = Math.max(...Object.values(voteCounts), 0);
-          if (maxVotes === 0) return null;
-          const mostVotedTargets = Object.keys(voteCounts).filter(id => voteCounts[id] === maxVotes);
-          return mostVotedTargets[0] || null;
-      };
-      const wolfTargetId = getConsensusTarget(wolfVotes);
-      
-      if (wolfTargetId) {
-          const targetPlayer = game.players.find(p => p.userId === wolfTargetId);
-          if(targetPlayer?.role === 'cursed' && game.settings.cursed && !protections.some(p => p.targetId === wolfTargetId)) {
-               const cursedPlayerIndex = game.players.findIndex(p => p.userId === wolfTargetId);
-               if (cursedPlayerIndex !== -1) {
-                   game.players[cursedPlayerIndex].role = 'werewolf';
-                   game.events.push({ id: `evt_transform_cursed_${Date.now()}`, gameId: game.id, round: game.currentRound, type: 'player_transformed', message: `¡${targetPlayer.displayName} ha sido mordido y se ha transformado en Hombre Lobo!`, data: { targetId: targetPlayer.userId, newRole: 'werewolf' }, createdAt: new Date() });
-               }
-          } else {
-              pendingDeaths.push({ playerId: wolfTargetId, cause: 'werewolf_kill', message: `Las marcas son inconfundibles: obra de los hombres lobo.` });
+  // 2. Apply all actions sequentially to build the resolution context
+  for (const action of actions) {
+      const actor = getPlayer(action.playerId);
+      if (!actor || !actor.isAlive || actor.isExiled) continue;
+
+      const targetIds = action.targetId.split('|');
+
+      for (const targetId of targetIds) {
+          const target = getPlayer(targetId);
+          if (!target) continue;
+
+          switch (action.actionType) {
+              case 'priest_bless':
+              case 'guardian_protect':
+              case 'doctor_heal':
+                  const protectionType = action.actionType === 'priest_bless' ? 'bless' : 'guard';
+                  const currentProtections = context.protections.get(targetId) || new Set();
+                  currentProtections.add(protectionType);
+                  context.protections.set(targetId, currentProtections);
+                  break;
+
+              case 'werewolf_kill':
+                  if (!context.protections.get(targetId)?.has('guard') && !context.protections.get(targetId)?.has('bless')) {
+                      context.deathMarks.set(targetId, 'werewolf_kill');
+                  }
+                  break;
+              
+              case 'hechicera_poison':
+                  if (!context.protections.get(targetId)?.has('bless')) {
+                     context.deathMarks.set(targetId, 'special');
+                  }
+                  break;
+
+              case 'fairy_kill':
+                   if (!context.protections.get(targetId)?.has('bless')) {
+                       context.deathMarks.set(targetId, 'special');
+                       context.gameUpdates.fairyKillUsed = true;
+                   }
+                  break;
+
+              case 'vampire_bite':
+                  const newBiteCount = (target.biteCount || 0) + 1;
+                  context.bites.set(targetId, newBiteCount);
+                  if (newBiteCount >= 3) {
+                      context.deathMarks.set(targetId, 'vampire_kill');
+                      context.gameUpdates.vampireKills = (game.vampireKills || 0) + 1;
+                  }
+                  break;
+
+               case 'hechicera_save':
+                    if (context.deathMarks.has(targetId)) {
+                        context.savedByHealPotion.add(targetId);
+                        context.deathMarks.delete(targetId);
+                    }
+                    break;
+              
+              case 'cult_recruit':
+                  context.playerUpdates.set(targetId, { ...context.playerUpdates.get(targetId), isCultMember: true });
+                  break;
+              
+              case 'silencer_silence':
+                  context.gameUpdates.silencedPlayerId = targetId;
+                  break;
+
+              case 'elder_leader_exile':
+                  const exiledPlayer = context.playerUpdates.get(targetId) || {};
+                  context.playerUpdates.set(targetId, { ...exiledPlayer, isExiled: true });
+                  break;
           }
       }
   }
 
-  const hechiceraPoisonAction = actions.find(a => a.actionType === 'hechicera_poison');
-  if(hechiceraPoisonAction) {
-    pendingDeaths.push({ playerId: hechiceraPoisonAction.targetId, cause: 'special', message: `Yace sin una sola herida, pero con un rictus de dolor. Parece haber sido envenenado.` });
-  }
-  
-  const fairyKillAction = actions.find(a => a.actionType === 'fairy_kill');
-  if(fairyKillAction) {
-    pendingDeaths.push({ playerId: fairyKillAction.targetId, cause: 'special', message: `Un aura de magia oscura rodea el cuerpo. Ha sido víctima de una maldición fatal.` });
-  }
-
-  actions.filter(a => a.actionType === 'vampire_bite').forEach(action => {
-      const targetIndex = game.players.findIndex(p => p.userId === action.targetId);
-      if (targetIndex === -1) return;
-      game.players[targetIndex].biteCount = (game.players[targetIndex].biteCount || 0) + 1;
-      if (game.players[targetIndex].biteCount >= 3) {
-          pendingDeaths.push({ playerId: action.targetId, cause: 'vampire_kill', message: `Está pálido y exangüe, con dos pequeñas marcas en el cuello.` });
-          game.vampireKills = (game.vampireKills || 0) + 1;
+  // 3. Commit state changes from context to the main game object
+  Object.assign(game, context.gameUpdates);
+  context.playerUpdates.forEach((updates, userId) => {
+      const playerIndex = game.players.findIndex(p => p.userId === userId);
+      if (playerIndex !== -1) {
+          game.players[playerIndex] = { ...game.players[playerIndex], ...updates };
       }
   });
+   context.bites.forEach((count, userId) => {
+        const playerIndex = game.players.findIndex(p => p.userId === userId);
+        if (playerIndex !== -1) {
+            game.players[playerIndex].biteCount = count;
+        }
+    });
 
-
-  // FASE 4: INVESTIGACIÓN Y RECLUTAMIENTO
-  actions.forEach(action => {
-      if (action.actionType === 'cult_recruit') {
-          const targetIndex = game.players.findIndex(p => p.userId === action.targetId);
-          if (targetIndex !== -1) game.players[targetIndex].isCultMember = true;
-      }
-      if (action.actionType === 'fisherman_catch') {
-          const targetIndex = game.players.findIndex(p => p.userId === action.targetId);
-          if (targetIndex !== -1) game.boat.push(action.targetId);
-      }
-  });
-
-
-  // FASE 5: RESOLUCIÓN FINAL
-  let savedPlayerIds = new Set<string>();
-  let finalDeaths = pendingDeaths.filter(death => {
-      const isBlessed = protections.some(p => p.targetId === death.playerId && p.type === 'bless');
-      if (isBlessed) { savedPlayerIds.add(death.playerId); return false; }
-      
-      const isPotionSaved = protections.some(p => p.targetId === death.playerId && p.type === 'potion');
-      if (isPotionSaved) { savedPlayerIds.add(death.playerId); return false; }
-
-      if (death.cause === 'werewolf_kill') {
-          const isGuarded = protections.some(p => p.targetId === death.playerId && p.type === 'guard');
-          if (isGuarded) { savedPlayerIds.add(death.playerId); return false; }
-      }
-      return true;
-  });
-
+  // 4. Execute deaths
   let triggeredHunterId: string | null = null;
-  for (const death of finalDeaths) {
-      const { updatedGame, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, death.playerId, death.cause, death.message);
+  let killedPlayerIds: string[] = [];
+
+  for (const [targetId, cause] of context.deathMarks.entries()) {
+      const { updatedGame, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, targetId, cause, `Anoche, el pueblo perdió a ${game.players.find(p=>p.userId === targetId)?.displayName}.`);
       game = updatedGame;
+      killedPlayerIds.push(targetId);
       if(newHunterId) triggeredHunterId = newHunterId;
   }
   
+  // 5. Finalize night results
   let gameOverInfo = await checkGameOver(game);
   if (gameOverInfo.isGameOver) {
       game.status = "finished";
@@ -164,23 +222,18 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
       return;
   }
   
-  const newlyKilledPlayers = game.players.filter(p => !p.isAlive && initialPlayerState.find((ip:any) => ip.userId === p.userId)?.isAlive);
-  
   let nightMessage;
-  if (newlyKilledPlayers.length > 0) {
-      nightMessage = `Anoche, el pueblo perdió a ${newlyKilledPlayers.map(p => p.displayName).join(', ')}.`;
-  } else if (pendingDeaths.length > 0 && savedPlayerIds.size > 0) {
+  if (killedPlayerIds.length > 0) {
+      const killedNames = killedPlayerIds.map(id => initialPlayers.find((p:any) => p.userId === id)?.displayName).join(', ');
+      nightMessage = `Anoche, el pueblo perdió a ${killedNames}.`;
+  } else if (context.deathMarks.size > 0 && (context.savedByHealPotion.size > 0 || context.protections.size > 0)) {
       nightMessage = "La noche fue tensa. Los lobos atacaron, pero alguien fue salvado por una fuerza protectora.";
   } else {
       nightMessage = "La noche transcurre en un inquietante silencio. Nadie ha muerto.";
   }
   
-  const leprosaDeath = newlyKilledPlayers.find(p => p.role === 'leprosa');
-  if (leprosaDeath && game.leprosaBlockedRound === game.currentRound + 1) {
-      nightMessage += ` Como consecuencia de la muerte de la Leprosa, los lobos no podrán atacar la próxima noche.`;
-  }
-
-  game.events.push({ id: `evt_night_${game.currentRound}`, gameId: game.id, round: game.currentRound, type: 'night_result', message: nightMessage, data: { killedPlayerIds: newlyKilledPlayers.map(p => p.userId), savedPlayerIds: Array.from(savedPlayerIds) }, createdAt: new Date() });
+  const savedIds = new Set([...context.savedByHealPotion, ...Array.from(context.protections.keys())]);
+  game.events.push({ id: `evt_night_${game.currentRound}`, gameId: game.id, round: game.currentRound, type: 'night_result', message: nightMessage, data: { killedPlayerIds: killedPlayerIds, savedPlayerIds: Array.from(savedIds) }, createdAt: new Date() });
 
   game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; p.isExiled = false; });
   const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
