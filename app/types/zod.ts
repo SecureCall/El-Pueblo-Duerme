@@ -1,4 +1,5 @@
 
+
 import { z } from 'zod';
 import { PlayerRoleEnum } from './player-role.enum';
 
@@ -182,6 +183,10 @@ export const AIPlayerPerspectiveSchema = z.object({
   trigger: z.string(),
   players: z.array(PlayerSchema),
   chatType: z.enum(['public', 'wolf', 'twin', 'lovers', 'ghost']),
+  seerChecks: z.array(z.object({
+    targetName: z.string(),
+    isWerewolf: z.boolean(),
+  })).optional(),
 });
 
 export const GenerateAIChatMessageOutputSchema = z.object({
