@@ -19,12 +19,16 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
+        hostname: 'firebasestorage.googleapis.com',
+      },
+      {
+        protocol: 'https',
         hostname: 'storage.googleapis.com',
-        pathname: '/v0/b/studio-9015007721-ac536.appspot.com/**',
       }
     ],
   },
-  transpilePackages: ['recharts'],
+  swcMinify: true,
+  transpilePackages: ['lucide-react', 'recharts'],
 };
 
 export default nextConfig;
