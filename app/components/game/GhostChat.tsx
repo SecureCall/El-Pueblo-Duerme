@@ -7,21 +7,21 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../ui/card
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
-import { Send } from 'lucide-react';
-import { sendWolfChatMessage } from '../../lib/firebase-actions';
+import { Send, Ghost } from 'lucide-react';
+import { sendGhostChatMessage } from '../../lib/firebase-actions';
 import { useToast } from '../../hooks/use-toast';
 import { cn } from '../../lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getMillis } from '../../lib/utils';
 
-interface WolfChatProps {
+interface GhostSpectatorChatProps {
     gameId: string;
     currentPlayer: Player;
     messages: ChatMessage[];
 }
 
-export function WolfChat({ gameId, currentPlayer, messages }: WolfChatProps) {
+export function GhostSpectatorChat({ gameId, currentPlayer, messages }: GhostSpectatorChatProps) {
     const [newMessage, setNewMessage] = useState('');
     const { toast } = useToast();
     const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -35,7 +35,7 @@ export function WolfChat({ gameId, currentPlayer, messages }: WolfChatProps) {
     const handleSendMessage = async () => {
         if (!newMessage.trim()) return;
         
-        const res = await sendWolfChatMessage(gameId, currentPlayer.userId, currentPlayer.displayName, newMessage);
+        const res = await sendGhostChatMessage(gameId, currentPlayer.userId, currentPlayer.displayName, newMessage);
 
         if (res.success) {
             setNewMessage('');
@@ -49,15 +49,18 @@ export function WolfChat({ gameId, currentPlayer, messages }: WolfChatProps) {
     };
     
     return (
-        <Card className="bg-destructive/10 border-destructive/30 flex flex-col h-full max-h-96">
+        <Card className="bg-blue-900/10 border-blue-400/30 flex flex-col h-full max-h-96">
             <CardHeader className='pb-2'>
-                <CardTitle className="font-headline text-destructive text-lg">Chat de la Manada</CardTitle>
+                <CardTitle className="font-headline text-blue-300 text-lg flex items-center gap-2">
+                    <Ghost className="h-5 w-5" />
+                    Chat del Más Allá
+                </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 overflow-hidden p-0">
                 <ScrollArea className="h-full" ref={scrollAreaRef}>
                     <div className="p-4 space-y-3">
                         {messages.length === 0 ? (
-                            <p className="text-center text-sm text-muted-foreground">La caza comienza. Coordinad vuestro ataque.</p>
+                            <p className="text-center text-sm text-muted-foreground">Las almas en pena susurran entre ellas...</p>
                         ) : (
                             messages.map((msg, index) => {
                                 const isOwnMessage = msg.senderId === currentPlayer.userId;
@@ -68,7 +71,7 @@ export function WolfChat({ gameId, currentPlayer, messages }: WolfChatProps) {
                                 )}>
                                     <div className={cn(
                                         "rounded-lg px-3 py-2 max-w-xs",
-                                        isOwnMessage ? "bg-destructive text-destructive-foreground" : "bg-card"
+                                        isOwnMessage ? "bg-blue-800 text-white" : "bg-card"
                                     )}>
                                         <p className="font-bold text-sm">{msg.senderName}</p>
                                         <p className="text-base break-words">{msg.text}</p>
@@ -82,7 +85,7 @@ export function WolfChat({ gameId, currentPlayer, messages }: WolfChatProps) {
                     </div>
                 </ScrollArea>
             </CardContent>
-            <CardFooter className="p-2 border-t border-destructive/30">
+            <CardFooter className="p-2 border-t border-blue-400/30">
                 <form 
                     onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} 
                     className="w-full flex items-center gap-2"
@@ -90,10 +93,10 @@ export function WolfChat({ gameId, currentPlayer, messages }: WolfChatProps) {
                     <Input
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
-                        placeholder="Habla con la manada..."
+                        placeholder="Susurra a los otros espectros..."
                         className="bg-card/50"
                     />
-                    <Button type="submit" size="icon" variant="destructive" disabled={!newMessage.trim()}>
+                    <Button type="submit" size="icon" variant="ghost" className="hover:bg-blue-800" disabled={!newMessage.trim()}>
                         <Send className="h-4 w-4" />
                     </Button>
                 </form>
@@ -101,3 +104,5 @@ export function WolfChat({ gameId, currentPlayer, messages }: WolfChatProps) {
         </Card>
     );
 }
+
+    

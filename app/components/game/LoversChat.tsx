@@ -2,18 +2,18 @@
 "use client";
 
 import { useState, useRef, useEffect } from 'react';
-import type { ChatMessage, Player } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import type { ChatMessage, Player } from '../../types';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../ui/card';
+import { Input } from '../ui/input';
+import { Button } from '../ui/button';
+import { ScrollArea } from '../ui/scroll-area';
 import { Send, Heart } from 'lucide-react';
-import { sendLoversChatMessage } from '@/lib/firebase-actions';
-import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
+import { sendLoversChatMessage } from '../../lib/firebase-actions';
+import { useToast } from '../../hooks/use-toast';
+import { cn } from '../../lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { getMillis } from '@/lib/utils';
+import { getMillis } from '../../lib/utils';
 
 interface LoversChatProps {
     gameId: string;

@@ -1,19 +1,18 @@
-
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import type { ChatMessage, Player } from '@/types';
+import type { ChatMessage, Player } from '../../types';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../ui/card';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Send, Ghost } from 'lucide-react';
-import { sendGhostChatMessage } from '@/lib/firebase-actions';
-import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
+import { sendGhostChatMessage } from '../../lib/firebase-actions';
+import { useToast } from '../../hooks/use-toast';
+import { cn } from '../../lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { getMillis } from '@/lib/utils';
+import { getMillis } from '../../lib/utils';
 
 interface GhostSpectatorChatProps {
     gameId: string;
@@ -104,5 +103,3 @@ export function GhostSpectatorChat({ gameId, currentPlayer, messages }: GhostSpe
         </Card>
     );
 }
-
-    

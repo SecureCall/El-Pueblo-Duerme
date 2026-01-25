@@ -1,7 +1,7 @@
 "use client";
 
-import type { Player } from "@/types";
-import { Button } from "@/components/ui/button";
+import type { Player } from "../../types";
+import { Button } from "../ui/button";
 import {
   Sheet,
   SheetContent,
@@ -9,10 +9,10 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from "@/components/ui/sheet";
+} from "../ui/sheet";
 import { Info } from "lucide-react";
-import { roleDetails, defaultRoleDetail } from "@/lib/roles";
-import { cn } from "@/lib/utils";
+import { roleDetails, defaultRoleDetail } from "../../lib/roles";
+import { cn } from "../../lib/utils";
 import Image from "next/image";
 
 interface CurrentPlayerRoleProps {
