@@ -3,7 +3,7 @@
 
 import { ai } from '../../../src/ai/genkit';
 import { z } from 'genkit';
-import type { AIPlayerPerspective, GenerateAIChatMessageOutput, NightAction, PlayerRole } from '@/types';
+import type { AIPlayerPerspective, GenerateAIChatMessageOutput } from '@/types';
 import { AIPlayerPerspectiveSchema, GenerateAIChatMessageOutputSchema } from '@/types/zod';
 
 // Helper function to sanitize any object and replace undefined with null recursively.
@@ -90,39 +90,26 @@ const generateAiChatMessageFlow = ai.defineFlow(
         outputSchema: GenerateAIChatMessageOutputSchema,
     },
     async (perspective) => {
-        // The input is now expected to be fully sanitized by the wrapper function.
-        
+        // Special hardcoded logic for the Seer to be more proactive
         const isSeerOrApprentice = perspective.aiPlayer.role === 'seer' || (perspective.aiPlayer.role === 'seer_apprentice' && perspective.game.seerDied);
         if (isSeerOrApprentice && perspective.game.phase === 'day' && perspective.trigger.toLowerCase().includes('voted')) {
             const seerChecks = perspective.seerChecks || [];
             
-            const knownGoodPlayers = new Set<string>();
-            const knownWolfPlayers = new Set<string>();
-
-            for (const check of seerChecks) {
-                const targetPlayer = perspective.players.find(p => p.displayName === check.targetName);
-                if (targetPlayer) {
-                    if (check.isWerewolf) {
-                        knownWolfPlayers.add(targetPlayer.userId);
-                    } else {
-                        knownGoodPlayers.add(targetPlayer.userId);
-                    }
-                }
-            }
+            const knownGoodPlayerNames = new Set<string>(seerChecks.filter(c => !c.isWerewolf).map(c => c.targetName));
+            const knownWolfPlayerNames = new Set<string>(seerChecks.filter(c => c.isWerewolf).map(c => c.targetName));
 
             const votedForMatch = perspective.trigger.match(/(\w+) voted for (\w+)/);
             if (votedForMatch) {
                 const targetName = votedForMatch[2];
-                const targetPlayer = perspective.players.find(p => p.displayName === targetName);
 
-                if (targetPlayer && knownGoodPlayers.has(targetPlayer.userId)) {
+                if (knownGoodPlayerNames.has(targetName)) {
                     if (Math.random() < 0.85) { 
-                        return { message: `¡Estáis cometiendo un error! ${targetPlayer.displayName} es de confianza. ¡Tenemos que reconsiderar esto!`, shouldSend: true };
+                        return { message: `¡Estáis cometiendo un error! ${targetName} es de confianza. ¡Tenemos que reconsiderar esto!`, shouldSend: true };
                     }
                 }
-                 if (targetPlayer && knownWolfPlayers.has(targetPlayer.userId)) {
+                 if (knownWolfPlayerNames.has(targetName)) {
                     if (Math.random() < 0.6) {
-                        return { message: `El voto contra ${targetPlayer.displayName} es interesante... tengo un mal presentimiento sobre esa persona.`, shouldSend: true };
+                        return { message: `El voto contra ${targetName} es interesante... tengo un mal presentimiento sobre esa persona.`, shouldSend: true };
                     }
                 }
             }
@@ -147,34 +134,8 @@ export async function generateAIChatMessage(
     perspective: AIPlayerPerspective
 ): Promise<GenerateAIChatMessageOutput> {
     try {
-        let seerChecks: { targetName: string; isWerewolf: boolean; }[] = [];
-        const isSeerOrApprentice = perspective.aiPlayer.role === 'seer' || (perspective.aiPlayer.role === 'seer_apprentice' && perspective.game.seerDied);
-
-        if (isSeerOrApprentice) {
-            const seerActions = perspective.game.nightActions?.filter(
-                (a: NightAction) => a.playerId === perspective.aiPlayer.userId && a.actionType === 'seer_check'
-            ) || [];
-
-            const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'lycanthrope'];
-
-            for (const action of seerActions) {
-                const targetPlayer = perspective.players.find(p => p.userId === action.targetId);
-                if (targetPlayer) {
-                    seerChecks.push({
-                        targetName: targetPlayer.displayName,
-                        isWerewolf: !!(targetPlayer.role && wolfRoles.includes(targetPlayer.role)),
-                    });
-                }
-            }
-        }
-        
-        const perspectiveWithChecks: AIPlayerPerspective = {
-            ...perspective,
-            seerChecks,
-        };
-
         // AI Flow requires a plain object, so we ensure it's sanitized before calling.
-        const sanitizedPerspective = sanitizeObject(perspectiveWithChecks);
+        const sanitizedPerspective = sanitizeObject(perspective);
 
         const result = await generateAiChatMessageFlow(sanitizedPerspective);
         return result;
@@ -184,5 +145,3 @@ export async function generateAIChatMessage(
         return { message: '', shouldSend: false };
     }
 }
-
-  

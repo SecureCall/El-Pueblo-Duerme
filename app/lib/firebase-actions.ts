@@ -653,12 +653,29 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
              const shouldTrigger = isAccused ? Math.random() < 0.95 : Math.random() < 0.35;
 
              if (shouldTrigger) {
+                let seerChecks: { targetName: string; isWerewolf: boolean; }[] = [];
+                const isSeerOrApprentice = aiPlayer.role === 'seer' || (aiPlayer.role === 'seer_apprentice' && game.seerDied);
+                if (isSeerOrApprentice) {
+                    const seerActions = game.nightActions?.filter(a => a.playerId === aiPlayer.userId && a.actionType === 'seer_check') || [];
+                    const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'lycanthrope'];
+                    for (const action of seerActions) {
+                        const targetPlayer = fullPlayers.find(p => p.userId === action.targetId);
+                        if (targetPlayer) {
+                            seerChecks.push({
+                                targetName: targetPlayer.displayName,
+                                isWerewolf: !!(targetPlayer.role && wolfRoles.includes(targetPlayer.role)),
+                            });
+                        }
+                    }
+                }
+                
                 const perspective: AIPlayerPerspective = {
                     game: toPlainObject(game),
                     aiPlayer: toPlainObject(aiPlayer),
                     trigger: triggerMessage,
                     players: toPlainObject(fullPlayers),
                     chatType,
+                    seerChecks,
                 };
 
                 generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
@@ -897,31 +914,6 @@ export async function sendGhostMessage(gameId: string, ghostId: string, targetId
     }
 }
 
-export async function updatePlayerAvatar(gameId: string, userId: string, newAvatarUrl: string) {
-    const { firestore } = await getAuthenticatedSdks();
-    const gameRef = doc(firestore, 'games', gameId);
-    try {
-        await runTransaction(firestore, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error("Game not found.");
-
-            const gameData = gameDoc.data() as Game;
-            const playerIndex = gameData.players.findIndex(p => p.userId === userId);
-
-            if (playerIndex === -1) throw new Error("Player not found in game.");
-
-            const updatedPlayers = [...gameData.players];
-            updatedPlayers[playerIndex].avatarUrl = newAvatarUrl;
-
-            transaction.update(gameRef, { players: toPlainObject(updatedPlayers), lastActiveAt: Timestamp.now() });
-        });
-        return { success: true };
-    } catch (error: any) {
-        console.error("Error updating player avatar:", error);
-        return { success: false, error: (error as Error).message };
-    }
-}
-
 export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
     const { firestore } = await getAuthenticatedSdks();
     const gameDoc = await getDoc(doc(firestore, 'games', gameId));
@@ -943,5 +935,3 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
 
     return { success: true, isWerewolf, targetName: targetPlayer.displayName };
 }
-
-  
