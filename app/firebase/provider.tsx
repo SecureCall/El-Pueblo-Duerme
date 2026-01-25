@@ -1,11 +1,12 @@
+
 'use client';
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { Firestore, getFirestore } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged, getAuth } from 'firebase/auth';
-import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
-import { firebaseConfig } from '@/lib/firebase-config';
+import { FirebaseErrorListener } from '../components/FirebaseErrorListener';
+import { firebaseConfig } from '../lib/firebase-config';
 
 // Centralized initialization
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();

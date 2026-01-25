@@ -4,10 +4,10 @@
 import { useState, useEffect, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
-import { useGameSession } from "@/hooks/use-game-session";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
+import { useGameSession } from "../hooks/use-game-session";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Card, CardContent } from "./ui/card";
 
 export function JoinGameForm() {
   const router = useRouter();

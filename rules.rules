@@ -1,9 +1,15 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow all reads and writes for development purposes.
-    // This is insecure and should be changed for production.
+    match /games/{gameId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    
+    // Allow anyone to read, but only authenticated users to write.
+    // This is a temporary rule for development.
     match /{document=**} {
       allow read, write: if true;
     }

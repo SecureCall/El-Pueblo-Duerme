@@ -2,14 +2,14 @@
 'use client';
 
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { JoinGameForm } from '@/components/JoinGameForm';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { Button } from './components/ui/button';
+import { JoinGameForm } from './components/JoinGameForm';
+import { PlaceHolderImages } from './lib/placeholder-images';
 import Image from 'next/image';
 import { BookOpen, Users, User } from 'lucide-react';
-import { GameMusic } from '@/components/game/GameMusic';
+import { GameMusic } from './components/game/GameMusic';
 import { useEffect } from 'react';
-import { playNarration } from '@/lib/sounds';
+import { playNarration } from './lib/sounds';
 
 export default function Home() {
   const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
@@ -72,5 +72,3 @@ export default function Home() {
     </>
   );
 }
-
-    

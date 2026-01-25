@@ -1,3 +1,4 @@
+
 'use client';
     
 import {
@@ -9,8 +10,8 @@ import {
   DocumentReference,
   SetOptions,
 } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import {FirestorePermissionError} from '@/firebase/errors';
+import { errorEmitter } from './error-emitter';
+import {FirestorePermissionError} from './errors';
 
 /**
  * Initiates a setDoc operation for a document reference.

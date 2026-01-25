@@ -6,19 +6,19 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { collection, query, where, Timestamp } from 'firebase/firestore';
 
-import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import type { Game } from '@/types';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { GameMusic } from '@/components/game/GameMusic';
-import { playNarration } from '@/lib/sounds';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { useFirebase, useCollection, useMemoFirebase } from '../firebase';
+import type { Game } from '../types';
+import { PlaceHolderImages } from '../lib/placeholder-images';
+import { GameMusic } from '../components/game/GameMusic';
+import { playNarration } from '../lib/sounds';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
+import { Button } from '../components/ui/button';
 import { Users, Loader2, HomeIcon } from 'lucide-react';
-import { EnterNameModal } from '@/components/game/EnterNameModal';
-import { useGameSession } from '@/hooks/use-game-session';
-import { useToast } from '@/hooks/use-toast';
-import { getMillis } from '@/lib/utils';
-import { joinGame } from '@/lib/firebase-actions';
+import { EnterNameModal } from '../components/game/EnterNameModal';
+import { useGameSession } from '../hooks/use-game-session';
+import { useToast } from '../hooks/use-toast';
+import { getMillis } from '../lib/utils';
+import { joinGame } from '../lib/firebase-actions';
 
 function GameCard({ game }: { game: Game }) {
     const { displayName, userId, avatarUrl } = useGameSession();

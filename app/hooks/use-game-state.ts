@@ -9,12 +9,12 @@ import {
   type DocumentSnapshot, 
   type FirestoreError,
 } from 'firebase/firestore';
-import type { Game, Player, GameEvent, ChatMessage } from '@/types';
-import { useFirebase } from '@/firebase';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import type { Game, Player, GameEvent, ChatMessage } from '../types';
+import { useFirebase } from '../firebase';
+import { errorEmitter } from '../firebase/error-emitter';
+import { FirestorePermissionError } from '../firebase/errors';
 import { useGameSession } from './use-game-session';
-import { getMillis } from '@/lib/utils';
+import { getMillis } from '../lib/utils';
 
 
 interface GameState {

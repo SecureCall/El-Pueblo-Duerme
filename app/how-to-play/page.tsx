@@ -1,21 +1,20 @@
 
-
 import {
     Accordion,
     AccordionContent,
     AccordionItem,
     AccordionTrigger,
-} from '@/components/ui/accordion';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
+} from '../components/ui/accordion';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { PlaceHolderImages } from '../lib/placeholder-images';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { Button } from '../components/ui/button';
 import { HomeIcon } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { roleDetails } from '@/lib/roles';
-import type { PlayerRole } from '@/types';
-import { GameMusic } from '@/components/game/GameMusic';
+import { cn } from '../lib/utils';
+import { roleDetails } from '../lib/roles';
+import type { PlayerRole } from '../types';
+import { GameMusic } from '../components/game/GameMusic';
 
 
 const aldeanoRoleKeys: NonNullable<PlayerRole>[] = [

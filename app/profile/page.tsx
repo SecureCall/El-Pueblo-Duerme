@@ -1,17 +1,17 @@
 
 'use client';
 
-import { useGameSession } from "@/hooks/use-game-session";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import { HomeIcon, Trophy, Swords } from "lucide-react";
-import Image from "next/image";
-import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { GameMusic } from "@/components/game/GameMusic";
+import { useGameSession } from '../hooks/use-game-session';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import Link from 'next/link';
+import { HomeIcon, Trophy, Swords } from 'lucide-react';
+import Image from 'next/image';
+import { PlaceHolderImages } from '../lib/placeholder-images';
+import { GameMusic } from '../components/game/GameMusic';
 import { BarChart, XAxis, YAxis, Tooltip, Bar, ResponsiveContainer, Legend } from 'recharts';
-import { roleDetails } from "@/lib/roles";
-import { secretObjectives } from "@/lib/objectives";
+import { roleDetails } from '../lib/roles';
+import { secretObjectives } from '../lib/objectives';
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
