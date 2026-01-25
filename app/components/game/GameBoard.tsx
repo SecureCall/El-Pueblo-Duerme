@@ -5,7 +5,7 @@ import type { Game, Player, GameEvent, ChatMessage } from "@/types";
 import { RoleReveal } from "@/components/game/RoleReveal";
 import { PlayerGrid } from "@/components/game/PlayerGrid";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { NightActions } from "@/components/game/NightActions";
 import { processJuryVotes, executeMasterAction, processNight, processVotes } from "@/lib/firebase-actions";
 import { DayPhase } from "@/components/game/DayPhase";
@@ -161,7 +161,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
     }, [game?.phaseEndsAt, game?.id, handlePhaseEnd, game?.status]);
 
 
-    const getCauseOfDeath = (playerId: string): GameEvent['type'] | 'other' => {
+    const getCauseOfDeath = useCallback((playerId: string): GameEvent['type'] | 'other' => {
         const deathEvent = [...events]
             .sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt))
             .find(e => {
@@ -173,7 +173,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
             });
 
         return deathEvent?.type || 'other';
-    };
+    }, [events]);
 
     useEffect(() => {
         if (!currentPlayer || currentPlayer.isAlive) {
@@ -181,7 +181,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
             return;
         };
         setDeathCause(getCauseOfDeath(currentPlayer.userId));
-    }, [currentPlayer?.isAlive, events, currentPlayer?.userId]);
+    }, [currentPlayer?.isAlive, events, currentPlayer?.userId, getCauseOfDeath]);
 
     const handleMasterActionClick = async (player: Player) => {
         if (!game || !masterActionState.active || !masterActionState.actionId) return;
@@ -343,10 +343,32 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
         }
     }
 
-    const playersWithDeathCause = players.map((p: Player) => ({
-        ...p,
-        causeOfDeath: !p.isAlive ? getCauseOfDeath(p.userId) : undefined,
-    }));
+    const playersWithDeathCause = useMemo(() => {
+        return players.map((p) => {
+            const playerWithFullData = p.userId === currentPlayer.userId ? currentPlayer : p;
+
+            if (p.isAlive) {
+                return {
+                    ...playerWithFullData,
+                    causeOfDeath: undefined,
+                };
+            }
+
+            // For dead players, find their role from events
+            const deathEvent = events.find(e =>
+                (e.data?.killedPlayerIds && e.data.killedPlayerIds.includes(p.userId)) ||
+                e.data?.lynchedPlayerId === p.userId
+            );
+
+            const revealedRole = deathEvent?.data?.revealedRole;
+
+            return {
+                ...playerWithFullData,
+                role: revealedRole || p.role, // Use revealed role if available
+                causeOfDeath: getCauseOfDeath(p.userId),
+            };
+        });
+    }, [players, events, getCauseOfDeath, currentPlayer]);
 
 
     const showGhostAction = !!(currentPlayer.role === 'ghost' && !currentPlayer.isAlive && !currentPlayer.ghostMessageSent);
@@ -456,3 +478,5 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
         </div>
     );
 }
+
+    
