@@ -12,4 +12,3 @@ export async function getAuthenticatedSdks() {
   const firestore = getFirestore(app);
   return { auth, firestore, app };
 }
-
