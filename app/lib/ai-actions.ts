@@ -302,5 +302,3 @@ export async function getDeterministicAIAction(
             return { actionType: 'NONE', targetId: '' };
     }
 }
-
-  
