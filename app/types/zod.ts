@@ -182,17 +182,22 @@ export const RoleDataSchema = z.object({
   alliance: z.enum(['Aldeanos', 'Lobos', 'Neutral', 'Enamorados']),
 });
 
+const AIPlayerPublicSchema = PlayerPublicSchema.extend({
+    role: PlayerRoleSchema.optional().transform(() => 'unknown'),
+});
+
 export const AIPlayerPerspectiveSchema = z.object({
   game: GameSchema,
   aiPlayer: PlayerSchema,
   trigger: z.string(),
-  players: z.array(PlayerSchema),
+  players: z.array(AIPlayerPublicSchema),
   chatType: z.enum(['public', 'wolf', 'twin', 'lovers', 'ghost']),
   seerChecks: z.array(z.object({
     targetName: z.string(),
     isWerewolf: z.boolean(),
   })).optional(),
 });
+
 
 export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),

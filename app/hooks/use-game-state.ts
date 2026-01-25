@@ -10,7 +10,7 @@ import { useGameSession } from './use-game-session';
 // Combined state for the hook's return value
 interface CombinedGameState {
     game: Game | null;
-    players: (Player | PlayerPublicData)[];
+    players: PlayerPublicData[];
     currentPlayer: Player | null;
     events: GameEvent[];
     messages: ChatMessage[];
@@ -58,21 +58,13 @@ export const useGameState = (gameId: string): CombinedGameState => {
     }
 
     if (game) {
-        let playersForState: (Player | PlayerPublicData)[] = game.players;
+        const playersForState: PlayerPublicData[] = game.players;
         let finalCurrentPlayer: Player | null = null;
         
-        const selfPublicData = game.players.find(p => p.userId === userId);
+        const selfPublicData = playersForState.find(p => p.userId === userId);
 
         if (selfPublicData && privateData) {
             finalCurrentPlayer = { ...selfPublicData, ...privateData };
-            const selfIndex = game.players.findIndex(p => p.userId === userId);
-            if (selfIndex !== -1) {
-                playersForState = [
-                    ...game.players.slice(0, selfIndex),
-                    finalCurrentPlayer,
-                    ...game.players.slice(selfIndex + 1)
-                ];
-            }
         }
 
         setCombinedState({

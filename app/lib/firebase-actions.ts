@@ -298,13 +298,11 @@ export async function startGame(gameId: string, creatorId: string) {
             if (game.creator !== creatorId) throw new Error('Solo el creador puede iniciar la partida.');
             if (game.status !== 'waiting') throw new Error('La partida ya ha comenzado.');
             
-            let allPlayersFullData: Player[] = [];
-            for (const publicPlayer of game.players) {
-                const privateDataDoc = await transaction.get(doc(firestore, `games/${gameId}/playerData/${publicPlayer.userId}`));
-                if(privateDataDoc.exists()){
-                    allPlayersFullData.push({ ...publicPlayer, ...privateDataDoc.data() } as Player);
-                }
-            }
+            const playerDocs = await Promise.all(game.players.map(p => transaction.get(doc(firestore, `games/${gameId}/playerData/${p.userId}`))));
+            let allPlayersFullData: Player[] = game.players.map((publicPlayer, index) => {
+                const privateData = playerDocs[index]?.data() as PlayerPrivateData;
+                return { ...publicPlayer, ...privateData };
+            });
             
             if (game.settings.fillWithAI && allPlayersFullData.length < game.maxPlayers) {
                 const aiPlayerCount = game.maxPlayers - allPlayersFullData.length;
@@ -880,8 +878,8 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
             
             const message = `${game.players.find(p => p.userId === target1Id)?.displayName} y ${game.players.find(p => p.userId === target2Id)?.displayName} han muerto en una pelea mortal provocada por la Alborotadora.`;
 
-            let { updatedGame: gameAfterKill1 } = await killPlayer(transaction, gameRef, game, target1Id, 'troublemaker_duel', message);
-            let { updatedGame: gameAfterKill2 } = await killPlayer(transaction, gameRef, gameAfterKill1, target2Id, 'troublemaker_duel', message);
+            let { updatedGame: gameAfterKill1 } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, target1Id, 'troublemaker_duel', message);
+            let { updatedGame: gameAfterKill2 } = await killPlayer(transaction, gameRef as DocumentReference<Game>, gameAfterKill1, target2Id, 'troublemaker_duel', message);
             game = gameAfterKill2;
             
             game.troublemakerUsed = true;
@@ -964,7 +962,7 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
     return { success: true, isWerewolf, targetName: targetPlayer.displayName };
 }
 
-async function getFullPlayers(gameId: string, game: Game): Promise<Player[]> {
+export async function getFullPlayers(gameId: string, game: Game): Promise<Player[]> {
     const { firestore } = await getAuthenticatedSdks();
     const privateDataSnapshot = await getDocs(collection(firestore, 'games', gameId, 'playerData'));
     const privateDataMap = new Map<string, PlayerPrivateData>();
@@ -978,4 +976,28 @@ async function getFullPlayers(gameId: string, game: Game): Promise<Player[]> {
     });
 
     return fullPlayers;
+}
+
+export async function updatePlayerAvatar(gameId: string, userId: string, newAvatarUrl: string) {
+    const { firestore } = await getAuthenticatedSdks();
+    const gameRef = doc(firestore, "games", gameId);
+
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found.");
+            const game = gameSnap.data() as Game;
+
+            const playerIndex = game.players.findIndex(p => p.userId === userId);
+            if (playerIndex === -1) throw new Error("Player not found in game.");
+
+            const updatedPlayers = [...game.players];
+            updatedPlayers[playerIndex].avatarUrl = newAvatarUrl;
+
+            transaction.update(gameRef, { players: toPlainObject(updatedPlayers), lastActiveAt: Timestamp.now() });
+        });
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: (error as Error).message };
+    }
 }

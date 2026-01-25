@@ -10,9 +10,10 @@ import {
     ChatMessageSchema,
     GameSettingsSchema,
     NightActionTypeSchema,
+    PlayerRoleSchema,
     RoleDataSchema,
     PlayerPublicSchema,
-    PlayerPrivateSchema,
+    PlayerPrivateSchema
 } from './zod';
 
 // Re-export enums for convenience
@@ -36,7 +37,7 @@ export interface AIPlayerPerspective {
   game: Game;
   aiPlayer: Player;
   trigger: string;
-  players: Player[];
+  players: (PlayerPublicData & { role: PlayerRole | 'unknown' })[];
   chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost';
   seerChecks?: { targetName: string; isWerewolf: boolean; }[];
 };
