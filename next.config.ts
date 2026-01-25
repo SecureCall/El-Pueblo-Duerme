@@ -24,6 +24,7 @@ const nextConfig: NextConfig = {
       }
     ],
   },
+  transpilePackages: ['lucide-react', 'recharts'],
 };
 
 export default nextConfig;
