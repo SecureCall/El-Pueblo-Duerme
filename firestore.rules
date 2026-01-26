@@ -5,7 +5,6 @@ service cloud.firestore {
 
     match /games/{gameId} {
       // Public game data is readable by any authenticated user for the lobby.
-      // More specific read rules can be applied if needed (e.g., only for players).
       allow read: if request.auth != null;
 
       // DENY all client-side writes. All mutations must go through server actions.

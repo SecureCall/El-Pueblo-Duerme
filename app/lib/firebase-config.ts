@@ -1,4 +1,6 @@
 
+// This file is safe to be public on the client-side.
+// It does not contain any sensitive credentials.
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
