@@ -2,7 +2,11 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     match /{allPaths=**} {
-      allow read, write: if request.auth != null;
+      // Public read access is allowed for assets like avatars.
+      allow read;
+      // Write access is only allowed for authenticated users.
+      // Further restrictions (e.g., file size, type, path) can be added here.
+      allow write: if request.auth != null;
     }
   }
 }
