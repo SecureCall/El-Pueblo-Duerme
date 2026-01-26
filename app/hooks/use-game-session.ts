@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "@/firebase";
+import { useAuth } from "@/firebase/provider";
 import { signInAnonymously, onAuthStateChanged, type User } from "firebase/auth";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import type { Game, Player } from "@/types";
