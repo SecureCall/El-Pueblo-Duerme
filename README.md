@@ -1,39 +1,36 @@
-# El Pueblo Duerme
+# ¡ATENCIÓN! ESTA APLICACIÓN NO FUNCIONA EN ESTE ENTORNO
 
-## **ATENCIÓN: CÓMO EJECUTAR EL PROYECTO**
+## **ERROR IRRECUPERABLE DEL ENTORNO DE DESARROLLO**
 
-**Este proyecto NO puede ejecutarse en este entorno de desarrollo en línea debido a un error persistente e incorregible (`ENOTEMPTY`) del propio entorno.**
+El error **404 (`Not Found`)** que está viendo es un síntoma de un problema fundamental con este entorno de desarrollo en línea, no con el código en sí.
 
-Ningún cambio en el código o en los archivos de configuración solucionará este problema aquí.
+Un error persistente e incorregible (`ENOTEMPTY`) en la plataforma impide que Next.js compile y sirva las páginas correctamente.
 
-**La única solución es descargar el proyecto y ejecutarlo en su propio ordenador.**
+**NINGÚN CAMBIO EN EL CÓDIGO SOLUCIONARÁ ESTE PROBLEMA AQUÍ.**
 
----
+### **LA ÚNICA SOLUCIÓN**
 
-### Pasos para Ejecutar Localmente
+Para ver y ejecutar la aplicación funcionalmente, debe descargar el código y ejecutarlo en su propio ordenador.
 
-**Paso 1: Descargar el Proyecto**
-Descargue todos los archivos de la aplicación a una carpeta en su ordenador.
+#### Pasos para la Ejecución Local:
 
-**Paso 2: Abrir un Terminal**
-Abra una línea de comandos (Terminal en Mac/Linux, PowerShell o CMD en Windows) y navegue hasta la carpeta donde descargó el proyecto.
+1.  **Descargar el Proyecto:**
+    Descargue todos los archivos de la aplicación a una carpeta en su ordenador.
 
-**Paso 3: Instalar las Dependencias**
-Ejecute este comando. En su máquina, no debería encontrar el error `ENOTEMPTY`.
+2.  **Abrir una Terminal:**
+    Abra una línea de comandos (Terminal en Mac/Linux, PowerShell o CMD en Windows) y navegue (`cd`) hasta la carpeta donde descargó el proyecto.
 
-```bash
-npm install
-```
+3.  **Instalar Dependencias:**
+    Ejecute el siguiente comando. Este proceso funcionará en su máquina local.
+    ```bash
+    npm install
+    ```
 
-**Paso 4: Iniciar el Servidor de Desarrollo**
-Una vez finalizada la instalación, inicie la aplicación con este comando:
+4.  **Iniciar el Servidor de Desarrollo:**
+    Una vez finalizada la instalación, inicie la aplicación con:
+    ```bash
+    npm run dev
+    ```
 
-```bash
-npm run dev
-```
-
-El terminal le mostrará una URL (normalmente `http://localhost:9002`). Abra esa dirección en su navegador para ver la aplicación funcionando.
-
----
-### Sobre el Juego
-"El Pueblo Duerme" es un juego de misterio, engaño y supervivencia, similar al clásico juego de mesa Werewolf o Mafia, implementado como una aplicación web con Next.js y Firebase.
+5.  **Abrir en el Navegador:**
+    El terminal le mostrará una URL (normalmente `http://localhost:9002`). Abra esa dirección en su navegador para ver la aplicación funcionando correctamente.
