@@ -1,36 +1,46 @@
-# ¡ATENCIÓN! ESTA APLICACIÓN NO FUNCIONA EN ESTE ENTORNO
 
-## **ERROR IRRECUPERABLE DEL ENTORNO DE DESARROLLO**
+# El Pueblo Duerme
 
-El error **404 (`Not Found`)** que está viendo es un síntoma de un problema fundamental con este entorno de desarrollo en línea, no con el código en sí.
+Bienvenido a "El Pueblo Duerme", un juego de misterio, engaño y supervivencia inspirado en clásicos como Mafia o Werewolf.
 
-Un error persistente e incorregible (`ENOTEMPTY`) en la plataforma impide que Next.js compile y sirva las páginas correctamente.
+## Descripción
 
-**NINGÚN CAMBIO EN EL CÓDIGO SOLUCIONARÁ ESTE PROBLEMA AQUÍ.**
+Esta aplicación web te permite crear y unirte a partidas multijugador en tiempo real. Cada jugador recibe un rol secreto (aldeano, lobo, vidente, etc.) y debe usar su astucia y capacidad de deducción para cumplir el objetivo de su equipo.
 
-### **LA ÚNICA SOLUCIÓN**
+- **Aldeanos:** Deben descubrir y eliminar a los hombres lobo durante las votaciones diurnas.
+- **Hombres Lobo:** Deben eliminar a los aldeanos durante la noche hasta igualar o superar su número.
+- **Roles Especiales:** Muchos roles con habilidades únicas añaden caos y estrategia al juego.
 
-Para ver y ejecutar la aplicación funcionalmente, debe descargar el código y ejecutarlo en su propio ordenador.
+## Stack Tecnológico
 
-#### Pasos para la Ejecución Local:
+-   **Frontend:** Next.js, React, TypeScript
+-   **Estilos:** Tailwind CSS, shadcn/ui
+-   **Backend & Base de Datos:** Firebase (Firestore, Authentication)
+-   **Funcionalidad IA:** Genkit
 
-1.  **Descargar el Proyecto:**
-    Descargue todos los archivos de la aplicación a una carpeta en su ordenador.
+## Ejecución Local
 
-2.  **Abrir una Terminal:**
-    Abra una línea de comandos (Terminal en Mac/Linux, PowerShell o CMD en Windows) y navegue (`cd`) hasta la carpeta donde descargó el proyecto.
+Para ejecutar el proyecto en tu propio ordenador, sigue estos pasos:
 
-3.  **Instalar Dependencias:**
-    Ejecute el siguiente comando. Este proceso funcionará en su máquina local.
+1.  **Clonar el Repositorio:**
+    ```bash
+    git clone https://github.com/SecureCall/El-Pueblo-Duerme.git
+    cd El-Pueblo-Duerme
+    ```
+
+2.  **Instalar Dependencias:**
+    Asegúrate de tener Node.js instalado. Luego, ejecuta:
     ```bash
     npm install
     ```
 
+3.  **Configurar Variables de Entorno:**
+    Crea un archivo `.env` en la raíz del proyecto y añade tus credenciales de Firebase.
+
 4.  **Iniciar el Servidor de Desarrollo:**
-    Una vez finalizada la instalación, inicie la aplicación con:
     ```bash
     npm run dev
     ```
 
 5.  **Abrir en el Navegador:**
-    El terminal le mostrará una URL (normalmente `http://localhost:9002`). Abra esa dirección en su navegador para ver la aplicación funcionando correctamente.
+    Abre `http://localhost:9003` (o el puerto que se indique en la terminal) en tu navegador.

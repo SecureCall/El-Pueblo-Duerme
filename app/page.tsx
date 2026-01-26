@@ -1,64 +1,98 @@
+
 'use client';
 
-// This component is intentionally dependency-free to ensure it renders
-// even in a partially broken build environment.
+import Link from 'next/link';
+import { Button } from './components/ui/button';
+import { JoinGameForm } from './components/JoinGameForm';
+import { PlaceHolderImages } from './lib/placeholder-images';
+import Image from 'next/image';
+import { BookOpen, Users } from 'lucide-react';
+import { GameMusic } from './components/game/GameMusic';
+import { useEffect } from 'react';
+import { playNarration } from './lib/sounds';
+import { useGameSession } from './hooks/use-game-session';
+import { useRouter } from 'next/navigation';
+import { useToast } from './hooks/use-toast';
+
 export default function Home() {
+  const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
+  const { displayName, isSessionLoaded } = useGameSession();
+  const router = useRouter();
+  const { toast } = useToast();
+  
+  useEffect(() => {
+    playNarration('Que_comience_el_juego.mp3');
+  }, []);
+
+  const handlePublicGamesClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!isSessionLoaded) {
+      e.preventDefault();
+      toast({ title: "Cargando sesión...", description: "Por favor, espera un momento." });
+    } else if (!displayName) {
+       e.preventDefault();
+       router.push('/public-games');
+    }
+  };
+  
+    const handleCreateGameClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!isSessionLoaded) {
+      e.preventDefault();
+      toast({ title: "Cargando sesión...", description: "Por favor, espera un momento." });
+    } else if (!displayName) {
+       e.preventDefault();
+       router.push('/create');
+    }
+  };
+
+
   return (
-    <div
-      style={{
-        backgroundColor: 'hsl(265, 45%, 8%)',
-        color: 'white',
-        fontFamily: 'system-ui, sans-serif',
-        minHeight: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1rem',
-        textAlign: 'center',
-      }}
-    >
-      <div
-        style={{
-          border: '2px solid hsl(0, 70%, 40%)',
-          borderRadius: '0.5rem',
-          padding: '2rem 3rem',
-          maxWidth: '800px',
-          backgroundColor: 'hsla(265, 40%, 12%, 0.8)',
-          boxShadow: '0 0 25px rgba(0,0,0,0.5)',
-        }}
-      >
-        <h1
-          style={{
-            fontSize: '2.5rem',
-            fontWeight: 'bold',
-            color: 'hsl(0, 70%, 60%)',
-            borderBottom: '1px solid hsl(0, 70%, 30%)',
-            paddingBottom: '1rem',
-            marginBottom: '1.5rem',
-          }}
-        >
-          ERROR DE ENTORNO IRRECUPERABLE
-        </h1>
-        <p style={{ fontSize: '1.1rem', lineHeight: '1.6' }}>
-          La página <strong>404 (No Encontrado)</strong> que puede estar viendo es un síntoma de que este proyecto <strong>NO PUEDE COMPILARSE NI EJECUTARSE</strong> en este entorno de desarrollo en línea.
-        </p>
-        <p style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'hsl(50, 100%, 70%)', margin: '2rem 0', padding: '1rem', backgroundColor: 'hsla(50, 100%, 20%, 0.2)', borderRadius: '0.25rem' }}>
-          Ningún cambio en el código solucionará este problema aquí. La única solución es ejecutarlo localmente.
-        </p>
-        <div style={{ textAlign: 'left', backgroundColor: 'hsl(270, 30%, 15%)', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid hsl(270, 30%, 25%)' }}>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem' }}>Pasos para la Ejecución Local</h2>
-          <ol style={{ listStyle: 'decimal', paddingLeft: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <li>Descargue todos los archivos del proyecto a una carpeta en su ordenador.</li>
-            <li>Abra una terminal (línea de comandos) y navegue hasta esa carpeta.</li>
-            <li>Ejecute el comando: <code style={{ backgroundColor: '#111', padding: '0.25rem 0.5rem', borderRadius: '0.25rem', fontFamily: 'monospace' }}>npm install</code></li>
-            <li>Inicie el servidor con: <code style={{ backgroundColor: '#111', padding: '0.25rem 0.5rem', borderRadius: '0.25rem', fontFamily: 'monospace' }}>npm run dev</code></li>
-          </ol>
-        </div>
-        <p style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: 'hsl(0, 0%, 63.9%)' }}>
-          Consulte el archivo README.md para más detalles.
-        </p>
+    <>
+      <GameMusic src="/audio/menu-theme.mp3" />
+      <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 overflow-hidden">
+        {bgImage && (
+          <Image
+            src={bgImage.imageUrl}
+            alt={bgImage.description}
+            fill
+            className="object-cover z-0"
+            data-ai-hint={bgImage.imageHint}
+            priority
+          />
+        )}
+        <div className="absolute inset-0 bg-background/70 backdrop-blur-sm" />
+        <main className="relative z-10 flex flex-col items-center justify-center text-center text-white space-y-8">
+          <img
+            src="/logo.png"
+            alt="El Pueblo Duerme Logo"
+            width={250}
+            height={250}
+            className="rounded-full"
+          />
+          <h1 className="font-headline text-6xl md:text-8xl font-bold tracking-tight text-shadow-lg shadow-black/50">
+            El Pueblo Duerme
+          </h1>
+          <p className="max-w-2xl text-lg md:text-xl text-white/80">
+            Una noche más cae sobre el pueblo. Entre vosotros se esconden lobos. ¿Podréis descubrirlos antes de que sea tarde?
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-lg">
+            <Button asChild size="lg" className="w-full font-bold text-lg">
+              <Link href="/create" onClick={handleCreateGameClick}>Crear Partida</Link>
+            </Button>
+             <Button asChild size="lg" variant="secondary" className="w-full font-bold text-lg">
+              <Link href="/public-games" onClick={handlePublicGamesClick}><Users className="mr-2 h-5 w-5"/> Salas Públicas</Link>
+            </Button>
+            <Button asChild size="lg" variant="outline" className="w-full">
+               <Link href="/how-to-play"><BookOpen className="mr-2 h-5 w-5"/> Cómo Jugar</Link>
+            </Button>
+          </div>
+          
+          <div className="w-full max-w-md pt-8">
+            <p className="mb-4 text-lg font-semibold text-white">O únete con un código:</p>
+            <JoinGameForm />
+          </div>
+        </main>
       </div>
-    </div>
+    </>
   );
 }
