@@ -1,4 +1,5 @@
 
+
 'use server';
 import { 
   doc,
@@ -12,6 +13,7 @@ import {
   DocumentReference,
   collection,
   getDocs,
+  writeBatch,
 } from "firebase/firestore";
 import { 
   type Game, 
@@ -36,6 +38,10 @@ import { adminDb } from './firebase-admin';
 
 const PHASE_DURATION_SECONDS = 60;
 
+const sanitizeHTML = (text: string) => {
+  return text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+};
+
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
@@ -48,12 +54,13 @@ function generateGameId(length = 5) {
 const createPlayerObject = (userId: string, gameId: string, displayName: string, avatarUrl: string, isAI: boolean = false): Player => ({
     userId,
     gameId,
-    displayName: displayName.trim(),
+    displayName: sanitizeHTML(displayName.trim()),
     avatarUrl,
     role: null,
     isAlive: true,
     votedFor: null,
     joinedAt: Timestamp.now(),
+    lastActiveAt: Timestamp.now(),
     isAI,
     isExiled: false,
     lastHealedRound: 0,
@@ -78,8 +85,8 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
 
 function splitPlayerData(player: Player): { publicData: PlayerPublicData, privateData: PlayerPrivateData } {
   const { 
-    userId, gameId, displayName, avatarUrl, isAlive, isAI, isExiled, 
-    princeRevealed, joinedAt, votedFor,
+    userId, gameId, displayName, avatarUrl, isAlive, isAI, 
+    princeRevealed, joinedAt, votedFor, lastActiveAt,
     // Explicitly destructure private fields to exclude them from public data
     role, secretObjectiveId, executionerTargetId, potions, priestSelfHealUsed, guardianSelfProtects,
     usedNightAbility, shapeshifterTargetId, virginiaWoolfTargetId, riverSirenTargetId,
@@ -88,8 +95,8 @@ function splitPlayerData(player: Player): { publicData: PlayerPublicData, privat
   } = player;
 
   const publicData: PlayerPublicData = {
-    userId, gameId, displayName, avatarUrl, isAlive, isAI, isExiled,
-    princeRevealed, joinedAt, votedFor
+    userId, gameId, displayName, avatarUrl, isAlive, isAI,
+    princeRevealed, joinedAt, votedFor, lastActiveAt
   };
 
   const privateData: PlayerPrivateData = {
@@ -144,7 +151,7 @@ export async function createGame(
 
   const gameData: Game = {
       id: gameId,
-      name: gameName.trim(),
+      name: sanitizeHTML(gameName.trim()),
       status: "waiting",
       phase: "waiting", 
       creator: userId,
@@ -221,9 +228,12 @@ export async function joinGame(
         throw new Error("Esta partida ya ha comenzado.");
       }
       
-      const playerExists = game.players.some(p => p.userId === userId);
-      if (playerExists) {
-        return; 
+      const playerIndex = game.players.findIndex(p => p.userId === userId);
+      if (playerIndex !== -1) {
+          const updatedPlayers = [...game.players];
+          updatedPlayers[playerIndex].lastActiveAt = Timestamp.now();
+          transaction.update(gameRef, { players: toPlainObject(updatedPlayers) });
+          return;
       }
       
       const nameExists = game.players.some(p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase());
@@ -452,6 +462,7 @@ export async function sendChatMessage(
     }
 
     const gameRef = doc(adminDb, 'games', gameId);
+    const sanitizedText = sanitizeHTML(text.trim());
 
     try {
         let latestGame: Game | null = null;
@@ -461,26 +472,35 @@ export async function sendChatMessage(
             const game = gameDoc.data() as Game;
             latestGame = game;
 
+            const playerIndex = game.players.findIndex(p => p.userId === senderId);
+            if (playerIndex === -1) throw new Error("Player not found");
+            
+            const updatedPlayers = [...game.players];
+            updatedPlayers[playerIndex].lastActiveAt = Timestamp.now();
+
             if (game.silencedPlayerId === senderId) {
                 throw new Error("No puedes hablar, has sido silenciado esta ronda.");
             }
             
-            const textLowerCase = text.toLowerCase();
+            const textLowerCase = sanitizedText.toLowerCase();
             const mentionedPlayerIds = game.players
                 .filter(p => p.isAlive && textLowerCase.includes(p.displayName.toLowerCase()))
                 .map(p => p.userId);
             
             const messageData: ChatMessage = {
                 id: `${Date.now()}_${senderId}`,
-                senderId, senderName, text: text.trim(), round: game.currentRound,
+                senderId, senderName, text: sanitizedText, round: game.currentRound,
                 createdAt: Timestamp.now(), mentionedPlayerIds,
             };
 
-            transaction.update(gameRef, { chatMessages: arrayUnion(toPlainObject(messageData)) });
+            transaction.update(gameRef, { 
+                chatMessages: arrayUnion(toPlainObject(messageData)),
+                players: toPlainObject(updatedPlayers) 
+            });
         });
 
         if (!isFromAI && latestGame) {
-            const triggerMessage = `${senderName} dijo: "${text.trim()}"`;
+            const triggerMessage = `${senderName} dijo: "${sanitizedText}"`;
             await triggerAIChat(gameId, triggerMessage, 'public');
         }
 
@@ -504,6 +524,7 @@ async function sendSpecialChatMessage(
     }
 
     const gameRef = doc(adminDb, 'games', gameId);
+    const sanitizedText = sanitizeHTML(text.trim());
 
     try {
         await runTransaction(adminDb, async (transaction) => {
@@ -563,14 +584,23 @@ async function sendSpecialChatMessage(
             if (!canSend) {
                 throw new Error("No tienes permiso para enviar mensajes en este chat.");
             }
+            
+            const playerIndex = game.players.findIndex(p => p.userId === senderId);
+            const updatedPlayers = [...game.players];
+            if(playerIndex !== -1) {
+                updatedPlayers[playerIndex].lastActiveAt = Timestamp.now();
+            }
 
             const messageData: ChatMessage = {
                 id: `${Date.now()}_${senderId}`,
-                senderId, senderName, text: text.trim(),
+                senderId, senderName, text: sanitizedText,
                 round: game.currentRound, createdAt: Timestamp.now(),
             };
 
-            transaction.update(gameRef, { [chatField]: arrayUnion(toPlainObject(messageData)) });
+            transaction.update(gameRef, { 
+                [chatField]: arrayUnion(toPlainObject(messageData)),
+                players: toPlainObject(updatedPlayers)
+            });
         });
 
         return { success: true };
@@ -662,13 +692,6 @@ export async function processJuryVotes(gameId: string) {
     const gameRef = doc(adminDb, 'games', gameId) as DocumentReference<Game>;
     try {
         await runTransaction(adminDb, async (transaction) => {
-            const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found!");
-            const game = gameSnap.data()!;
-
-            if (game.phase !== 'jury_voting') return;
-            if (game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now()) return;
-
             await processJuryVotesEngine(transaction, gameRef);
         });
     } catch (e) {
@@ -716,6 +739,11 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
 
             if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId || game.status === 'finished') {
                 return;
+            }
+            
+            const hunterIndex = game.players.findIndex(p => p.userId === hunterId);
+            if(hunterIndex !== -1) {
+                game.players[hunterIndex].lastActiveAt = Timestamp.now();
             }
 
             const { updatedGame, triggeredHunterId: anotherHunterId } = await killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, targetId, 'hunter_shot', `En su último aliento, el Cazador dispara y se lleva consigo a ${game.players.find(p=>p.userId === targetId)?.displayName}.`);
@@ -796,6 +824,7 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
             
             const newPlayers = [...game.players];
             newPlayers[playerPublicDataIndex] = playerPublicData;
+            newPlayers[playerPublicDataIndex].lastActiveAt = Timestamp.now();
             
             transaction.update(gameRef, { players: toPlainObject(newPlayers) });
         });
@@ -826,6 +855,13 @@ export async function submitNightAction(data: {gameId: string, round: number, pl
             
             privateData.usedNightAbility = true;
             
+            const playerIndex = game.players.findIndex(p => p.userId === playerId);
+            if (playerIndex !== -1) {
+                const updatedPlayers = [...game.players];
+                updatedPlayers[playerIndex].lastActiveAt = Timestamp.now();
+                transaction.update(gameRef, { players: toPlainObject(updatedPlayers) });
+            }
+
             const newAction: NightAction = { ...data, createdAt: Timestamp.now() };
             transaction.update(gameRef, { nightActions: arrayUnion(toPlainObject(newAction)) });
             transaction.set(playerPrivateRef, privateData);
@@ -882,21 +918,22 @@ export async function sendGhostMessage(gameId: string, ghostId: string, targetId
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error("Game not found");
             const game = gameDoc.data() as Game;
-            const playerIndex = game.players.findIndex(p => p.userId === ghostId);
-            if (playerIndex === -1) throw new Error("Player not found.");
             
             const playerPrivateRef = doc(adminDb, `games/${gameId}/playerData/${ghostId}`);
             const playerPrivateSnap = await transaction.get(playerPrivateRef);
             if (!playerPrivateSnap.exists()) throw new Error("Player private data not found");
             const privateData = playerPrivateSnap.data() as PlayerPrivateData;
 
-            if (privateData.role !== 'ghost' || game.players[playerIndex].isAlive || privateData.ghostMessageSent) {
+            const publicDataIndex = game.players.findIndex(p => p.userId === ghostId);
+            if (publicDataIndex === -1) throw new Error("Player public data not found");
+
+            if (privateData.role !== 'ghost' || game.players[publicDataIndex].isAlive || privateData.ghostMessageSent) {
                 throw new Error("No tienes permiso para realizar esta acción.");
             }
             
             const ghostEvent: GameEvent = {
                 id: `evt_ghost_${Date.now()}`, gameId, round: game.currentRound, type: 'special',
-                message: `Has recibido un misterioso mensaje desde el más allá: "${message}"`,
+                message: `Has recibido un misterioso mensaje desde el más allá: "${sanitizeHTML(message)}"`,
                 createdAt: Timestamp.now(), data: { targetId: targetId, originalMessage: message },
             };
             
@@ -960,6 +997,7 @@ export async function updatePlayerAvatar(gameId: string, userId: string, newAvat
 
             const updatedPlayers = [...game.players];
             updatedPlayers[playerIndex].avatarUrl = newAvatarUrl;
+            updatedPlayers[playerIndex].lastActiveAt = Timestamp.now();
 
             transaction.update(gameRef, { players: toPlainObject(updatedPlayers), lastActiveAt: Timestamp.now() });
         });
@@ -969,4 +1007,50 @@ export async function updatePlayerAvatar(gameId: string, userId: string, newAvat
     }
 }
 
+export async function kickInactivePlayers(gameId: string) {
+    const gameRef = doc(adminDb, 'games', gameId) as DocumentReference<Game>;
+    const fiveMinutesAgo = Timestamp.fromMillis(Date.now() - 5 * 60 * 1000);
+
+    try {
+        await runTransaction(adminDb, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) return;
+            const game = gameSnap.data()!;
+
+            if (game.status !== 'in_progress') return;
+
+            const inactivePlayers = game.players.filter(p => p.isAlive && p.lastActiveAt && getMillis(p.lastActiveAt) < fiveMinutesAgo.toMillis());
+
+            if (inactivePlayers.length === 0) return;
+
+            let updatedGame = game;
+            let triggeredHunterId: string | null = null;
+            const batch = writeBatch(adminDb);
+            
+            for (const inactivePlayer of inactivePlayers) {
+                const result = await killPlayerUnstoppable(transaction, gameRef, updatedGame, inactivePlayer.userId, 'special', `${inactivePlayer.displayName} ha sido eliminado por inactividad.`);
+                updatedGame = result.updatedGame;
+                if (result.triggeredHunterId) triggeredHunterId = result.triggeredHunterId;
+                
+                const privatePlayerRef = doc(adminDb, `games/${gameId}/playerData/${inactivePlayer.userId}`);
+                batch.delete(privatePlayerRef);
+            }
+            
+            updatedGame.pendingHunterShot = triggeredHunterId;
+
+            const gameOverInfo = await checkGameOver(updatedGame);
+             if (gameOverInfo.isGameOver) {
+                updatedGame.status = "finished";
+                updatedGame.phase = "finished";
+                updatedGame.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: updatedGame.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: new Date() });
+            }
+            
+            transaction.set(gameRef, toPlainObject(updatedGame));
+            await batch.commit();
+        });
+
+    } catch (e: any) {
+        console.error(`Error kicking inactive players for game ${gameId}:`, e);
+    }
+}
     
