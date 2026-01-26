@@ -1,9 +1,8 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /games/{gameId} {
-      // Public game data is readable by any authenticated user.
+      // Public game data is readable by any authenticated user for lobbies.
       allow read: if request.auth != null;
 
       // Direct client writes are forbidden. All mutations must go through server actions.
