@@ -1,15 +1,11 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Game documents can be read by any authenticated user (for lobbies and game state).
-    // Client-side writes are DISALLOWED to enforce server-authoritative logic.
     match /games/{gameId} {
       allow read: if request.auth != null;
       allow write: if false; 
     }
-
-    // Player private data can only be read by the player themselves.
-    // Writes are disallowed to prevent cheating. All updates must go through server actions.
     match /games/{gameId}/playerData/{userId} {
       allow read: if request.auth.uid == userId;
       allow write: if false;
