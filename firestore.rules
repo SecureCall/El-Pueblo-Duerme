@@ -1,23 +1,24 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
     match /games/{gameId} {
-      // Allow public read only for games in the 'waiting' state.
-      // For all other states, the user must be a participant in the game.
+      // Public, waiting games are readable by anyone authenticated to find lobbies.
+      // Started games are only readable by players in that game.
       allow read: if (resource.data.status == 'waiting' && resource.data.settings.isPublic == true)
                   || (request.auth != null && exists(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid)));
 
-      // Disallow all client-side writes. All mutations must go through server actions.
+      // No client can write to the main game document. All mutations must go through server actions.
       allow write: if false;
     }
 
     match /games/{gameId}/playerData/{userId} {
-      // A player can only read their OWN private data.
+      // A player can only read their OWN private data document.
       allow read: if request.auth != null && request.auth.uid == userId;
 
-      // Disallow all client-side writes.
+      // Clients cannot write to any player data document.
       allow write: if false;
     }
   }
