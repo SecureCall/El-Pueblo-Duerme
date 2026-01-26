@@ -1,18 +1,17 @@
 
 'use client';
-
 import Link from 'next/link';
 import { Button } from './components/ui/button';
 import { JoinGameForm } from './components/JoinGameForm';
 import { PlaceHolderImages } from './lib/placeholder-images';
 import Image from 'next/image';
-import { BookOpen, Users, User, Tv } from 'lucide-react';
+import { BookOpen, Users } from 'lucide-react';
 import { GameMusic } from './components/game/GameMusic';
 import { useEffect } from 'react';
 import { playNarration } from './lib/sounds';
 
 export default function Home() {
-  const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
+  const bgImage = PlaceHolderImages.find((img) => img.id === 'home-background');
   
   useEffect(() => {
     playNarration('Que_comience_el_juego.mp3');
@@ -48,7 +47,7 @@ export default function Home() {
             Una noche más cae sobre el pueblo. Entre vosotros se esconden lobos. ¿Podréis descubrirlos antes de que sea tarde?
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full max-w-2xl">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-lg">
             <Button asChild size="lg" className="w-full font-bold text-lg">
               <Link href="/create">Crear Partida</Link>
             </Button>
@@ -58,22 +57,12 @@ export default function Home() {
             <Button asChild size="lg" variant="outline" className="w-full">
                <Link href="/how-to-play"><BookOpen className="mr-2 h-5 w-5"/> Cómo Jugar</Link>
             </Button>
-             <Button asChild size="lg" variant="outline" className="w-full">
-               <Link href="/profile"><User className="mr-2 h-5 w-5"/> Mi Perfil</Link>
-            </Button>
           </div>
           
           <div className="w-full max-w-md pt-8">
             <p className="mb-4 text-lg font-semibold text-white">O únete con un código:</p>
             <JoinGameForm />
           </div>
-           <div className="absolute bottom-4 right-4">
-              <Button asChild variant="ghost" size="sm">
-                <a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" target="_blank" rel="noopener noreferrer">
-                  <Tv className="mr-2 h-4 w-4" /> Ver en Directo
-                </a>
-              </Button>
-            </div>
         </main>
       </div>
     </>

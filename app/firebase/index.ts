@@ -1,7 +1,14 @@
 'use client';
 
-export * from './provider';
-export * from './client-provider';
+export {
+  FirebaseProvider,
+  useFirebase,
+  useAuth,
+  useFirestore,
+  useFirebaseApp,
+  useMemoFirebase,
+  useUser
+} from './provider';
 export * from './firestore/use-collection';
 export * from './firestore/use-doc';
 export * from './non-blocking-updates';
