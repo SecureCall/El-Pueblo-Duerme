@@ -11,7 +11,7 @@ import { useGameSession } from './use-game-session';
 // Combined state for the hook's return value
 interface CombinedGameState {
     game: Game | null;
-    players: PlayerPublicData[];
+    players: Player[];
     currentPlayer: Player | null;
     events: GameEvent[];
     messages: ChatMessage[];
@@ -59,18 +59,18 @@ export const useGameState = (gameId: string): CombinedGameState => {
     }
 
     if (game) {
-        const playersForState: PlayerPublicData[] = game.players;
-        let finalCurrentPlayer: Player | null = null;
-        
-        const selfPublicData = playersForState.find(p => p.userId === userId);
+        // Construct the full player list by combining public data with private data where available
+        const playersForState: Player[] = game.players.map(publicData => {
+            if (publicData.userId === userId && privateData) {
+                // This is the current user, merge public and private data
+                return { ...publicData, ...privateData };
+            }
+            // For other players, we only have public data, but we cast to Player for simplicity.
+            // The missing private fields will be `undefined`.
+            return { ...publicData } as Player;
+        });
 
-        if (selfPublicData && privateData) {
-            finalCurrentPlayer = { ...selfPublicData, ...privateData };
-        } else if (selfPublicData) {
-            // This might happen briefly before privateData loads
-            // We can construct a partial player object
-             finalCurrentPlayer = { ...selfPublicData } as Player;
-        }
+        const finalCurrentPlayer = playersForState.find(p => p.userId === userId) || null;
 
         setCombinedState({
             game,

@@ -4,9 +4,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function isPlayerInGame(gameId) {
-      // Check if the user's ID is in the public players array.
-      // This is a safe read as the `players` array only contains public data.
-      return request.auth != null && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p => p.userId == request.auth.uid);
+      return request.auth != null && exists(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid));
     }
 
     match /games/{gameId} {
