@@ -61,4 +61,10 @@ export const getMillis = (timestamp: any): number => {
     return 0;
 };
 
-    
+export const sanitizeHTML = (text: string) => {
+  // A simple sanitizer to prevent basic HTML injection.
+  // For production, a more robust library like DOMPurify (used on the client) would be better.
+  const element = document.createElement('div');
+  element.innerText = text;
+  return element.innerHTML;
+};

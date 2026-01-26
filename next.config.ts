@@ -1,3 +1,4 @@
+
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
@@ -11,9 +12,6 @@ const nextConfig: NextConfig = {
     ],
   },
   transpilePackages: ['lucide-react', 'recharts'],
-  experimental: {
-    optimizePackageImports: ['lucide-react', 'date-fns', 'recharts'],
-  },
 };
 
 export default nextConfig;

@@ -6,7 +6,7 @@ import { Button } from './components/ui/button';
 import { JoinGameForm } from './components/JoinGameForm';
 import { PlaceHolderImages } from './lib/placeholder-images';
 import Image from 'next/image';
-import { BookOpen, Users, User } from 'lucide-react';
+import { BookOpen, Users, User, Tv } from 'lucide-react';
 import { GameMusic } from './components/game/GameMusic';
 import { useEffect } from 'react';
 import { playNarration } from './lib/sounds';
@@ -67,6 +67,13 @@ export default function Home() {
             <p className="mb-4 text-lg font-semibold text-white">O únete con un código:</p>
             <JoinGameForm />
           </div>
+           <div className="absolute bottom-4 right-4">
+              <Button asChild variant="ghost" size="sm">
+                <a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" target="_blank" rel="noopener noreferrer">
+                  <Tv className="mr-2 h-4 w-4" /> Ver en Directo
+                </a>
+              </Button>
+            </div>
         </main>
       </div>
     </>

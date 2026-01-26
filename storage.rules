@@ -1,12 +1,13 @@
+
 rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
     match /{allPaths=**} {
-      // Allow public read for assets like avatars
+      // Allow public read for assets like avatars and role images.
       allow read;
-      // Disallow all client-side writes for now to keep it simple and secure.
-      // Avatars are pre-selected.
+      // Disallow all client-side writes to keep it simple and secure.
+      // Avatars and other assets are pre-loaded.
       allow write: if false;
     }
   }

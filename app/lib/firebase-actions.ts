@@ -27,7 +27,7 @@ import {
   type PlayerPublicData,
   type PlayerPrivateData
 } from "@/types";
-import { toPlainObject, getMillis } from "./utils";
+import { toPlainObject, getMillis, sanitizeHTML } from "./utils";
 import { masterActions } from "./master-actions";
 import { secretObjectives } from "./objectives";
 import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine, generateRoles } from './game-engine';
@@ -37,10 +37,6 @@ import { adminDb } from './firebase-admin';
 
 
 const PHASE_DURATION_SECONDS = 60;
-
-const sanitizeHTML = (text: string) => {
-  return text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-};
 
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -764,7 +760,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
                 return;
             }
 
-            const hunterDeathEvent = [...game.events].sort((a, b) => toPlainObject(b.createdAt) - toPlainObject(a.createdAt)).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
+            const hunterDeathEvent = [...game.events].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)).find(e => (e.data?.killedPlayerIds?.includes(hunterId) || e.data?.lynchedPlayerId === hunterId));
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
             const nextRound = nextPhase === 'night' ? game.currentRound + 1 : game.currentRound;
 
