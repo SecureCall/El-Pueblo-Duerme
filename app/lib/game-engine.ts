@@ -1,11 +1,11 @@
 
-
 'use server';
 
 import { 
   Timestamp,
   type Transaction,
   DocumentReference,
+  doc,
   increment
 } from "firebase/firestore";
 import { 
@@ -83,6 +83,144 @@ async function getFullPlayersTransactional(transaction: Transaction, gameId: str
     return fullPlayers;
 }
 
+async function performKill(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, players: Player[], playerIdToKill: string | null, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; updatedPlayers: Player[]; triggeredHunterId: string | null; }> {
+    let newGameData = { ...gameData };
+    let newPlayers = [...players];
+    let triggeredHunterId: string | null = null;
+    
+    if (!playerIdToKill) return { updatedGame: newGameData, updatedPlayers: newPlayers, triggeredHunterId };
+
+    const killQueue: {id: string, cause: GameEvent['type'], message?: string}[] = [{id: playerIdToKill, cause, message: customMessage}];
+    const alreadyProcessed = new Set<string>();
+
+    while (killQueue.length > 0) {
+        const {id: currentIdToKill, cause: currentCause, message: currentMessage} = killQueue.shift()!;
+        if (!currentIdToKill || alreadyProcessed.has(currentIdToKill)) {
+            continue;
+        }
+
+        const playerIndex = newPlayers.findIndex((p: Player) => p.userId === currentIdToKill);
+        if (playerIndex === -1 || !newPlayers[playerIndex].isAlive) {
+            continue;
+        }
+        
+        alreadyProcessed.add(currentIdToKill);
+        const playerToKill = { ...newPlayers[playerIndex] };
+        
+        newPlayers[playerIndex].isAlive = false;
+        
+        const deathMessage = currentMessage || `${playerToKill.displayName} ha muerto. Su rol era: ${roleDetails[playerToKill.role!]?.name || 'Desconocido'}`;
+
+        newGameData.events.push({
+            id: `evt_${currentCause}_${Date.now()}_${currentIdToKill}`,
+            gameId: newGameData.id!, round: newGameData.currentRound, type: currentCause,
+            message: deathMessage,
+            data: { killedPlayerIds: [currentIdToKill], revealedRole: playerToKill.role }, createdAt: new Date(),
+        });
+        
+        // Shapeshifter transformation logic
+        const shapeshifterIndex = newPlayers.findIndex((p: Player) => 
+            p.isAlive && 
+            p.role === 'shapeshifter' && 
+            p.shapeshifterTargetId === playerToKill.userId
+        );
+
+        if (shapeshifterIndex !== -1 && playerToKill.role) {
+            const shifter = newPlayers[shapeshifterIndex];
+            const newRole = playerToKill.role;
+            
+            // Update the local mutable copy of players
+            newPlayers[shapeshifterIndex].role = newRole;
+            newPlayers[shapeshifterIndex].shapeshifterTargetId = null; 
+            
+            // Update the private data on Firestore within the transaction
+            const shifterPrivateRef = doc(adminDb, 'games', newGameData.id, 'playerData', shifter.userId);
+            transaction.update(shifterPrivateRef, {
+                role: newRole,
+                shapeshifterTargetId: null,
+            });
+
+            newGameData.events.push({ 
+                id: `evt_transform_${Date.now()}_${shifter.userId}`,
+                gameId: newGameData.id, 
+                round: newGameData.currentRound, 
+                type: 'special',
+                message: `¡Has cambiado de forma! Ahora eres: ${roleDetails[newRole]?.name || 'un rol desconocido'}. Tu nuevo objetivo es ganar con tu nuevo equipo.`,
+                data: { targetId: shifter.userId }, // This makes the event private to the shapeshifter
+                createdAt: new Date(),
+            });
+        }
+        
+        // Post-death triggers
+        if (playerToKill.role === 'seer' && newGameData.settings.seer_apprentice) newGameData.seerDied = true;
+        if (playerToKill.role === 'hunter' && newGameData.settings.hunter && !triggeredHunterId) triggeredHunterId = playerToKill.userId;
+        if (playerToKill.role === 'leprosa' && currentCause === 'werewolf_kill') newGameData.leprosaBlockedRound = newGameData.currentRound + 1;
+        if (playerToKill.role === 'wolf_cub') newGameData.wolfCubRevengeRound = newGameData.currentRound;
+
+        const checkAndQueueChainDeath = (linkedIds: (string[] | null | undefined), deadPlayer: Player, messageTemplate: string, eventType: GameEvent['type']) => {
+            if (!linkedIds || !linkedIds.includes(deadPlayer.userId)) return;
+
+            const otherId = linkedIds.find(id => id !== deadPlayer.userId);
+            const otherPlayer = otherId ? newPlayers.find(p => p.userId === otherId) : undefined;
+            
+            if (otherPlayer && otherPlayer.isAlive && !alreadyProcessed.has(otherId!) && !killQueue.some(k => k.id === otherId)) {
+                killQueue.push({
+                    id: otherId!,
+                    cause: eventType,
+                    message: messageTemplate.replace('{otherName}', otherPlayer.displayName).replace('{victimName}', deadPlayer.displayName),
+                });
+            }
+        };
+        
+        if (playerToKill.isLover && newGameData.lovers) {
+             const otherLoverId = newGameData.lovers.find(id => id !== playerToKill.userId);
+             if (otherLoverId) {
+                checkAndQueueChainDeath([playerToKill.userId, otherLoverId], playerToKill, 'Por un amor eterno, {otherName} se quita la vida tras la muerte de {victimName}.', 'lover_death');
+             }
+        }
+        
+        if (playerToKill.virginiaWoolfTargetId) {
+             checkAndQueueChainDeath([playerToKill.userId, playerToKill.virginiaWoolfTargetId], playerToKill, 'Arrastrado por un vínculo fatal, {otherName} muere junto a {victimName}.', 'special');
+        }
+    }
+    
+    return { updatedGame: newGameData, updatedPlayers: newPlayers, triggeredHunterId };
+}
+
+
+export async function killPlayer(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, players: Player[], playerIdToKill: string, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; updatedPlayers: Player[]; triggeredHunterId: string | null; }> {
+    const playerToKill = players.find(p => p.userId === playerIdToKill);
+    if (!playerToKill || !playerToKill.isAlive) return { updatedGame: gameData, updatedPlayers: players, triggeredHunterId: null };
+
+    if (cause === 'vote_result' && playerToKill.role === 'prince' && gameData.settings.prince && !playerToKill.princeRevealed) {
+        const playerIndex = players.findIndex(p => p.userId === playerIdToKill);
+        if (playerIndex > -1) {
+            let updatedGame = { ...gameData };
+            let updatedPlayers = [...players];
+            updatedPlayers[playerIndex].princeRevealed = true;
+            
+            const playerPublicRef = doc(adminDb, 'games', gameData.id, 'players', playerIdToKill);
+            transaction.update(playerPublicRef, { princeRevealed: true });
+
+            updatedGame.events.push({
+                id: `evt_prince_reveal_${Date.now()}`,
+                gameId: gameData.id,
+                round: gameData.currentRound,
+                type: 'vote_result',
+                message: `${playerToKill.displayName} ha sido sentenciado, ¡pero revela su identidad como Príncipe y sobrevive!`,
+                createdAt: new Date(),
+                data: { lynchedPlayerId: null, final: true, revealedPlayerId: playerIdToKill },
+            });
+            return { updatedGame, updatedPlayers, triggeredHunterId: null };
+        }
+    }
+    
+    return performKill(transaction, gameRef, gameData, players, playerIdToKill, cause, customMessage);
+}
+
+export async function killPlayerUnstoppable(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, players: Player[], playerIdToKill: string, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; updatedPlayers: Player[]; triggeredHunterId: string | null; }> {
+    return performKill(transaction, gameRef, gameData, players, playerIdToKill, cause, customMessage);
+}
 
 export async function processNightEngine(transaction: Transaction, gameRef: DocumentReference<Game>, game: Game, fullPlayers: Player[]) {
   
@@ -245,13 +383,16 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
       mutableGame.status = "finished";
       mutableGame.phase = "finished";
       mutableGame.events.push({ id: `evt_gameover_${Date.now()}`, gameId: mutableGame.id, round: mutableGame.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: new Date() });
-      transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: mutableGame.players, events: mutableGame.events }));
+      
+      const {publicPlayersData} = splitFullPlayerList(mutableFullPlayers);
+      transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: publicPlayersData, events: mutableGame.events }));
       return;
   }
 
   if (triggeredHunterId) {
       mutableGame.pendingHunterShot = triggeredHunterId;
-      transaction.update(gameRef, toPlainObject({ players: mutableGame.players, events: mutableGame.events, phase: 'hunter_shot', pendingHunterShot: mutableGame.pendingHunterShot }));
+      const {publicPlayersData} = splitFullPlayerList(mutableFullPlayers);
+      transaction.update(gameRef, toPlainObject({ players: publicPlayersData, events: mutableGame.events, phase: 'hunter_shot', pendingHunterShot: mutableGame.pendingHunterShot }));
       return;
   }
   
@@ -270,15 +411,14 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
 
   mutableFullPlayers.forEach((p: Player) => { 
     const playerPrivateRef = doc(adminDb, 'games', mutableGame.id, 'playerData', p.userId);
-    transaction.update(playerPrivateRef, { usedNightAbility: false, isExiled: false });
+    transaction.update(playerPrivateRef, { usedNightAbility: false });
   });
+  
+  mutableGame.exiledPlayerId = null;
 
   const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
   
-  const publicPlayersData: PlayerPublicData[] = mutableFullPlayers.map((p: Player) => {
-    const { privateData, ...publicData } = splitPlayerData(p);
-    return publicData;
-  });
+  const {publicPlayersData} = splitFullPlayerList(mutableFullPlayers);
 
   transaction.update(gameRef, toPlainObject({
       players: publicPlayersData,
@@ -322,9 +462,12 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
     
     if (mostVotedPlayerIds.length > 1 && !isTiebreaker) {
         game.events.push({ id: `evt_vote_tie_${game.currentRound}`, gameId: game.id, round: game.currentRound, type: 'vote_result', message: `¡La votación resultó en un empate! Se requiere una segunda votación solo entre los siguientes jugadores: ${mostVotedPlayerIds.map(id => game.players.find(p=>p.userId === id)?.displayName).join(', ')}.`, data: { tiedPlayerIds: mostVotedPlayerIds, final: false }, createdAt: new Date() });
-        fullPlayers.forEach(p => { p.votedFor = null; });
+        fullPlayers.forEach(p => { 
+            const playerPrivateRef = doc(adminDb, 'games', game.id, 'playerData', p.userId);
+            transaction.update(playerPrivateRef, { votedFor: null });
+        });
         const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
-        transaction.update(gameRef, toPlainObject({ players: game.players.map(p => ({...p, votedFor: null})), events: game.events, phaseEndsAt }));
+        transaction.update(gameRef, toPlainObject({ events: game.events, phaseEndsAt }));
         return;
     }
 
@@ -332,7 +475,7 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
          game.phase = "jury_voting";
          game.events.push({ id: `evt_jury_vote_${game.currentRound}`, gameId: game.id, round: game.currentRound, type: 'vote_result', message: `¡El pueblo sigue dividido! Los espíritus de los caídos emitirán el voto final para decidir el destino de: ${mostVotedPlayerIds.map(id => game.players.find(p => p.userId === id)?.displayName).join(' o ')}.`, data: { tiedPlayerIds: mostVotedPlayerIds, final: false }, createdAt: new Date() });
          const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
-         transaction.update(gameRef, toPlainObject({ events: game.events, phase: "jury_voting", phaseEndsAt, players: game.players.map(p => ({...p, votedFor: null})) }));
+         transaction.update(gameRef, toPlainObject({ events: game.events, phase: "jury_voting", phaseEndsAt }));
          return;
     }
 
@@ -355,13 +498,13 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
         game.status = "finished";
         game.phase = "finished";
         game.events.push({ id: `evt_gameover_${Date.now()}`, gameId: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: new Date() });
-        transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: game.players, events: game.events }));
+        transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', events: game.events }));
         return;
     }
 
     if (triggeredHunterId) {
         game.pendingHunterShot = triggeredHunterId;
-        transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot }));
+        transaction.update(gameRef, toPlainObject({ events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot }));
         return;
     }
 
@@ -369,7 +512,6 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
 
     transaction.update(gameRef, toPlainObject({
         ...game,
-        players: game.players.map(p => ({...p, votedFor: null})),
         phase: 'night',
         currentRound: game.currentRound + 1,
         phaseEndsAt
@@ -440,107 +582,6 @@ export async function processJuryVotesEngine(transaction: Transaction, gameRef: 
     transaction.update(gameRef, toPlainObject({
         ...game, phase: 'night', currentRound: game.currentRound + 1, phaseEndsAt, players: game.players.map(p => ({...p, votedFor: null}))
     }));
-}
-
-async function performKill(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, players: Player[], playerIdToKill: string | null, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; updatedPlayers: Player[]; triggeredHunterId: string | null; }> {
-    let newGameData = { ...gameData };
-    let newPlayers = [...players];
-    let triggeredHunterId: string | null = null;
-    
-    if (!playerIdToKill) return { updatedGame: newGameData, updatedPlayers: newPlayers, triggeredHunterId };
-
-    const killQueue: {id: string, cause: GameEvent['type'], message?: string}[] = [{id: playerIdToKill, cause, message: customMessage}];
-    const alreadyProcessed = new Set<string>();
-
-    while (killQueue.length > 0) {
-        const {id: currentIdToKill, cause: currentCause, message: currentMessage} = killQueue.shift()!;
-        if (!currentIdToKill || alreadyProcessed.has(currentIdToKill)) {
-            continue;
-        }
-
-        const playerIndex = newPlayers.findIndex((p: Player) => p.userId === currentIdToKill);
-        if (playerIndex === -1 || !newPlayers[playerIndex].isAlive) {
-            continue;
-        }
-        
-        alreadyProcessed.add(currentIdToKill);
-        const playerToKill = { ...newPlayers[playerIndex] };
-        
-        newPlayers[playerIndex].isAlive = false;
-        
-        const deathMessage = currentMessage || `${playerToKill.displayName} ha muerto. Su rol era: ${roleDetails[playerToKill.role!]?.name || 'Desconocido'}`;
-
-        newGameData.events.push({
-            id: `evt_${currentCause}_${Date.now()}_${currentIdToKill}`,
-            gameId: newGameData.id!, round: newGameData.currentRound, type: currentCause,
-            message: deathMessage,
-            data: { killedPlayerIds: [currentIdToKill], revealedRole: playerToKill.role }, createdAt: new Date(),
-        });
-        
-        if (playerToKill.role === 'seer' && newGameData.settings.seer_apprentice) newGameData.seerDied = true;
-        if (playerToKill.role === 'hunter' && newGameData.settings.hunter && !triggeredHunterId) triggeredHunterId = playerToKill.userId;
-        if (playerToKill.role === 'leprosa' && currentCause === 'werewolf_kill') newGameData.leprosaBlockedRound = newGameData.currentRound + 1;
-        if (playerToKill.role === 'wolf_cub') newGameData.wolfCubRevengeRound = newGameData.currentRound;
-
-        const checkAndQueueChainDeath = (linkedIds: (string[] | null | undefined), deadPlayer: Player, messageTemplate: string, eventType: GameEvent['type']) => {
-            if (!linkedIds || !linkedIds.includes(deadPlayer.userId)) return;
-
-            const otherId = linkedIds.find(id => id !== deadPlayer.userId);
-            const otherPlayer = otherId ? newPlayers.find(p => p.userId === otherId) : undefined;
-            
-            if (otherPlayer && otherPlayer.isAlive && !alreadyProcessed.has(otherId!) && !killQueue.some(k => k.id === otherId)) {
-                killQueue.push({
-                    id: otherId!,
-                    cause: eventType,
-                    message: messageTemplate.replace('{otherName}', otherPlayer.displayName).replace('{victimName}', deadPlayer.displayName),
-                });
-            }
-        };
-        
-        if (playerToKill.isLover && newGameData.lovers) {
-             const otherLoverId = newGameData.lovers.find(id => id !== playerToKill.userId);
-             if (otherLoverId) {
-                checkAndQueueChainDeath([playerToKill.userId, otherLoverId], playerToKill, 'Por un amor eterno, {otherName} se quita la vida tras la muerte de {victimName}.', 'lover_death');
-             }
-        }
-        
-        if (playerToKill.virginiaWoolfTargetId) {
-             checkAndQueueChainDeath([playerToKill.userId, playerToKill.virginiaWoolfTargetId], playerToKill, 'Arrastrado por un vínculo fatal, {otherName} muere junto a {victimName}.', 'special');
-        }
-    }
-    
-    return { updatedGame: newGameData, updatedPlayers: newPlayers, triggeredHunterId };
-}
-
-
-export async function killPlayer(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, players: Player[], playerIdToKill: string, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; updatedPlayers: Player[]; triggeredHunterId: string | null; }> {
-    const playerToKill = players.find(p => p.userId === playerIdToKill);
-    if (!playerToKill || !playerToKill.isAlive) return { updatedGame: gameData, updatedPlayers: players, triggeredHunterId: null };
-
-    if (cause === 'vote_result' && playerToKill.role === 'prince' && gameData.settings.prince && !playerToKill.princeRevealed) {
-        const playerIndex = players.findIndex(p => p.userId === playerIdToKill);
-        if (playerIndex > -1) {
-            let updatedGame = { ...gameData };
-            let updatedPlayers = [...players];
-            updatedPlayers[playerIndex].princeRevealed = true;
-            updatedGame.events.push({
-                id: `evt_prince_reveal_${Date.now()}`,
-                gameId: gameData.id,
-                round: gameData.currentRound,
-                type: 'vote_result',
-                message: `${playerToKill.displayName} ha sido sentenciado, ¡pero revela su identidad como Príncipe y sobrevive!`,
-                createdAt: new Date(),
-                data: { lynchedPlayerId: null, final: true, revealedPlayerId: playerIdToKill },
-            });
-            return { updatedGame, updatedPlayers, triggeredHunterId: null };
-        }
-    }
-    
-    return performKill(transaction, gameRef, gameData, players, playerIdToKill, cause, customMessage);
-}
-
-export async function killPlayerUnstoppable(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, players: Player[], playerIdToKill: string, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; updatedPlayers: Player[]; triggeredHunterId: string | null; }> {
-    return performKill(transaction, gameRef, gameData, players, playerIdToKill, cause, customMessage);
 }
 
 
@@ -618,3 +659,60 @@ export async function checkGameOver(transaction: Transaction, gameData: Game, ly
 
     return { isGameOver: false, message: "", winners: [] };
 }
+
+
+const getActionPriority = (actionType: NightActionType) => {
+    switch (actionType) {
+        case 'silencer_silence':
+        case 'elder_leader_exile':
+            return 1;
+        case 'priest_bless':
+        case 'guardian_protect':
+        case 'doctor_heal':
+            return 2;
+        case 'werewolf_kill':
+        case 'hechicera_poison':
+        case 'fairy_kill':
+        case 'vampire_bite':
+            return 3;
+        case 'hechicera_save':
+            return 4;
+        case 'seer_check':
+        case 'cult_recruit':
+        case 'witch_hunt':
+        case 'lookout_spy':
+        case 'banshee_scream':
+        case 'fairy_find':
+            return 5;
+        default:
+            return 99; // Actions that don't need ordering
+    }
+}
+
+const splitPlayerData = (player: Player): { publicData: PlayerPublicData, privateData: PlayerPrivateData } => {
+  const { 
+    userId, gameId, displayName, avatarUrl, isAlive, isAI, 
+    princeRevealed, joinedAt, votedFor, lastActiveAt,
+    ...privateData
+  } = player;
+
+  const publicData: PlayerPublicData = {
+    userId, gameId, displayName, avatarUrl, isAlive, isAI,
+    princeRevealed, joinedAt, votedFor, lastActiveAt
+  };
+
+  return { publicData, privateData };
+}
+
+const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: PlayerPublicData[], privatePlayersData: Record<string, PlayerPrivateData> } => {
+    const publicPlayersData: PlayerPublicData[] = [];
+    const privatePlayersData: Record<string, PlayerPrivateData> = {};
+
+    fullPlayers.forEach(player => {
+        const { publicData, privateData } = splitPlayerData(player);
+        publicPlayersData.push(publicData);
+        privatePlayersData[player.userId] = privateData;
+    });
+
+    return { publicPlayersData, privatePlayersData };
+};
