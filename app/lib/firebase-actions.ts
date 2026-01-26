@@ -29,7 +29,7 @@ import {
 import { toPlainObject, getMillis, sanitizeHTML } from "./utils";
 import { masterActions } from "./master-actions";
 import { secretObjectives } from "./objectives";
-import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
+import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine, generateRoles } from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { runAIActions, runAIHunterShot } from "./ai-actions";
 import { adminDb } from './firebase-admin';
@@ -955,7 +955,7 @@ export async function submitJuryVote(gameId: string, voterId: string, targetId: 
     }
 }
 
-export async function sendGhostMessage(gameId: string, ghostId: string, targetId: string, message: string) {
+export async function sendGhostMessage(gameId: string, ghostId: string, recipientId: string, template: string, subjectId?: string) {
     const gameRef = doc(adminDb, 'games', gameId);
     try {
         await runTransaction(adminDb, async (transaction) => {
@@ -963,24 +963,27 @@ export async function sendGhostMessage(gameId: string, ghostId: string, targetId
             if (!gameDoc.exists()) throw new Error("Game not found");
             const game = gameDoc.data() as Game;
             
-            if (message.length > 280) throw new Error("El mensaje no puede superar los 280 caracteres.");
-
             const playerPrivateRef = doc(adminDb, `games/${gameId}/playerData/${ghostId}`);
             const playerPrivateSnap = await transaction.get(playerPrivateRef);
             if (!playerPrivateSnap.exists()) throw new Error("Player private data not found");
             const privateData = playerPrivateSnap.data() as PlayerPrivateData;
 
             const publicData = game.players.find(p => p.userId === ghostId);
-            if (!publicData) throw new Error("Player public data not found");
-
-            if (privateData.role !== 'ghost' || publicData.isAlive || privateData.ghostMessageSent) {
+            if (!publicData || publicData.isAlive || privateData.ghostMessageSent) {
                 throw new Error("No tienes permiso para realizar esta acción.");
             }
             
+            let finalMessage = sanitizeHTML(template);
+            if (template.includes('{player}') && subjectId) {
+                const subjectPlayer = game.players.find(p => p.userId === subjectId);
+                if (!subjectPlayer) throw new Error("Subject player not found");
+                finalMessage = template.replace('{player}', subjectPlayer.displayName);
+            }
+
             const ghostEvent: GameEvent = {
                 id: `evt_ghost_${Date.now()}`, gameId, round: game.currentRound, type: 'special',
-                message: `Has recibido un misterioso mensaje desde el más allá: "${sanitizeHTML(message)}"`,
-                createdAt: Timestamp.now(), data: { targetId: targetId, originalMessage: message },
+                message: `Has recibido un misterioso mensaje desde el más allá: "${finalMessage}"`,
+                createdAt: Timestamp.now(), data: { targetId: recipientId, originalMessage: finalMessage },
             };
             
             privateData.ghostMessageSent = true;
@@ -992,6 +995,7 @@ export async function sendGhostMessage(gameId: string, ghostId: string, targetId
         return { success: false, error: (error as Error).message };
     }
 }
+
 
 export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
     const gameDoc = await getDoc(doc(adminDb, 'games', gameId));
@@ -1095,3 +1099,4 @@ const splitPlayerDataList = (fullPlayers: Player[]): { publicPlayersData: Player
 
     return { publicPlayersData, privatePlayersData };
 };
+

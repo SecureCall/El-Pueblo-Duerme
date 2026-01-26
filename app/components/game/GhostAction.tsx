@@ -9,7 +9,6 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Ghost, Loader2 } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
 
 interface GhostActionProps {
     game: Game;
@@ -17,29 +16,37 @@ interface GhostActionProps {
     players: Player[];
 }
 
+const GHOST_TEMPLATES = [
+    { value: "Confía en {player}.", needsSubject: true },
+    { value: "No confíes en {player}.", needsSubject: true },
+    { value: "El voto contra {player} fue un error.", needsSubject: true },
+    { value: "La Vidente debería investigar a {player}.", needsSubject: true },
+    { value: "El pueblo se equivoca.", needsSubject: false },
+    { value: "Hay un lobo entre vosotros que nadie sospecha.", needsSubject: false },
+];
+
+
 export function GhostAction({ game, currentPlayer, players }: GhostActionProps) {
-    const [targetId, setTargetId] = useState('');
-    const [message, setMessage] = useState('');
+    const [recipientId, setRecipientId] = useState('');
+    const [template, setTemplate] = useState('');
+    const [subjectId, setSubjectId] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
 
     const handleSubmit = async () => {
-        if (!targetId) {
-            toast({ variant: "destructive", title: "Debes elegir a un jugador." });
+        const selectedTemplate = GHOST_TEMPLATES.find(t => t.value === template);
+        if (!recipientId || !template) {
+            toast({ variant: "destructive", title: "Debes seleccionar un destinatario y un mensaje." });
             return;
         }
-        if (!message.trim()) {
-            toast({ variant: "destructive", title: "Tu mensaje no puede estar vacío." });
-            return;
-        }
-         if (message.length > 280) {
-            toast({ variant: "destructive", title: "El mensaje es demasiado largo (máx. 280 caracteres)." });
+        if (selectedTemplate?.needsSubject && !subjectId) {
+            toast({ variant: "destructive", title: "Debes elegir un jugador para señalar en el mensaje." });
             return;
         }
 
 
         setIsSubmitting(true);
-        const result = await sendGhostMessage(game.id, currentPlayer.userId, targetId, message);
+        const result = await sendGhostMessage(game.id, currentPlayer.userId, recipientId, template, subjectId || undefined);
         setIsSubmitting(false);
 
         if (result.success) {
@@ -48,6 +55,9 @@ export function GhostAction({ game, currentPlayer, players }: GhostActionProps) 
             toast({ variant: "destructive", title: "Error", description: result.error });
         }
     };
+    
+    const selectedTemplateObject = GHOST_TEMPLATES.find(t => t.value === template);
+    const needsSubject = !!selectedTemplateObject?.needsSubject;
 
     return (
         <Card className="mt-8 bg-blue-900/20 border-blue-400/40">
@@ -61,11 +71,11 @@ export function GhostAction({ game, currentPlayer, players }: GhostActionProps) 
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                <div>
-                    <label className="text-sm font-medium mb-2 block">Elige a quién enviar la carta:</label>
-                     <Select onValueChange={setTargetId} value={targetId}>
+                 <div>
+                    <label className="text-sm font-medium mb-2 block">Elige un destinatario:</label>
+                     <Select onValueChange={setRecipientId} value={recipientId}>
                         <SelectTrigger>
-                            <SelectValue placeholder="Selecciona un jugador vivo..." />
+                            <SelectValue placeholder="Selecciona a un jugador vivo..." />
                         </SelectTrigger>
                         <SelectContent>
                             {players.map(player => (
@@ -77,20 +87,42 @@ export function GhostAction({ game, currentPlayer, players }: GhostActionProps) 
                     </Select>
                 </div>
                  <div>
-                    <label className="text-sm font-medium mb-2 block">Escribe tu mensaje (máx. 280 caracteres):</label>
-                    <Textarea 
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        placeholder="Susurra tu sabiduría, siembra la duda, o confunde a todos..."
-                        maxLength={280}
-                        rows={4}
-                    />
+                    <label className="text-sm font-medium mb-2 block">Elige tu mensaje críptico:</label>
+                    <Select onValueChange={setTemplate} value={template}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Selecciona una plantilla de mensaje..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {GHOST_TEMPLATES.map(t => (
+                                <SelectItem key={t.value} value={t.value}>
+                                    {t.value.replace('{player}', '...')}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
+                 {needsSubject && (
+                    <div>
+                        <label className="text-sm font-medium mb-2 block">¿A qué jugador quieres señalar?</label>
+                        <Select onValueChange={setSubjectId} value={subjectId}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Selecciona un jugador..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {players.map(player => (
+                                    <SelectItem key={player.userId} value={player.userId}>
+                                        {player.displayName}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )}
                
                 <Button 
                     className="w-full"
                     onClick={handleSubmit}
-                    disabled={isSubmitting || !targetId || !message.trim()}
+                    disabled={isSubmitting || !recipientId || !template || (needsSubject && !subjectId)}
                 >
                     {isSubmitting ? <Loader2 className="animate-spin" /> : "Enviar Mensaje Espectral"}
                 </Button>
@@ -98,3 +130,4 @@ export function GhostAction({ game, currentPlayer, players }: GhostActionProps) 
         </Card>
     );
 }
+
