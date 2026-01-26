@@ -10,11 +10,7 @@
       "**/.*",
       "**/node_modules/**",
       "firebase-debug.log",
-      ".env*",
-      "**/*.ts",
-      "**/*.tsx",
-      "tsconfig.json",
-      "tailwind.config.ts"
+      ".env*"
     ],
     "frameworksBackend": {
       "region": "us-central1"
