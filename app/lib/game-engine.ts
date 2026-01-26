@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { 
@@ -12,6 +13,7 @@ import {
   type Game, 
   type Player, 
   type GameEvent, type PlayerRole, type PlayerPublicData, type PlayerPrivateData,
+  type NightActionType,
 } from "@/types";
 import { toPlainObject, getMillis } from "@/lib/utils";
 import { roleDetails } from "./roles";
@@ -460,23 +462,32 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
         }
     }
     
-    if (mostVotedPlayerIds.length > 1 && !isTiebreaker) {
-        game.events.push({ id: `evt_vote_tie_${game.currentRound}`, gameId: game.id, round: game.currentRound, type: 'vote_result', message: `¡La votación resultó en un empate! Se requiere una segunda votación solo entre los siguientes jugadores: ${mostVotedPlayerIds.map(id => game.players.find(p=>p.userId === id)?.displayName).join(', ')}.`, data: { tiedPlayerIds: mostVotedPlayerIds, final: false }, createdAt: new Date() });
-        fullPlayers.forEach(p => { 
-            const playerPrivateRef = doc(adminDb, 'games', game.id, 'playerData', p.userId);
-            transaction.update(playerPrivateRef, { votedFor: null });
-        });
-        const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
-        transaction.update(gameRef, toPlainObject({ events: game.events, phaseEndsAt }));
-        return;
-    }
-
-    if (mostVotedPlayerIds.length > 1 && isTiebreaker && game.settings.juryVoting) {
-         game.phase = "jury_voting";
-         game.events.push({ id: `evt_jury_vote_${game.currentRound}`, gameId: game.id, round: game.currentRound, type: 'vote_result', message: `¡El pueblo sigue dividido! Los espíritus de los caídos emitirán el voto final para decidir el destino de: ${mostVotedPlayerIds.map(id => game.players.find(p => p.userId === id)?.displayName).join(' o ')}.`, data: { tiedPlayerIds: mostVotedPlayerIds, final: false }, createdAt: new Date() });
-         const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
-         transaction.update(gameRef, toPlainObject({ events: game.events, phase: "jury_voting", phaseEndsAt }));
-         return;
+    if (mostVotedPlayerIds.length > 1) { // A tie has occurred
+        if (!isTiebreaker) {
+            // First tie -> start a tiebreaker vote.
+            game.events.push({ id: `evt_vote_tie_${game.currentRound}`, gameId: game.id, round: game.currentRound, type: 'vote_result', message: `¡La votación resultó en un empate! Se requiere una segunda votación solo entre los siguientes jugadores: ${mostVotedPlayerIds.map(id => game.players.find(p=>p.userId === id)?.displayName).join(', ')}.`, data: { tiedPlayerIds: mostVotedPlayerIds, final: false }, createdAt: new Date() });
+            
+            // Reset votes for everyone
+            fullPlayers.forEach(p => { 
+                const playerPrivateRef = doc(adminDb, 'games', game.id, 'playerData', p.userId);
+                transaction.update(playerPrivateRef, { votedFor: null });
+            });
+            const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
+            transaction.update(gameRef, toPlainObject({ events: game.events, phaseEndsAt }));
+            return;
+        } else { // This is a tiebreaker vote that resulted in another tie
+            if (game.settings.juryVoting) {
+                // Second tie -> jury vote
+                game.phase = "jury_voting";
+                game.events.push({ id: `evt_jury_vote_${game.currentRound}`, gameId: game.id, round: game.currentRound, type: 'vote_result', message: `¡El pueblo sigue dividido! Los espíritus de los caídos emitirán el voto final para decidir el destino de: ${mostVotedPlayerIds.map(id => game.players.find(p => p.userId === id)?.displayName).join(' o ')}.`, data: { tiedPlayerIds: mostVotedPlayerIds, final: false }, createdAt: new Date() });
+                const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
+                transaction.update(gameRef, toPlainObject({ events: game.events, phase: "jury_voting", phaseEndsAt }));
+                return;
+            } else {
+                // Second tie & no jury -> no one is lynched.
+                mostVotedPlayerIds = []; // This will make lynchedPlayerId null
+            }
+        }
     }
 
     let lynchedPlayerId: string | null = mostVotedPlayerIds[0] || null;
@@ -484,8 +495,9 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
     let triggeredHunterId: string | null = null;
 
     if (lynchedPlayerId) {
-        const { updatedGame, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, fullPlayers, lynchedPlayerId, 'vote_result', `El pueblo ha hablado. ${game.players.find(p => p.userId === lynchedPlayerId)?.displayName} ha sido linchado.`);
+        const { updatedGame, updatedPlayers, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, fullPlayers, lynchedPlayerId, 'vote_result', `El pueblo ha hablado. ${game.players.find(p => p.userId === lynchedPlayerId)?.displayName} ha sido linchado.`);
         game = updatedGame;
+        fullPlayers = updatedPlayers;
         triggeredHunterId = newHunterId;
         lynchedPlayerObject = fullPlayers.find(p => p.userId === lynchedPlayerId) || null;
     } else {
