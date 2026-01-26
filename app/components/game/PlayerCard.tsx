@@ -11,17 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { roleDetails, defaultRoleDetail } from "@/lib/roles";
 import Image from "next/image";
-
-function VampireIcon(props: React.SVGProps<SVGSVGElement>) {
-    return (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="0.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-            <path d="M12.4,2.39,12,1.5,11.6.2.39A1.21,1.21,0,0,0,10.5,3.5a1.18,1.18,0,0,0,1,1,1.17,1.17,0,0,0,1-1A1.21,1.21,0,0,0,12.4,2.39Z"/>
-            <path d="M19.16,6.33a3.5,3.5,0,0,0-1.89-2.73A10.34,10.34,0,0,0,12,3,10.34,10.34,0,0,0,6.73,3.6,3.5,3.5,0,0,0,4.84,6.33L4.2,12.9a8,8,0,0,0,15.6,0Z"/>
-            <path d="M9.1,13.56a.5.5,0,0,0-.71,0L6.22,15.73a.5.5,0,0,0,0,.71l3.54,3.53a.5.5,0,0,0,.71,0l2.12-2.12a.5.5,0,0,0,0-.71Z"/>
-            <path d="M14.9,13.56a.5.5,0,0,1,.71,0l2.12,2.17a.5.5,0,0,1,0,.71l-3.54,3.53a.5.5,0,0,1-.71,0L11.3,17.85a.5.5,0,0,1,0-.71Z"/>
-        </svg>
-    )
-}
+import { VampireIcon } from '../icons';
 
 interface PlayerCardProps {
   player: Player & { causeOfDeath?: GameEvent['type'] | 'other' };
@@ -70,27 +60,27 @@ export const PlayerCard = React.memo(function PlayerCard({
           );
         case 'vote_result':
           return (
-            <div className={baseClasses}>
+            <div className={cn(baseClasses)}>
               <Gavel className={cn(iconClasses, "text-amber-800")} />
             </div>
           );
         case 'vampire_kill':
              return (
-            <div className={baseClasses}>
+            <div className={cn(baseClasses)}>
                 <VampireIcon className={cn(iconClasses, "text-red-900")} />
             </div>
             );
         case 'hunter_shot':
         case 'troublemaker_duel':
              return (
-            <div className={baseClasses}>
+            <div className={cn(baseClasses)}>
                 <Skull className={cn(iconClasses, "text-destructive")} />
             </div>
             );
         case 'lover_death':
         case 'special':
             return (
-            <div className={baseClasses}>
+            <div className={cn(baseClasses)}>
                 <Heart className={cn(iconClasses, "text-pink-400")} />
             </div>
             );

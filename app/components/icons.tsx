@@ -1,3 +1,4 @@
+
 import type { SVGProps } from 'react';
 import { Skull } from 'lucide-react';
 

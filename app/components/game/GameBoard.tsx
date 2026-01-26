@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import type { Game, Player, GameEvent, ChatMessage, PlayerPublicData } from "@/types";
@@ -57,18 +56,20 @@ export function GameBoard({ gameId }: { gameId: string }) {
     }, []);
 
     const handlePhaseEnd = useCallback(async () => {
-        if (!game) return;
+        if (!game || !userId) return;
         if (game.status === 'finished') return;
 
         // Any player can attempt to end the phase. The server will validate if it's time.
-        if (game.phase === 'day') {
-            await processVotes(game.id);
-        } else if (game.phase === 'night' || game.phase === 'role_reveal') {
-            await processNight(game.id);
-        } else if (game.phase === 'jury_voting') {
-            await processJuryVotes(game.id);
+        if (game.creator === userId) {
+            if (game.phase === 'day') {
+                await processVotes(game.id);
+            } else if (game.phase === 'night' || game.phase === 'role_reveal') {
+                await processNight(game.id);
+            } else if (game.phase === 'jury_voting') {
+                await processJuryVotes(game.id);
+            }
         }
-    }, [game]);
+    }, [game, userId]);
 
     useEffect(() => {
         if (!game || !currentPlayer) return;
@@ -479,8 +480,3 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
         </div>
     );
 }
-
-  
-
-
-  

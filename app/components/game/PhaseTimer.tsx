@@ -5,15 +5,13 @@ import * as React from "react"
 import { Progress } from '@/components/ui/progress';
 import { cn } from "@/lib/utils";
 
-const PHASE_DURATION_SECONDS = 60; // Default fallback
-
 interface PhaseTimerProps {
     timeLeft: number;
-    duration?: number;
+    duration: number;
 }
 
 export function PhaseTimer({ timeLeft, duration }: PhaseTimerProps) {
-    const totalDuration = duration && duration > 0 ? duration : PHASE_DURATION_SECONDS;
+    const totalDuration = duration > 0 ? duration : 60;
     const progress = (timeLeft / totalDuration) * 100;
     const isUrgent = timeLeft <= 10;
 
@@ -39,4 +37,3 @@ export function PhaseTimer({ timeLeft, duration }: PhaseTimerProps) {
         </div>
     );
 }
-
