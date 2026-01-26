@@ -30,7 +30,7 @@ import {
 import { toPlainObject, getMillis, sanitizeHTML } from "./utils";
 import { masterActions } from "./master-actions";
 import { secretObjectives } from "./objectives";
-import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine, generateRoles } from './game-engine';
+import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { runAIActions, runAIHunterShot } from "./ai-actions";
 import { adminDb } from './firebase-admin';
@@ -360,21 +360,19 @@ export async function startGame(gameId: string, creatorId: string) {
     }
 }
 
-async function getFullPlayers(gameId: string, game: Game, transaction: Transaction): Promise<Player[]> {
-    const playerPrivateRefs = game.players.map(p => doc(adminDb, 'games', gameId, 'playerData', p.userId));
-    const playerPrivateSnaps = await transaction.getAll(...playerPrivateRefs);
+async function getFullPlayers(gameId: string, game: Game, transaction?: Transaction): Promise<Player[]> {
+    const getPrivateData = async (userId: string) => {
+        const playerPrivateRef = doc(adminDb, 'games', gameId, 'playerData', userId);
+        const snap = transaction ? await transaction.get(playerPrivateRef) : await getDoc(playerPrivateRef);
+        return snap.exists() ? (snap.data() as PlayerPrivateData) : null;
+    };
 
-    const privateDataMap = new Map<string, PlayerPrivateData>();
-    playerPrivateSnaps.forEach(snap => {
-        if (snap.exists()) {
-            privateDataMap.set(snap.id, snap.data() as PlayerPrivateData);
-        }
-    });
-
-    const fullPlayers: Player[] = game.players.map(publicData => {
-        const privateData = privateDataMap.get(publicData.userId);
-        return { ...publicData, ...privateData } as Player;
-    });
+    const fullPlayers: Player[] = await Promise.all(
+        game.players.map(async (publicData) => {
+            const privateData = await getPrivateData(publicData.userId);
+            return { ...publicData, ...privateData } as Player;
+        })
+    );
 
     return fullPlayers;
 }
@@ -383,18 +381,23 @@ async function getFullPlayers(gameId: string, game: Game, transaction: Transacti
 export async function processNight(gameId: string) {
     const gameRef = doc(adminDb, 'games', gameId) as DocumentReference<Game>;
     try {
+        let nightResultEvent: GameEvent | undefined;
         await runTransaction(adminDb, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found!");
             const game = gameSnap.data()!;
             const fullPlayers = await getFullPlayers(gameId, game, transaction);
-            await processNightEngine(transaction, gameRef, game, fullPlayers);
+            const {nightEvent} = await processNightEngine(transaction, gameRef, game, fullPlayers);
+            nightResultEvent = nightEvent;
         });
         
         const gameDoc = await getDoc(gameRef);
         if (gameDoc.exists()) {
             const game = gameDoc.data();
             if (game.phase === 'day') {
+                if (nightResultEvent) {
+                    await triggerAIChat(gameId, nightResultEvent.message, 'public');
+                }
                 await runAIActions(gameId, 'day');
             } else if (game.phase === 'night') { // This would be the first night
                 await runAIActions(gameId, 'night');
@@ -409,17 +412,22 @@ export async function processNight(gameId: string) {
 export async function processVotes(gameId: string) {
     const gameRef = doc(adminDb, 'games', gameId) as DocumentReference<Game>;
     try {
+        let voteResultEvent: GameEvent | undefined;
         await runTransaction(adminDb, async (transaction) => {
              const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found!");
             const game = gameSnap.data()!;
             const fullPlayers = await getFullPlayers(gameId, game, transaction);
-            await processVotesEngine(transaction, gameRef, game, fullPlayers);
+            const result = await processVotesEngine(transaction, gameRef, game, fullPlayers);
+            voteResultEvent = result.voteEvent;
         });
 
         const gameDoc = await getDoc(gameRef);
         if (gameDoc.exists()) {
             const game = gameDoc.data();
+            if (voteResultEvent) {
+                 await triggerAIChat(gameId, voteResultEvent.message, 'public');
+            }
             if (game.phase === 'night') {
                 await runAIActions(gameId, 'night');
             } else if (game.phase === 'hunter_shot') {
@@ -736,10 +744,12 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
             const gameDoc = await transaction.get(gameRef as DocumentReference<Game>);
             if (!gameDoc.exists()) throw new Error("Game not found");
             let game = gameDoc.data()!;
+            const fullPlayers = await getFullPlayers(gameId, game, transaction);
+
 
             if (actionId === 'master_kill') {
                  if (game.masterKillUsed) throw new Error("El Zarpazo del Destino ya ha sido utilizado.");
-                 const { updatedGame } = await killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, targetId, 'special', `Por intervención divina, ${game.players.find(p=>p.userId === targetId)?.displayName} ha sido eliminado.`);
+                 const { updatedGame } = await killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, fullPlayers, targetId, 'special', `Por intervención divina, ${game.players.find(p=>p.userId === targetId)?.displayName} ha sido eliminado.`);
                  updatedGame.masterKillUsed = true;
                  game = updatedGame;
             } else {
@@ -775,8 +785,9 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
             if(hunterIndex !== -1) {
                 game.players[hunterIndex].lastActiveAt = Timestamp.now();
             }
-
-            const { updatedGame, triggeredHunterId: anotherHunterId } = await killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, targetId, 'hunter_shot', `En su último aliento, el Cazador dispara y se lleva consigo a ${game.players.find(p=>p.userId === targetId)?.displayName}.`);
+            
+            const fullPlayers = await getFullPlayers(gameId, game, transaction);
+            const { updatedGame, triggeredHunterId: anotherHunterId } = await killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, fullPlayers, targetId, 'hunter_shot', `En su último aliento, el Cazador dispara y se lleva consigo a ${game.players.find(p=>p.userId === targetId)?.displayName}.`);
             game = updatedGame;
             
             if (anotherHunterId) {
@@ -785,7 +796,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
                 return;
             }
 
-            const gameOverInfo = await checkGameOver(transaction, game);
+            const gameOverInfo = await checkGameOver(game, fullPlayers);
             if (gameOverInfo.isGameOver) {
                 game.status = "finished";
                 game.phase = "finished";
@@ -798,13 +809,9 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
             const nextPhase = hunterDeathEvent?.type === 'vote_result' ? 'night' : 'day';
             const nextRound = nextPhase === 'night' ? game.currentRound + 1 : game.currentRound;
 
-            game.players.forEach(p => { p.votedFor = null; });
-            const privateRefs = game.players.map(p => doc(adminDb, `games/${gameId}/playerData/${p.userId}`));
-            const privateSnaps = await Promise.all(privateRefs.map(ref => transaction.get(ref)));
-            privateSnaps.forEach((snap, index) => {
-                if(snap.exists()) {
-                    transaction.update(snap.ref, { usedNightAbility: false });
-                }
+            fullPlayers.forEach(p => { 
+                const playerPrivateRef = doc(adminDb, `games/${gameId}/playerData/${p.userId}`);
+                transaction.update(playerPrivateRef, { votedFor: null, usedNightAbility: false });
             });
 
             const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
@@ -916,8 +923,8 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
             
             const message = `${game.players.find(p => p.userId === target1Id)?.displayName} y ${game.players.find(p => p.userId === target2Id)?.displayName} han muerto en una pelea mortal provocada por la Alborotadora.`;
 
-            let { updatedGame: gameAfterKill1 } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, target1Id, 'troublemaker_duel', message);
-            let { updatedGame: gameAfterKill2 } = await killPlayer(transaction, gameRef as DocumentReference<Game>, gameAfterKill1, target2Id, 'troublemaker_duel', message);
+            let { updatedGame: gameAfterKill1 } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, fullPlayers, target1Id, 'troublemaker_duel', message);
+            let { updatedGame: gameAfterKill2 } = await killPlayer(transaction, gameRef as DocumentReference<Game>, gameAfterKill1, fullPlayers, target2Id, 'troublemaker_duel', message);
             game = gameAfterKill2;
             
             game.troublemakerUsed = true;
@@ -1034,21 +1041,23 @@ export async function kickInactivePlayers(gameId: string) {
 
             if (game.status !== 'in_progress') return;
 
-            const inactivePlayers = game.players.filter(p => p.isAlive && p.lastActiveAt && getMillis(p.lastActiveAt) < fiveMinutesAgo.toMillis());
+            const fullPlayers = await getFullPlayers(gameId, game, transaction);
+            
+            const inactivePlayers = fullPlayers.filter(p => p.isAlive && p.lastActiveAt && getMillis(p.lastActiveAt) < fiveMinutesAgo.toMillis());
 
             if (inactivePlayers.length === 0) return;
 
             const batch = writeBatch(adminDb);
             
             for (const inactivePlayer of inactivePlayers) {
-                const result = await killPlayerUnstoppable(transaction, gameRef, game, inactivePlayer.userId, 'special', `${inactivePlayer.displayName} ha sido eliminado por inactividad.`);
+                const result = await killPlayerUnstoppable(transaction, gameRef, game, fullPlayers, inactivePlayer.userId, 'special', `${inactivePlayer.displayName} ha sido eliminado por inactividad.`);
                 game = result.updatedGame;
                 
                 const privatePlayerRef = doc(adminDb, `games/${gameId}/playerData/${inactivePlayer.userId}`);
                 batch.delete(privatePlayerRef);
             }
 
-            const gameOverInfo = await checkGameOver(transaction, game);
+            const gameOverInfo = await checkGameOver(game, fullPlayers);
              if (gameOverInfo.isGameOver) {
                 game.status = "finished";
                 game.phase = "finished";
@@ -1066,3 +1075,4 @@ export async function kickInactivePlayers(gameId: string) {
     
 
   
+
