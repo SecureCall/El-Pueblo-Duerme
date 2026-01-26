@@ -5,14 +5,16 @@ import * as React from "react"
 import { Progress } from '@/components/ui/progress';
 import { cn } from "@/lib/utils";
 
-const PHASE_DURATION_SECONDS = 60;
+const PHASE_DURATION_SECONDS = 60; // Default fallback
 
 interface PhaseTimerProps {
     timeLeft: number;
+    duration?: number;
 }
 
-export function PhaseTimer({ timeLeft }: PhaseTimerProps) {
-    const progress = (timeLeft / PHASE_DURATION_SECONDS) * 100;
+export function PhaseTimer({ timeLeft, duration }: PhaseTimerProps) {
+    const totalDuration = duration && duration > 0 ? duration : PHASE_DURATION_SECONDS;
+    const progress = (timeLeft / totalDuration) * 100;
     const isUrgent = timeLeft <= 10;
 
     return (
@@ -20,12 +22,12 @@ export function PhaseTimer({ timeLeft }: PhaseTimerProps) {
             <Progress 
                 value={progress} 
                 className={cn(
-                    "h-2 bg-primary/20 transition-all duration-1000",
+                    "h-2 bg-primary/20",
                     isUrgent && "bg-destructive/50"
                 )}
                 indicatorClassName={cn(
-                    "transition-colors duration-500",
-                    isUrgent && "bg-destructive"
+                    "transition-all duration-1000 ease-linear",
+                    isUrgent ? "bg-destructive" : "bg-primary"
                 )}
             />
             <p className={cn(
@@ -37,3 +39,4 @@ export function PhaseTimer({ timeLeft }: PhaseTimerProps) {
         </div>
     );
 }
+

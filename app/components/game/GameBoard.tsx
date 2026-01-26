@@ -36,6 +36,8 @@ import { RoleManual } from "@/components/game/RoleManual";
 import { useToast } from "@/hooks/use-toast";
 import { runAIHunterShot, runAIActions } from "@/lib/ai-actions";
 
+const PHASE_DURATION_SECONDS = 60;
+
 export function GameBoard({ gameId }: { gameId: string }) {
     const { updateStats, userId } = useGameSession();
     const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, loading, error } = useGameState(gameId);
@@ -398,6 +400,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                         <PhaseTimer
                             key={`${game.id}-${game.phase}-${game.currentRound}`}
                             timeLeft={timeLeft}
+                            duration={PHASE_DURATION_SECONDS}
                         />
                     )}
                 </CardHeader>
