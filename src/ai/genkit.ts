@@ -1,9 +1,1 @@
-
-import {genkit} from 'genkit';
-import {googleAI} from '@genkit-ai/googleai';
-
-export const ai = genkit({
-  plugins: [
-    googleAI(),
-  ],
-});
+// This file's content has been moved to the flows that use it to avoid a module resolution conflict.

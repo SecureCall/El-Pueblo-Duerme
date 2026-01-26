@@ -1,10 +1,18 @@
 
 'use server';
 
-import { ai } from '../genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'genkit';
 import type { AIPlayerPerspective, GenerateAIChatMessageOutput, NightAction, PlayerRole } from '@/types';
 import { AIPlayerPerspectiveSchema, GenerateAIChatMessageOutputSchema } from '@/types/zod';
+
+// AI object defined locally to avoid module name collision
+const ai = genkit({
+  plugins: [
+    googleAI(),
+  ],
+});
 
 // Helper function to sanitize any object and replace undefined with null recursively.
 const sanitizeObject = (obj: any): any => {
