@@ -2,22 +2,19 @@
 'use server';
 
 import 'server-only';
-import { initializeApp, getApps, getApp, cert, type App } from 'firebase-admin/app';
+import { initializeApp, getApps, getApp, type App } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getAuth, type Auth } from 'firebase-admin/auth';
 
-const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_KEY 
-  ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY) 
-  : undefined;
-
-const firebaseAdminConfig = {
-  credential: serviceAccount ? cert(serviceAccount) : undefined,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-};
-
 let adminApp: App;
+
+// In a managed Google Cloud environment like App Hosting, initializeApp() 
+// can auto-discover credentials. This avoids parsing environment variables 
+// which can be formatted incorrectly and cause crashes.
 if (!getApps().length) {
-    adminApp = initializeApp(firebaseAdminConfig);
+    adminApp = initializeApp({
+        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    });
 } else {
     adminApp = getApp();
 }
