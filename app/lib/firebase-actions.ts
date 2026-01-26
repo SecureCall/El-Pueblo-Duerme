@@ -74,6 +74,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     ghostMessageSent: false,
     resurrectorAngelUsed: false,
     bansheeScreams: {},
+    bansheePoints: 0,
     lookoutUsed: false,
     executionerTargetId: null,
     secretObjectiveId: null,
@@ -86,7 +87,7 @@ function splitPlayerData(player: Player): { publicData: PlayerPublicData, privat
     // Explicitly destructure private fields to exclude them from public data
     role, secretObjectiveId, executionerTargetId, potions, priestSelfHealUsed, guardianSelfProtects,
     usedNightAbility, shapeshifterTargetId, virginiaWoolfTargetId, riverSirenTargetId,
-    ghostMessageSent, resurrectorAngelUsed, bansheeScreams, lookoutUsed, lastHealedRound,
+    ghostMessageSent, resurrectorAngelUsed, bansheeScreams, bansheePoints, lookoutUsed, lastHealedRound,
     isCultMember, isLover, biteCount
   } = player;
 
@@ -109,6 +110,7 @@ function splitPlayerData(player: Player): { publicData: PlayerPublicData, privat
     ghostMessageSent,
     resurrectorAngelUsed,
     bansheeScreams,
+    bansheePoints,
     lookoutUsed,
     lastHealedRound,
     isCultMember,
@@ -358,11 +360,35 @@ export async function startGame(gameId: string, creatorId: string) {
     }
 }
 
+async function getFullPlayers(gameId: string, game: Game, transaction: Transaction): Promise<Player[]> {
+    const playerPrivateRefs = game.players.map(p => doc(adminDb, 'games', gameId, 'playerData', p.userId));
+    const playerPrivateSnaps = await transaction.getAll(...playerPrivateRefs);
+
+    const privateDataMap = new Map<string, PlayerPrivateData>();
+    playerPrivateSnaps.forEach(snap => {
+        if (snap.exists()) {
+            privateDataMap.set(snap.id, snap.data() as PlayerPrivateData);
+        }
+    });
+
+    const fullPlayers: Player[] = game.players.map(publicData => {
+        const privateData = privateDataMap.get(publicData.userId);
+        return { ...publicData, ...privateData } as Player;
+    });
+
+    return fullPlayers;
+}
+
+
 export async function processNight(gameId: string) {
     const gameRef = doc(adminDb, 'games', gameId) as DocumentReference<Game>;
     try {
         await runTransaction(adminDb, async (transaction) => {
-            await processNightEngine(transaction, gameRef);
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found!");
+            const game = gameSnap.data()!;
+            const fullPlayers = await getFullPlayers(gameId, game, transaction);
+            await processNightEngine(transaction, gameRef, game, fullPlayers);
         });
         
         const gameDoc = await getDoc(gameRef);
@@ -384,7 +410,11 @@ export async function processVotes(gameId: string) {
     const gameRef = doc(adminDb, 'games', gameId) as DocumentReference<Game>;
     try {
         await runTransaction(adminDb, async (transaction) => {
-            await processVotesEngine(transaction, gameRef);
+             const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found!");
+            const game = gameSnap.data()!;
+            const fullPlayers = await getFullPlayers(gameId, game, transaction);
+            await processVotesEngine(transaction, gameRef, game, fullPlayers);
         });
 
         const gameDoc = await getDoc(gameRef);
@@ -688,7 +718,11 @@ export async function processJuryVotes(gameId: string) {
     const gameRef = doc(adminDb, 'games', gameId) as DocumentReference<Game>;
     try {
         await runTransaction(adminDb, async (transaction) => {
-            await processJuryVotesEngine(transaction, gameRef);
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found!");
+            const game = gameSnap.data()!;
+            const fullPlayers = await getFullPlayers(gameId, game, transaction);
+            await processJuryVotesEngine(transaction, gameRef, game, fullPlayers);
         });
     } catch (e) {
         console.error("Failed to process jury votes", e);
@@ -751,7 +785,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
                 return;
             }
 
-            const gameOverInfo = await checkGameOver(game);
+            const gameOverInfo = await checkGameOver(transaction, game);
             if (gameOverInfo.isGameOver) {
                 game.status = "finished";
                 game.phase = "finished";
@@ -802,7 +836,7 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
             const playerPublicData = game.players[playerPublicDataIndex];
             if (playerPublicData.votedFor) return; // Already voted
 
-            const fullPlayers = await getFullPlayers(gameId, game);
+            const fullPlayers = await getFullPlayers(gameId, game, transaction);
             const siren = fullPlayers.find(p => p.role === 'river_siren');
             
             const charmedPlayerId = siren?.riverSirenTargetId;
@@ -876,7 +910,7 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Partida no encontrada");
             let game = gameSnap.data();
-            const fullPlayers = await getFullPlayers(gameId, game);
+            const fullPlayers = await getFullPlayers(gameId, game, transaction);
             const player = fullPlayers.find(p => p.userId === troublemakerId);
             if (!player || player.role !== 'troublemaker' || game.troublemakerUsed) throw new Error("No puedes realizar esta acción.");
             
@@ -964,21 +998,6 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
     return { success: true, isWerewolf, targetName: targetPlayer.displayName };
 }
 
-export async function getFullPlayers(gameId: string, game: Game): Promise<Player[]> {
-    const privateDataSnapshot = await getDocs(collection(adminDb, 'games', gameId, 'playerData'));
-    const privateDataMap = new Map<string, PlayerPrivateData>();
-    privateDataSnapshot.forEach(doc => {
-        privateDataMap.set(doc.id, doc.data() as PlayerPrivateData);
-    });
-
-    const fullPlayers: Player[] = game.players.map(publicData => {
-        const privateData = privateDataMap.get(publicData.userId);
-        return { ...publicData, ...privateData } as Player;
-    });
-
-    return fullPlayers;
-}
-
 export async function updatePlayerAvatar(gameId: string, userId: string, newAvatarUrl: string) {
     const gameRef = doc(adminDb, "games", gameId);
 
@@ -1011,7 +1030,7 @@ export async function kickInactivePlayers(gameId: string) {
         await runTransaction(adminDb, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) return;
-            const game = gameSnap.data()!;
+            let game = gameSnap.data()!;
 
             if (game.status !== 'in_progress') return;
 
@@ -1019,29 +1038,24 @@ export async function kickInactivePlayers(gameId: string) {
 
             if (inactivePlayers.length === 0) return;
 
-            let updatedGame = game;
-            let triggeredHunterId: string | null = null;
             const batch = writeBatch(adminDb);
             
             for (const inactivePlayer of inactivePlayers) {
-                const result = await killPlayerUnstoppable(transaction, gameRef, updatedGame, inactivePlayer.userId, 'special', `${inactivePlayer.displayName} ha sido eliminado por inactividad.`);
-                updatedGame = result.updatedGame;
-                if (result.triggeredHunterId) triggeredHunterId = result.triggeredHunterId;
+                const result = await killPlayerUnstoppable(transaction, gameRef, game, inactivePlayer.userId, 'special', `${inactivePlayer.displayName} ha sido eliminado por inactividad.`);
+                game = result.updatedGame;
                 
                 const privatePlayerRef = doc(adminDb, `games/${gameId}/playerData/${inactivePlayer.userId}`);
                 batch.delete(privatePlayerRef);
             }
-            
-            updatedGame.pendingHunterShot = triggeredHunterId;
 
-            const gameOverInfo = await checkGameOver(updatedGame);
+            const gameOverInfo = await checkGameOver(transaction, game);
              if (gameOverInfo.isGameOver) {
-                updatedGame.status = "finished";
-                updatedGame.phase = "finished";
-                updatedGame.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: updatedGame.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: new Date() });
+                game.status = "finished";
+                game.phase = "finished";
+                game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: new Date() });
             }
             
-            transaction.set(gameRef, toPlainObject(updatedGame));
+            transaction.set(gameRef, toPlainObject(game));
             await batch.commit();
         });
 

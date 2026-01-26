@@ -48,6 +48,7 @@ export const PlayerPrivateSchema = z.object({
   ghostMessageSent: z.boolean().optional(),
   resurrectorAngelUsed: z.boolean().optional(),
   bansheeScreams: z.record(z.string()).optional(),
+  bansheePoints: z.number().optional(),
   lookoutUsed: z.boolean().optional(),
   lastHealedRound: z.number(),
   isCultMember: z.boolean(),
@@ -205,4 +206,3 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   shouldSend: z.boolean(),
 });
 
-  

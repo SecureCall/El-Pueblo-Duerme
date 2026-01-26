@@ -6,14 +6,16 @@ import {
   Timestamp,
   type Transaction,
   DocumentReference,
+  increment
 } from "firebase/firestore";
 import { 
   type Game, 
   type Player, 
-  type GameEvent, type PlayerRole, type NightActionType,
+  type GameEvent, type PlayerRole, type PlayerPublicData, type PlayerPrivateData,
 } from "@/types";
 import { toPlainObject, getMillis } from "@/lib/utils";
 import { roleDetails } from "./roles";
+import { adminDb } from "./firebase-admin";
 
 const PHASE_DURATION_SECONDS = 60;
 
@@ -62,57 +64,27 @@ export const generateRoles = (playerCount: number, settings: Game['settings']): 
     return roles.sort(() => Math.random() - 0.5);
 };
 
-const getActionPriority = (actionType: NightActionType): number => {
-    const priorityMap: Record<NightActionType, number> = {
-        // Setup phase actions
-        'cupid_love': 10,
-        'shapeshifter_select': 15,
-        'virginia_woolf_link': 16,
-        'river_siren_charm': 17,
-        
-        // Control & Blocking
-        'elder_leader_exile': 20,
-        'silencer_silence': 25,
+async function getFullPlayersTransactional(transaction: Transaction, gameId: string, game: Game): Promise<Player[]> {
+    const playerPrivateRefs = game.players.map(p => doc(adminDb, 'games', gameId, 'playerData', p.userId));
+    const playerPrivateSnaps = await transaction.getAll(...playerPrivateRefs);
 
-        // Protection
-        'priest_bless': 30,
-        'guardian_protect': 35,
-        'doctor_heal': 35,
+    const privateDataMap = new Map<string, PlayerPrivateData>();
+    playerPrivateSnaps.forEach(snap => {
+        if (snap.exists()) {
+            privateDataMap.set(snap.id, snap.data() as PlayerPrivateData);
+        }
+    });
 
-        // Information Gathering
-        'seer_check': 50,
-        'witch_hunt': 55,
-        'seeker_fairy': 60,
-        'lookout_spy': 65,
-        
-        // Recruitment
-        'cult_recruit': 70,
-        'fisherman_catch': 71,
+    const fullPlayers: Player[] = game.players.map(publicData => {
+        const privateData = privateDataMap.get(publicData.userId) || {};
+        return { ...publicData, ...privateData } as Player;
+    });
 
-        // Killing / Lethal Actions
-        'werewolf_kill': 80,
-        'vampire_bite': 81,
-        'hechicera_poison': 82,
-        'fairy_kill': 83,
-
-        // Post-Damage Saves
-        'hechicera_save': 90,
-        
-        // Resurrection
-        'resurrect': 95,
-        
-        // Prediction
-        'banshee_scream': 100,
-    };
-    return priorityMap[actionType] || 999;
-};
+    return fullPlayers;
+}
 
 
-export async function processNight(transaction: Transaction, gameRef: DocumentReference<Game>) {
-  const gameSnap = await transaction.get(gameRef);
-  if (!gameSnap.exists()) throw new Error("Game not found!");
-  
-  let game = gameSnap.data()!;
+export async function processNightEngine(transaction: Transaction, gameRef: DocumentReference<Game>, game: Game, fullPlayers: Player[]) {
   
   if (game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now()) {
       console.warn("processNight called before phase end. Ignoring.");
@@ -121,7 +93,7 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
 
   if (game.phase === 'role_reveal' && game.status === 'in_progress') {
      const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
-     transaction.update(gameRef, toPlainObject({ phase: 'night', phaseEndsAt }));
+     transaction.update(gameRef, toPlainObject({ phase: 'night', phaseEndsAt, currentRound: 1 }));
      return;
   }
   
@@ -129,7 +101,7 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
       return;
   }
   
-  const initialPlayers = JSON.parse(JSON.stringify(game.players));
+  const initialPlayers = JSON.parse(JSON.stringify(fullPlayers));
   const actions = (game.nightActions?.filter(a => a.round === game.currentRound) || [])
       .sort((a, b) => getActionPriority(a.actionType) - getActionPriority(b.actionType));
 
@@ -150,7 +122,7 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
 
   const getPlayer = (userId: string) => {
       const updatedPlayer = context.playerUpdates.get(userId);
-      const originalPlayer = game.players.find(p => p.userId === userId);
+      const originalPlayer = fullPlayers.find(p => p.userId === userId);
       return { ...originalPlayer, ...updatedPlayer } as Player;
   }
 
@@ -226,18 +198,21 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
       }
   }
 
-  // 3. Commit state changes from context to the main game object
-  Object.assign(game, context.gameUpdates);
+  // 3. Commit state changes from context to a mutable copy of the game
+  let mutableGame = JSON.parse(JSON.stringify(game));
+  let mutableFullPlayers = JSON.parse(JSON.stringify(fullPlayers));
+  Object.assign(mutableGame, context.gameUpdates);
+
   context.playerUpdates.forEach((updates, userId) => {
-      const playerIndex = game.players.findIndex(p => p.userId === userId);
+      const playerIndex = mutableFullPlayers.findIndex((p:Player) => p.userId === userId);
       if (playerIndex !== -1) {
-          game.players[playerIndex] = { ...game.players[playerIndex], ...updates };
+          mutableFullPlayers[playerIndex] = { ...mutableFullPlayers[playerIndex], ...updates };
       }
   });
    context.bites.forEach((count, userId) => {
-        const playerIndex = game.players.findIndex(p => p.userId === userId);
+        const playerIndex = mutableFullPlayers.findIndex((p:Player) => p.userId === userId);
         if (playerIndex !== -1) {
-            game.players[playerIndex].biteCount = count;
+            mutableFullPlayers[playerIndex].biteCount = count;
         }
     });
 
@@ -246,25 +221,37 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
   let killedPlayerIds: string[] = [];
 
   for (const [targetId, cause] of context.deathMarks.entries()) {
-      const { updatedGame, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, targetId, cause, `Anoche, el pueblo perdió a ${game.players.find(p=>p.userId === targetId)?.displayName}.`);
-      game = updatedGame;
+      const { updatedGame, updatedPlayers, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, mutableGame, mutableFullPlayers, targetId, cause, `Anoche, el pueblo perdió a ${mutableFullPlayers.find((p:Player)=>p.userId === targetId)?.displayName}.`);
+      mutableGame = updatedGame;
+      mutableFullPlayers = updatedPlayers;
       killedPlayerIds.push(targetId);
       if(newHunterId) triggeredHunterId = newHunterId;
   }
   
+  // Banshee scream check
+    const bansheeAction = actions.find(a => a.actionType === 'banshee_scream');
+    if (bansheeAction) {
+        const screamTargetId = bansheeAction.targetId;
+        if (killedPlayerIds.includes(screamTargetId)) {
+            const bansheePrivateRef = doc(adminDb, 'games', game.id, 'playerData', bansheeAction.playerId);
+            transaction.update(bansheePrivateRef, { bansheePoints: increment(1) });
+        }
+    }
+
+
   // 5. Finalize night results
-  let gameOverInfo = await checkGameOver(game);
+  let gameOverInfo = await checkGameOver(transaction, mutableGame);
   if (gameOverInfo.isGameOver) {
-      game.status = "finished";
-      game.phase = "finished";
-      game.events.push({ id: `evt_gameover_${Date.now()}`, gameId: game.id, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: new Date() });
-      transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: game.players, events: game.events }));
+      mutableGame.status = "finished";
+      mutableGame.phase = "finished";
+      mutableGame.events.push({ id: `evt_gameover_${Date.now()}`, gameId: mutableGame.id, round: mutableGame.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: new Date() });
+      transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: mutableGame.players, events: mutableGame.events }));
       return;
   }
 
   if (triggeredHunterId) {
-      game.pendingHunterShot = triggeredHunterId;
-      transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot }));
+      mutableGame.pendingHunterShot = triggeredHunterId;
+      transaction.update(gameRef, toPlainObject({ players: mutableGame.players, events: mutableGame.events, phase: 'hunter_shot', pendingHunterShot: mutableGame.pendingHunterShot }));
       return;
   }
   
@@ -279,21 +266,28 @@ export async function processNight(transaction: Transaction, gameRef: DocumentRe
   }
   
   const savedIds = new Set([...context.savedByHealPotion, ...Array.from(context.protections.keys())]);
-  game.events.push({ id: `evt_night_${game.currentRound}`, gameId: game.id, round: game.currentRound, type: 'night_result', message: nightMessage, data: { killedPlayerIds: killedPlayerIds, savedPlayerIds: Array.from(savedIds) }, createdAt: new Date() });
+  mutableGame.events.push({ id: `evt_night_${mutableGame.currentRound}`, gameId: mutableGame.id, round: mutableGame.currentRound, type: 'night_result', message: nightMessage, data: { killedPlayerIds: killedPlayerIds, savedPlayerIds: Array.from(savedIds) }, createdAt: new Date() });
 
-  game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; p.isExiled = false; });
+  mutableFullPlayers.forEach((p: Player) => { 
+    const playerPrivateRef = doc(adminDb, 'games', mutableGame.id, 'playerData', p.userId);
+    transaction.update(playerPrivateRef, { usedNightAbility: false, isExiled: false });
+  });
+
   const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
   
+  const publicPlayersData: PlayerPublicData[] = mutableFullPlayers.map((p: Player) => {
+    const { privateData, ...publicData } = splitPlayerData(p);
+    return publicData;
+  });
+
   transaction.update(gameRef, toPlainObject({
-      ...game,
+      players: publicPlayersData,
+      events: mutableGame.events,
       phase: 'day', phaseEndsAt,
       pendingHunterShot: null, silencedPlayerId: null, exiledPlayerId: null,
   }));
 }
-export async function processVotes(transaction: Transaction, gameRef: DocumentReference<Game>) {
-    const gameSnap = await transaction.get(gameRef);
-    if (!gameSnap.exists()) throw new Error("Game not found.");
-    let game = gameSnap.data()!;
+export async function processVotesEngine(transaction: Transaction, gameRef: DocumentReference<Game>, game: Game, fullPlayers: Player[]) {
     if (game.phase !== 'day') return;
     
     if (game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now()) {
@@ -304,7 +298,7 @@ export async function processVotes(transaction: Transaction, gameRef: DocumentRe
     const lastVoteEvent = [...game.events].sort((a,b) => getMillis(b.createdAt) - getMillis(a.createdAt)).find(e => e.type === 'vote_result');
     const isTiebreaker = Array.isArray(lastVoteEvent?.data?.tiedPlayerIds) && !lastVoteEvent?.data?.final;
 
-    const alivePlayers = game.players.filter(p => p.isAlive);
+    const alivePlayers = fullPlayers.filter(p => p.isAlive);
     const voteCounts: Record<string, number> = {};
     
     alivePlayers.forEach(player => {
@@ -328,18 +322,17 @@ export async function processVotes(transaction: Transaction, gameRef: DocumentRe
     
     if (mostVotedPlayerIds.length > 1 && !isTiebreaker) {
         game.events.push({ id: `evt_vote_tie_${game.currentRound}`, gameId: game.id, round: game.currentRound, type: 'vote_result', message: `¡La votación resultó en un empate! Se requiere una segunda votación solo entre los siguientes jugadores: ${mostVotedPlayerIds.map(id => game.players.find(p=>p.userId === id)?.displayName).join(', ')}.`, data: { tiedPlayerIds: mostVotedPlayerIds, final: false }, createdAt: new Date() });
-        game.players.forEach(p => { p.votedFor = null; });
+        fullPlayers.forEach(p => { p.votedFor = null; });
         const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
-        transaction.update(gameRef, toPlainObject({ players: game.players, events: game.events, phaseEndsAt }));
+        transaction.update(gameRef, toPlainObject({ players: game.players.map(p => ({...p, votedFor: null})), events: game.events, phaseEndsAt }));
         return;
     }
 
     if (mostVotedPlayerIds.length > 1 && isTiebreaker && game.settings.juryVoting) {
          game.phase = "jury_voting";
          game.events.push({ id: `evt_jury_vote_${game.currentRound}`, gameId: game.id, round: game.currentRound, type: 'vote_result', message: `¡El pueblo sigue dividido! Los espíritus de los caídos emitirán el voto final para decidir el destino de: ${mostVotedPlayerIds.map(id => game.players.find(p => p.userId === id)?.displayName).join(' o ')}.`, data: { tiedPlayerIds: mostVotedPlayerIds, final: false }, createdAt: new Date() });
-         game.players.forEach(p => { p.votedFor = null; });
          const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
-         transaction.update(gameRef, toPlainObject({ events: game.events, phase: "jury_voting", phaseEndsAt }));
+         transaction.update(gameRef, toPlainObject({ events: game.events, phase: "jury_voting", phaseEndsAt, players: game.players.map(p => ({...p, votedFor: null})) }));
          return;
     }
 
@@ -348,16 +341,16 @@ export async function processVotes(transaction: Transaction, gameRef: DocumentRe
     let triggeredHunterId: string | null = null;
 
     if (lynchedPlayerId) {
-        const { updatedGame, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, lynchedPlayerId, 'vote_result', `El pueblo ha hablado. ${game.players.find(p => p.userId === lynchedPlayerId)?.displayName} ha sido linchado.`);
+        const { updatedGame, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, fullPlayers, lynchedPlayerId, 'vote_result', `El pueblo ha hablado. ${game.players.find(p => p.userId === lynchedPlayerId)?.displayName} ha sido linchado.`);
         game = updatedGame;
         triggeredHunterId = newHunterId;
-        lynchedPlayerObject = game.players.find(p => p.userId === lynchedPlayerId) || null;
+        lynchedPlayerObject = fullPlayers.find(p => p.userId === lynchedPlayerId) || null;
     } else {
         const message = isTiebreaker ? 'Tras un segundo empate, el pueblo decide perdonar una vida hoy.' : 'El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.';
         game.events.push({ id: `evt_vote_result_${game.currentRound}`, gameId: game.id, round: game.currentRound, type: 'vote_result', message, data: { lynchedPlayerId: null, final: true }, createdAt: new Date() });
     }
 
-    let gameOverInfo = await checkGameOver(game, lynchedPlayerObject);
+    let gameOverInfo = await checkGameOver(transaction, game, lynchedPlayerObject);
     if (gameOverInfo.isGameOver) {
         game.status = "finished";
         game.phase = "finished";
@@ -372,20 +365,17 @@ export async function processVotes(transaction: Transaction, gameRef: DocumentRe
         return;
     }
 
-    game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; p.isExiled = false; });
     const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
 
     transaction.update(gameRef, toPlainObject({
         ...game,
+        players: game.players.map(p => ({...p, votedFor: null})),
         phase: 'night',
         currentRound: game.currentRound + 1,
         phaseEndsAt
     }));
 }
-export async function processJuryVotes(transaction: Transaction, gameRef: DocumentReference<Game>) {
-    const gameSnap = await transaction.get(gameRef);
-    if (!gameSnap.exists()) throw new Error("Game not found.");
-    let game = gameSnap.data()!;
+export async function processJuryVotesEngine(transaction: Transaction, gameRef: DocumentReference<Game>, game: Game, fullPlayers: Player[]) {
     if (game.phase !== 'jury_voting') return;
 
     if (game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now()) {
@@ -422,15 +412,15 @@ export async function processJuryVotes(transaction: Transaction, gameRef: Docume
     let triggeredHunterId: string | null = null;
 
     if (mostVotedPlayerId) {
-        const { updatedGame, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, mostVotedPlayerId, 'vote_result', `El jurado de los muertos ha decidido. ${game.players.find(p=>p.userId === mostVotedPlayerId)?.displayName} ha sido linchado.`);
+        const { updatedGame, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, fullPlayers, mostVotedPlayerId, 'vote_result', `El jurado de los muertos ha decidido. ${game.players.find(p=>p.userId === mostVotedPlayerId)?.displayName} ha sido linchado.`);
         game = updatedGame;
         triggeredHunterId = newHunterId;
-        lynchedPlayerObject = game.players.find(p => p.userId === mostVotedPlayerId) || null;
+        lynchedPlayerObject = fullPlayers.find(p => p.userId === mostVotedPlayerId) || null;
     } else {
          game.events.push({ id: `evt_jury_no_vote_${game.currentRound}`, gameId: game.id, round: game.currentRound, type: 'vote_result', message: "El jurado de los muertos no llegó a un consenso. Nadie es linchado.", data: { lynchedPlayerId: null, final: true }, createdAt: new Date() });
     }
     
-    let gameOverInfo = await checkGameOver(game, lynchedPlayerObject);
+    let gameOverInfo = await checkGameOver(transaction, game, lynchedPlayerObject);
     if (gameOverInfo.isGameOver) {
         game.status = "finished";
         game.phase = "finished";
@@ -445,19 +435,19 @@ export async function processJuryVotes(transaction: Transaction, gameRef: Docume
         return;
     }
 
-    game.players.forEach(p => { p.votedFor = null; p.usedNightAbility = false; });
     const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
 
     transaction.update(gameRef, toPlainObject({
-        ...game, phase: 'night', currentRound: game.currentRound + 1, phaseEndsAt,
+        ...game, phase: 'night', currentRound: game.currentRound + 1, phaseEndsAt, players: game.players.map(p => ({...p, votedFor: null}))
     }));
 }
 
-async function performKill(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, playerIdToKill: string | null, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; triggeredHunterId: string | null; }> {
+async function performKill(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, players: Player[], playerIdToKill: string | null, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; updatedPlayers: Player[]; triggeredHunterId: string | null; }> {
     let newGameData = { ...gameData };
+    let newPlayers = [...players];
     let triggeredHunterId: string | null = null;
     
-    if (!playerIdToKill) return { updatedGame: newGameData, triggeredHunterId };
+    if (!playerIdToKill) return { updatedGame: newGameData, updatedPlayers: newPlayers, triggeredHunterId };
 
     const killQueue: {id: string, cause: GameEvent['type'], message?: string}[] = [{id: playerIdToKill, cause, message: customMessage}];
     const alreadyProcessed = new Set<string>();
@@ -468,15 +458,15 @@ async function performKill(transaction: Transaction, gameRef: DocumentReference<
             continue;
         }
 
-        const playerIndex = newGameData.players.findIndex((p: Player) => p.userId === currentIdToKill);
-        if (playerIndex === -1 || !newGameData.players[playerIndex].isAlive) {
+        const playerIndex = newPlayers.findIndex((p: Player) => p.userId === currentIdToKill);
+        if (playerIndex === -1 || !newPlayers[playerIndex].isAlive) {
             continue;
         }
         
         alreadyProcessed.add(currentIdToKill);
-        const playerToKill = { ...newGameData.players[playerIndex] };
+        const playerToKill = { ...newPlayers[playerIndex] };
         
-        newGameData.players[playerIndex].isAlive = false;
+        newPlayers[playerIndex].isAlive = false;
         
         const deathMessage = currentMessage || `${playerToKill.displayName} ha muerto. Su rol era: ${roleDetails[playerToKill.role!]?.name || 'Desconocido'}`;
 
@@ -487,18 +477,16 @@ async function performKill(transaction: Transaction, gameRef: DocumentReference<
             data: { killedPlayerIds: [currentIdToKill], revealedRole: playerToKill.role }, createdAt: new Date(),
         });
         
-        // Post-death triggers
         if (playerToKill.role === 'seer' && newGameData.settings.seer_apprentice) newGameData.seerDied = true;
         if (playerToKill.role === 'hunter' && newGameData.settings.hunter && !triggeredHunterId) triggeredHunterId = playerToKill.userId;
         if (playerToKill.role === 'leprosa' && currentCause === 'werewolf_kill') newGameData.leprosaBlockedRound = newGameData.currentRound + 1;
         if (playerToKill.role === 'wolf_cub') newGameData.wolfCubRevengeRound = newGameData.currentRound;
 
-        // Chain death triggers
         const checkAndQueueChainDeath = (linkedIds: (string[] | null | undefined), deadPlayer: Player, messageTemplate: string, eventType: GameEvent['type']) => {
             if (!linkedIds || !linkedIds.includes(deadPlayer.userId)) return;
 
             const otherId = linkedIds.find(id => id !== deadPlayer.userId);
-            const otherPlayer = otherId ? newGameData.players.find(p => p.userId === otherId) : undefined;
+            const otherPlayer = otherId ? newPlayers.find(p => p.userId === otherId) : undefined;
             
             if (otherPlayer && otherPlayer.isAlive && !alreadyProcessed.has(otherId!) && !killQueue.some(k => k.id === otherId)) {
                 killQueue.push({
@@ -521,20 +509,20 @@ async function performKill(transaction: Transaction, gameRef: DocumentReference<
         }
     }
     
-    return { updatedGame: newGameData, triggeredHunterId };
+    return { updatedGame: newGameData, updatedPlayers: newPlayers, triggeredHunterId };
 }
 
 
-export async function killPlayer(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, playerIdToKill: string, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; triggeredHunterId: string | null; }> {
-    const playerToKill = gameData.players.find(p => p.userId === playerIdToKill);
-    if (!playerToKill || !playerToKill.isAlive) return { updatedGame: gameData, triggeredHunterId: null };
+export async function killPlayer(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, players: Player[], playerIdToKill: string, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; updatedPlayers: Player[]; triggeredHunterId: string | null; }> {
+    const playerToKill = players.find(p => p.userId === playerIdToKill);
+    if (!playerToKill || !playerToKill.isAlive) return { updatedGame: gameData, updatedPlayers: players, triggeredHunterId: null };
 
-    // Prince check for voting
     if (cause === 'vote_result' && playerToKill.role === 'prince' && gameData.settings.prince && !playerToKill.princeRevealed) {
-        const playerIndex = gameData.players.findIndex(p => p.userId === playerIdToKill);
+        const playerIndex = players.findIndex(p => p.userId === playerIdToKill);
         if (playerIndex > -1) {
             let updatedGame = { ...gameData };
-            updatedGame.players[playerIndex].princeRevealed = true;
+            let updatedPlayers = [...players];
+            updatedPlayers[playerIndex].princeRevealed = true;
             updatedGame.events.push({
                 id: `evt_prince_reveal_${Date.now()}`,
                 gameId: gameData.id,
@@ -544,25 +532,26 @@ export async function killPlayer(transaction: Transaction, gameRef: DocumentRefe
                 createdAt: new Date(),
                 data: { lynchedPlayerId: null, final: true, revealedPlayerId: playerIdToKill },
             });
-            return { updatedGame, triggeredHunterId: null };
+            return { updatedGame, updatedPlayers, triggeredHunterId: null };
         }
     }
     
-    return performKill(transaction, gameRef, gameData, playerIdToKill, cause, customMessage);
+    return performKill(transaction, gameRef, gameData, players, playerIdToKill, cause, customMessage);
 }
 
-export async function killPlayerUnstoppable(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, playerIdToKill: string, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; triggeredHunterId: string | null; }> {
-    return performKill(transaction, gameRef, gameData, playerIdToKill, cause, customMessage);
+export async function killPlayerUnstoppable(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, players: Player[], playerIdToKill: string, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; updatedPlayers: Player[]; triggeredHunterId: string | null; }> {
+    return performKill(transaction, gameRef, gameData, players, playerIdToKill, cause, customMessage);
 }
 
 
-export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | null): Promise<{ isGameOver: boolean; message: string; winnerCode?: string; winners: Player[] }> {
+export async function checkGameOver(transaction: Transaction, gameData: Game, lynchedPlayer?: Player | null): Promise<{ isGameOver: boolean; message: string; winnerCode?: string; winners: Player[] }> {
     if (gameData.status === 'finished') {
         const lastEvent = gameData.events.find(e => e.type === 'game_over');
         return { isGameOver: true, message: lastEvent?.message || "La partida ha terminado.", winnerCode: lastEvent?.data?.winnerCode, winners: lastEvent?.data?.winners || [] };
     }
     
-    const alivePlayers = gameData.players.filter(p => p.isAlive);
+    const fullPlayers = await getFullPlayersTransactional(transaction, gameData.id, gameData);
+    const alivePlayers = fullPlayers.filter(p => p.isAlive);
     const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'witch', 'seeker_fairy'];
 
     // Individual win conditions take priority
@@ -576,13 +565,25 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
             };
         }
         
-        const executioner = gameData.players.find(p => p.role === 'executioner' && p.isAlive);
+        const executioner = fullPlayers.find(p => p.role === 'executioner' && p.isAlive);
         if (executioner && executioner.executionerTargetId === lynchedPlayer.userId) {
             return {
                 isGameOver: true,
                 winnerCode: 'executioner',
                 message: `¡El Verdugo ha ganado! Ha logrado su objetivo de que el pueblo linche a ${lynchedPlayer.displayName}.`,
                 winners: [executioner],
+            };
+        }
+    }
+
+     if (gameData.settings.banshee) {
+        const banshee = fullPlayers.find(p => p.role === 'banshee' && p.isAlive);
+        if (banshee && (banshee.bansheePoints || 0) >= 2) {
+             return {
+                isGameOver: true,
+                winnerCode: 'banshee',
+                message: `¡La Banshee ha ganado! Sus dos gritos han sentenciado a muerte y ha cumplido su objetivo.`,
+                winners: [banshee],
             };
         }
     }
@@ -603,7 +604,7 @@ export async function checkGameOver(gameData: Game, lynchedPlayer?: Player | nul
     const aliveCivilians = alivePlayers.filter(p => p.role && !wolfRoles.includes(p.role));
 
     if (aliveWolvesCount > 0 && aliveWolvesCount >= aliveCivilians.length) {
-        return { isGameOver: true, winnerCode: 'wolves', message: "¡Los hombres lobo han ganado! Superan en número al pueblo.", winners: gameData.players.filter(p => p.role && wolfRoles.includes(p.role)) };
+        return { isGameOver: true, winnerCode: 'wolves', message: "¡Los hombres lobo han ganado! Superan en número al pueblo.", winners: fullPlayers.filter(p => p.role && wolfRoles.includes(p.role)) };
     }
     
     const threats = alivePlayers.filter(p => p.role && wolfRoles.includes(p.role));
