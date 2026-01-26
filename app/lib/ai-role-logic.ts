@@ -1,6 +1,4 @@
 
-'use server';
-
 import type { Game, Player, PlayerRole, NightActionType } from '@/types';
 
 type AIActionDecision = { actionType: NightActionType | 'VOTE' | 'SHOOT' | 'NONE'; targetId: string };
