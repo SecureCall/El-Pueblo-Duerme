@@ -10,7 +10,7 @@ service cloud.firestore {
       allow read: if (resource.data.status == 'waiting' && resource.data.settings.isPublic == true)
                   || (request.auth != null && exists(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid)));
 
-      // No client can write to the main game document. All mutations must go through server actions.
+      // Direct client writes are forbidden. All mutations must go through server actions.
       allow write: if false;
     }
 
@@ -18,7 +18,7 @@ service cloud.firestore {
       // A player can only read their OWN private data document.
       allow read: if request.auth != null && request.auth.uid == userId;
 
-      // Clients cannot write to any player data document.
+      // Direct client writes are forbidden.
       allow write: if false;
     }
   }
