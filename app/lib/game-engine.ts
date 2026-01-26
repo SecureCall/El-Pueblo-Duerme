@@ -74,6 +74,28 @@ async function performKill(transaction: Transaction, gameRef: DocumentReference<
             data: { killedPlayerIds: [currentIdToKill], revealedRole: playerToKill.role }, createdAt: new Date(),
         });
         
+        // --- Post-death triggers ---
+
+        // Executioner Fail Condition
+        const executioner = newPlayers.find(p => p.isAlive && p.role === 'executioner' && p.executionerTargetId === playerToKill.userId);
+        if (executioner && cause !== 'vote_result') {
+            const execIndex = newPlayers.findIndex(p => p.userId === executioner.userId);
+            if (execIndex > -1) {
+                newPlayers[execIndex].role = 'villager';
+                newPlayers[execIndex].executionerTargetId = null;
+
+                const execPrivateRef = doc(adminDb, 'games', newGameData.id, 'playerData', executioner.userId);
+                transaction.update(execPrivateRef, { role: 'villager', executionerTargetId: null });
+
+                newGameData.events.push({
+                    id: `evt_exec_fail_${Date.now()}`,
+                    gameId: newGameData.id, round: newGameData.currentRound, type: 'special',
+                    message: 'Tu objetivo ha muerto por otras causas. Has perdido tu objetivo y ahora eres un simple aldeano. Ganas con el pueblo.',
+                    data: { targetId: executioner.userId }, createdAt: new Date(),
+                });
+            }
+        }
+        
         // Shapeshifter transformation logic
         const shapeshifterIndex = newPlayers.findIndex((p: Player) => 
             p.isAlive && 
@@ -85,11 +107,9 @@ async function performKill(transaction: Transaction, gameRef: DocumentReference<
             const shifter = newPlayers[shapeshifterIndex];
             const newRole = playerToKill.role;
             
-            // Update the local mutable copy of players
             newPlayers[shapeshifterIndex].role = newRole;
             newPlayers[shapeshifterIndex].shapeshifterTargetId = null; 
             
-            // Update the private data on Firestore within the transaction
             const shifterPrivateRef = doc(adminDb, 'games', newGameData.id, 'playerData', shifter.userId);
             transaction.update(shifterPrivateRef, {
                 role: newRole,
@@ -102,12 +122,12 @@ async function performKill(transaction: Transaction, gameRef: DocumentReference<
                 round: newGameData.currentRound, 
                 type: 'special',
                 message: `¡Has cambiado de forma! Ahora eres: ${roleDetails[newRole]?.name || 'un rol desconocido'}. Tu nuevo objetivo es ganar con tu nuevo equipo.`,
-                data: { targetId: shifter.userId }, // This makes the event private to the shapeshifter
+                data: { targetId: shifter.userId },
                 createdAt: new Date(),
             });
         }
         
-        // Post-death triggers
+        // Other triggers
         if (playerToKill.role === 'seer' && newGameData.settings.seer_apprentice) newGameData.seerDied = true;
         if (playerToKill.role === 'hunter' && newGameData.settings.hunter && !triggeredHunterId) triggeredHunterId = playerToKill.userId;
         if (playerToKill.role === 'leprosa' && currentCause === 'werewolf_kill') newGameData.leprosaBlockedRound = newGameData.currentRound + 1;
@@ -385,7 +405,8 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
   return { nightEvent };
 }
 export async function processVotesEngine(transaction: Transaction, gameRef: DocumentReference<Game>, game: Game, fullPlayers: Player[]) {
-    if (game.phase !== 'day' || game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now()) return { voteEvent: undefined };
+    if (game.phase !== 'day') return { voteEvent: undefined };
+    if (game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now()) return { voteEvent: undefined };
 
     const lastVoteEvent = [...game.events].sort((a,b) => getMillis(b.createdAt) - getMillis(a.createdAt)).find(e => e.type === 'vote_result');
     const isTiebreaker = Array.isArray(lastVoteEvent?.data?.tiedPlayerIds) && !lastVoteEvent?.data?.final;
@@ -436,17 +457,19 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
             transaction.update(gameRef, toPlainObject({ events: game.events, phase: "jury_voting", phaseEndsAt }));
             return { voteEvent: juryEvent };
         } else {
+            // No jury, so a final tie results in no lynch
             mostVotedPlayerIds = [];
         }
     }
 
     let lynchedPlayerId: string | null = mostVotedPlayerIds[0] || null;
     let triggeredHunterId: string | null = null;
+    let mutableFullPlayers = [...fullPlayers];
 
     if (lynchedPlayerId) {
-        const { updatedGame, updatedPlayers, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, fullPlayers, lynchedPlayerId, 'vote_result', `El pueblo ha hablado. ${game.players.find(p => p.userId === lynchedPlayerId)?.displayName} ha sido linchado.`);
+        const { updatedGame, updatedPlayers, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, mutableFullPlayers, lynchedPlayerId, 'vote_result', `El pueblo ha hablado. ${game.players.find(p => p.userId === lynchedPlayerId)?.displayName} ha sido linchado.`);
         game = updatedGame;
-        fullPlayers = updatedPlayers;
+        mutableFullPlayers = updatedPlayers;
         triggeredHunterId = newHunterId;
     } else {
         const message = isTiebreaker ? 'Tras un segundo empate, el pueblo decide perdonar una vida hoy.' : 'El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.';
@@ -454,7 +477,7 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
     }
 
     let lynchedPlayerObject = fullPlayers.find(p => p.userId === lynchedPlayerId) || null;
-    let gameOverInfo = await checkGameOver(game, fullPlayers, lynchedPlayerObject);
+    let gameOverInfo = await checkGameOver(game, mutableFullPlayers, lynchedPlayerObject);
     if (gameOverInfo.isGameOver) {
         game.status = "finished";
         game.phase = "finished";
@@ -687,3 +710,4 @@ const splitPlayerData = (player: Player): { publicData: PlayerPublicData, privat
   
     return { publicData, privateData: privateData as PlayerPrivateData };
   }
+
