@@ -1,7 +1,6 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  output: 'standalone',
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'placehold.co' },
@@ -13,7 +12,7 @@ const nextConfig: NextConfig = {
   },
   transpilePackages: ['lucide-react', 'recharts'],
   experimental: {
-    optimizePackageImports: ['lucide-react', 'date-fns', 'recharts', '@radix-ui/react-icons'],
+    optimizePackageImports: ['lucide-react', 'date-fns', 'recharts'],
   },
 };
 
