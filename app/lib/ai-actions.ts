@@ -1,13 +1,31 @@
 
+
 'use server';
-import { getDoc, doc } from "firebase/firestore";
+import { getDoc, doc, getDocs, collection } from "firebase/firestore";
 import { 
   type Game, 
   type Player, 
+  PlayerPrivateData
 } from "@/types";
 import { submitNightAction, submitHunterShot, submitVote } from "@/lib/firebase-actions";
 import { aiNightActionLogic, aiDayActionLogic, aiHunterActionLogic } from './ai-role-logic';
 import { adminDb } from "./firebase-admin";
+
+async function getFullPlayers(gameId: string, game: Game): Promise<Player[]> {
+    const privateDataSnapshot = await getDocs(collection(adminDb, 'games', gameId, 'playerData'));
+    const privateDataMap = new Map<string, PlayerPrivateData>();
+    privateDataSnapshot.forEach(doc => {
+        privateDataMap.set(doc.id, doc.data() as PlayerPrivateData);
+    });
+
+    const fullPlayers: Player[] = game.players.map(publicData => {
+        const privateData = privateDataMap.get(publicData.userId);
+        return { ...publicData, ...privateData } as Player;
+    });
+
+    return fullPlayers;
+}
+
 
 export async function runAIActions(gameId: string, phase: 'day' | 'night') {
     try {
@@ -77,17 +95,4 @@ export async function runAIHunterShot(gameId: string) {
     }
 }
 
-async function getFullPlayers(gameId: string, game: Game): Promise<Player[]> {
-    const privateDataSnapshot = await getDocs(collection(adminDb, 'games', gameId, 'playerData'));
-    const privateDataMap = new Map<string, PlayerPrivateData>();
-    privateDataSnapshot.forEach(doc => {
-        privateDataMap.set(doc.id, doc.data() as PlayerPrivateData);
-    });
-
-    const fullPlayers: Player[] = game.players.map(publicData => {
-        const privateData = privateDataMap.get(publicData.userId);
-        return { ...publicData, ...privateData } as Player;
-    });
-
-    return fullPlayers;
-}
+  

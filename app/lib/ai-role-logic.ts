@@ -162,3 +162,4 @@ export const aiHunterActionLogic = (aiPlayer: Player, game: Game, alivePlayers: 
     return { actionType: 'SHOOT', targetId: randomTarget(potentialTargets) };
 };
 
+  
