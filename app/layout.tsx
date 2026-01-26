@@ -1,11 +1,21 @@
 
 import './globals.css';
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Playfair_Display, PT_Sans } from 'next/font/google';
 import { Toaster } from './components/ui/toaster';
 import { FirebaseProvider } from './firebase/provider';
+import { cn } from './lib/utils';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
+const ptSans = PT_Sans({
+  subsets: ['latin'],
+  weight: ['400', '700'],
+  variable: '--font-sans',
+});
+
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  variable: '--font-headline',
+});
 
 export const metadata: Metadata = {
   title: 'El Pueblo Duerme',
@@ -18,8 +28,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
-      <body className={inter.className}>
+    <html lang="es" className="dark">
+      <body className={cn(ptSans.variable, playfair.variable, "font-sans")}>
         <FirebaseProvider>
           {children}
           <Toaster />
