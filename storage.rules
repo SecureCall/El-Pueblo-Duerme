@@ -5,7 +5,7 @@ service firebase.storage {
     // Allow public read for all files (e.g., avatars).
     match /{allPaths=**} {
       allow read;
-      // Allow write only for authenticated users (e.g., for uploading custom avatars in the future).
+      // Allow write only for authenticated users.
       allow write: if request.auth != null;
     }
   }
