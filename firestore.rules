@@ -1,13 +1,16 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /games/{gameId} {
-      allow read: if request.auth != null;
-      allow write: if false; 
+      // Allow read if the game is public and waiting, or if the user is a player in the game.
+      allow read: if (resource.data.settings.isPublic == true && resource.data.status == 'waiting') || exists(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid));
+      // Deny all client-side writes. All mutations must go through server actions.
+      allow write: if false;
     }
     match /games/{gameId}/playerData/{userId} {
+      // A player can only read their OWN private data.
       allow read: if request.auth.uid == userId;
+      // Deny all client-side writes.
       allow write: if false;
     }
   }
