@@ -1,17 +1,16 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isPlayerInGame(gameId) {
-      return request.auth != null && exists(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid));
-    }
-
     match /games/{gameId} {
-      // Public games in lobby are readable. Otherwise, you must be a player.
-      allow read: if (resource.data.settings.isPublic == true && resource.data.status == 'waiting') || isPlayerInGame(gameId);
+      // Allow public read only for games in the 'waiting' state.
+      // For all other states, the user must be a participant in the game.
+      allow read: if (resource.data.status == 'waiting' && resource.data.settings.isPublic == true)
+                  || (request.auth != null && exists(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid)));
 
-      // Deny all client-side writes. All mutations must go through server actions.
+      // Disallow all client-side writes. All mutations must go through server actions.
       allow write: if false;
     }
 
@@ -19,8 +18,10 @@ service cloud.firestore {
       // A player can only read their OWN private data.
       allow read: if request.auth != null && request.auth.uid == userId;
 
-      // Deny all client-side writes.
+      // Disallow all client-side writes.
       allow write: if false;
     }
   }
 }
+
+    
