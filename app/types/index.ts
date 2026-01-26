@@ -1,5 +1,4 @@
 
-
 import type { Timestamp } from 'firebase/firestore';
 import { z } from 'zod';
 import { 
@@ -83,5 +82,3 @@ export interface GameStateChange {
   events?: GameEvent[];
   pendingDeaths?: { playerId: string; cause: GameEvent['type'] }[];
 }
-
-  

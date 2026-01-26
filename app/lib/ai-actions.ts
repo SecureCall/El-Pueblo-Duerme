@@ -76,3 +76,18 @@ export async function runAIHunterShot(gameId: string) {
          console.error("Error in runAIHunterShot:", e);
     }
 }
+
+async function getFullPlayers(gameId: string, game: Game): Promise<Player[]> {
+    const privateDataSnapshot = await getDocs(collection(adminDb, 'games', gameId, 'playerData'));
+    const privateDataMap = new Map<string, PlayerPrivateData>();
+    privateDataSnapshot.forEach(doc => {
+        privateDataMap.set(doc.id, doc.data() as PlayerPrivateData);
+    });
+
+    const fullPlayers: Player[] = game.players.map(publicData => {
+        const privateData = privateDataMap.get(publicData.userId);
+        return { ...publicData, ...privateData } as Player;
+    });
+
+    return fullPlayers;
+}
