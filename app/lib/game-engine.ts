@@ -1,4 +1,3 @@
-
 'use server';
 
 import { 
@@ -12,9 +11,54 @@ import {
   type GameEvent, type PlayerRole, type NightActionType,
 } from "@/types";
 import { toPlainObject, getMillis } from "@/lib/utils";
-import { roleDetails } from "@/lib/roles";
+import { roleDetails } from "./roles";
 
 const PHASE_DURATION_SECONDS = 60;
+
+const getRoleDistribution = (playerCount: number) => {
+    if (playerCount < 5) return { werewolves: 1, special: 0 };
+    if (playerCount < 8) return { werewolves: 1, special: 1 };
+    if (playerCount < 11) return { werewolves: 2, special: 2 };
+    if (playerCount < 14) return { werewolves: 3, special: 3 };
+    return { werewolves: 4, special: 4 };
+};
+
+export const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
+    const roles: PlayerRole[] = [];
+    const { werewolves: numWerewolves, special: numSpecial } = getRoleDistribution(playerCount);
+
+    for (let i = 0; i < numWerewolves; i++) {
+        roles.push('werewolf');
+    }
+
+    const availableSpecialRoles: PlayerRole[] = (Object.keys(settings) as Array<keyof typeof settings>)
+        .filter(key => {
+            const roleKey = key as PlayerRole;
+            return settings[key] === true && roleKey && roleDetails[roleKey]?.team !== 'Lobos'; // Exclude wolf-team roles from special pool
+        })
+        .sort(() => Math.random() - 0.5) as PlayerRole[];
+    
+    let specialRolesAdded = 0;
+    for (const specialRole of availableSpecialRoles) {
+        if (specialRolesAdded >= numSpecial) break;
+
+        if (specialRole === 'twin') {
+            if (roles.length + 2 <= playerCount) {
+                roles.push('twin', 'twin');
+                specialRolesAdded += 2; // Twins count as two special roles
+            }
+        } else {
+            roles.push(specialRole);
+            specialRolesAdded++;
+        }
+    }
+    
+    while (roles.length < playerCount) {
+        roles.push('villager');
+    }
+
+    return roles.sort(() => Math.random() - 0.5);
+};
 
 const getActionPriority = (actionType: NightActionType): number => {
     const priorityMap: Record<NightActionType, number> = {

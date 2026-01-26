@@ -1,6 +1,5 @@
 rules_version = '2';
 
-// See https://firebase.google.com/docs/storage/security
 service firebase.storage {
   match /b/{bucket}/o {
     match /{allPaths=**} {

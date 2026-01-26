@@ -1,4 +1,3 @@
-
 'use server';
 import { 
   doc,
@@ -28,7 +27,7 @@ import {
 import { toPlainObject, getMillis } from "./utils";
 import { masterActions } from "./master-actions";
 import { secretObjectives } from "./objectives";
-import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine } from './game-engine';
+import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine, generateRoles } from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { runAIActions, runAIHunterShot } from "./ai-actions";
 import { adminDb } from './firebase-admin';
@@ -257,40 +256,6 @@ export async function joinGame(
 
 const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
 const MINIMUM_PLAYERS = 3;
-
-const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
-    let roles: PlayerRole[] = [];
-    
-    const numWerewolves = Math.max(1, Math.floor(playerCount / 5));
-    for (let i = 0; i < numWerewolves; i++) {
-        roles.push('werewolf');
-    }
-
-    const availableSpecialRoles: PlayerRole[] = (Object.keys(settings) as Array<keyof typeof settings>)
-        .filter(key => {
-            const roleKey = key as PlayerRole;
-            return settings[key] === true && roleKey && roleKey !== 'werewolf' && roleKey !== 'villager';
-        })
-        .sort(() => Math.random() - 0.5) as PlayerRole[];
-    
-    for (const specialRole of availableSpecialRoles) {
-        if (roles.length >= playerCount) break;
-
-        if (specialRole === 'twin') {
-            if (roles.length + 2 <= playerCount) {
-                roles.push('twin', 'twin');
-            }
-        } else {
-            roles.push(specialRole);
-        }
-    }
-    
-    while (roles.length < playerCount) {
-        roles.push('villager');
-    }
-
-    return roles.sort(() => Math.random() - 0.5);
-};
 
 export async function startGame(gameId: string, creatorId: string) {
     const gameRef = doc(adminDb, 'games', gameId);
