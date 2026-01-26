@@ -54,7 +54,6 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     votedFor: null,
     joinedAt: Timestamp.now(),
     isAI,
-    isExiled: false,
     lastHealedRound: 0,
     potions: { poison: null, save: null },
     priestSelfHealUsed: false,
@@ -77,7 +76,7 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
 
 function splitPlayerData(player: Player): { publicData: PlayerPublicData, privateData: PlayerPrivateData } {
   const { 
-    userId, gameId, displayName, avatarUrl, isAlive, isAI, isExiled, 
+    userId, gameId, displayName, avatarUrl, isAlive, isAI, 
     princeRevealed, joinedAt, votedFor,
     // Explicitly destructure private fields to exclude them from public data
     role, secretObjectiveId, executionerTargetId, potions, priestSelfHealUsed, guardianSelfProtects,
@@ -87,7 +86,7 @@ function splitPlayerData(player: Player): { publicData: PlayerPublicData, privat
   } = player;
 
   const publicData: PlayerPublicData = {
-    userId, gameId, displayName, avatarUrl, isAlive, isAI, isExiled,
+    userId, gameId, displayName, avatarUrl, isAlive, isAI, 
     princeRevealed, joinedAt, votedFor
   };
 

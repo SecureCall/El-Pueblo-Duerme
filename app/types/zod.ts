@@ -24,7 +24,6 @@ export const PlayerPublicSchema = z.object({
   avatarUrl: z.string(),
   isAlive: z.boolean(),
   isAI: z.boolean(),
-  isExiled: z.boolean(),
   princeRevealed: z.boolean().optional(),
   joinedAt: z.union([TimestampSchema, z.string()]).nullable(),
   votedFor: z.string().nullable(),

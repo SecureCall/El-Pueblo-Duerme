@@ -8,7 +8,7 @@ service cloud.firestore {
     }
 
     match /games/{gameId} {
-      // Allow public reads only for lobbies. For all other states, you must be a player.
+      // Public games in lobby are readable. Otherwise, you must be a player.
       allow read: if (resource.data.settings.isPublic == true && resource.data.status == 'waiting') || isPlayerInGame(gameId);
 
       // Deny all client-side writes. All mutations must go through server actions.
