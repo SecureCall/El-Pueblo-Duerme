@@ -5,20 +5,13 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     match /games/{gameId} {
-      // Public, waiting games are readable by anyone authenticated to find lobbies.
-      // Started games are only readable by players in that game.
       allow read: if (resource.data.status == 'waiting' && resource.data.settings.isPublic == true)
                   || (request.auth != null && exists(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid)));
-
-      // Direct client writes are forbidden. All mutations must go through server actions.
       allow write: if false;
     }
 
     match /games/{gameId}/playerData/{userId} {
-      // A player can only read their OWN private data document.
       allow read: if request.auth != null && request.auth.uid == userId;
-
-      // Direct client writes are forbidden.
       allow write: if false;
     }
   }

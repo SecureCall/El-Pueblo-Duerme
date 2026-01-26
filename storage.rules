@@ -4,11 +4,7 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     match /{allPaths=**} {
-      // Public read access is allowed for assets like avatars.
       allow read;
-      // Write access is only allowed for authenticated users.
-      // This is a basic rule; for a real app, you'd likely want to restrict
-      // writes to a user's own avatar path, e.g., /users/{userId}/avatar.jpg
       allow write: if request.auth != null;
     }
   }
