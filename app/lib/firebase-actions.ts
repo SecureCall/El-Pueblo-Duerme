@@ -29,7 +29,7 @@ import {
 import { toPlainObject, getMillis, sanitizeHTML } from "./utils";
 import { masterActions } from "./master-actions";
 import { secretObjectives } from "./objectives";
-import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine, generateRoles } from './game-engine';
+import { processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotesEngine, processNightEngine, generateRoles } from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { runAIActions, runAIHunterShot } from "./ai-actions";
 import { adminDb } from './firebase-admin';

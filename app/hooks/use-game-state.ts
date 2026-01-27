@@ -5,7 +5,8 @@
 import { useEffect, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import type { Game, Player, GameEvent, ChatMessage, PlayerPublicData, PlayerPrivateData } from '../types';
-import { useFirebase, useDoc } from '../firebase';
+import { useFirebase } from '../firebase/provider';
+import { useDoc } from '../firebase/firestore/use-doc';
 import { useGameSession } from './use-game-session';
 
 // Combined state for the hook's return value
@@ -103,5 +104,3 @@ export const useGameState = (gameId: string): CombinedGameState => {
 
   return combinedState;
 };
-
-  
