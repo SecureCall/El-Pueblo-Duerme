@@ -52,6 +52,11 @@ export function useGameSession() {
         setDisplayNameState(storedDisplayName);
     }
     
+    // Set the avatar right away if it exists
+    if (storedAvatarUrl) {
+      setAvatarUrlState(storedAvatarUrl);
+    }
+    
     // Robust parsing of stats
     if (storedStatsRaw) {
         try {
@@ -87,22 +92,22 @@ export function useGameSession() {
       
       setFirebaseUser(user);
       
-      let finalAvatarUrl = storedAvatarUrl;
-      if (!finalAvatarUrl) {
+      // Only generate a new avatar if one isn't already loaded or stored.
+      if (!avatarUrl && !localStorage.getItem("werewolf_avatarUrl")) {
         const defaultAvatarId = Math.floor(Math.random() * 20) + 1;
         const defaultAvatar = PlaceHolderImages.find(img => img.id === `avatar-${defaultAvatarId}`);
         if(defaultAvatar) {
-            finalAvatarUrl = defaultAvatar.imageUrl;
-            localStorage.setItem("werewolf_avatarUrl", finalAvatarUrl);
+            const newAvatarUrl = defaultAvatar.imageUrl;
+            localStorage.setItem("werewolf_avatarUrl", newAvatarUrl);
+            setAvatarUrlState(newAvatarUrl);
         }
       }
-      setAvatarUrlState(finalAvatarUrl);
       
       setIsSessionLoaded(true);
     });
 
     return () => unsubscribe();
-  }, [auth]);
+  }, [auth, avatarUrl]); // Added avatarUrl to dependency array to prevent re-runs after it's set
 
   const setDisplayName = useCallback((name: string | null) => {
     if (name === null) {
@@ -164,7 +169,9 @@ export function useGameSession() {
             }
         };
 
-        if (!newStats.history) newStats.history = [];
+        if (!newStats.history) {
+            newStats.history = [];
+        }
         newStats.history.unshift({
             type: 'victory',
             title: isWinner ? '¡Victoria!' : 'Derrota',
@@ -172,6 +179,8 @@ export function useGameSession() {
             timestamp: Date.now(),
         });
 
+        // Cap the history at the most recent 10 events
+        newStats.history = newStats.history.slice(0, 10);
 
         localStorage.setItem("werewolf_stats", JSON.stringify(newStats));
         return newStats;
