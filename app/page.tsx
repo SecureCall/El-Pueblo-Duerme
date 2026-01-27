@@ -6,7 +6,7 @@ import { Button } from './components/ui/button';
 import { JoinGameForm } from './components/JoinGameForm';
 import { PlaceHolderImages } from './lib/placeholder-images';
 import Image from 'next/image';
-import { BookOpen, Users } from 'lucide-react';
+import { BookOpen, Users, User } from 'lucide-react';
 import { GameMusic } from './components/game/GameMusic';
 import { useEffect } from 'react';
 import { playNarration } from './lib/sounds';
@@ -75,15 +75,18 @@ export default function Home() {
             Una noche más cae sobre el pueblo. Entre vosotros se esconden lobos. ¿Podréis descubrirlos antes de que sea tarde?
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-lg">
-            <Button asChild size="lg" className="w-full font-bold text-lg">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-2xl">
+            <Button asChild size="lg" className="font-bold text-lg">
               <Link href="/create" onClick={handleCreateGameClick}>Crear Partida</Link>
             </Button>
-             <Button asChild size="lg" variant="secondary" className="w-full font-bold text-lg">
+             <Button asChild size="lg" variant="secondary" className="font-bold text-lg">
               <Link href="/public-games" onClick={handlePublicGamesClick}><Users className="mr-2 h-5 w-5"/> Salas Públicas</Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="w-full">
+            <Button asChild size="lg" variant="secondary" className="font-bold text-lg">
                <Link href="/how-to-play"><BookOpen className="mr-2 h-5 w-5"/> Cómo Jugar</Link>
+            </Button>
+             <Button asChild size="lg" variant="secondary" className="font-bold text-lg">
+               <Link href="/profile"><User className="mr-2 h-5 w-5"/> Mi Perfil</Link>
             </Button>
           </div>
           
