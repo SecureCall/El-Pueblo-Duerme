@@ -20,6 +20,41 @@ import { adminDb } from "./firebase-admin";
 
 const PHASE_DURATION_SECONDS = 60;
 
+export const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
+    let roles: PlayerRole[] = [];
+    
+    const numWerewolves = Math.max(1, Math.floor(playerCount / 5));
+    for (let i = 0; i < numWerewolves; i++) {
+        roles.push('werewolf');
+    }
+
+    const availableSpecialRoles: PlayerRole[] = (Object.keys(settings) as Array<keyof typeof settings>)
+        .filter(key => {
+            const roleKey = key as PlayerRole;
+            return settings[key as keyof Game['settings']] === true && roleKey && roleDetails[roleKey as keyof typeof roleDetails];
+        })
+        .sort(() => Math.random() - 0.5) as PlayerRole[];
+    
+    for (const specialRole of availableSpecialRoles) {
+        if (roles.length >= playerCount) break;
+
+        if (specialRole === 'twin') {
+            if (roles.length + 2 <= playerCount) {
+                roles.push('twin', 'twin');
+            }
+        } else {
+            roles.push(specialRole);
+        }
+    }
+    
+    while (roles.length < playerCount) {
+        roles.push('villager');
+    }
+
+    return roles.sort(() => Math.random() - 0.5);
+};
+
+
 async function getFullPlayersTransactional(transaction: Transaction, gameId: string, game: Game): Promise<Player[]> {
     const playerPrivateRefs = game.players.map(p => doc(adminDb, 'games', gameId, 'playerData', p.userId));
     const playerPrivateSnaps = await transaction.getAll(...playerPrivateRefs);
@@ -540,8 +575,9 @@ export async function processJuryVotesEngine(transaction: Transaction, gameRef: 
     let triggeredHunterId: string | null = null;
 
     if (mostVotedPlayerId) {
-        const { updatedGame, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, fullPlayers, mostVotedPlayerId, 'vote_result', `El jurado de los muertos ha decidido. ${game.players.find(p=>p.userId === mostVotedPlayerId)?.displayName} ha sido linchado.`);
+        const { updatedGame, updatedPlayers, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, fullPlayers, mostVotedPlayerId, 'vote_result', `El jurado de los muertos ha decidido. ${game.players.find(p=>p.userId === mostVotedPlayerId)?.displayName} ha sido linchado.`);
         game = updatedGame;
+        fullPlayers = updatedPlayers;
         triggeredHunterId = newHunterId;
         lynchedPlayerObject = fullPlayers.find(p => p.userId === mostVotedPlayerId) || null;
     } else {
@@ -710,4 +746,5 @@ const splitPlayerData = (player: Player): { publicData: PlayerPublicData, privat
   
     return { publicData, privateData: privateData as PlayerPrivateData };
   }
+
 

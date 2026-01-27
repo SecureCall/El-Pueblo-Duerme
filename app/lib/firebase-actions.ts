@@ -784,7 +784,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
             let game = gameSnap.data();
-
+            
             if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId || game.status === 'finished') {
                 return;
             }
@@ -795,7 +795,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
             
             if (anotherHunterId) {
                 game.pendingHunterShot = anotherHunterId;
-                 const { publicPlayersData } = splitPlayerDataList(updatedPlayers);
+                 const { publicPlayersData } = splitFullPlayerList(updatedPlayers);
                 transaction.update(gameRef, toPlainObject({ players: publicPlayersData, events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot }));
                 return;
             }
@@ -805,7 +805,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
                 game.status = "finished";
                 game.phase = "finished";
                 game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: new Date() });
-                const { publicPlayersData } = splitPlayerDataList(updatedPlayers);
+                const { publicPlayersData } = splitFullPlayerList(updatedPlayers);
                 transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', players: publicPlayersData, events: game.events, pendingHunterShot: null }));
                 return;
             }
@@ -820,7 +820,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
             }
 
             const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
-            const { publicPlayersData } = splitPlayerDataList(updatedPlayers);
+            const { publicPlayersData } = splitFullPlayerList(updatedPlayers);
             transaction.update(gameRef, toPlainObject({
                 players: publicPlayersData, events: game.events, phase: nextPhase, phaseEndsAt,
                 currentRound: nextRound, pendingHunterShot: null
@@ -1068,7 +1068,7 @@ export async function kickInactivePlayers(gameId: string) {
                 transaction.delete(privatePlayerRef);
             }
 
-            const { publicPlayersData } = splitPlayerDataList(fullPlayers);
+            const { publicPlayersData } = splitFullPlayerList(fullPlayers);
             game.players = publicPlayersData;
 
             const gameOverInfo = await checkGameOver(game, fullPlayers);
@@ -1086,7 +1086,7 @@ export async function kickInactivePlayers(gameId: string) {
     }
 }
 
-const splitPlayerDataList = (fullPlayers: Player[]): { publicPlayersData: PlayerPublicData[], privatePlayersData: Record<string, PlayerPrivateData> } => {
+const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: PlayerPublicData[], privatePlayersData: Record<string, PlayerPrivateData> } => {
     const publicPlayersData: PlayerPublicData[] = [];
     const privatePlayersData: Record<string, PlayerPrivateData> = {};
 
