@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { collection, query, where, Timestamp } from 'firebase/firestore';
+import { collection, query, where, Timestamp, orderBy } from 'firebase/firestore';
 
 import { useFirebase, useCollection, useMemoFirebase } from '../firebase';
 import type { Game } from '../types';
@@ -77,23 +77,24 @@ export default function PublicGamesPage() {
 
     const gamesQuery = useMemoFirebase(() => {
         if (!firestore) return null;
+        // The query now filters by activity on the backend.
+        const fiveMinutesAgo = Timestamp.fromMillis(Date.now() - 5 * 60 * 1000);
         return query(
             collection(firestore, 'games'),
             where('settings.isPublic', '==', true),
-            where('status', '==', 'waiting')
+            where('status', '==', 'waiting'),
+            where('lastActiveAt', '>', fiveMinutesAgo),
+            orderBy('lastActiveAt', 'desc')
         );
     }, [firestore]);
 
     const { data: publicGames, isLoading } = useCollection<Game>(gamesQuery);
 
+    // The sorting logic can be simplified as the query mostly handles it.
+    // Kept for robustness in case of Firestore timing nuances.
     const sortedGames = useMemo(() => {
         if (!publicGames) return [];
-        // Filter out stale games on the client and sort
-        const now = Date.now();
-        const fiveMinutes = 5 * 60 * 1000;
-        return publicGames
-            .filter(game => (now - getMillis(game.lastActiveAt)) < fiveMinutes)
-            .sort((a, b) => getMillis(b.lastActiveAt) - getMillis(a.lastActiveAt));
+        return [...publicGames].sort((a, b) => getMillis(b.lastActiveAt) - getMillis(a.lastActiveAt));
     }, [publicGames]);
 
     useEffect(() => {
