@@ -703,7 +703,6 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
                 
                 const sanitizedPlayers = fullPlayerList.map(p => {
                     const { privateData, ...publicData } = splitPlayerData(p);
-                     // AI can see roles of dead players.
                     const role = (p.userId === aiPlayer.userId || !p.isAlive) ? p.role : 'unknown';
                     return { ...publicData, role };
                 });
@@ -1099,4 +1098,3 @@ const splitPlayerDataList = (fullPlayers: Player[]): { publicPlayersData: Player
 
     return { publicPlayersData, privatePlayersData };
 };
-

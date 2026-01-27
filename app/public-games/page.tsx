@@ -18,26 +18,19 @@ import { EnterNameModal } from '../components/game/EnterNameModal';
 import { useGameSession } from '../hooks/use-game-session';
 import { useToast } from '../hooks/use-toast';
 import { getMillis } from '../lib/utils';
-import { joinGame } from '../lib/firebase-actions';
 
 function GameCard({ game }: { game: Game }) {
-    const { displayName, userId, avatarUrl } = useGameSession();
+    const { displayName, userId } = useGameSession();
     const router = useRouter();
     const [isJoining, setIsJoining] = useState(false);
 
     const handleJoin = async () => {
-        if (!displayName || !userId || !avatarUrl) {
-            // Logic to handle missing name is in the parent component
+        if (!displayName || !userId) {
             return;
         }
         setIsJoining(true);
-        const result = await joinGame({gameId: game.id, userId, displayName, avatarUrl});
-        if (result.error) {
-            alert(result.error);
-            setIsJoining(false);
-        } else {
-            router.push(`/game/${game.id}`);
-        }
+        // Directly navigate to the game room, the join logic is handled there.
+        router.push(`/game/${game.id}`);
     }
 
     return (
@@ -68,7 +61,6 @@ export default function PublicGamesPage() {
     const [isNameModalOpen, setIsNameModalOpen] = useState(false);
 
     useEffect(() => {
-        // Only open the modal if the display name is not set.
         if (!displayName) {
             setIsNameModalOpen(true);
         }
@@ -77,7 +69,6 @@ export default function PublicGamesPage() {
 
     const gamesQuery = useMemoFirebase(() => {
         if (!firestore) return null;
-        // The query now filters by activity on the backend.
         const fiveMinutesAgo = Timestamp.fromMillis(Date.now() - 5 * 60 * 1000);
         return query(
             collection(firestore, 'games'),
@@ -90,8 +81,6 @@ export default function PublicGamesPage() {
 
     const { data: publicGames, isLoading } = useCollection<Game>(gamesQuery);
 
-    // The sorting logic can be simplified as the query mostly handles it.
-    // Kept for robustness in case of Firestore timing nuances.
     const sortedGames = useMemo(() => {
         if (!publicGames) return [];
         return [...publicGames].sort((a, b) => getMillis(b.lastActiveAt) - getMillis(a.lastActiveAt));
