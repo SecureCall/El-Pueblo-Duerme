@@ -1,19 +1,7 @@
 
 'use server';
-import { 
-  doc,
-  setDoc,
-  getDoc,
-  updateDoc,
-  arrayUnion,
-  Timestamp,
-  runTransaction,
-  type Transaction,
-  DocumentReference,
-  collection,
-  getDocs,
-  writeBatch,
-} from "firebase/firestore";
+import { adminDb } from './firebase-admin';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { 
   type Game, 
   type Player, 
@@ -32,8 +20,6 @@ import { secretObjectives } from "./objectives";
 import * as gameEngine from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { runAIActions, runAIHunterShot } from "./ai-actions";
-import { adminDb } from './firebase-admin';
-
 
 const PHASE_DURATION_SECONDS = 60;
 
@@ -140,7 +126,7 @@ export async function createGame(
   }
 
   const gameId = generateGameId();
-  const gameRef = doc(adminDb, "games", gameId);
+  const gameRef = adminDb.collection("games").doc(gameId);
       
   const creatorPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
   const { publicData, privateData } = splitPlayerData(creatorPlayer);
@@ -185,9 +171,9 @@ export async function createGame(
   };
     
   try {
-    const creatorPrivateRef = doc(adminDb, `games/${gameId}/playerData/${userId}`);
+    const creatorPrivateRef = adminDb.collection(`games/${gameId}/playerData`).doc(userId);
     
-    await runTransaction(adminDb, async (transaction) => {
+    await adminDb.runTransaction(async (transaction) => {
         transaction.set(gameRef, toPlainObject(gameData));
         transaction.set(creatorPrivateRef, toPlainObject(privateData));
     });
@@ -208,13 +194,13 @@ export async function joinGame(
   }
 ) {
   const { gameId, userId, displayName, avatarUrl } = options;
-  const gameRef = doc(adminDb, "games", gameId);
+  const gameRef = adminDb.collection("games").doc(gameId);
   
   try {
-    await runTransaction(adminDb, async (transaction) => {
+    await adminDb.runTransaction(async (transaction) => {
       const gameSnap = await transaction.get(gameRef);
 
-      if (!gameSnap.exists()) {
+      if (!gameSnap.exists) {
         throw new Error("Partida no encontrada.");
       }
 
@@ -254,10 +240,10 @@ export async function joinGame(
       
       const newPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
       const { publicData, privateData } = splitPlayerData(newPlayer);
-      const playerPrivateRef = doc(adminDb, `games/${gameId}/playerData/${userId}`);
+      const playerPrivateRef = adminDb.collection(`games/${gameId}/playerData`).doc(userId);
 
       transaction.update(gameRef, {
-        players: arrayUnion(toPlainObject(publicData)),
+        players: FieldValue.arrayUnion(toPlainObject(publicData)),
         lastActiveAt: Timestamp.now(),
       });
       transaction.set(playerPrivateRef, toPlainObject(privateData));
@@ -276,19 +262,22 @@ const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessi
 const MINIMUM_PLAYERS = 3;
 
 export async function startGame(gameId: string, creatorId: string) {
-    const gameRef = doc(adminDb, 'games', gameId);
+    const gameRef = adminDb.collection('games').doc(gameId);
     
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error('Partida no encontrada.');
+            if (!gameSnap.exists) throw new Error('Partida no encontrada.');
             let game = gameSnap.data() as Game;
             if (game.creator !== creatorId) throw new Error('Solo el creador puede iniciar la partida.');
             if (game.status !== 'waiting') throw new Error('La partida ya ha comenzado.');
             
-            const playerDocs = await Promise.all(game.players.map(p => transaction.get(doc(adminDb, `games/${gameId}/playerData/${p.userId}`))));
-            let allPlayersFullData: Player[] = game.players.map((publicPlayer, index) => {
-                const privateData = playerDocs[index]?.data() as PlayerPrivateData | null;
+            const playerDataCollection = adminDb.collection(`games/${gameId}/playerData`);
+            const playerDocsSnaps = await transaction.get(playerDataCollection);
+            
+            let allPlayersFullData: Player[] = game.players.map(publicPlayer => {
+                const privateDoc = playerDocsSnaps.docs.find(d => d.id === publicPlayer.userId);
+                const privateData = privateDoc?.data() as PlayerPrivateData | undefined;
                 return { ...publicPlayer, ...privateData } as Player;
             });
             
@@ -342,7 +331,7 @@ export async function startGame(gameId: string, creatorId: string) {
             finalPlayersWithRoles.forEach(player => {
                 const { publicData, privateData } = splitPlayerData(player);
                 publicPlayersData.push(publicData);
-                const playerPrivateRef = doc(adminDb, `games/${gameId}/playerData/${player.userId}`);
+                const playerPrivateRef = adminDb.collection(`games/${gameId}/playerData`).doc(player.userId);
                 transaction.set(playerPrivateRef, toPlainObject(privateData), { merge: true });
             });
 
@@ -369,40 +358,46 @@ export async function startGame(gameId: string, creatorId: string) {
     }
 }
 
-async function getFullPlayers(gameId: string, game: Game, transaction?: Transaction): Promise<Player[]> {
-    const getPrivateData = async (userId: string) => {
-        const playerPrivateRef = doc(adminDb, 'games', gameId, 'playerData', userId);
-        const snap = transaction ? await transaction.get(playerPrivateRef) : await getDoc(playerPrivateRef);
-        return snap.exists() ? (snap.data() as PlayerPrivateData) : null;
-    };
+async function getFullPlayers(gameId: string, game: Game, transaction?: admin.firestore.Transaction): Promise<Player[]> {
+    const privateDataCollectionRef = adminDb.collection(`games/${gameId}/playerData`);
+    
+    let privateDataSnaps;
+    if (transaction) {
+        privateDataSnaps = await transaction.get(privateDataCollectionRef);
+    } else {
+        privateDataSnaps = await privateDataCollectionRef.get();
+    }
 
-    const fullPlayers: Player[] = await Promise.all(
-        game.players.map(async (publicData) => {
-            const privateData = await getPrivateData(publicData.userId);
-            return { ...publicData, ...privateData } as Player;
-        })
-    );
+    const privateDataMap = new Map<string, PlayerPrivateData>();
+    privateDataSnaps.forEach(snap => {
+        privateDataMap.set(snap.id, snap.data() as PlayerPrivateData);
+    });
 
+    const fullPlayers: Player[] = game.players.map(publicData => {
+        const privateInfo = privateDataMap.get(publicData.userId);
+        return { ...publicData, ...privateInfo } as Player;
+    }).sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
+    
     return fullPlayers;
 }
 
 
 export async function processNight(gameId: string) {
-    const gameRef = doc(adminDb, 'games', gameId) as DocumentReference<Game>;
+    const gameRef = adminDb.collection('games').doc(gameId);
     try {
         let nightResultEvent: GameEvent | undefined;
-        await runTransaction(adminDb, async (transaction) => {
+        await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found!");
-            const game = gameSnap.data()!;
+            if (!gameSnap.exists) throw new Error("Game not found!");
+            const game = gameSnap.data() as Game;
             const fullPlayers = await getFullPlayers(gameId, game, transaction);
             const { nightEvent } = await gameEngine.processNightEngine(transaction, gameRef, game, fullPlayers);
             nightResultEvent = nightEvent;
         });
         
-        const gameDoc = await getDoc(gameRef);
-        if (gameDoc.exists()) {
-            const game = gameDoc.data();
+        const gameDoc = await gameRef.get();
+        if (gameDoc.exists) {
+            const game = gameDoc.data() as Game;
             if (game.phase === 'day') {
                 if (nightResultEvent) {
                     await triggerAIChat(gameId, nightResultEvent.message, 'public');
@@ -419,21 +414,21 @@ export async function processNight(gameId: string) {
 }
 
 export async function processVotes(gameId: string) {
-    const gameRef = doc(adminDb, 'games', gameId) as DocumentReference<Game>;
+    const gameRef = adminDb.collection('games').doc(gameId);
     try {
         let voteResultEvent: GameEvent | undefined;
-        await runTransaction(adminDb, async (transaction) => {
+        await adminDb.runTransaction(async (transaction) => {
              const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found!");
-            const game = gameSnap.data()!;
+            if (!gameSnap.exists) throw new Error("Game not found!");
+            const game = gameSnap.data() as Game;
             const fullPlayers = await getFullPlayers(gameId, game, transaction);
             const result = await gameEngine.processVotesEngine(transaction, gameRef, game, fullPlayers);
             voteResultEvent = result.voteEvent;
         });
 
-        const gameDoc = await getDoc(gameRef);
-        if (gameDoc.exists()) {
-            const game = gameDoc.data();
+        const gameDoc = await gameRef.get();
+        if (gameDoc.exists) {
+            const game = gameDoc.data() as Game;
             if (voteResultEvent) {
                  await triggerAIChat(gameId, voteResultEvent.message, 'public');
             }
@@ -449,29 +444,30 @@ export async function processVotes(gameId: string) {
 }
 
 export async function resetGame(gameId: string) {
-  const gameRef = doc(adminDb, 'games', gameId);
+  const gameRef = adminDb.collection('games').doc(gameId);
 
   try {
-      await runTransaction(adminDb, async (transaction) => {
+      await adminDb.runTransaction(async (transaction) => {
           const gameSnap = await transaction.get(gameRef);
-          if (!gameSnap.exists()) throw new Error("Partida no encontrada.");
+          if (!gameSnap.exists) throw new Error("Partida no encontrada.");
           const game = gameSnap.data() as Game;
 
           const humanPlayers = game.players.filter(p => !p.isAI);
           
-          const privateDataRef = collection(adminDb, `games/${gameId}/playerData`);
-          const privateDocs = await getDocs(privateDataRef);
-          privateDocs.forEach(doc => {
-              if(!humanPlayers.some(p => p.userId === doc.id)){
-                  transaction.delete(doc.ref);
+          const privateDataCollectionRef = adminDb.collection(`games/${gameId}/playerData`);
+          const privateDocsSnaps = await transaction.get(privateDataCollectionRef);
+          
+          privateDocsSnaps.forEach(docSnap => {
+              if(!humanPlayers.some(p => p.userId === docSnap.id)){
+                  transaction.delete(docSnap.ref);
               }
           });
 
           for(const player of humanPlayers) {
-              const playerRef = doc(adminDb, `games/${gameId}/playerData/${player.userId}`);
+              const playerPrivateRef = adminDb.collection(`games/${gameId}/playerData`).doc(player.userId);
               const newPlayer = createPlayerObject(player.userId, game.id, player.displayName, player.avatarUrl, player.isAI);
               const { privateData } = splitPlayerData(newPlayer);
-              transaction.set(playerRef, toPlainObject(privateData));
+              transaction.set(playerPrivateRef, toPlainObject(privateData));
           }
 
           transaction.update(gameRef, toPlainObject({
@@ -504,14 +500,14 @@ export async function sendChatMessage(
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
 
-    const gameRef = doc(adminDb, 'games', gameId);
+    const gameRef = adminDb.collection('games').doc(gameId);
     const sanitizedText = sanitizeHTML(text.trim());
 
     try {
         let latestGame: Game | null = null;
-        await runTransaction(adminDb, async (transaction) => {
+        await adminDb.runTransaction(async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error('Game not found');
+            if (!gameDoc.exists) throw new Error('Game not found');
             const game = gameDoc.data() as Game;
             latestGame = game;
 
@@ -537,7 +533,7 @@ export async function sendChatMessage(
             };
 
             transaction.update(gameRef, { 
-                chatMessages: arrayUnion(toPlainObject(messageData)),
+                chatMessages: FieldValue.arrayUnion(toPlainObject(messageData)),
                 players: toPlainObject(updatedPlayers) 
             });
         });
@@ -566,18 +562,18 @@ async function sendSpecialChatMessage(
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
 
-    const gameRef = doc(adminDb, 'games', gameId);
+    const gameRef = adminDb.collection('games').doc(gameId);
     const sanitizedText = sanitizeHTML(text.trim());
 
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminDb.runTransaction(async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error('Game not found');
+            if (!gameDoc.exists) throw new Error('Game not found');
             const game = gameDoc.data() as Game;
             
-            const playerPrivateRef = doc(adminDb, `games/${gameId}/playerData/${senderId}`);
+            const playerPrivateRef = adminDb.collection(`games/${gameId}/playerData`).doc(senderId);
             const privateSnap = await transaction.get(playerPrivateRef);
-            if(!privateSnap.exists()) throw new Error("Sender not found.");
+            if(!privateSnap.exists) throw new Error("Sender not found.");
             const senderPrivateData = privateSnap.data() as PlayerPrivateData;
 
             const senderPublicData = game.players.find(p => p.userId === senderId);
@@ -641,7 +637,7 @@ async function sendSpecialChatMessage(
             };
 
             transaction.update(gameRef, { 
-                [chatField]: arrayUnion(toPlainObject(messageData)),
+                [chatField]: FieldValue.arrayUnion(toPlainObject(messageData)),
                 players: toPlainObject(updatedPlayers)
             });
         });
@@ -663,8 +659,8 @@ export const sendGhostChatMessage = (gameId: string, senderId: string, senderNam
 
 async function triggerAIChat(gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
     try {
-        const gameDoc = await getDoc(doc(adminDb, 'games', gameId));
-        if (!gameDoc.exists()) return;
+        const gameDoc = await adminDb.collection('games').doc(gameId).get();
+        if (!gameDoc.exists) return;
 
         const game = gameDoc.data() as Game;
         if (game.status === 'finished') return;
@@ -731,12 +727,12 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
 
 
 export async function processJuryVotes(gameId: string) {
-    const gameRef = doc(adminDb, 'games', gameId) as DocumentReference<Game>;
+    const gameRef = adminDb.collection('games').doc(gameId);
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found!");
-            const game = gameSnap.data()!;
+            if (!gameSnap.exists) throw new Error("Game not found!");
+            const game = gameSnap.data() as Game;
             const fullPlayers = await getFullPlayers(gameId, game, transaction);
             await gameEngine.processJuryVotesEngine(transaction, gameRef, game, fullPlayers);
         });
@@ -746,20 +742,20 @@ export async function processJuryVotes(gameId: string) {
 }
 
 export async function executeMasterAction(gameId: string, actionId: string, sourceId: string | null, targetId: string) {
-    const gameRef = doc(adminDb, 'games', gameId);
+    const gameRef = adminDb.collection('games').doc(gameId);
      try {
-        await runTransaction(adminDb, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef as DocumentReference<Game>);
-            if (!gameDoc.exists()) throw new Error("Game not found");
-            let game = gameDoc.data()!;
+        await adminDb.runTransaction(async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists) throw new Error("Game not found");
+            let game = gameDoc.data() as Game;
             const fullPlayers = await getFullPlayers(gameId, game, transaction);
 
 
             if (actionId === 'master_kill') {
                  if (game.masterKillUsed) throw new Error("El Zarpazo del Destino ya ha sido utilizado.");
-                 const { updatedGame } = await gameEngine.killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, fullPlayers, targetId, 'special', `Por intervención divina, ${game.players.find(p=>p.userId === targetId)?.displayName} ha sido eliminado.`);
-                 updatedGame.masterKillUsed = true;
+                 const { updatedGame } = await gameEngine.killPlayerUnstoppable(transaction, gameRef, game, fullPlayers, targetId, 'special', `Por intervención divina, ${game.players.find(p=>p.userId === targetId)?.displayName} ha sido eliminado.`);
                  game = updatedGame;
+                 game.masterKillUsed = true;
             } else {
                 const action = masterActions[actionId as keyof typeof masterActions];
                 if (action) {
@@ -777,20 +773,20 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
 }
 
 export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
-    const gameRef = doc(adminDb, 'games', gameId) as DocumentReference<Game>;
+    const gameRef = adminDb.collection('games').doc(gameId);
 
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found");
-            let game = gameSnap.data();
+            if (!gameSnap.exists) throw new Error("Game not found");
+            let game = gameSnap.data() as Game;
             
             if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId || game.status === 'finished') {
                 return;
             }
             
             const fullPlayers = await getFullPlayers(gameId, game, transaction);
-            const { updatedGame, updatedPlayers, triggeredHunterId: anotherHunterId } = await gameEngine.killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, fullPlayers, targetId, 'hunter_shot', `En su último aliento, el Cazador dispara y se lleva consigo a ${game.players.find(p=>p.userId === targetId)?.displayName}.`);
+            const { updatedGame, updatedPlayers, triggeredHunterId: anotherHunterId } = await gameEngine.killPlayerUnstoppable(transaction, gameRef, game, fullPlayers, targetId, 'hunter_shot', `En su último aliento, el Cazador dispara y se lleva consigo a ${game.players.find(p=>p.userId === targetId)?.displayName}.`);
             game = updatedGame;
             
             if (anotherHunterId) {
@@ -815,7 +811,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
             const nextRound = nextPhase === 'night' ? game.currentRound + 1 : game.currentRound;
 
             for(const p of updatedPlayers) {
-                const playerPrivateRef = doc(adminDb, `games/${gameId}/playerData/${p.userId}`);
+                const playerPrivateRef = adminDb.collection(`games/${gameId}/playerData`).doc(p.userId);
                 transaction.update(playerPrivateRef, { votedFor: null, usedNightAbility: false });
             }
 
@@ -833,12 +829,12 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
     }
 }
 export async function submitVote(gameId: string, voterId: string, targetId: string) {
-    const gameRef = doc(adminDb, 'games', gameId) as DocumentReference<Game>;
+    const gameRef = adminDb.collection('games').doc(gameId);
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found");
-            let game = gameSnap.data();
+            if (!gameSnap.exists) throw new Error("Game not found");
+            let game = gameSnap.data() as Game;
 
             if (game.phase !== 'day' || game.status === 'finished') return;
 
@@ -848,7 +844,7 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
             if(!voter || !voter.isAlive) throw new Error("Player not found or is not alive");
             if (voter.votedFor) return;
 
-            const voterPrivateRef = doc(adminDb, `games/${gameId}/playerData/${voterId}`);
+            const voterPrivateRef = adminDb.collection(`games/${gameId}/playerData`).doc(voterId);
 
             const siren = fullPlayers.find(p => p.role === 'river_siren');
             const charmedPlayerId = siren?.riverSirenTargetId;
@@ -879,17 +875,17 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
 
 export async function submitNightAction(data: {gameId: string, round: number, playerId: string, actionType: NightActionType, targetId: string}) {
     const { gameId, playerId, actionType, targetId } = data;
-    const gameRef = doc(adminDb, 'games', gameId);
+    const gameRef = adminDb.collection('games').doc(gameId);
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found");
+            if (!gameSnap.exists) throw new Error("Game not found");
             let game = gameSnap.data() as Game;
             if (game.phase !== 'night' || game.status === 'finished') return;
             
-            const playerPrivateRef = doc(adminDb, `games/${gameId}/playerData/${playerId}`);
+            const playerPrivateRef = adminDb.collection(`games/${gameId}/playerData`).doc(playerId);
             const playerPrivateSnap = await transaction.get(playerPrivateRef);
-            if (!playerPrivateSnap.exists()) throw new Error("Player private data not found");
+            if (!playerPrivateSnap.exists) throw new Error("Player private data not found");
             
             const privateData = playerPrivateSnap.data() as PlayerPrivateData;
             
@@ -906,8 +902,8 @@ export async function submitNightAction(data: {gameId: string, round: number, pl
             }
 
             const newAction: NightAction = { ...data, createdAt: Timestamp.now() };
-            transaction.update(gameRef, { nightActions: arrayUnion(toPlainObject(newAction)) });
-            transaction.set(playerPrivateRef, privateData);
+            transaction.update(gameRef, { nightActions: FieldValue.arrayUnion(toPlainObject(newAction)) });
+            transaction.set(playerPrivateRef, privateData, { merge: true });
 
         });
         return { success: true };
@@ -917,20 +913,20 @@ export async function submitNightAction(data: {gameId: string, round: number, pl
 }
 
 export async function submitTroublemakerAction(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
-    const gameRef = doc(adminDb, 'games', gameId) as DocumentReference<Game>;
+    const gameRef = adminDb.collection('games').doc(gameId);
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Partida no encontrada");
-            let game = gameSnap.data();
+            if (!gameSnap.exists) throw new Error("Partida no encontrada");
+            let game = gameSnap.data() as Game;
             const fullPlayers = await getFullPlayers(gameId, game, transaction);
             const player = fullPlayers.find(p => p.userId === troublemakerId);
             if (!player || player.role !== 'troublemaker' || game.troublemakerUsed) throw new Error("No puedes realizar esta acción.");
             
             const message = `${game.players.find(p => p.userId === target1Id)?.displayName} y ${game.players.find(p => p.userId === target2Id)?.displayName} han muerto en una pelea mortal provocada por la Alborotadora.`;
 
-            let { updatedGame: gameAfterKill1 } = await gameEngine.killPlayer(transaction, gameRef as DocumentReference<Game>, game, fullPlayers, target1Id, 'troublemaker_duel', message);
-            let { updatedGame: gameAfterKill2 } = await gameEngine.killPlayer(transaction, gameRef as DocumentReference<Game>, gameAfterKill1, fullPlayers, target2Id, 'troublemaker_duel', message);
+            let { updatedGame: gameAfterKill1 } = await gameEngine.killPlayer(transaction, gameRef, game, fullPlayers, target1Id, 'troublemaker_duel', message);
+            let { updatedGame: gameAfterKill2 } = await gameEngine.killPlayer(transaction, gameRef, gameAfterKill1, fullPlayers, target2Id, 'troublemaker_duel', message);
             game = gameAfterKill2;
             
             game.troublemakerUsed = true;
@@ -943,9 +939,9 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
 }
 
 export async function submitJuryVote(gameId: string, voterId: string, targetId: string) {
-    const gameRef = doc(adminDb, 'games', gameId);
+    const gameRef = adminDb.collection('games').doc(gameId);
     try {
-        await updateDoc(gameRef, {
+        await gameRef.update({
             [`juryVotes.${voterId}`]: targetId,
         });
         return { success: true };
@@ -955,16 +951,16 @@ export async function submitJuryVote(gameId: string, voterId: string, targetId: 
 }
 
 export async function sendGhostMessage(gameId: string, ghostId: string, recipientId: string, template: string, subjectId?: string) {
-    const gameRef = doc(adminDb, 'games', gameId);
+    const gameRef = adminDb.collection('games').doc(gameId);
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminDb.runTransaction(async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error("Game not found");
+            if (!gameDoc.exists) throw new Error("Game not found");
             const game = gameDoc.data() as Game;
             
-            const playerPrivateRef = doc(adminDb, `games/${gameId}/playerData/${ghostId}`);
+            const playerPrivateRef = adminDb.collection(`games/${gameId}/playerData`).doc(ghostId);
             const playerPrivateSnap = await transaction.get(playerPrivateRef);
-            if (!playerPrivateSnap.exists()) throw new Error("Player private data not found");
+            if (!playerPrivateSnap.exists) throw new Error("Player private data not found");
             const privateData = playerPrivateSnap.data() as PlayerPrivateData;
 
             const publicData = game.players.find(p => p.userId === ghostId);
@@ -986,8 +982,8 @@ export async function sendGhostMessage(gameId: string, ghostId: string, recipien
             };
             
             privateData.ghostMessageSent = true;
-            transaction.update(gameRef, { events: arrayUnion(toPlainObject(ghostEvent)) });
-            transaction.set(playerPrivateRef, privateData);
+            transaction.update(gameRef, { events: FieldValue.arrayUnion(toPlainObject(ghostEvent)) });
+            transaction.set(playerPrivateRef, privateData, { merge: true });
         });
         return { success: true };
     } catch (error: any) {
@@ -997,8 +993,8 @@ export async function sendGhostMessage(gameId: string, ghostId: string, recipien
 
 
 export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
-    const gameDoc = await getDoc(doc(adminDb, 'games', gameId));
-    if (!gameDoc.exists()) throw new Error("Game not found");
+    const gameDoc = await adminDb.collection('games').doc(gameId).get();
+    if (!gameDoc.exists) throw new Error("Game not found");
     const game = gameDoc.data() as Game;
 
     const fullPlayers = await getFullPlayers(gameId, game);
@@ -1018,12 +1014,12 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
 }
 
 export async function updatePlayerAvatar(gameId: string, userId: string, newAvatarUrl: string) {
-    const gameRef = doc(adminDb, "games", gameId);
+    const gameRef = adminDb.collection("games").doc(gameId);
 
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found.");
+            if (!gameSnap.exists) throw new Error("Game not found.");
             const game = gameSnap.data() as Game;
 
             const playerIndex = game.players.findIndex(p => p.userId === userId);
@@ -1042,14 +1038,14 @@ export async function updatePlayerAvatar(gameId: string, userId: string, newAvat
 }
 
 export async function kickInactivePlayers(gameId: string) {
-    const gameRef = doc(adminDb, 'games', gameId) as DocumentReference<Game>;
+    const gameRef = adminDb.collection('games').doc(gameId);
     const fiveMinutesAgo = Timestamp.fromMillis(Date.now() - 5 * 60 * 1000);
 
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) return;
-            let game = gameSnap.data()!;
+            if (!gameSnap.exists) return;
+            let game = gameSnap.data()! as Game;
 
             if (game.status !== 'in_progress') return;
 
@@ -1064,7 +1060,7 @@ export async function kickInactivePlayers(gameId: string) {
                 game = result.updatedGame;
                 fullPlayers = result.updatedPlayers;
 
-                const privatePlayerRef = doc(adminDb, `games/${gameId}/playerData/${inactivePlayer.userId}`);
+                const privatePlayerRef = adminDb.collection(`games/${gameId}/playerData`).doc(inactivePlayer.userId);
                 transaction.delete(privatePlayerRef);
             }
 
