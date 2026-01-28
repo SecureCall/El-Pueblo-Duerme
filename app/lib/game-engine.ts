@@ -6,7 +6,8 @@ import {
   type Transaction,
   DocumentReference,
   doc,
-  increment
+  increment,
+  getDoc,
 } from "firebase/firestore";
 import { 
   type Game, 
@@ -424,7 +425,7 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
 
   for (const p of mutableFullPlayers) {
     const playerPrivateRef = doc(adminDb, `games/${mutableGame.id}/playerData/${p.userId}`);
-    transaction.update(playerPrivateRef, { usedNightAbility: false });
+    transaction.update(playerPrivateRef, { usedNightAbility: false, votedFor: null });
   }
   
   const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
@@ -492,7 +493,6 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
             transaction.update(gameRef, toPlainObject({ events: game.events, phase: "jury_voting", phaseEndsAt }));
             return { voteEvent: juryEvent };
         } else {
-            // No jury, so a final tie results in no lynch
             mostVotedPlayerIds = [];
         }
     }
@@ -502,7 +502,7 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
     let mutableFullPlayers = [...fullPlayers];
 
     if (lynchedPlayerId) {
-        const { updatedGame, updatedPlayers, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, mutableFullPlayers, lynchedPlayerId, 'vote_result', `El pueblo ha hablado. ${game.players.find(p => p.userId === lynchedPlayerId)?.displayName} ha sido linchado.`);
+        const { updatedGame, updatedPlayers, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, mutableFullPlayers, lynchedPlayerId, 'vote_result', `El pueblo ha hablado. ${game.players.find(p => p.userId === lynchedPlayerId)?.displayName} ha sido linchado.`);
         game = updatedGame;
         mutableFullPlayers = updatedPlayers;
         triggeredHunterId = newHunterId;
@@ -575,7 +575,7 @@ export async function processJuryVotesEngine(transaction: Transaction, gameRef: 
     let triggeredHunterId: string | null = null;
 
     if (mostVotedPlayerId) {
-        const { updatedGame, updatedPlayers, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, fullPlayers, mostVotedPlayerId, 'vote_result', `El jurado de los muertos ha decidido. ${game.players.find(p=>p.userId === mostVotedPlayerId)?.displayName} ha sido linchado.`);
+        const { updatedGame, updatedPlayers, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, fullPlayers, mostVotedPlayerId, 'vote_result', `El jurado de los muertos ha decidido. ${game.players.find(p=>p.userId === mostVotedPlayerId)?.displayName} ha sido linchado.`);
         game = updatedGame;
         fullPlayers = updatedPlayers;
         triggeredHunterId = newHunterId;
@@ -679,11 +679,11 @@ export async function checkGameOver(gameData: Game, fullPlayers: Player[], lynch
         return { isGameOver: true, winnerCode: 'draw', message: "¡Nadie ha sobrevivido a la masacre!", winners: [] };
     }
     
-    if (alivePlayers.length === 2) {
-        const hunter = alivePlayers.find(p => p.role === 'hunter');
-        const wolf = alivePlayers.find(p => p.role && wolfRoles.includes(p.role));
-        if (hunter && wolf) {
-             return { isGameOver: true, winnerCode: 'wolves', message: "¡Los hombres lobo han ganado! El último aldeano no puede derrotar a la bestia.", winners: fullPlayers.filter(p => p.role && wolfRoles.includes(p.role)) };
+    if (gameData.phase === 'hunter_shot') {
+        const hunter = fullPlayers.find(p => p.userId === gameData.pendingHunterShot);
+        if (hunter && !hunter.isAlive) {
+            // Hunter died but hasn't shot yet, so the game isn't over yet
+            return { isGameOver: false, message: "", winners: [] };
         }
     }
 
@@ -746,6 +746,3 @@ const splitPlayerData = (player: Player): { publicData: PlayerPublicData, privat
   
     return { publicData, privateData: privateData as PlayerPrivateData };
   }
-
-
-

@@ -6,7 +6,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { collection, query, where, Timestamp, orderBy } from 'firebase/firestore';
-
 import { useCollection } from '../firebase/firestore/use-collection';
 import { useFirebase, useMemoFirebase } from '../firebase/provider';
 import type { Game } from '../types';

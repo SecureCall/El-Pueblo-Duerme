@@ -2,12 +2,14 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { useEffect } from 'react';
+import { doc } from 'firebase/firestore';
 import type { Game, Player, GameEvent, ChatMessage, PlayerPublicData, PlayerPrivateData } from '../types';
 import { useFirebase } from '../firebase/provider';
 import { useDoc } from '../firebase/firestore/use-doc';
 import { useGameSession } from './use-game-session';
+import { useReducer } from 'react';
+import { getMillis } from '../lib/utils';
 
 // Combined state for the hook's return value
 interface CombinedGameState {
@@ -25,17 +27,13 @@ interface CombinedGameState {
     error: string | null;
 }
 
-export const useGameState = (gameId: string): CombinedGameState => {
-  const { firestore } = useFirebase();
-  const { userId, isSessionLoaded } = useGameSession();
+type GameAction =
+  | { type: 'SET_GAME_DATA'; payload: { game: Game; userId: string; players: Player[]; currentPlayer: Player | null } }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string | null };
 
-  const gameRef = firestore && gameId ? doc(firestore, 'games', gameId) : null;
-  const playerPrivateRef = firestore && gameId && userId ? doc(firestore, 'games', gameId, 'playerData', userId) : null;
 
-  const { data: game, loading: gameLoading, error: gameError } = useDoc<Game>(gameRef);
-  const { data: privateData, loading: privateDataLoading, error: privateDataError } = useDoc<PlayerPrivateData>(playerPrivateRef);
-  
-  const [combinedState, setCombinedState] = useState<CombinedGameState>({
+const initialState: CombinedGameState = {
     game: null,
     players: [],
     currentPlayer: null,
@@ -48,59 +46,91 @@ export const useGameState = (gameId: string): CombinedGameState => {
     ghostMessages: [],
     loading: true,
     error: null,
-  });
+};
 
+function gameReducer(state: CombinedGameState, action: GameAction): CombinedGameState {
+    switch (action.type) {
+        case 'SET_GAME_DATA': {
+            const { game, players, currentPlayer } = action.payload;
+            return {
+                ...state,
+                game,
+                players,
+                currentPlayer,
+                events: [...(game.events || [])].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)),
+                messages: (game.chatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                wolfMessages: (game.wolfChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                fairyMessages: (game.fairyChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                twinMessages: (game.twinChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                loversMessages: (game.loversChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                ghostMessages: (game.ghostChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
+                loading: false,
+                error: null,
+            };
+        }
+        case 'SET_LOADING':
+            return { ...state, loading: action.payload };
+        case 'SET_ERROR':
+             return { 
+                ...initialState,
+                loading: false,
+                error: action.payload,
+            };
+        default:
+            return state;
+    }
+}
+
+
+export const useGameState = (gameId: string): CombinedGameState => {
+  const { firestore } = useFirebase();
+  const { userId, isSessionLoaded } = useGameSession();
+
+  const [state, dispatch] = useReducer(gameReducer, initialState);
+
+  const gameRef = firestore && gameId ? doc(firestore, 'games', gameId) : null;
+  const { data: game, loading: gameLoading, error: gameError } = useDoc<Game>(gameRef);
+  
   useEffect(() => {
-    const loading = !isSessionLoaded || gameLoading || (userId && privateDataLoading);
-    const error = gameError?.message || privateDataError?.message || null;
+    const loading = !isSessionLoaded || gameLoading;
+    const error = gameError?.message || null;
     
     if (loading || error) {
-        setCombinedState(prev => ({ ...prev, loading, error }));
+        dispatch({ type: 'SET_LOADING', payload: loading });
+        if(error) dispatch({ type: 'SET_ERROR', payload: error });
         return;
     }
 
     if (game) {
-        // Construct the full player list by combining public data with private data where available
-        const playersForState: Player[] = game.players.map(publicData => {
-            if (publicData.userId === userId && privateData) {
-                // This is the current user, merge public and private data
-                return { ...publicData, ...privateData };
-            }
-            // For other players, we only have public data, but we cast to Player for simplicity.
-            // The missing private fields will be `undefined`.
-            return { ...publicData } as Player;
-        });
+        const fetchPrivateData = async () => {
+            const playerPrivateRefs = game.players.map(p => doc(firestore, 'games', gameId, 'playerData', p.userId));
+            const privateDataPromises = playerPrivateRefs.map(ref => getDoc(ref));
+            const privateDataSnapshots = await Promise.all(privateDataPromises);
 
-        const finalCurrentPlayer = playersForState.find(p => p.userId === userId) || null;
+            const privateDataMap = new Map<string, PlayerPrivateData>();
+            privateDataSnapshots.forEach(snap => {
+                if (snap.exists()) {
+                    privateDataMap.set(snap.id, snap.data() as PlayerPrivateData);
+                }
+            });
 
-        setCombinedState({
-            game,
-            players: playersForState,
-            currentPlayer: finalCurrentPlayer,
-            events: game.events || [],
-            messages: game.chatMessages || [],
-            wolfMessages: game.wolfChatMessages || [],
-            fairyMessages: game.fairyChatMessages || [],
-            twinMessages: game.twinChatMessages || [],
-            loversMessages: game.loversChatMessages || [],
-            ghostMessages: game.ghostChatMessages || [],
-            loading: false,
-            error: null,
-        });
+            const fullPlayers: Player[] = game.players.map(publicData => {
+                const privateInfo = privateDataMap.get(publicData.userId);
+                return { ...publicData, ...privateInfo } as Player;
+            }).sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
+            
+            const currentPlayer = fullPlayers.find(p => p.userId === userId) || null;
 
-    } else {
-        // Handle case where game is null (not found or error)
-        setCombinedState(prev => ({
-            ...prev,
-            game: null,
-            players: [],
-            currentPlayer: null,
-            loading: false,
-            error: prev.error || "Partida no encontrada."
-        }));
+            dispatch({ type: 'SET_GAME_DATA', payload: { game, players: fullPlayers, currentPlayer } });
+        };
+        
+        fetchPrivateData();
+
+    } else if(!gameLoading) {
+        dispatch({ type: 'SET_ERROR', payload: "Partida no encontrada." });
     }
 
-  }, [game, privateData, userId, isSessionLoaded, gameLoading, privateDataLoading, gameError, privateDataError]);
+  }, [game, gameId, firestore, userId, isSessionLoaded, gameLoading, gameError]);
 
-  return combinedState;
+  return state;
 };
