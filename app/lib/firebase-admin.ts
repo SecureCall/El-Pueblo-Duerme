@@ -1,6 +1,4 @@
 
-'use server';
-
 import 'server-only';
 import { initializeApp, getApps, getApp, type App } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
@@ -21,5 +19,3 @@ if (!getApps().length) {
 
 export const adminDb: Firestore = getFirestore(adminApp);
 export const adminAuth: Auth = getAuth(adminApp);
-
-  
