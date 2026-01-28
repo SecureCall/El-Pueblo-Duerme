@@ -1,9 +1,10 @@
+
 'use client';
 
-import { useEffect, useReducer } from 'react';
+import { useEffect, useReducer, useMemo } from 'react';
 import { doc } from 'firebase/firestore';
 import type { Game, Player, GameEvent, ChatMessage, PlayerPublicData, PlayerPrivateData } from '../types';
-import { useFirebase, useDoc, useMemoFirebase } from '../firebase/provider';
+import { useFirebase, useDoc } from '../firebase/provider';
 import { useGameSession } from './use-game-session';
 import { getMillis } from '../lib/utils';
 import { getDoc, getDocs, collection } from 'firebase/firestore';
@@ -85,7 +86,7 @@ export const useGameState = (gameId: string): CombinedGameState => {
 
   const [state, dispatch] = useReducer(gameReducer, initialState);
 
-  const gameRef = useMemoFirebase(() => firestore && gameId ? doc(firestore, 'games', gameId) : null, [firestore, gameId]);
+  const gameRef = useMemo(() => firestore && gameId ? doc(firestore, 'games', gameId) : null, [firestore, gameId]);
   const { data: game, loading: gameLoading, error: gameError } = useDoc<Game>(gameRef);
   
   useEffect(() => {

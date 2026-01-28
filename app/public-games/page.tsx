@@ -7,7 +7,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { collection, query, where, Timestamp, orderBy } from 'firebase/firestore';
 import { useCollection } from '../firebase/firestore/use-collection';
-import { useFirebase, useMemoFirebase } from '../firebase/provider';
+import { useFirebase } from '../firebase/provider';
 import type { Game } from '../types';
 import { PlaceHolderImages } from '../lib/placeholder-images';
 import { GameMusic } from '../components/game/GameMusic';
@@ -68,7 +68,7 @@ export default function PublicGamesPage() {
     }, [displayName]);
 
 
-    const gamesQuery = useMemoFirebase(() => {
+    const gamesQuery = useMemo(() => {
         if (!firestore) return null;
         const fiveMinutesAgo = Timestamp.fromMillis(Date.now() - 5 * 60 * 1000);
         return query(
