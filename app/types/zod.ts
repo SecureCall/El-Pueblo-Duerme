@@ -141,6 +141,7 @@ export const GameSchema = z.object({
   phase: z.enum(["waiting", "role_reveal", "night", "day", "voting", "hunter_shot", "jury_voting", "finished"]),
   creator: z.string(),
   players: z.array(PlayerPublicSchema),
+  playerUids: z.record(z.boolean()).optional(),
   events: z.array(GameEventSchema),
   chatMessages: z.array(ChatMessageSchema),
   wolfChatMessages: z.array(ChatMessageSchema),
@@ -183,7 +184,6 @@ export const RoleDataSchema = z.object({
   alliance: z.enum(['Aldeanos', 'Lobos', 'Neutral', 'Enamorados']),
 });
 
-
 const AIPlayerPublicSchema = PlayerPublicSchema.extend({
     role: PlayerRoleSchema.optional().transform(() => 'unknown'),
 });
@@ -205,4 +205,3 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   message: z.string(),
   shouldSend: z.boolean(),
 });
-

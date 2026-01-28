@@ -138,6 +138,7 @@ export async function createGame(
       phase: "waiting", 
       creator: userId,
       players: [publicData], 
+      playerUids: { [userId]: true },
       events: [],
       chatMessages: [],
       wolfChatMessages: [],
@@ -206,7 +207,7 @@ export async function joinGame(
 
       const game = gameSnap.data() as Game;
 
-      if (game.status !== "waiting" && !game.players.some(p => p.userId === userId)) {
+      if (game.status !== "waiting" && !(game.playerUids && game.playerUids[userId])) {
         throw new Error("Esta partida ya ha comenzado.");
       }
       
@@ -244,6 +245,7 @@ export async function joinGame(
 
       transaction.update(gameRef, {
         players: FieldValue.arrayUnion(toPlainObject(publicData)),
+        [`playerUids.${userId}`]: true,
         lastActiveAt: Timestamp.now(),
       });
       transaction.set(playerPrivateRef, toPlainObject(privateData));
@@ -281,6 +283,7 @@ export async function startGame(gameId: string, creatorId: string) {
                 return { ...publicPlayer, ...privateData } as Player;
             });
             
+            let playerUids = { ...game.playerUids } || {};
             if (game.settings.fillWithAI && allPlayersFullData.length < game.maxPlayers) {
                 const aiPlayerCount = game.maxPlayers - allPlayersFullData.length;
                 const availableAINames = AI_NAMES.filter(name => !allPlayersFullData.some(p => p.displayName === name));
@@ -290,6 +293,7 @@ export async function startGame(gameId: string, creatorId: string) {
                     const aiAvatar = `/logo.png`;
                     const aiPlayerData = createPlayerObject(aiUserId, gameId, aiName, aiAvatar, true);
                     allPlayersFullData.push(aiPlayerData);
+                    playerUids[aiUserId] = true;
                 }
             }
             
@@ -337,6 +341,7 @@ export async function startGame(gameId: string, creatorId: string) {
 
             transaction.update(gameRef, toPlainObject({
                 players: publicPlayersData,
+                playerUids: playerUids,
                 twins: twinUserIds.length === 2 ? [twinUserIds[0], twinUserIds[1]] as [string, string] : null,
                 status: 'in_progress',
                 phase: 'role_reveal',
@@ -462,6 +467,9 @@ export async function resetGame(gameId: string) {
                   transaction.delete(docSnap.ref);
               }
           });
+          
+          const playerUids: Record<string, boolean> = {};
+          humanPlayers.forEach(p => playerUids[p.userId] = true);
 
           for(const player of humanPlayers) {
               const playerPrivateRef = adminDb.collection(`games/${gameId}/playerData`).doc(player.userId);
@@ -473,6 +481,7 @@ export async function resetGame(gameId: string) {
           transaction.update(gameRef, toPlainObject({
               status: 'waiting', phase: 'waiting', currentRound: 0,
               players: humanPlayers,
+              playerUids,
               events: [], chatMessages: [], wolfChatMessages: [], fairyChatMessages: [],
               twinChatMessages: [], loversChatMessages: [], ghostChatMessages: [], nightActions: [],
               twins: null, lovers: null, phaseEndsAt: Timestamp.now(), pendingHunterShot: null,
