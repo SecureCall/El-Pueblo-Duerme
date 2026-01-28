@@ -1103,5 +1103,3 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
 
     return { publicPlayersData, privatePlayersData };
 };
-
-    

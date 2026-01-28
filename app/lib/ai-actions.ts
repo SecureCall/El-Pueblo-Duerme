@@ -1,15 +1,13 @@
 
 'use server';
-import { getDoc, doc, getDocs, collection } from "firebase/firestore";
+import { adminDb } from './firebase-admin';
 import { 
   type Game, 
   type Player, 
   type PlayerRole, 
   type NightActionType,
-  PlayerPublicData
 } from "@/types";
 import { submitNightAction, submitHunterShot, submitVote } from "@/lib/firebase-actions";
-import { adminDb } from "./firebase-admin";
 
 type AIActionDecision = { actionType: NightActionType | 'VOTE' | 'SHOOT' | 'NONE'; targetId: string };
 
@@ -189,26 +187,10 @@ const getDeterministicAIAction = (
     }
 };
 
-async function getFullPlayers(gameId: string, game: Game): Promise<Player[]> {
-    const privateDataSnapshot = await getDocs(collection(adminDb, 'games', gameId, 'playerData'));
-    const privateDataMap = new Map<string, Omit<Player, keyof PlayerPublicData>>();
-    privateDataSnapshot.forEach(doc => {
-        privateDataMap.set(doc.id, doc.data() as Omit<Player, keyof PlayerPublicData>);
-    });
-
-    const fullPlayers: Player[] = game.players.map(publicData => {
-        const privateData = privateDataMap.get(publicData.userId);
-        return { ...publicData, ...privateData } as Player;
-    });
-
-    return fullPlayers;
-}
-
-
 export async function runAIActions(gameId: string, phase: 'day' | 'night') {
     try {
-        const gameDoc = await getDoc(doc(adminDb, 'games', gameId));
-        if (!gameDoc.exists()) return;
+        const gameDoc = await adminDb.collection('games').doc(gameId).get();
+        if (!gameDoc.exists) return;
         const game = gameDoc.data() as Game;
 
         if (game.status === 'finished') return;
@@ -243,10 +225,26 @@ export async function runAIActions(gameId: string, phase: 'day' | 'night') {
     }
 }
 
+async function getFullPlayers(gameId: string, game: Game): Promise<Player[]> {
+    const privateDataSnapshot = await adminDb.collection('games').doc(gameId).collection('playerData').get();
+    const privateDataMap = new Map<string, Omit<Player, keyof PlayerPublicData>>();
+    privateDataSnapshot.forEach(doc => {
+        privateDataMap.set(doc.id, doc.data() as Omit<Player, keyof PlayerPublicData>);
+    });
+
+    const fullPlayers: Player[] = game.players.map(publicData => {
+        const privateData = privateDataMap.get(publicData.userId);
+        return { ...publicData, ...privateData } as Player;
+    });
+
+    return fullPlayers;
+}
+
+
 export async function runAIHunterShot(gameId: string) {
     try {
-        const gameDoc = await getDoc(doc(adminDb, 'games', gameId));
-        if (!gameDoc.exists()) return;
+        const gameDoc = await adminDb.collection('games').doc(gameId).get();
+        if (!gameDoc.exists) return;
         const game = gameDoc.data() as Game;
 
         if (game.phase !== 'hunter_shot' || !game.pendingHunterShot) return;
@@ -270,5 +268,3 @@ export async function runAIHunterShot(gameId: string) {
          console.error("Error in runAIHunterShot:", e);
     }
 }
-
-    

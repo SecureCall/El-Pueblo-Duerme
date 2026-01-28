@@ -10,10 +10,16 @@ import 'server-only';
 // which is the standard practice for server-side code.
 const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT;
 if (!serviceAccountString) {
-  throw new Error('La variable de entorno FIREBASE_SERVICE_ACCOUNT no está definida. Esta es necesaria para las operaciones del servidor.');
+  throw new Error('La variable de entorno FIREBASE_SERVICE_ACCOUNT no está definida. Esta es necesaria para las operaciones del servidor. Por favor, siga las instrucciones para configurar su serviceAccountKey.json.');
 }
 
-const serviceAccount = JSON.parse(serviceAccountString);
+let serviceAccount: ServiceAccount;
+try {
+  serviceAccount = JSON.parse(serviceAccountString);
+} catch (e) {
+    throw new Error('Failed to parse FIREBASE_SERVICE_ACCOUNT. Make sure it is a valid JSON string.');
+}
+
 
 let adminApp: App;
 
