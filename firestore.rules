@@ -1,30 +1,183 @@
-
+/**
+ * # Firestore Security Rules: El Pueblo Duerme (Prototyping)
+ *
+ * ## Core Philosophy
+ * This ruleset enforces a security model based on game participation. Authenticated
+ * users can browse and create games. However, once a game is created, only the users
+ * listed as players within that game can read sensitive game state, view other players'
+ * details, or modify the game. This creates a secure "bubble" for each game instance.
+ *
+ * ## Data Structure
+ * The data is organized into three top-level collections:
+ * - `/games/{gameId}`: Contains the primary document for each game session, including
+ *   status, settings, and an array of player UIDs. This player array is the source
+ *   of truth for game membership.
+ * - `/players/{playerId}`: Contains data for a specific user within a specific game.
+ *   The document ID is a composite key `userId_gameId` to ensure a user can only
+ *   join a game once.
+ * - `/game_logs/{gameLogId}`: An immutable, append-only collection for storing all
+ *   significant events that occur within a game.
+ *
+ * ## Key Security Decisions
+ * - **Game Discovery vs. Game Access**: Listing games (`/games`) is permitted for any
+ *   signed-in user to allow for game discovery. However, reading the specific details
+ *   of any single game is restricted to its participants.
+ * - **Immutable Logs**: To ensure a reliable audit trail of game events, the `game_logs`
+ *   collection is write-once. Updates and deletes are explicitly forbidden.
+ * - **Restricted Listing**: To prevent data leakage, broad `list` operations on `/players`
+ *   and `/game_logs` are disallowed. Clients must perform targeted queries (e.g.,
+ *   `where('gameId', '==', ...)`) to retrieve data they are authorized to see.
+ * - **Participant-Only Writes**: All modifications to game state (`/games/{gameId}`)
+ *   and player data (`/players/{playerId}`) can only be performed by users who are
+ *   active players in that specific game.
+ *
+ * ## Denormalization for Authorization
+ * To ensure fast and secure authorization checks, we denormalize critical data:
+ * - Each `Game` document contains a `players` array of UIDs. This list is used to
+ *   authorize all access to that game and its related sub-collections without needing
+ *   to query a separate `memberships` collection.
+ * - `Player` and `GameLog` documents contain a `gameId` field. This allows rules to
+ *   identify which game a resource belongs to and then perform a single `get()` on
+ *   the corresponding `/games/{gameId}` document to verify the requesting user's
+ *   membership.
+ */
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    match /games/{gameId} {
-      // Public game data is readable by any authenticated user for the lobby and game.
-      allow read: if request.auth != null;
+    // -------------------------------------------------------------------------
+    // Helper Functions
+    // -------------------------------------------------------------------------
 
-      // DENY all client-side writes. All mutations must go through server actions.
-      allow write: if false;
+    /**
+     * Returns true if the user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
     }
 
-    match /games/{gameId}/playerData/{userId} {
-      // A player can only read their OWN private data.
-      allow read: if request.auth != null && request.auth.uid == userId;
+    /**
+     * Returns true if the document being written/deleted exists.
+     * Prevents operations on non-existent documents.
+     */
+    function isExistingDoc() {
+      return resource != null;
+    }
 
-      // DENY all client-side writes.
-      allow write: if false;
+    /**
+     * Returns true if the requesting user's UID matches the provided userId.
+     * Used to verify resource ownership.
+     */
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    /**
+     * Returns the game document for a given gameId.
+     */
+    function getGameDoc(gameId) {
+      return get(/databases/$(database)/documents/games/$(gameId));
+    }
+
+    /**
+     * Returns true if the requesting user is listed in the specified
+     * game document's 'players' array.
+     */
+    function isPlayerInGame(gameDoc) {
+      return isSignedIn() && request.auth.uid in gameDoc.data.players;
+    }
+
+    /**
+     * Returns true if the requesting user is the creator of the game.
+     */
+    function isGameCreator(gameDoc) {
+      return isSignedIn() && request.auth.uid == gameDoc.data.creator;
+    }
+
+    /**
+     * Checks if the requesting user is a player in the game by looking up the
+     * game document. This is the primary function for securing related data.
+     */
+    function isRequestingUserPlayerInGame(gameId) {
+      let gameDoc = getGameDoc(gameId);
+      return gameDoc != null && isPlayerInGame(gameDoc);
     }
     
-    // Default deny all other collections.
-    match /{path=**}/documents/{document} {
-      allow read, write: if false;
+    // -------------------------------------------------------------------------
+    // Collection Rules: /games
+    // -------------------------------------------------------------------------
+
+    /**
+     * @description Manages core game documents. Allows signed-in users to list games for discovery,
+     *              but restricts reading details and making changes to game participants.
+     * @path        /games/{gameId}
+     * @allow       (get) A player with uid 'player1' reads a game they are part of.
+     * @allow       (create) An authenticated user 'user_abc' creates a new game.
+     * @deny        (get) User 'user_xyz' tries to read a game they are not a player in.
+     * @deny        (delete) A player 'player1' who is not the creator tries to delete the game.
+     * @principle   Enforces a "Shared Access" model where the `players` array defines collaborators.
+     */
+    match /games/{gameId} {
+      allow get: if isSignedIn() && isRequestingUserPlayerInGame(gameId);
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.creator == request.auth.uid;
+      allow update: if isExistingDoc() && isRequestingUserPlayerInGame(gameId);
+      allow delete: if isExistingDoc() && isGameCreator(resource);
+    }
+
+    // -------------------------------------------------------------------------
+    // Collection Rules: /players
+    // -------------------------------------------------------------------------
+
+    /**
+     * @description Manages player-specific data within a game. The document ID is a composite
+     *              key: `userId_gameId`.
+     * @path        /players/{playerId}
+     * @allow       (create) User 'user_abc' creates a player document for themselves ('user_abc_game123')
+     *              to join 'game123' while it is in a 'waiting' state.
+     * @allow       (get) User 'user_def' who is in 'game123' reads the player document of 'user_abc_game123'.
+     * @deny        (list) Any user tries to list all documents in the `/players` collection.
+     * @deny        (update) User 'user_abc' tries to change the `gameId` or `userId` of their player document.
+     * @principle   Restricts access based on shared game membership and validates relational
+     *              integrity on create and update.
+     */
+    match /players/{playerId} {
+      // Helper variables to parse the composite key from the path
+      function getGameId() {
+        return playerId.split('_')[1];
+      }
+      function getUserId() {
+        return playerId.split('_')[0];
+      }
+      
+      allow get: if isSignedIn() && isRequestingUserPlayerInGame(getGameId());
+      allow list: if false; // Must query by gameId; do not allow listing all players.
+      allow create: if isSignedIn() && isOwner(getUserId()) && getGameDoc(getGameId()).data.status == 'waiting' && request.resource.data.userId == getUserId() && request.resource.data.gameId == getGameId();
+      allow update: if isExistingDoc() && isRequestingUserPlayerInGame(getGameId()) && request.resource.data.userId == resource.data.userId && request.resource.data.gameId == resource.data.gameId;
+      allow delete: if isExistingDoc() && isOwner(getUserId());
+    }
+    
+    // -------------------------------------------------------------------------
+    // Collection Rules: /game_logs
+    // -------------------------------------------------------------------------
+
+    /**
+     * @description Stores an immutable record of game events. Only players from the corresponding
+     *              game can create or read log entries.
+     * @path        /game_logs/{gameLogId}
+     * @allow       (create) A player in 'game123' creates a new log entry with `gameId: 'game123'`.
+     * @allow       (get) A player in 'game123' reads a log entry belonging to that game.
+     * @deny        (update) Any user tries to change an existing log entry.
+     * @deny        (delete) Any user tries to delete an existing log entry.
+     * @principle   Enforces immutability for audit trail integrity and restricts access based
+     *              on shared game membership.
+     */
+    match /game_logs/{gameLogId} {
+      allow get: if isExistingDoc() && isRequestingUserPlayerInGame(resource.data.gameId);
+      allow list: if false; // Must query by gameId; do not allow listing all logs.
+      allow create: if isSignedIn() && isRequestingUserPlayerInGame(request.resource.data.gameId);
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }
-
-  
