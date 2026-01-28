@@ -35,28 +35,28 @@ export function GameOver({ game, event, players, currentPlayer }: GameOverProps)
             const winnerCode = event.data.winnerCode;
             switch(winnerCode) {
                 case 'villagers':
-                    playNarration('victoria_aldeanos.mp3');
+                    playNarration('victoria aldeanos.mp3');
                     break;
                 case 'wolves':
-                    playNarration('victoria_lobos.mp3');
+                    playNarration('victoria lobos.mp3');
                     break;
                 case 'lovers':
-                    playNarration('victoria_enamorados.mp3');
+                    playNarration('victoria enamorados.mp3');
                     break;
                 case 'cult':
-                    playNarration('victoria_culto.mp3');
+                    playNarration('victoria culto.mp3');
                     break;
                 case 'vampire':
-                    playNarration('el_vampiro_ha_ganado.mp3');
+                    playNarration('el vampiro ha ganado.mp3');
                     break;
                 case 'drunk_man':
-                    playNarration('ganador_el_ebrio.mp3');
+                    playNarration('ganador el ebrio.mp3');
                     break;
                 case 'fisherman':
-                    playNarration('pescador_ganador.mp3');
+                    playNarration('pescador ganador.mp3');
                     break;
                 case 'executioner':
-                    playNarration('victoria_el_berdugo.mp3');
+                    playNarration('victoria el verdugo.mp3');
                     break;
                 case 'banshee':
                     break;

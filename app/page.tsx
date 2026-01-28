@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -21,7 +20,7 @@ export default function Home() {
   const { toast } = useToast();
   
   useEffect(() => {
-    playNarration('Que_comience_el_juego.mp3');
+    playNarration('Que comience el juego.mp3');
   }, []);
 
   const handlePublicGamesClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
