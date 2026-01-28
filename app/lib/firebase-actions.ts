@@ -358,7 +358,7 @@ export async function startGame(gameId: string, creatorId: string) {
     }
 }
 
-async function getFullPlayers(gameId: string, game: Game, transaction?: admin.firestore.Transaction): Promise<Player[]> {
+async function getFullPlayers(gameId: string, game: Game, transaction?: FirebaseFirestore.Transaction): Promise<Player[]> {
     const privateDataCollectionRef = adminDb.collection(`games/${gameId}/playerData`);
     
     let privateDataSnaps;
@@ -1094,3 +1094,5 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
 
     return { publicPlayersData, privatePlayersData };
 };
+
+    

@@ -1,6 +1,6 @@
-'use server';
+'server-only';
 
-import { initializeApp, getApps, getApp, type App, type ServiceAccount } from 'firebase-admin/app';
+import { initializeApp, getApps, getApp, type App, type ServiceAccount, credential } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getAuth, type Auth } from 'firebase-admin/auth';
 import 'server-only';
@@ -17,7 +17,7 @@ let adminApp: App;
 // This must only be done once per server instance.
 if (!getApps().length) {
   adminApp = initializeApp({
-    credential: serviceAccount ? admin.credential.cert(serviceAccount) : undefined,
+    credential: serviceAccount ? credential.cert(serviceAccount) : undefined,
     databaseURL: `https://${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.firebaseio.com`
   });
 } else {
