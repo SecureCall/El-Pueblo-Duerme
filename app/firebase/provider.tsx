@@ -6,7 +6,7 @@ import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '../components/FirebaseErrorListener';
-import { app, auth, db } from '@/lib/firebase';
+import { app, auth, db } from './client'; // Import from the new client-only file
 
 // Internal state for user authentication
 interface UserAuthState {
