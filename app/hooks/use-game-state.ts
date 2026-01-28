@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useReducer } from 'react';
@@ -101,7 +100,9 @@ export const useGameState = (gameId: string): CombinedGameState => {
 
     if (game && firestore) {
         const fetchPrivateData = async () => {
-            const privateDataCollectionRef = collection(firestore, 'games', gameId, 'playerData');
+            const gameDocRef = doc(firestore, 'games', gameId);
+            const privateDataCollectionRef = collection(gameDocRef, 'playerData');
+            
             const privateDataSnapshot = await getDocs(privateDataCollectionRef);
 
             const privateDataMap = new Map<string, PlayerPrivateData>();
