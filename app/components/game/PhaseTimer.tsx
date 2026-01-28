@@ -11,7 +11,7 @@ interface PhaseTimerProps {
 }
 
 export function PhaseTimer({ timeLeft, duration }: PhaseTimerProps) {
-    const totalDuration = duration > 0 ? duration : 60;
+    const totalDuration = duration > 0 ? duration : 60; // Fallback to 60s if duration is somehow 0
     const progress = (timeLeft / totalDuration) * 100;
     const isUrgent = timeLeft <= 10;
 
@@ -37,3 +37,4 @@ export function PhaseTimer({ timeLeft, duration }: PhaseTimerProps) {
         </div>
     );
 }
+

@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { playNarration } from '../../lib/sounds';
 import { Skull, HeartCrack } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface YouAreDeadOverlayProps {
     angelInPlay: boolean;
@@ -34,6 +35,7 @@ export function YouAreDeadOverlay({ angelInPlay, isWolfKill = false, cause }: Yo
     }
 
     let title = "HAS SIDO ELIMINADO";
+    let titleColor = "text-destructive";
     let icon = <Skull className="h-full w-full object-contain text-destructive" />;
 
     if (isWolfKill) {
@@ -41,10 +43,12 @@ export function YouAreDeadOverlay({ angelInPlay, isWolfKill = false, cause }: Yo
         icon = <img src="/zarpazo.svg" alt="Zarpazo" className="h-full w-full object-contain filter-destructive" />;
     } else if (cause === 'lover_death') {
         title = "MUERTO DE AMOR";
-        icon = <HeartCrack className="h-full w-full object-contain text-pink-400" />;
+        titleColor = "text-pink-400";
+        icon = <HeartCrack className={cn("h-full w-full object-contain", titleColor)} />;
     } else if (cause === 'troublemaker_duel') {
         title = "HAS CAÍDO EN COMBATE";
-        icon = <Skull className="h-full w-full object-contain text-amber-600" />;
+        titleColor = "text-amber-500";
+        icon = <Skull className={cn("h-full w-full object-contain", titleColor)} />;
     }
 
 
@@ -56,7 +60,7 @@ export function YouAreDeadOverlay({ angelInPlay, isWolfKill = false, cause }: Yo
             <div className="relative h-64 w-64 md:h-80 md:w-80 mb-4 flex items-center justify-center">
                  {icon}
             </div>
-            <h1 className="font-headline text-5xl md:text-7xl font-bold text-destructive text-shadow-lg shadow-black/50 mt-8">
+            <h1 className={cn("font-headline text-5xl md:text-7xl font-bold text-shadow-lg shadow-black/50 mt-8 text-center", titleColor)}>
                 {title}
             </h1>
             {angelInPlay && (
@@ -70,3 +74,4 @@ export function YouAreDeadOverlay({ angelInPlay, isWolfKill = false, cause }: Yo
         </div>
     );
 }
+

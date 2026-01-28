@@ -53,10 +53,19 @@ Game State:
 - Players alive: {{{players.filter(p => p.isAlive).map(p => p.displayName).join(', ')}}}
 - Players dead: {{{players.filter(p => !p.isAlive).map(p => p.displayName).join(', ')}}}
 
+{{#if seerChecks}}
+Your Seer Knowledge:
+You have investigated the following players:
+{{#each seerChecks}}
+- You saw that {{targetName}} is {{#if isWerewolf}}a WOLF{{else}}INNOCENT{{/if}}.
+{{/each}}
+Use this secret knowledge to subtly guide the public chat or defend innocents.
+{{/if}}
+
 Triggering Event: "{{{trigger}}}"
 
 Your Task:
-Based on your role, the game state, and the trigger, decide if you should say something in the specified 'chatType'. If so, generate a short, believable chat message.
+Based on your role, knowledge, the game state, and the trigger, decide if you should say something in the specified 'chatType'. If so, generate a short, believable chat message.
 
 **Role-specific Instructions & Strategies:**
 
@@ -64,7 +73,7 @@ Based on your role, the game state, and the trigger, decide if you should say so
 - **Werewolf:**
   - **Public Chat:** Deceive. Act like a villager. Shift blame. "Pobre {víctima}, era de los nuestros. Sospecho de {inocente}, está muy callado."
   - **Wolf Chat:** You are the alpha. Coordinate the kill and the public vote. "Creo que debemos matar a {objetivo} esta noche, parece peligroso. Y durante el día, todos a votar por {chivo_expiatorio} para desviar."
-- **Seer:** You have secret knowledge. Hint at it.
+- **Seer:** You have secret knowledge (see 'Your Seer Knowledge' above). Hint at it.
   - **Public Chat:** Guide the village subtly. "Tengo un buen presentimiento sobre María." or "Mi intuición me dice que David no es de fiar." If you know someone is innocent and they are being voted for, defend them more strongly: "¡Estáis cometiendo un error! ¡Confío en {inocente}!"
 - **Doctor:** Be secretive. You can subtly comment on a survivor. "Qué suerte ha tenido {salvado} de sobrevivir esta noche, ¿no?"
 - **Executioner:** Your goal is to get your target lynched.
@@ -89,48 +98,6 @@ const generateAiChatMessageFlow = ai.defineFlow(
     },
     async (perspective) => {
         // The input is now expected to be fully sanitized by the wrapper function.
-        
-        // Special logic for the Seer or Apprentice to be more proactive
-        const isSeerOrApprentice = perspective.aiPlayer.role === 'seer' || (perspective.aiPlayer.role === 'seer_apprentice' && perspective.game.seerDied);
-        if (isSeerOrApprentice && perspective.game.phase === 'day' && perspective.trigger.toLowerCase().includes('voted')) {
-            const seerActions = perspective.game.nightActions?.filter(
-                (a: NightAction) => a.playerId === perspective.aiPlayer.userId && a.actionType === 'seer_check'
-            ) || [];
-
-            const knownGoodPlayers = new Set<string>();
-            const knownWolfPlayers = new Set<string>();
-            const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'lycanthrope'];
-
-            for (const action of seerActions) {
-                const targetPlayer = perspective.players.find(p => p.userId === action.targetId);
-                if (targetPlayer) {
-                    // Important: The AI's own perspective includes the real roles of players it has seen.
-                    // We must trust the input `perspective` object has this data correctly populated.
-                    if (targetPlayer.role && wolfRoles.includes(targetPlayer.role)) {
-                        knownWolfPlayers.add(targetPlayer.userId);
-                    } else {
-                        knownGoodPlayers.add(targetPlayer.userId);
-                    }
-                }
-            }
-
-            const votedForMatch = perspective.trigger.match(/(\w+) voted for (\w+)/);
-            if (votedForMatch) {
-                const targetName = votedForMatch[2];
-                const targetPlayer = perspective.players.find(p => p.displayName === targetName);
-
-                if (targetPlayer && knownGoodPlayers.has(targetPlayer.userId)) {
-                    if (Math.random() < 0.85) { 
-                        return { message: `¡Estáis cometiendo un error! ${targetPlayer.displayName} es de confianza. ¡Tenemos que reconsiderar esto!`, shouldSend: true };
-                    }
-                }
-                 if (targetPlayer && knownWolfPlayers.has(targetPlayer.userId)) {
-                    if (Math.random() < 0.6) {
-                        return { message: `El voto contra ${targetPlayer.displayName} es interesante... tengo un mal presentimiento sobre esa persona.`, shouldSend: true };
-                    }
-                }
-            }
-        }
         
         // Hide roles of other players before sending to the prompt
         const sanitizedPlayersForPrompt = perspective.players.map(p => ({
