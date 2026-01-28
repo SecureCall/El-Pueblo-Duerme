@@ -29,7 +29,7 @@ import {
 import { toPlainObject, getMillis, sanitizeHTML } from "./utils";
 import { masterActions } from "./master-actions";
 import { secretObjectives } from "./objectives";
-import { processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotesEngine, processNightEngine, generateRoles } from './game-engine';
+import * as gameEngine from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { runAIActions, runAIHunterShot } from "./ai-actions";
 import { adminDb } from './firebase-admin';
@@ -307,7 +307,7 @@ export async function startGame(gameId: string, creatorId: string) {
             const totalPlayers = allPlayersFullData.length;
             if (totalPlayers < MINIMUM_PLAYERS) throw new Error(`Se necesitan al menos ${MINIMUM_PLAYERS} jugadores para comenzar.`);
             
-            const newRoles = generateRoles(totalPlayers, game.settings);
+            const newRoles = gameEngine.generateRoles(totalPlayers, game.settings);
             
             let finalPlayersWithRoles = allPlayersFullData.map((player, index) => {
                 const p = { ...player, role: newRoles[index] };
@@ -396,7 +396,7 @@ export async function processNight(gameId: string) {
             if (!gameSnap.exists()) throw new Error("Game not found!");
             const game = gameSnap.data()!;
             const fullPlayers = await getFullPlayers(gameId, game, transaction);
-            const { nightEvent } = await processNightEngine(transaction, gameRef, game, fullPlayers);
+            const { nightEvent } = await gameEngine.processNightEngine(transaction, gameRef, game, fullPlayers);
             nightResultEvent = nightEvent;
         });
         
@@ -427,7 +427,7 @@ export async function processVotes(gameId: string) {
             if (!gameSnap.exists()) throw new Error("Game not found!");
             const game = gameSnap.data()!;
             const fullPlayers = await getFullPlayers(gameId, game, transaction);
-            const result = await processVotesEngine(transaction, gameRef, game, fullPlayers);
+            const result = await gameEngine.processVotesEngine(transaction, gameRef, game, fullPlayers);
             voteResultEvent = result.voteEvent;
         });
 
@@ -738,7 +738,7 @@ export async function processJuryVotes(gameId: string) {
             if (!gameSnap.exists()) throw new Error("Game not found!");
             const game = gameSnap.data()!;
             const fullPlayers = await getFullPlayers(gameId, game, transaction);
-            await processJuryVotesEngine(transaction, gameRef, game, fullPlayers);
+            await gameEngine.processJuryVotesEngine(transaction, gameRef, game, fullPlayers);
         });
     } catch (e) {
         console.error("Failed to process jury votes", e);
@@ -757,7 +757,7 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
 
             if (actionId === 'master_kill') {
                  if (game.masterKillUsed) throw new Error("El Zarpazo del Destino ya ha sido utilizado.");
-                 const { updatedGame } = await killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, fullPlayers, targetId, 'special', `Por intervención divina, ${game.players.find(p=>p.userId === targetId)?.displayName} ha sido eliminado.`);
+                 const { updatedGame } = await gameEngine.killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, fullPlayers, targetId, 'special', `Por intervención divina, ${game.players.find(p=>p.userId === targetId)?.displayName} ha sido eliminado.`);
                  updatedGame.masterKillUsed = true;
                  game = updatedGame;
             } else {
@@ -790,7 +790,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
             }
             
             const fullPlayers = await getFullPlayers(gameId, game, transaction);
-            const { updatedGame, updatedPlayers, triggeredHunterId: anotherHunterId } = await killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, fullPlayers, targetId, 'hunter_shot', `En su último aliento, el Cazador dispara y se lleva consigo a ${game.players.find(p=>p.userId === targetId)?.displayName}.`);
+            const { updatedGame, updatedPlayers, triggeredHunterId: anotherHunterId } = await gameEngine.killPlayerUnstoppable(transaction, gameRef as DocumentReference<Game>, game, fullPlayers, targetId, 'hunter_shot', `En su último aliento, el Cazador dispara y se lleva consigo a ${game.players.find(p=>p.userId === targetId)?.displayName}.`);
             game = updatedGame;
             
             if (anotherHunterId) {
@@ -800,7 +800,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
                 return;
             }
 
-            const gameOverInfo = await checkGameOver(game, fullPlayers);
+            const gameOverInfo = await gameEngine.checkGameOver(game, fullPlayers);
             if (gameOverInfo.isGameOver) {
                 game.status = "finished";
                 game.phase = "finished";
@@ -929,8 +929,8 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
             
             const message = `${game.players.find(p => p.userId === target1Id)?.displayName} y ${game.players.find(p => p.userId === target2Id)?.displayName} han muerto en una pelea mortal provocada por la Alborotadora.`;
 
-            let { updatedGame: gameAfterKill1 } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, fullPlayers, target1Id, 'troublemaker_duel', message);
-            let { updatedGame: gameAfterKill2 } = await killPlayer(transaction, gameRef as DocumentReference<Game>, gameAfterKill1, fullPlayers, target2Id, 'troublemaker_duel', message);
+            let { updatedGame: gameAfterKill1 } = await gameEngine.killPlayer(transaction, gameRef as DocumentReference<Game>, game, fullPlayers, target1Id, 'troublemaker_duel', message);
+            let { updatedGame: gameAfterKill2 } = await gameEngine.killPlayer(transaction, gameRef as DocumentReference<Game>, gameAfterKill1, fullPlayers, target2Id, 'troublemaker_duel', message);
             game = gameAfterKill2;
             
             game.troublemakerUsed = true;
@@ -1060,7 +1060,7 @@ export async function kickInactivePlayers(gameId: string) {
             if (inactivePlayers.length === 0) return;
             
             for (const inactivePlayer of inactivePlayers) {
-                const result = await killPlayerUnstoppable(transaction, gameRef, game, fullPlayers, inactivePlayer.userId, 'special', `${inactivePlayer.displayName} ha sido eliminado por inactividad.`);
+                const result = await gameEngine.killPlayerUnstoppable(transaction, gameRef, game, fullPlayers, inactivePlayer.userId, 'special', `${inactivePlayer.displayName} ha sido eliminado por inactividad.`);
                 game = result.updatedGame;
                 fullPlayers = result.updatedPlayers;
 
@@ -1071,7 +1071,7 @@ export async function kickInactivePlayers(gameId: string) {
             const { publicPlayersData } = splitFullPlayerList(fullPlayers);
             game.players = publicPlayersData;
 
-            const gameOverInfo = await checkGameOver(game, fullPlayers);
+            const gameOverInfo = await gameEngine.checkGameOver(game, fullPlayers);
              if (gameOverInfo.isGameOver) {
                 game.status = "finished";
                 game.phase = "finished";

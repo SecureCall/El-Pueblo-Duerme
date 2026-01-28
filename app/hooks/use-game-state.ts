@@ -1,15 +1,13 @@
 
-
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useReducer } from 'react';
 import { doc } from 'firebase/firestore';
 import type { Game, Player, GameEvent, ChatMessage, PlayerPublicData, PlayerPrivateData } from '../types';
-import { useFirebase } from '../firebase/provider';
-import { useDoc } from '../firebase/firestore/use-doc';
+import { useFirebase, useDoc, useMemoFirebase } from '../firebase/provider';
 import { useGameSession } from './use-game-session';
-import { useReducer } from 'react';
 import { getMillis } from '../lib/utils';
+import { getDoc, getDocs, collection } from 'firebase/firestore';
 
 // Combined state for the hook's return value
 interface CombinedGameState {
@@ -88,7 +86,7 @@ export const useGameState = (gameId: string): CombinedGameState => {
 
   const [state, dispatch] = useReducer(gameReducer, initialState);
 
-  const gameRef = firestore && gameId ? doc(firestore, 'games', gameId) : null;
+  const gameRef = useMemoFirebase(() => firestore && gameId ? doc(firestore, 'games', gameId) : null, [firestore, gameId]);
   const { data: game, loading: gameLoading, error: gameError } = useDoc<Game>(gameRef);
   
   useEffect(() => {
@@ -101,17 +99,14 @@ export const useGameState = (gameId: string): CombinedGameState => {
         return;
     }
 
-    if (game) {
+    if (game && firestore) {
         const fetchPrivateData = async () => {
-            const playerPrivateRefs = game.players.map(p => doc(firestore, 'games', gameId, 'playerData', p.userId));
-            const privateDataPromises = playerPrivateRefs.map(ref => getDoc(ref));
-            const privateDataSnapshots = await Promise.all(privateDataPromises);
+            const privateDataCollectionRef = collection(firestore, 'games', gameId, 'playerData');
+            const privateDataSnapshot = await getDocs(privateDataCollectionRef);
 
             const privateDataMap = new Map<string, PlayerPrivateData>();
-            privateDataSnapshots.forEach(snap => {
-                if (snap.exists()) {
-                    privateDataMap.set(snap.id, snap.data() as PlayerPrivateData);
-                }
+            privateDataSnapshot.forEach(snap => {
+                privateDataMap.set(snap.id, snap.data() as PlayerPrivateData);
             });
 
             const fullPlayers: Player[] = game.players.map(publicData => {
@@ -124,7 +119,7 @@ export const useGameState = (gameId: string): CombinedGameState => {
             dispatch({ type: 'SET_GAME_DATA', payload: { game, players: fullPlayers, currentPlayer } });
         };
         
-        fetchPrivateData();
+        fetchPrivateData().catch(e => dispatch({ type: 'SET_ERROR', payload: `Error fetching private player data: ${e.message}`}));
 
     } else if(!gameLoading) {
         dispatch({ type: 'SET_ERROR', payload: "Partida no encontrada." });
