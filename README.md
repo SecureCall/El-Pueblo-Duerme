@@ -44,3 +44,4 @@ Para ejecutar el proyecto en tu propio ordenador, sigue estos pasos:
 
 5.  **Abrir en el Navegador:**
     Abre `http://localhost:9003` (o el puerto que se indique en la terminal) en tu navegador.
+

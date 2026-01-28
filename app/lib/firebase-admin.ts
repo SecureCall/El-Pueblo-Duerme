@@ -1,4 +1,5 @@
-'server-only';
+
+'use server';
 
 import { initializeApp, getApps, getApp, type App, type ServiceAccount, credential } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
@@ -7,9 +8,12 @@ import 'server-only';
 
 // This configuration is now handled securely through environment variables,
 // which is the standard practice for server-side code.
-const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT 
-  ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
-  : undefined;
+const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT;
+if (!serviceAccountString) {
+  throw new Error('La variable de entorno FIREBASE_SERVICE_ACCOUNT no está definida. Esta es necesaria para las operaciones del servidor.');
+}
+
+const serviceAccount = JSON.parse(serviceAccountString);
 
 let adminApp: App;
 
@@ -17,8 +21,7 @@ let adminApp: App;
 // This must only be done once per server instance.
 if (!getApps().length) {
   adminApp = initializeApp({
-    credential: serviceAccount ? credential.cert(serviceAccount) : undefined,
-    databaseURL: `https://${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.firebaseio.com`
+    credential: credential.cert(serviceAccount),
   });
 } else {
   adminApp = getApp();
