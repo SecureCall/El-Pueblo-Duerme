@@ -367,7 +367,29 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
                   break;
 
               case 'werewolf_kill':
-                  if (game.witchFoundSeer && target.role === 'witch') {
+                  if (target.role === 'cursed' && game.settings.cursed) {
+                      const updates = context.playerUpdates.get(targetId) || {};
+                      context.playerUpdates.set(targetId, { ...updates, role: 'werewolf' });
+
+                      const transformEvent: GameEvent = {
+                          id: `evt_cursed_transform_${Date.now()}`,
+                          gameId: game.id, round: game.currentRound, type: 'special',
+                          message: '¡Has sido atacado por los lobos! La maldición se ha apoderado de ti y ahora eres uno de ellos. Tu nuevo objetivo es ganar con la manada.',
+                          data: { targetId }, createdAt: new Date(),
+                      };
+                      context.newEvents.push(transformEvent);
+
+                      const wolfEventMessage = `${target.displayName} ha sido atacado y se ha unido a la manada. ¡Ahora es un Hombre Lobo!`;
+                      const wolves = fullPlayers.filter(p => p.isAlive && (p.role === 'werewolf' || p.role === 'wolf_cub'));
+                      for (const wolf of wolves) {
+                          context.newEvents.push({
+                              id: `evt_cursed_inform_${Date.now()}_${wolf.userId}`,
+                              gameId: game.id, round: game.currentRound, type: 'special',
+                              message: wolfEventMessage,
+                              data: { targetId: wolf.userId }, createdAt: new Date(),
+                          });
+                      }
+                  } else if (game.witchFoundSeer && target.role === 'witch') {
                         const wolfEventMessage = `Intentasteis atacar a la Bruja, pero un poder oscuro la protegió.`;
                         const wolves = fullPlayers.filter(p => p.isAlive && (p.role === 'werewolf' || p.role === 'wolf_cub'));
                         for (const wolf of wolves) {
@@ -803,6 +825,21 @@ export async function checkGameOver(gameData: Game, fullPlayers: Player[], lynch
     const alivePlayers = fullPlayers.filter(p => p.isAlive);
     const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'witch', 'seeker_fairy'];
 
+    if (gameData.settings.cult_leader) {
+        const cultLeader = fullPlayers.find(p => p.role === 'cult_leader' && p.isAlive);
+        if (cultLeader) {
+            const allAliveAreCultMembers = alivePlayers.every(p => p.isCultMember);
+            if (allAliveAreCultMembers && alivePlayers.length > 1) {
+                return {
+                    isGameOver: true,
+                    winnerCode: 'cult',
+                    message: `¡El Líder del Culto ha ganado! Ha convertido a todos los supervivientes.`,
+                    winners: [cultLeader],
+                };
+            }
+        }
+    }
+
     if (gameData.settings.fisherman) {
         const fisherman = fullPlayers.find(p => p.role === 'fisherman' && p.isAlive);
         if (fisherman) {
@@ -947,6 +984,7 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
     
 
     
+
 
 
 
