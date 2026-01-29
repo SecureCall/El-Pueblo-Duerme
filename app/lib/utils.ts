@@ -1,5 +1,4 @@
 
-
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { Timestamp } from "firebase/firestore";
@@ -16,11 +15,9 @@ export function toPlainObject<T>(obj: T): T {
     if (obj === null || typeof obj !== 'object') {
         return obj;
     }
-    if (obj instanceof Timestamp) {
-        return obj as any; 
-    }
-    if (obj instanceof Date) {
-        return Timestamp.fromDate(obj) as any;
+    if (obj instanceof Timestamp || obj instanceof Date) {
+        // Let Firestore handle Date/Timestamp objects
+        return obj;
     }
     if (Array.isArray(obj)) {
         return obj.map(item => toPlainObject(item)) as any;
@@ -87,10 +84,35 @@ export function splitPlayerData(player: Player): { publicData: PlayerPublicData,
   const publicData: PlayerPublicData = {
     userId, gameId, displayName, avatarUrl, isAlive, isAI,
     princeRevealed: princeRevealed || false,
-    joinedAt,
+    joinedAt: joinedAt || new Date(),
     votedFor: votedFor || null,
-    lastActiveAt: lastActiveAt || null,
+    lastActiveAt: lastActiveAt || new Date(),
+  };
+  
+  // Ensure all fields of PlayerPrivateData are present, even if null
+  const fullPrivateData: PlayerPrivateData = {
+      role: null,
+      isLover: false,
+      isCultMember: false,
+      biteCount: 0,
+      potions: { poison: null, save: null },
+      guardianSelfProtects: 0,
+      priestSelfHealUsed: false,
+      lastHealedRound: 0,
+      usedNightAbility: false,
+      shapeshifterTargetId: null,
+      virginiaWoolfTargetId: null,
+      riverSirenTargetId: null,
+      ghostMessageSent: false,
+      resurrectorAngelUsed: false,
+      bansheeScreams: {},
+      lookoutUsed: false,
+      executionerTargetId: null,
+      secretObjectiveId: null,
+      seerChecks: [],
+      ...privateData,
   };
 
-  return { publicData, privateData: privateData as PlayerPrivateData };
+
+  return { publicData, privateData: fullPrivateData };
 }
