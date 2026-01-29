@@ -1,7 +1,6 @@
-
 // IMPORTANT: This file is server-only and should not be imported on the client.
 import 'server-only';
-import { initializeApp, getApps, credential, type App, type ServiceAccount } from 'firebase-admin/app';
+import { initializeApp, getApps, credential, type App } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getAuth, type Auth } from 'firebase-admin/auth';
 
@@ -10,18 +9,18 @@ let adminDb: Firestore;
 let adminAuth: Auth;
 
 function initializeAdmin() {
-  if (getApps().length === 0) {
+  if (getApps().length > 0) {
+    app = getApps()[0];
+  } else {
     try {
-      // Use Application Default Credentials, which is the standard for Google Cloud environments (like Vercel).
+      // Use Application Default Credentials, standard for Google Cloud environments.
       app = initializeApp({
         credential: credential.applicationDefault(),
       });
     } catch (e) {
         console.error("Could not initialize Firebase Admin SDK with Application Default Credentials.", e);
-        throw new Error("Could not initialize Firebase Admin SDK. Ensure your service account credentials are set up correctly in your environment.");
+        throw new Error("Could not initialize Firebase Admin SDK. Ensure your service account credentials are set up correctly in your environment (e.g., GOOGLE_APPLICATION_CREDENTIALS).");
     }
-  } else {
-    app = getApps()[0];
   }
   adminDb = getFirestore(app);
   adminAuth = getAuth(app);
@@ -42,5 +41,3 @@ export function getAdminAuth(): Auth {
   }
   return adminAuth;
 }
-
-    

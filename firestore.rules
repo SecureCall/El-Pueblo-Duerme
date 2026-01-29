@@ -1,17 +1,12 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isSignedIn() {
-      return request.auth != null;
-    }
-    
     function isPlayerInGame(gameId) {
         // Check if the player's UID is a key in the playerUids map on the game document.
         // This is more efficient than checking a subcollection.
-        return isSignedIn() && get(/databases/$(database)/documents/games/$(gameId)).data.playerUids[request.auth.uid] == true;
+        return request.auth != null && get(/databases/$(database)/documents/games/$(gameId)).data.playerUids[request.auth.uid] == true;
     }
 
     match /games/{gameId} {
@@ -32,5 +27,3 @@ service cloud.firestore {
     }
   }
 }
-
-    

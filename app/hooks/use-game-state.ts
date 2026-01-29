@@ -153,5 +153,3 @@ export const useGameState = (gameId: string): CombinedGameState => {
 
   return state;
 };
-
-    

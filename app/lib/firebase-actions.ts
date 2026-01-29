@@ -189,6 +189,7 @@ export async function joinGame(
       
       const playerIndex = game.players.findIndex(p => p.userId === userId);
       if (playerIndex !== -1) {
+          // Player is already in the game, just ensure their data is up-to-date
           const updatedPlayers = [...game.players];
           let changed = false;
           if (updatedPlayers[playerIndex].displayName !== displayName) {
@@ -257,7 +258,9 @@ export async function startGame(gameId: string, creatorId: string) {
             let allPlayersFullData: Player[] = game.players.map(publicPlayer => {
                 const privateDoc = playerDocsSnaps.docs.find(d => d.id === publicPlayer.userId);
                 const privateData = privateDoc?.data() as PlayerPrivateData | undefined;
-                return { ...publicPlayer, ...privateData } as Player;
+                // Important: Ensure a complete Player object is formed
+                const fullPlayer = { ...publicPlayer, ...privateData };
+                return fullPlayer as Player;
             });
             
             let playerUids = { ...game.playerUids } || {};
@@ -313,7 +316,7 @@ export async function startGame(gameId: string, creatorId: string) {
                 const { publicData, privateData } = splitPlayerData(player);
                 publicPlayersData.push(publicData);
                 const playerPrivateRef = adminDb.collection(`games/${gameId}/playerData`).doc(player.userId);
-                transaction.set(playerPrivateRef, toPlainObject(privateData), { merge: true });
+                transaction.set(playerPrivateRef, toPlainObject(privateData));
             });
 
             transaction.update(gameRef, toPlainObject({
@@ -322,11 +325,11 @@ export async function startGame(gameId: string, creatorId: string) {
                 twins: twinUserIds.length === 2 ? [twinUserIds[0], twinUserIds[1]] as [string, string] : null,
                 status: 'in_progress',
                 phase: 'role_reveal',
-                currentRound: 0,
+                currentRound: 0, // Will be set to 1 by processNight
             }));
         });
         
-        // Schedule first night
+        // Schedule first night transition
         setTimeout(() => {
             processNight(gameId);
         }, 15000);
@@ -357,7 +360,7 @@ async function getFullPlayers(gameId: string, game: Game, transaction?: Firebase
     });
 
     const fullPlayers: Player[] = game.players.map(publicData => {
-        const privateInfo = privateDataMap.get(publicData.userId);
+        const privateInfo = privateDataMap.get(publicData.userId) || {};
         return { ...publicData, ...privateInfo } as Player;
     }).sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
     
@@ -443,6 +446,7 @@ export async function resetGame(gameId: string) {
           const privateDataCollectionRef = adminDb.collection(`games/${gameId}/playerData`);
           const privateDocsSnaps = await transaction.get(privateDataCollectionRef);
           
+          // Delete private data for AI players
           privateDocsSnaps.forEach(docSnap => {
               if(!humanPlayers.some(p => p.userId === docSnap.id)){
                   transaction.delete(docSnap.ref);
@@ -452,6 +456,7 @@ export async function resetGame(gameId: string) {
           const playerUids: Record<string, boolean> = {};
           humanPlayers.forEach(p => playerUids[p.userId] = true);
 
+          // Reset private data for human players
           for(const player of humanPlayers) {
               const playerPrivateRef = adminDb.collection(`games/${gameId}/playerData`).doc(player.userId);
               const newPlayer = createPlayerObject(player.userId, game.id, player.displayName, player.avatarUrl, player.isAI);
@@ -774,7 +779,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
     try {
         await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists) throw new Error("Game not found");
+            if (!gameSnap.exists()) throw new Error("Game not found");
             let game = gameSnap.data() as Game;
             
             if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId || game.status === 'finished') {
@@ -1052,7 +1057,10 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
 
     return { publicPlayersData, privatePlayersData };
 };
-// AI LOGIC
+
+// ==========================================================
+// AI Actions
+// ==========================================================
 export async function runAIActions(gameId: string, phase: 'day' | 'night') {
     const adminDb = getAdminDb();
     try {
@@ -1120,5 +1128,3 @@ export async function runAIHunterShot(gameId: string) {
          console.error("Error in runAIHunterShot:", e);
     }
 }
-
-    
