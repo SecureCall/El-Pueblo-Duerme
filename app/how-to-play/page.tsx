@@ -102,15 +102,15 @@ export default function HowToPlayPage() {
                         </CardHeader>
                         <CardContent className="space-y-4 text-base text-muted-foreground">
                             <div>
-                                <h3 className="text-xl font-bold text-primary-foreground mb-2">1. Fase de Noche</h3>
+                                <h3 className="text-xl font-bold text-primary mb-2">1. Fase de Noche</h3>
                                 <p>Durante la noche, la mayoría de los jugadores duermen. Es el momento en que los Hombres Lobo y otros roles con habilidades nocturnas actúan en secreto. Los Hombres Lobo se comunican en un chat privado para decidir a quién eliminar.</p>
                             </div>
                             <div>
-                                <h3 className="text-xl font-bold text-primary-foreground mb-2">2. Fase de Día</h3>
+                                <h3 className="text-xl font-bold text-primary mb-2">2. Fase de Día</h3>
                                 <p>El pueblo se despierta y descubre quién (si alguien) ha sido asesinado durante la noche. A partir de aquí, comienza el debate. Los jugadores discuten, acusan y se defienden en el chat público. El objetivo es identificar a los sospechosos.</p>
                             </div>
                              <div>
-                                <h3 className="text-xl font-bold text-primary-foreground mb-2">3. Fase de Votación</h3>
+                                <h3 className="text-xl font-bold text-primary mb-2">3. Fase de Votación</h3>
                                 <p>Al final del día, todos los jugadores vivos deben votar para linchar a un jugador que crean que es un Hombre Lobo. El jugador con más votos es eliminado de la partida y su rol es revelado. Si hay un empate, puede haber una segunda ronda de votación o, dependiendo de la configuración, nadie es eliminado.</p>
                             </div>
                         </CardContent>
