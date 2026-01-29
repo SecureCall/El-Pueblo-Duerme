@@ -1,4 +1,3 @@
-
 // IMPORTANT: This file is server-only and should not be imported on the client.
 import 'server-only';
 import { initializeApp, getApps, credential, type App } from 'firebase-admin/app';
