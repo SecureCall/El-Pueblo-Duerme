@@ -28,6 +28,7 @@ import { Checkbox } from "../ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { Label } from "../ui/label";
 
 const roleKeys = [
   'seer', 'doctor', 'hunter', 'cupid', 'guardian', 'priest', 'prince', 'lycanthrope', 'twin', 'hechicera'
@@ -168,17 +169,17 @@ export function CreateGameForm() {
                         </FormControl>
                          <FormDescription>
                             Esto incluirá {werewolves} Hombre(s) Lobo.
-                        </FormDescription>
+                         </FormDescription>
                     </FormItem>
                 )}
             />
             
             <div className="space-y-4">
               <div>
-                <FormLabel>Roles Especiales</FormLabel>
-                <FormDescription>
+                <Label>Roles Especiales</Label>
+                <p className="text-sm text-muted-foreground">
                   Selecciona los roles que quieres incluir en la partida.
-                </FormDescription>
+                </p>
               </div>
               <div className="flex gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => setAllRoles(true)}>Seleccionar Todos</Button>
@@ -236,3 +237,4 @@ export function CreateGameForm() {
     </Card>
   );
 }
+
