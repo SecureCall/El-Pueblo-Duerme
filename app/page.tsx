@@ -39,7 +39,7 @@ export default function HomePage() {
             <h1 className="font-headline text-6xl md:text-8xl font-bold tracking-tight text-shadow-lg shadow-black/50">
               El Pueblo Duerme
             </h1>
-            <p className="text-lg md:text-xl text-white/80 max-w-lg text-center">
+            <p className="text-lg md:text-xl text-white/80 max-w-lg mx-auto">
               Una noche más cae sobre el pueblo. Entre vosotros se esconden lobos. ¿Podréis descubrirlos antes de que sea tarde?
             </p>
           </div>
