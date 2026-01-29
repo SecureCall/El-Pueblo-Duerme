@@ -1,2 +1,3 @@
-// THIS FILE IS OBSOLETE AND SHOULD BE DELETED.
-// The correct configuration is in next.config.mjs.
+// ESTE ARCHIVO ESTÁ OBSOLETO Y DEBE SER ELIMINADO.
+// La configuración principal se encuentra en next.config.mjs.
+// Se ha vaciado para evitar conflictos de compilación.
