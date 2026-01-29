@@ -16,6 +16,8 @@ import {
     AIChatPerspectiveSchema,
     AIActionPerspectiveSchema,
     AIActionOutputSchema,
+    AIVotePerspectiveSchema,
+    AIVoteOutputSchema,
 } from './zod';
 
 // Re-export enums for convenience
@@ -39,6 +41,8 @@ export type AIChatPerspective = z.infer<typeof AIChatPerspectiveSchema>;
 export type GenerateAIChatMessageOutput = z.infer<typeof AIActionOutputSchema>;
 export type AIActionPerspective = z.infer<typeof AIActionPerspectiveSchema>;
 export type AIActionOutput = z.infer<typeof AIActionOutputSchema>;
+export type AIVotePerspective = z.infer<typeof AIVotePerspectiveSchema>;
+export type AIVoteOutput = z.infer<typeof AIVoteOutputSchema>;
 
 
 // ===============================================================================================
@@ -79,3 +83,4 @@ export interface GameStateChange {
 }
 
     
+

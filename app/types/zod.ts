@@ -216,3 +216,17 @@ export const AIActionOutputSchema = z.object({
   targetIds: z.array(z.string()).describe("An array of user IDs for the target(s) of the action. Empty if no target is needed or action is null."),
   reasoning: z.string().describe("A brief, in-character thought process for the chosen action."),
 });
+
+export const AIVotePerspectiveSchema = z.object({
+  game: GameSchema,
+  aiPlayer: PlayerSchema,
+  votablePlayers: z.array(PlayerSchema),
+  chatHistory: z.array(z.string()).describe("A summary of recent chat messages to gauge sentiment."),
+});
+export type AIVotePerspective = z.infer<typeof AIVotePerspectiveSchema>;
+
+export const AIVoteOutputSchema = z.object({
+  targetId: z.string().nullable().describe("The userId of the player to vote for. Null if abstaining."),
+  reasoning: z.string().describe("A brief, in-character thought process for the vote."),
+});
+export type AIVoteOutput = z.infer<typeof AIVoteOutputSchema>;

@@ -30,6 +30,7 @@ import { secretObjectives } from "./objectives";
 import { processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotesEngine, processNightEngine, generateRoles } from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 import { generateAIAction } from "@/ai/flows/generate-ai-action-flow";
+import { generateAIVote } from "@/ai/flows/generate-ai-vote-flow";
 
 const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
 const MINIMUM_PLAYERS = 3;
@@ -413,6 +414,75 @@ async function runNightAIActions(gameId: string) {
     }
 }
 
+async function runAIVotes(gameId: string) {
+    const adminDb = getAdminDb();
+    const gameRef = doc(adminDb, 'games', gameId);
+
+    try {
+        const gameSnap = await getDoc(gameRef);
+        if (!gameSnap.exists()) return;
+        const game = gameSnap.data() as Game;
+
+        if (game.status !== 'in_progress' || game.phase !== 'day') {
+            return;
+        }
+
+        const privateDataCol = collection(adminDb, `games/${gameId}/playerData`);
+        const privateDataSnap = await getDocs(privateDataCol);
+        const allPrivateData: Record<string, PlayerPrivateData> = {};
+        privateDataSnap.forEach(doc => {
+            allPrivateData[doc.id] = doc.data() as PlayerPrivateData;
+        });
+
+        const fullPlayers = game.players.map(p => ({
+            ...p,
+            ...(allPrivateData[p.userId] || {})
+        })) as Player[];
+
+        const aliveAIPlayers = fullPlayers.filter(p => p.isAI && p.isAlive && !p.votedFor);
+
+        for (const aiPlayer of aliveAIPlayers) {
+            const votablePlayers = fullPlayers.filter(p => p.isAlive && p.userId !== aiPlayer.userId);
+            if (votablePlayers.length === 0) continue;
+
+            const chatSummary = game.chatMessages
+                .slice(-10) // Get last 10 messages
+                .map(m => `${m.senderName}: ${m.text}`);
+
+            const perspective = {
+                game: toPlainObject(game),
+                aiPlayer: toPlainObject(aiPlayer),
+                votablePlayers: toPlainObject(votablePlayers),
+                chatHistory: chatSummary,
+            };
+
+            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
+            
+            try {
+                const vote = await generateAIVote(perspective);
+                const targetId = vote.targetId;
+
+                // Validate the vote
+                const isValidTarget = votablePlayers.some(p => p.userId === targetId);
+                if (targetId && isValidTarget) {
+                    await submitVote(gameId, aiPlayer.userId, targetId);
+                } else {
+                    // Default to a random vote if AI fails
+                    const randomTarget = votablePlayers[Math.floor(Math.random() * votablePlayers.length)];
+                    await submitVote(gameId, aiPlayer.userId, randomTarget.userId);
+                }
+            } catch (err) {
+                 console.error(`Error generating AI vote for ${aiPlayer.displayName}:`, err);
+                 // Fallback vote
+                 const randomTarget = votablePlayers[Math.floor(Math.random() * votablePlayers.length)];
+                 await submitVote(gameId, aiPlayer.userId, randomTarget.userId);
+            }
+        }
+    } catch (e) {
+        console.error(`Error running AI votes for game ${gameId}:`, e);
+    }
+}
+
 
 async function triggerAIChat(gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
     const adminDb = getAdminDb();
@@ -542,6 +612,9 @@ export async function processVotes(gameId: string) {
     const adminDb = getAdminDb();
     const gameRef = doc(adminDb, 'games', gameId);
     try {
+        // Run AI votes before processing
+        await runAIVotes(gameId);
+
         await runTransaction(adminDb, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error("Game not found");
@@ -552,7 +625,12 @@ export async function processVotes(gameId: string) {
             
             await processVotesEngine(transaction, gameRef, game, fullPlayers);
         });
-        await runNightAIActions(gameId);
+
+        // This check is important. If the game phase changed to night, THEN run night AI actions.
+        const updatedGameSnap = await getDoc(gameRef);
+        if (updatedGameSnap.exists() && updatedGameSnap.data()?.phase === 'night') {
+            await runNightAIActions(gameId);
+        }
     } catch (e) { console.error("Failed to process votes", e); }
 }
 
@@ -574,10 +652,7 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
         const isSeerOrApprentice = seerData.role === 'seer' || (seerData.role === 'seer_apprentice' && game.seerDied);
         if (!isSeerOrApprentice) throw new Error("No tienes el don de la videncia.");
 
-        const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed'];
-        if (game.settings.lycanthrope) {
-            wolfRoles.push('lycanthrope');
-        }
+        const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'lycanthrope'];
         const isWerewolf = !!(targetData.role && wolfRoles.includes(targetData.role));
 
         const newCheck = { targetName: targetPublicData.displayName, isWerewolf };
