@@ -1,45 +1,46 @@
 
-'use server';
-import { initializeApp, getApps, getApp, type App, credential } from 'firebase-admin/app';
+// IMPORTANT: This file is server-only and should not be imported on the client.
+import 'server-only';
+import { initializeApp, getApps, credential, type App, type ServiceAccount } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getAuth, type Auth } from 'firebase-admin/auth';
 
 let app: App;
-let db: Firestore;
-let auth: Auth;
+let adminDb: Firestore;
+let adminAuth: Auth;
 
 function initializeAdmin() {
-  if (!getApps().length) {
+  if (getApps().length === 0) {
     try {
-      // Use Application Default Credentials, which is the standard for Google Cloud environments.
-      // This will automatically find the credentials in the environment.
+      // Use Application Default Credentials, which is the standard for Google Cloud environments (like Vercel).
       app = initializeApp({
         credential: credential.applicationDefault(),
       });
     } catch (e) {
-      console.error("Error initializing firebase-admin:", e);
-      // Provide a more helpful error message.
-      throw new Error("Could not initialize Firebase Admin SDK. Ensure your service account credentials are set up correctly in your environment.");
+        console.error("Could not initialize Firebase Admin SDK with Application Default Credentials.", e);
+        throw new Error("Could not initialize Firebase Admin SDK. Ensure your service account credentials are set up correctly in your environment.");
     }
   } else {
-    app = getApp();
+    app = getApps()[0];
   }
-  db = getFirestore(app);
-  auth = getAuth(app);
+  adminDb = getFirestore(app);
+  adminAuth = getAuth(app);
 }
 
 // Function to get the initialized Firestore instance.
 export function getAdminDb(): Firestore {
-  if (!db) {
+  if (!adminDb) {
     initializeAdmin();
   }
-  return db;
+  return adminDb;
 }
 
 // Function to get the initialized Auth instance.
 export function getAdminAuth(): Auth {
-  if (!auth) {
+  if (!adminAuth) {
     initializeAdmin();
   }
-  return auth;
+  return adminAuth;
 }
+
+    

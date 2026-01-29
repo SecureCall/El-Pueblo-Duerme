@@ -105,13 +105,18 @@ export const useGameState = (gameId: string): CombinedGameState => {
       const gameData = gameSnap.data() as Game;
 
       try {
+        // Attempt to fetch the current user's private data.
         const privateDataRef = doc(firestore, `games/${gameId}/playerData`, userId);
         const privateSnap = await getDoc(privateDataRef);
 
+        // Merge public and private data for the current player.
+        // Other players will only have their public data visible.
         const fullPlayers: Player[] = gameData.players.map(publicData => {
           if (publicData.userId === userId && privateSnap.exists()) {
             return { ...publicData, ...(privateSnap.data() as PlayerPrivateData) };
           }
+          // For other players, we return the public data cast as Player,
+          // acknowledging that private fields will be undefined.
           return publicData as Player;
         }).sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
         
@@ -129,6 +134,7 @@ export const useGameState = (gameId: string): CombinedGameState => {
               errorEmitter.emit('permission-error', permissionError);
               dispatch({ type: 'SET_ERROR', payload: `Error de permisos al cargar tus datos.` });
           } else {
+              console.error("Error fetching private player data:", err);
               dispatch({ type: 'SET_ERROR', payload: `Error al cargar datos del jugador: ${err.message}` });
           }
       }
@@ -147,3 +153,5 @@ export const useGameState = (gameId: string): CombinedGameState => {
 
   return state;
 };
+
+    

@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -8,8 +9,9 @@ service cloud.firestore {
     }
     
     function isPlayerInGame(gameId) {
-        let gameDoc = get(/databases/$(database)/documents/games/$(gameId));
-        return isSignedIn() && (request.auth.uid in gameDoc.data.playerUids);
+        // Check if the player's UID is a key in the playerUids map on the game document.
+        // This is more efficient than checking a subcollection.
+        return isSignedIn() && get(/databases/$(database)/documents/games/$(gameId)).data.playerUids[request.auth.uid] == true;
     }
 
     match /games/{gameId} {
@@ -19,6 +21,7 @@ service cloud.firestore {
       // Deny all client-side writes. All mutations must go through server actions.
       allow write: if false;
 
+      // Subcollection for private player data.
       match /playerData/{userId} {
         // A user can only ever read their OWN private data.
         allow read: if request.auth.uid == userId && isPlayerInGame(gameId);
@@ -29,3 +32,5 @@ service cloud.firestore {
     }
   }
 }
+
+    

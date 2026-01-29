@@ -830,7 +830,7 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
     try {
         await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists) throw new Error("Game not found");
+            if (!gameSnap.exists()) throw new Error("Game not found");
             let game = gameSnap.data() as Game;
 
             if (game.phase !== 'day' || game.status === 'finished') return;
@@ -877,13 +877,13 @@ export async function submitNightAction(data: {gameId: string, round: number, pl
     try {
         await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists) throw new Error("Game not found");
+            if (!gameSnap.exists()) throw new Error("Game not found");
             let game = gameSnap.data() as Game;
             if (game.phase !== 'night' || game.status === 'finished') return;
             
             const playerPrivateRef = adminDb.collection(`games/${gameId}/playerData`).doc(playerId);
             const playerPrivateSnap = await transaction.get(playerPrivateRef);
-            if (!playerPrivateSnap.exists) throw new Error("Player private data not found");
+            if (!playerPrivateSnap.exists()) throw new Error("Player private data not found");
             
             const privateData = playerPrivateSnap.data() as PlayerPrivateData;
             
@@ -916,7 +916,7 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
     try {
         await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists) throw new Error("Partida no encontrada");
+            if (!gameSnap.exists()) throw new Error("Partida no encontrada");
             let game = gameSnap.data() as Game;
             const fullPlayers = await getFullPlayers(gameId, game, transaction);
             const player = fullPlayers.find(p => p.userId === troublemakerId);
@@ -956,12 +956,12 @@ export async function sendGhostMessage(gameId: string, ghostId: string, recipien
     try {
         await adminDb.runTransaction(async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists) throw new Error("Game not found");
+            if (!gameDoc.exists()) throw new Error("Game not found");
             const game = gameDoc.data() as Game;
             
             const playerPrivateRef = adminDb.collection(`games/${gameId}/playerData`).doc(ghostId);
             const playerPrivateSnap = await transaction.get(playerPrivateRef);
-            if (!playerPrivateSnap.exists) throw new Error("Player private data not found");
+            if (!playerPrivateSnap.exists()) throw new Error("Player private data not found");
             const privateData = playerPrivateSnap.data() as PlayerPrivateData;
 
             const publicData = game.players.find(p => p.userId === ghostId);
@@ -1096,7 +1096,7 @@ export async function runAIHunterShot(gameId: string) {
     const adminDb = getAdminDb();
     try {
         const gameDoc = await adminDb.collection('games').doc(gameId).get();
-        if (!gameDoc.exists) return;
+        if (!gameDoc.exists()) return;
         const game = gameDoc.data() as Game;
 
         if (game.phase !== 'hunter_shot' || !game.pendingHunterShot) return;
@@ -1120,3 +1120,5 @@ export async function runAIHunterShot(gameId: string) {
          console.error("Error in runAIHunterShot:", e);
     }
 }
+
+    
