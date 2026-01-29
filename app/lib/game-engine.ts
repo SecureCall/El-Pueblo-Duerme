@@ -7,7 +7,6 @@ import {
   DocumentReference,
   doc,
   increment,
-  getDoc,
 } from "firebase/firestore";
 import { 
   type Game, 
@@ -17,7 +16,7 @@ import {
 } from "@/types";
 import { toPlainObject, getMillis } from "@/lib/utils";
 import { roleDetails } from "./roles";
-import { adminDb } from "./firebase-admin";
+import { getAdminDb } from "./firebase-admin";
 
 const PHASE_DURATION_SECONDS = 60;
 
@@ -57,6 +56,7 @@ export const generateRoles = (playerCount: number, settings: Game['settings']): 
 
 
 async function getFullPlayersTransactional(transaction: Transaction, gameId: string, game: Game): Promise<Player[]> {
+    const adminDb = getAdminDb();
     const playerPrivateRefs = game.players.map(p => doc(adminDb, 'games', gameId, 'playerData', p.userId));
     const playerPrivateSnaps = await transaction.getAll(...playerPrivateRefs);
 
@@ -75,7 +75,8 @@ async function getFullPlayersTransactional(transaction: Transaction, gameId: str
     return fullPlayers;
 }
 
-async function performKill(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, players: Player[], playerIdToKill: string | null, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; updatedPlayers: Player[]; triggeredHunterId: string | null; }> {
+async function performKill(transaction: Transaction, gameRef: DocumentReference, gameData: Game, players: Player[], playerIdToKill: string | null, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; updatedPlayers: Player[]; triggeredHunterId: string | null; }> {
+    const adminDb = getAdminDb();
     let newGameData = { ...gameData };
     let newPlayers = [...players];
     let triggeredHunterId: string | null = null;
@@ -200,7 +201,8 @@ async function performKill(transaction: Transaction, gameRef: DocumentReference<
 }
 
 
-export async function killPlayer(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, players: Player[], playerIdToKill: string, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; updatedPlayers: Player[]; triggeredHunterId: string | null; }> {
+export async function killPlayer(transaction: Transaction, gameRef: DocumentReference, gameData: Game, players: Player[], playerIdToKill: string, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; updatedPlayers: Player[]; triggeredHunterId: string | null; }> {
+    const adminDb = getAdminDb();
     const playerToKill = players.find(p => p.userId === playerIdToKill);
     if (!playerToKill || !playerToKill.isAlive) return { updatedGame: gameData, updatedPlayers: players, triggeredHunterId: null };
 
@@ -231,12 +233,12 @@ export async function killPlayer(transaction: Transaction, gameRef: DocumentRefe
     return performKill(transaction, gameRef, gameData, players, playerIdToKill, cause, customMessage);
 }
 
-export async function killPlayerUnstoppable(transaction: Transaction, gameRef: DocumentReference<Game>, gameData: Game, players: Player[], playerIdToKill: string, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; updatedPlayers: Player[]; triggeredHunterId: string | null; }> {
+export async function killPlayerUnstoppable(transaction: Transaction, gameRef: DocumentReference, gameData: Game, players: Player[], playerIdToKill: string, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; updatedPlayers: Player[]; triggeredHunterId: string | null; }> {
     return performKill(transaction, gameRef, gameData, players, playerIdToKill, cause, customMessage);
 }
 
-export async function processNightEngine(transaction: Transaction, gameRef: DocumentReference<Game>, game: Game, fullPlayers: Player[]) {
-  
+export async function processNightEngine(transaction: Transaction, gameRef: DocumentReference, game: Game, fullPlayers: Player[]) {
+  const adminDb = getAdminDb();
   if (game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now()) {
       console.warn("processNight called before phase end. Ignoring.");
       return { nightEvent: undefined };
@@ -440,7 +442,7 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
   }));
   return { nightEvent };
 }
-export async function processVotesEngine(transaction: Transaction, gameRef: DocumentReference<Game>, game: Game, fullPlayers: Player[]) {
+export async function processVotesEngine(transaction: Transaction, gameRef: DocumentReference, game: Game, fullPlayers: Player[]) {
     if (game.phase !== 'day') return { voteEvent: undefined };
     if (game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now()) return { voteEvent: undefined };
 
@@ -475,7 +477,7 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
         game.events.push(tieEvent);
         
         for (const p of fullPlayers) { 
-            const playerPrivateRef = doc(adminDb, 'games', game.id, 'playerData', p.userId);
+            const playerPrivateRef = doc(getAdminDb(), 'games', game.id, 'playerData', p.userId);
             transaction.update(playerPrivateRef, { votedFor: null });
         }
         const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
@@ -502,7 +504,7 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
     let mutableFullPlayers = [...fullPlayers];
 
     if (lynchedPlayerId) {
-        const { updatedGame, updatedPlayers, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, mutableFullPlayers, lynchedPlayerId, 'vote_result', `El pueblo ha hablado. ${game.players.find(p => p.userId === lynchedPlayerId)?.displayName} ha sido linchado.`);
+        const { updatedGame, updatedPlayers, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, mutableFullPlayers, lynchedPlayerId, 'vote_result', `El pueblo ha hablado. ${game.players.find(p => p.userId === lynchedPlayerId)?.displayName} ha sido linchado.`);
         game = updatedGame;
         mutableFullPlayers = updatedPlayers;
         triggeredHunterId = newHunterId;
@@ -531,7 +533,7 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
     const nextRound = game.currentRound + 1;
 
     for (const p of fullPlayers) {
-        const playerPrivateRef = doc(adminDb, 'games', game.id, 'playerData', p.userId);
+        const playerPrivateRef = doc(getAdminDb(), 'games', game.id, 'playerData', p.userId);
         transaction.update(playerPrivateRef, { votedFor: null, usedNightAbility: false });
     }
     
@@ -543,7 +545,8 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
     }));
      return { voteEvent: game.events[game.events.length-1] };
 }
-export async function processJuryVotesEngine(transaction: Transaction, gameRef: DocumentReference<Game>, game: Game, fullPlayers: Player[]) {
+export async function processJuryVotesEngine(transaction: Transaction, gameRef: DocumentReference, game: Game, fullPlayers: Player[]) {
+    const adminDb = getAdminDb();
     if (game.phase !== 'jury_voting' || (game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now())) return;
 
     const juryVotes = game.juryVotes || {};
@@ -575,7 +578,7 @@ export async function processJuryVotesEngine(transaction: Transaction, gameRef: 
     let triggeredHunterId: string | null = null;
 
     if (mostVotedPlayerId) {
-        const { updatedGame, updatedPlayers, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef as DocumentReference<Game>, game, fullPlayers, mostVotedPlayerId, 'vote_result', `El jurado de los muertos ha decidido. ${game.players.find(p=>p.userId === mostVotedPlayerId)?.displayName} ha sido linchado.`);
+        const { updatedGame, updatedPlayers, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, fullPlayers, mostVotedPlayerId, 'vote_result', `El jurado de los muertos ha decidido. ${game.players.find(p=>p.userId === mostVotedPlayerId)?.displayName} ha sido linchado.`);
         game = updatedGame;
         fullPlayers = updatedPlayers;
         triggeredHunterId = newHunterId;

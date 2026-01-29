@@ -1,6 +1,6 @@
 
 'use server';
-import { adminDb } from './firebase-admin';
+import { getAdminDb } from './firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { 
   type Game, 
@@ -116,6 +116,7 @@ export async function createGame(
     settings: Game['settings'];
   }
 ) {
+  const adminDb = getAdminDb();
   const { userId, displayName, avatarUrl, gameName, maxPlayers, settings } = options;
 
   if (!userId || !displayName.trim() || !gameName.trim()) {
@@ -194,6 +195,7 @@ export async function joinGame(
     avatarUrl: string;
   }
 ) {
+  const adminDb = getAdminDb();
   const { gameId, userId, displayName, avatarUrl } = options;
   const gameRef = adminDb.collection("games").doc(gameId);
   
@@ -264,6 +266,7 @@ const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessi
 const MINIMUM_PLAYERS = 3;
 
 export async function startGame(gameId: string, creatorId: string) {
+    const adminDb = getAdminDb();
     const gameRef = adminDb.collection('games').doc(gameId);
     
     try {
@@ -364,6 +367,7 @@ export async function startGame(gameId: string, creatorId: string) {
 }
 
 async function getFullPlayers(gameId: string, game: Game, transaction?: FirebaseFirestore.Transaction): Promise<Player[]> {
+    const adminDb = getAdminDb();
     const privateDataCollectionRef = adminDb.collection(`games/${gameId}/playerData`);
     
     let privateDataSnaps;
@@ -388,6 +392,7 @@ async function getFullPlayers(gameId: string, game: Game, transaction?: Firebase
 
 
 export async function processNight(gameId: string) {
+    const adminDb = getAdminDb();
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
         let nightResultEvent: GameEvent | undefined;
@@ -419,6 +424,7 @@ export async function processNight(gameId: string) {
 }
 
 export async function processVotes(gameId: string) {
+    const adminDb = getAdminDb();
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
         let voteResultEvent: GameEvent | undefined;
@@ -432,7 +438,7 @@ export async function processVotes(gameId: string) {
         });
 
         const gameDoc = await gameRef.get();
-        if (gameDoc.exists) {
+        if (gameDoc.exists()) {
             const game = gameDoc.data() as Game;
             if (voteResultEvent) {
                  await triggerAIChat(gameId, voteResultEvent.message, 'public');
@@ -449,6 +455,7 @@ export async function processVotes(gameId: string) {
 }
 
 export async function resetGame(gameId: string) {
+  const adminDb = getAdminDb();
   const gameRef = adminDb.collection('games').doc(gameId);
 
   try {
@@ -505,6 +512,7 @@ export async function sendChatMessage(
     text: string,
     isFromAI: boolean = false
 ) {
+    const adminDb = getAdminDb();
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
@@ -567,6 +575,7 @@ async function sendSpecialChatMessage(
     text: string,
     chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost'
 ) {
+    const adminDb = getAdminDb();
     if (!text?.trim()) {
         return { success: false, error: 'El mensaje no puede estar vacío.' };
     }
@@ -667,6 +676,7 @@ export const sendGhostChatMessage = (gameId: string, senderId: string, senderNam
 
 
 async function triggerAIChat(gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
+    const adminDb = getAdminDb();
     try {
         const gameDoc = await adminDb.collection('games').doc(gameId).get();
         if (!gameDoc.exists) return;
@@ -736,6 +746,7 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
 
 
 export async function processJuryVotes(gameId: string) {
+    const adminDb = getAdminDb();
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
         await adminDb.runTransaction(async (transaction) => {
@@ -751,6 +762,7 @@ export async function processJuryVotes(gameId: string) {
 }
 
 export async function executeMasterAction(gameId: string, actionId: string, sourceId: string | null, targetId: string) {
+    const adminDb = getAdminDb();
     const gameRef = adminDb.collection('games').doc(gameId);
      try {
         await adminDb.runTransaction(async (transaction) => {
@@ -782,6 +794,7 @@ export async function executeMasterAction(gameId: string, actionId: string, sour
 }
 
 export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
+    const adminDb = getAdminDb();
     const gameRef = adminDb.collection('games').doc(gameId);
 
     try {
@@ -838,6 +851,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
     }
 }
 export async function submitVote(gameId: string, voterId: string, targetId: string) {
+    const adminDb = getAdminDb();
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
         await adminDb.runTransaction(async (transaction) => {
@@ -883,6 +897,7 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
 }
 
 export async function submitNightAction(data: {gameId: string, round: number, playerId: string, actionType: NightActionType, targetId: string}) {
+    const adminDb = getAdminDb();
     const { gameId, playerId, actionType, targetId } = data;
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
@@ -922,6 +937,7 @@ export async function submitNightAction(data: {gameId: string, round: number, pl
 }
 
 export async function submitTroublemakerAction(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
+    const adminDb = getAdminDb();
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
         await adminDb.runTransaction(async (transaction) => {
@@ -948,6 +964,7 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
 }
 
 export async function submitJuryVote(gameId: string, voterId: string, targetId: string) {
+    const adminDb = getAdminDb();
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
         await gameRef.update({
@@ -960,6 +977,7 @@ export async function submitJuryVote(gameId: string, voterId: string, targetId: 
 }
 
 export async function sendGhostMessage(gameId: string, ghostId: string, recipientId: string, template: string, subjectId?: string) {
+    const adminDb = getAdminDb();
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
         await adminDb.runTransaction(async (transaction) => {
@@ -1002,6 +1020,7 @@ export async function sendGhostMessage(gameId: string, ghostId: string, recipien
 
 
 export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
+    const adminDb = getAdminDb();
     const gameDoc = await adminDb.collection('games').doc(gameId).get();
     if (!gameDoc.exists) throw new Error("Game not found");
     const game = gameDoc.data() as Game;
@@ -1023,6 +1042,7 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
 }
 
 export async function updatePlayerAvatar(gameId: string, userId: string, newAvatarUrl: string) {
+    const adminDb = getAdminDb();
     const gameRef = adminDb.collection("games").doc(gameId);
 
     try {
@@ -1047,6 +1067,7 @@ export async function updatePlayerAvatar(gameId: string, userId: string, newAvat
 }
 
 export async function kickInactivePlayers(gameId: string) {
+    const adminDb = getAdminDb();
     const gameRef = adminDb.collection('games').doc(gameId);
     const fiveMinutesAgo = Timestamp.fromMillis(Date.now() - 5 * 60 * 1000);
 
@@ -1104,184 +1125,7 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
     return { publicPlayersData, privatePlayersData };
 };
 // AI LOGIC MOVED HERE TO BREAK CIRCULAR DEPENDENCY
-
-const getDeterministicAIAction = (
-    aiPlayer: Player,
-    game: Game,
-    alivePlayers: Player[],
-    deadPlayers: Player[],
-): { actionType: NightActionType | 'VOTE' | 'SHOOT' | 'NONE'; targetId: string } => {
-    const { role, userId } = aiPlayer;
-    const { currentRound, nightActions = [] } = game;
-    const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'witch', 'seeker_fairy'];
-    const wolfCubRevengeActive = game.wolfCubRevengeRound === game.currentRound;
-    const apprenticeIsActive = role === 'seer_apprentice' && game.seerDied;
-    const canFairiesKill = game.fairiesFound && !game.fairyKillUsed && (role === 'seeker_fairy' || role === 'sleeping_fairy');
-
-    const potentialTargets = alivePlayers.filter(p => p.userId !== userId);
-
-    const randomTarget = (targets: Player[], count = 1): string => {
-        if (targets.length === 0) return '';
-        let availableTargets = [...targets];
-        let selectedTargets: string[] = [];
-        for (let i = 0; i < count && availableTargets.length > 0; i++) {
-            const randomIndex = Math.floor(Math.random() * availableTargets.length);
-            const target = availableTargets.splice(randomIndex, 1)[0];
-            if (target) {
-                selectedTargets.push(target.userId);
-            }
-        }
-        return selectedTargets.join('|');
-    };
-
-    if (game.phase === 'day') {
-        if (aiPlayer.role === 'executioner' && aiPlayer.executionerTargetId) {
-            const targetIsAlive = alivePlayers.some(p => p.userId === aiPlayer.executionerTargetId);
-            if (targetIsAlive && Math.random() < 0.75) {
-                return { actionType: 'VOTE', targetId: aiPlayer.executionerTargetId };
-            }
-        }
-        return { actionType: 'VOTE', targetId: randomTarget(potentialTargets) };
-    }
-
-    if (game.phase === 'hunter_shot' && game.pendingHunterShot === userId) {
-        return { actionType: 'SHOOT', targetId: randomTarget(potentialTargets) };
-    }
-
-    if (game.phase !== 'night' || game.exiledPlayerId === userId) {
-        return { actionType: 'NONE', targetId: '' };
-    }
-
-    if (canFairiesKill) {
-        const nonFairies = potentialTargets.filter(p => p.role !== 'seeker_fairy' && p.role !== 'sleeping_fairy');
-        return { actionType: 'fairy_kill', targetId: randomTarget(nonFairies) };
-    }
-
-    switch (role) {
-        case 'werewolf':
-        case 'wolf_cub': {
-             const wolfActions = nightActions.filter(a => a.round === currentRound && a.actionType === 'werewolf_kill' && a.playerId !== userId && wolfRoles.includes(game.players.find(p=>p.userId === a.playerId)?.role || null));
-             if (wolfActions.length > 0 && Math.random() < 0.8) { 
-                 const leaderAction = wolfActions[0];
-                 if (leaderAction && leaderAction.targetId) {
-                    return { actionType: 'werewolf_kill', targetId: leaderAction.targetId };
-                 }
-             }
-
-            const nonWolves = potentialTargets.filter(p => {
-                if (p.role && wolfRoles.includes(p.role)) return false;
-                if (game.witchFoundSeer && p.role === 'witch') return false; 
-                return true;
-            });
-
-            const prince = nonWolves.find(p => p.princeRevealed);
-            if (prince && Math.random() < 0.7) {
-                return { actionType: 'werewolf_kill', targetId: prince.userId };
-            }
-
-            const playersWhoVotedForWolves = game.players.filter(p => {
-                const lastVoteEvent = game.events.find(e => e.type === 'vote_result' && e.round === currentRound - 1);
-                if (!lastVoteEvent || !lastVoteEvent.data.lynchedPlayerId) return false;
-                const lynchedPlayer = game.players.find(p => p.userId === lastVoteEvent.data.lynchedPlayerId);
-                return p.votedFor === lynchedPlayer?.userId && lynchedPlayer?.role && wolfRoles.includes(lynchedPlayer.role);
-            }).map(p => p.userId);
-
-            const suspiciousPlayers = nonWolves.filter(p => playersWhoVotedForWolves.includes(p.userId));
-            if (suspiciousPlayers.length > 0 && Math.random() < 0.6) {
-                 return { actionType: 'werewolf_kill', targetId: randomTarget(suspiciousPlayers) };
-            }
-
-            const killCount = wolfCubRevengeActive ? 2 : 1;
-            return { actionType: 'werewolf_kill', targetId: randomTarget(nonWolves, killCount) };
-        }
-        case 'seer':
-        case 'seer_apprentice':
-            if (role === 'seer' || apprenticeIsActive) {
-                const previousTargets = nightActions.filter(a => a.playerId === userId && a.actionType === 'seer_check').map(a => a.targetId);
-                const uninvestigatedTargets = potentialTargets.filter(p => !previousTargets.includes(p.userId));
-                
-                const lastVoteEvent = game.events.find(e => e.type === 'vote_result' && e.round === currentRound - 1);
-                const suspicionMap: Record<string, number> = {};
-                (uninvestigatedTargets.length > 0 ? uninvestigatedTargets : potentialTargets).forEach(p => {
-                     suspicionMap[p.userId] = 1;
-                });
-                
-                if(lastVoteEvent?.data) {
-                    const lynchedPlayerId = lastVoteEvent.data.lynchedPlayerId;
-                    if (lynchedPlayerId) {
-                        const lynchedPlayer = game.players.find(p => p.userId === lynchedPlayerId);
-                        if(lynchedPlayer?.role === 'villager') {
-                             game.players.filter(p => p.votedFor === lynchedPlayerId).forEach(voter => {
-                                if (suspicionMap[voter.userId]) suspicionMap[voter.userId] += 10;
-                             });
-                        }
-                    }
-                    (lastVoteEvent.data.tiedPlayerIds || []).forEach((id: string) => {
-                         if (suspicionMap[id]) suspicionMap[id] += 5;
-                    });
-                }
-                
-                const sortedSuspects = Object.keys(suspicionMap).sort((a,b) => suspicionMap[b] - suspicionMap[a]);
-                if (sortedSuspects.length > 0 && Math.random() < 0.7) {
-                    return { actionType: 'seer_check', targetId: sortedSuspects[0] };
-                }
-
-                return { actionType: 'seer_check', targetId: randomTarget(uninvestigatedTargets.length > 0 ? uninvestigatedTargets : potentialTargets) };
-            }
-            return { actionType: 'NONE', targetId: '' };
-        case 'doctor':
-        case 'guardian': {
-            const healableTargets = potentialTargets.filter(p => p.lastHealedRound !== currentRound - 1);
-            const seer = healableTargets.find(p => p.role === 'seer');
-            if (seer && Math.random() < 0.6) {
-                 return { actionType: role === 'doctor' ? 'doctor_heal' : 'guardian_protect', targetId: seer.userId };
-            }
-            if (role === 'guardian' && (aiPlayer.guardianSelfProtects || 0) < 1 && Math.random() < 0.2) {
-                 return { actionType: 'guardian_protect', targetId: userId };
-            }
-            return { actionType: role === 'doctor' ? 'doctor_heal' : 'guardian_protect', targetId: randomTarget(healableTargets.length > 0 ? healableTargets : potentialTargets) };
-        }
-        case 'priest':
-            if (!aiPlayer.priestSelfHealUsed && Math.random() < 0.2) return { actionType: 'priest_bless', targetId: userId };
-            const seer = potentialTargets.find(p => p.role === 'seer');
-            if (seer && Math.random() < 0.5) return { actionType: 'priest_bless', targetId: seer.userId };
-            return { actionType: 'priest_bless', targetId: randomTarget(potentialTargets) };
-        case 'resurrector_angel':
-            if (!aiPlayer.resurrectorAngelUsed && deadPlayers.length > 0) {
-                 return { actionType: 'resurrect', targetId: randomTarget(deadPlayers, 1) };
-            }
-            return { actionType: 'NONE', targetId: '' };
-        case 'vampire': {
-            const biteableTargets = potentialTargets.filter(p => (p.biteCount || 0) < 3);
-            return { actionType: 'vampire_bite', targetId: randomTarget(biteableTargets.length > 0 ? biteableTargets : potentialTargets) };
-        }
-        case 'cult_leader': {
-            const nonCultMembers = potentialTargets.filter(p => !p.isCultMember);
-            return { actionType: 'cult_recruit', targetId: randomTarget(nonCultMembers) };
-        }
-        case 'hechicera': {
-             const hasPoison = !aiPlayer.potions?.poison;
-             if (hasPoison) {
-                 return { actionType: 'hechicera_poison', targetId: randomTarget(potentialTargets) };
-             }
-             return { actionType: 'NONE', targetId: '' };
-        }
-        case 'silencer':
-        case 'elder_leader':
-             return { actionType: role === 'silencer' ? 'silencer_silence' : 'elder_leader_exile', targetId: randomTarget(potentialTargets) };
-        case 'cupid':
-            if (currentRound === 1) {
-                return { actionType: 'cupid_love', targetId: randomTarget(potentialTargets, 2) };
-            }
-            return { actionType: 'NONE', targetId: '' };
-        case 'executioner':
-            return { actionType: 'NONE', targetId: '' };
-        default:
-            return { actionType: 'NONE', targetId: '' };
-    }
-};
-
-export async function runAIActions(gameId: string, phase: 'day' | 'night') {
+async function runAIActions(gameId: string, phase: 'day' | 'night') {
     const adminDb = getAdminDb();
     try {
         const gameDoc = await adminDb.collection('games').doc(gameId).get();
@@ -1320,7 +1164,7 @@ export async function runAIActions(gameId: string, phase: 'day' | 'night') {
     }
 }
 
-export async function runAIHunterShot(gameId: string) {
+async function runAIHunterShot(gameId: string) {
     const adminDb = getAdminDb();
     try {
         const gameDoc = await adminDb.collection('games').doc(gameId).get();
@@ -1336,7 +1180,7 @@ export async function runAIHunterShot(gameId: string) {
 
         const alivePlayers = fullPlayers.filter(p => p.isAlive && p.userId !== hunter.userId);
         
-        const targetId = getDeterministicAIAction(hunter, game, alivePlayers, []).targetId;
+        const { targetId } = getDeterministicAIAction(hunter, game, alivePlayers, []);
 
         if (targetId) {
             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
@@ -1348,5 +1192,3 @@ export async function runAIHunterShot(gameId: string) {
          console.error("Error in runAIHunterShot:", e);
     }
 }
-
-    

@@ -1,7 +1,7 @@
 
 'use server-only';
 
-import { initializeApp, getApps, getApp, type App, credential } from 'firebase-admin/app';
+import { initializeApp, getApps, getApp, type App, credential, type ServiceAccount } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getAuth, type Auth } from 'firebase-admin/auth';
 
@@ -17,7 +17,6 @@ function initializeAdmin() {
       });
     } catch (e) {
       console.error("Error initializing firebase-admin:", e);
-      // We are throwing a more specific error here to help debugging.
       throw new Error("Could not initialize Firebase Admin SDK. Check server logs for details.");
     }
   } else {
