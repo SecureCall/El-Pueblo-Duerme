@@ -191,7 +191,7 @@ export const AIPlayerPerspectiveSchema = z.object({
   game: GameSchema,
   aiPlayer: PlayerSchema,
   trigger: z.string(),
-  players: z.array(AIPlayerPublicSchema),
+  players: z.array(AIPlayerPublicSchema.extend({ role: PlayerRoleSchema.or(z.literal('unknown')) })),
   chatType: z.enum(['public', 'wolf', 'twin', 'lovers', 'ghost']),
   seerChecks: z.array(z.object({
     targetName: z.string(),

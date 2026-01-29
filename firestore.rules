@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -7,48 +6,24 @@ service cloud.firestore {
     function isSignedIn() {
       return request.auth != null;
     }
-
-    function isGameCreator(gameId) {
-      return get(/databases/$(database)/documents/games/$(gameId)).data.creator == request.auth.uid;
-    }
     
-    // Checks the playerUids map on the game document.
     function isPlayerInGame(gameId) {
         let gameDoc = get(/databases/$(database)/documents/games/$(gameId));
         return isSignedIn() && (request.auth.uid in gameDoc.data.playerUids);
     }
-    
-    function isGamePublic(gameId) {
-       return get(/databases/$(database)/documents/games/$(gameId)).data.settings.isPublic == true;
-    }
 
     match /games/{gameId} {
-      // Allow read if the user is a player in the game, or if the game is public and in waiting.
-      allow read: if isPlayerInGame(gameId) || (isGamePublic(gameId) && resource.data.status == 'waiting');
+      // Allow read only if the user is authenticated and part of the game.
+      allow read: if isPlayerInGame(gameId);
       
-      // Allow create if the user is authenticated and is the creator.
-      allow create: if isSignedIn() 
-                    && request.resource.data.creator == request.auth.uid
-                    && request.resource.data.playerUids[request.auth.uid] == true
-                    && request.resource.data.players[0].userId == request.auth.uid;
-
-      // Server actions run with admin privileges, so they bypass these client-side rules.
-      // These rules are primarily for client-side operations (joining, reading lobby).
-      allow update: if isSignedIn() && (
-                      // Player joining a waiting game
-                      (get(/databases/$(database)/documents/games/$(gameId)).data.status == 'waiting' 
-                        && request.resource.data.players.size() == resource.data.players.size() + 1
-                        && !(request.auth.uid in resource.data.playerUids)
-                        && request.auth.uid in request.resource.data.playerUids)
-                    );
-                    
-      // Only the creator can delete a game.
-      allow delete: if isGameCreator(gameId);
+      // Deny all client-side writes. All mutations must go through server actions.
+      allow write: if false;
 
       match /playerData/{userId} {
         // A user can only ever read their OWN private data.
         allow read: if request.auth.uid == userId && isPlayerInGame(gameId);
-        // Writes are handled by server actions with admin privileges.
+        
+        // Deny all client-side writes.
         allow write: if false; 
       }
     }

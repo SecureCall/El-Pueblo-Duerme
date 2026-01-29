@@ -68,11 +68,7 @@ function splitPlayerData(player: Player): { publicData: PlayerPublicData, privat
   const { 
     userId, gameId, displayName, avatarUrl, isAlive, isAI, 
     princeRevealed, joinedAt, votedFor, lastActiveAt,
-    // Explicitly destructure private fields to exclude them from public data
-    role, secretObjectiveId, executionerTargetId, potions, priestSelfHealUsed, guardianSelfProtects,
-    usedNightAbility, shapeshifterTargetId, virginiaWoolfTargetId, riverSirenTargetId,
-    ghostMessageSent, resurrectorAngelUsed, bansheeScreams, bansheePoints, lookoutUsed, lastHealedRound,
-    isCultMember, isLover, biteCount
+    ...privateData
   } = player;
 
   const publicData: PlayerPublicData = {
@@ -80,29 +76,7 @@ function splitPlayerData(player: Player): { publicData: PlayerPublicData, privat
     princeRevealed, joinedAt, votedFor, lastActiveAt
   };
 
-  const privateData: PlayerPrivateData = {
-    role,
-    secretObjectiveId,
-    executionerTargetId,
-    potions,
-    priestSelfHealUsed,
-    guardianSelfProtects,
-    usedNightAbility,
-    shapeshifterTargetId,
-    virginiaWoolfTargetId,
-    riverSirenTargetId,
-    ghostMessageSent,
-    resurrectorAngelUsed,
-    bansheeScreams,
-    bansheePoints,
-    lookoutUsed,
-    lastHealedRound,
-    isCultMember,
-    isLover,
-    biteCount,
-  };
-
-  return { publicData, privateData };
+  return { publicData, privateData: privateData as PlayerPrivateData };
 }
 
 
@@ -1066,52 +1040,6 @@ export async function updatePlayerAvatar(gameId: string, userId: string, newAvat
     }
 }
 
-export async function kickInactivePlayers(gameId: string) {
-    const adminDb = getAdminDb();
-    const gameRef = adminDb.collection('games').doc(gameId);
-    const fiveMinutesAgo = Timestamp.fromMillis(Date.now() - 5 * 60 * 1000);
-
-    try {
-        await adminDb.runTransaction(async (transaction) => {
-            const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists) return;
-            let game = gameSnap.data()! as Game;
-
-            if (game.status !== 'in_progress') return;
-
-            let fullPlayers = await getFullPlayers(gameId, game, transaction);
-            
-            const inactivePlayers = fullPlayers.filter(p => p.isAlive && getMillis(p.lastActiveAt) < fiveMinutesAgo.toMillis());
-
-            if (inactivePlayers.length === 0) return;
-            
-            for (const inactivePlayer of inactivePlayers) {
-                const result = await gameEngine.killPlayerUnstoppable(transaction, gameRef, game, fullPlayers, inactivePlayer.userId, 'special', `${inactivePlayer.displayName} ha sido eliminado por inactividad.`);
-                game = result.updatedGame;
-                fullPlayers = result.updatedPlayers;
-
-                const privatePlayerRef = adminDb.collection(`games/${gameId}/playerData`).doc(inactivePlayer.userId);
-                transaction.delete(privatePlayerRef);
-            }
-
-            const { publicPlayersData } = splitFullPlayerList(fullPlayers);
-            game.players = publicPlayersData;
-
-            const gameOverInfo = await gameEngine.checkGameOver(game, fullPlayers);
-             if (gameOverInfo.isGameOver) {
-                game.status = "finished";
-                game.phase = "finished";
-                game.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: game.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: new Date() });
-            }
-            
-            transaction.set(gameRef, toPlainObject(game));
-        });
-
-    } catch (e: any) {
-        console.error(`Error kicking inactive players for game ${gameId}:`, e);
-    }
-}
-
 const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: PlayerPublicData[], privatePlayersData: Record<string, PlayerPrivateData> } => {
     const publicPlayersData: PlayerPublicData[] = [];
     const privatePlayersData: Record<string, PlayerPrivateData> = {};
@@ -1124,8 +1052,8 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
 
     return { publicPlayersData, privatePlayersData };
 };
-// AI LOGIC MOVED HERE TO BREAK CIRCULAR DEPENDENCY
-async function runAIActions(gameId: string, phase: 'day' | 'night') {
+// AI LOGIC
+export async function runAIActions(gameId: string, phase: 'day' | 'night') {
     const adminDb = getAdminDb();
     try {
         const gameDoc = await adminDb.collection('games').doc(gameId).get();
@@ -1143,7 +1071,7 @@ async function runAIActions(gameId: string, phase: 'day' | 'night') {
             for (const ai of aiPlayersToDoAction) {
                 if (!ai.role) continue;
                 
-                const { actionType, targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
+                const { actionType, targetId } = gameEngine.getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
                 if (!actionType || actionType === 'NONE' || !targetId || actionType === 'VOTE' || actionType === 'SHOOT') continue;
                 
                 await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
@@ -1152,7 +1080,7 @@ async function runAIActions(gameId: string, phase: 'day' | 'night') {
         } else if (phase === 'day') {
             const aiPlayersToVote = alivePlayers.filter(p => p.isAI && !p.votedFor);
             for (const ai of aiPlayersToVote) {
-                const { targetId } = getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
+                const { targetId } = gameEngine.getDeterministicAIAction(ai, game, alivePlayers, deadPlayers);
                 if (targetId) {
                     await new Promise(resolve => setTimeout(resolve, Math.random() * 8000 + 2000));
                     await submitVote(gameId, ai.userId, targetId);
@@ -1164,7 +1092,7 @@ async function runAIActions(gameId: string, phase: 'day' | 'night') {
     }
 }
 
-async function runAIHunterShot(gameId: string) {
+export async function runAIHunterShot(gameId: string) {
     const adminDb = getAdminDb();
     try {
         const gameDoc = await adminDb.collection('games').doc(gameId).get();
@@ -1180,7 +1108,7 @@ async function runAIHunterShot(gameId: string) {
 
         const alivePlayers = fullPlayers.filter(p => p.isAlive && p.userId !== hunter.userId);
         
-        const { targetId } = getDeterministicAIAction(hunter, game, alivePlayers, []);
+        const { targetId } = gameEngine.getDeterministicAIAction(hunter, game, alivePlayers, []);
 
         if (targetId) {
             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));

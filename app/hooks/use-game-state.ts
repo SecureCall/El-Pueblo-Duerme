@@ -2,10 +2,9 @@
 'use client';
 
 import { useEffect, useReducer, useMemo } from 'react';
-import { doc, onSnapshot, collection, getDocs } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, FirestoreError } from 'firebase/firestore';
 import type { Game, Player, GameEvent, ChatMessage, PlayerPublicData, PlayerPrivateData } from '../types';
 import { useFirebase } from '../firebase/provider';
-import { useDoc } from '../firebase/firestore/use-doc';
 import { useGameSession } from './use-game-session';
 import { getMillis } from '../lib/utils';
 import { errorEmitter } from '../firebase/error-emitter';
@@ -29,7 +28,7 @@ interface CombinedGameState {
 }
 
 type GameAction =
-  | { type: 'SET_GAME_DATA'; payload: { game: Game; userId: string; players: Player[]; currentPlayer: Player | null } }
+  | { type: 'SET_GAME_DATA'; payload: { game: Game; players: Player[]; currentPlayer: Player | null } }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null };
 
@@ -110,11 +109,10 @@ export const useGameState = (gameId: string): CombinedGameState => {
         const privateSnap = await getDoc(privateDataRef);
 
         const fullPlayers: Player[] = gameData.players.map(publicData => {
-          let privateData: PlayerPrivateData | {} = {};
           if (publicData.userId === userId && privateSnap.exists()) {
-            privateData = privateSnap.data() as PlayerPrivateData;
+            return { ...publicData, ...(privateSnap.data() as PlayerPrivateData) };
           }
-          return { ...publicData, ...privateData };
+          return publicData as Player;
         }).sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
         
         const currentPlayer = fullPlayers.find(p => p.userId === userId) || null;
@@ -149,4 +147,3 @@ export const useGameState = (gameId: string): CombinedGameState => {
 
   return state;
 };
-

@@ -98,19 +98,7 @@ const generateAiChatMessageFlow = ai.defineFlow(
     },
     async (perspective) => {
         // The input is now expected to be fully sanitized by the wrapper function.
-        
-        // Hide roles of other players before sending to the prompt
-        const sanitizedPlayersForPrompt = perspective.players.map(p => ({
-            ...p,
-            role: p.userId === perspective.aiPlayer.userId || !p.isAlive ? p.role : 'unknown',
-        }));
-
-        const promptInput = {
-            ...perspective,
-            players: sanitizedPlayersForPrompt,
-        };
-
-        const { output } = await prompt(promptInput);
+        const { output } = await prompt(perspective);
         return output || { message: '', shouldSend: false };
     }
 );
