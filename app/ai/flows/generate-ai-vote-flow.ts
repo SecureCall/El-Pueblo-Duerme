@@ -1,3 +1,4 @@
+
 'use server';
 
 import { ai } from '@/ai/genkit';
@@ -27,7 +28,7 @@ export type AIVotePerspective = z.infer<typeof AIVotePerspectiveSchema>;
 
 export const AIVoteOutputSchema = z.object({
   targetId: z.string().nullable().describe("The userId of the player to vote for. Null if abstaining."),
-  reasoning: z.string().describe("A brief, in-character thought process for the vote."),
+  reasoning: z.string().describe("A brief, in-character thought process for the vote, phrased as if speaking to the village."),
 });
 export type AIVoteOutput = z.infer<typeof AIVoteOutputSchema>;
 
@@ -57,34 +58,35 @@ Your response MUST be a JSON object matching the output schema.
 {{/each}}
 
 **Your Task:**
-Decide who to vote for from the 'votablePlayers' list. Do not vote for yourself. Provide a brief, in-character reasoning for your choice.
+Decide who to vote for from the 'votablePlayers' list. Do not vote for yourself. 
+Your 'reasoning' should be a concise, in-character statement explaining your vote, as if you were saying it out loud in the town square.
 
-**ROLE-SPECIFIC STRATEGIES:**
+**ROLE-SPECIFIC STRATEGIES & REASONING EXAMPLES:**
 
 - **Werewolf / Wolf Cub:** Your goal is to deceive and get a villager lynched.
   - Vote for someone who is investigating too much or who has accused one of your fellow wolves.
   - Create a scapegoat. If the chat is suspecting someone innocent, pile on the votes.
-  - Reasoning: "Suspicions are high on {target}. Their defense was weak. My vote is for them."
+  - Reasoning example: "{target} no ha dicho nada coherente en todo el día. Para mí, es el lobo. Voto por él."
 
 - **Seer:** You have secret knowledge. Use it wisely.
   - If you have identified a wolf, vote for them and try to subtly convince others.
   - If you know someone is innocent and they are being accused, vote for someone else to divert attention.
-  - Reasoning: "My intuition is screaming that {target} is not what they seem. I must trust it." or "Voting for {target} is a mistake! I will vote for {other_suspicious_player} instead."
+  - Reasoning example: "Mi intuición me dice que {target} no es de fiar. Debemos escuchar a nuestros instintos." or "¡Votar por {target} es un error! Mi voto es para {other_suspicious_player}, que ha estado demasiado callado."
 
 - **Executioner:** Your goal is to get your target lynched.
   - Always vote for your target ({{aiPlayer.executionerTargetId}}).
-  - Reasoning: "I've been watching {target} and their actions don't add up. They are my only suspect."
+  - Reasoning example: "No me fío de {target}. Cada palabra que dice suena a mentira. Mi voto es claro."
 
 - **Villager / Doctor / Guardian / etc.:** Your goal is to find and lynch a wolf.
   - Analyze the chat. Who is accusing whom? Who is being defensive?
   - Vote for players who are acting suspiciously, making strange accusations, or staying too quiet.
-  - Reasoning: "{target} has been trying to shift blame all day. That's classic wolf behavior."
+  - Reasoning example: "{target} ha intentado desviar la atención todo el día. Es una táctica de lobo de manual."
 
 - **Lover:** Your goal is survival with your partner.
   - Never vote for your lover.
   - If your lover is accused, vote for their most vocal accuser.
   - Coordinate with your lover if possible to vote together.
-  - Reasoning: "I will not stand for these baseless accusations against {lover}. My vote goes to {accuser}."
+  - Reasoning example: "No toleraré estas acusaciones sin fundamento contra {lover}. Mi voto va para {accuser}."
 
 **IMPORTANT RULES:**
 1.  **Valid Target:** You MUST choose from the 'votablePlayers' list.

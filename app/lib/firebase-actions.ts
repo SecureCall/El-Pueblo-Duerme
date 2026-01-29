@@ -351,7 +351,6 @@ async function runNightAIActions(gameId: string) {
         const game = gameSnap.data() as Game;
 
         if (game.status !== 'in_progress' || game.phase !== 'night') {
-            // It's possible the game ended after the transaction, so we double check.
             return;
         }
 
@@ -392,7 +391,6 @@ async function runNightAIActions(gameId: string) {
                 try {
                     const action = await generateAIAction(perspective);
                     if (action && action.actionType && action.targetIds.length > 0) {
-                        // A quick check to see if the action is still valid.
                         const currentPrivateSnap = await getDoc(doc(adminDb, `games/${gameId}/playerData`, aiPlayer.userId));
                         if(currentPrivateSnap.exists() && !currentPrivateSnap.data()?.usedNightAbility) {
                             await submitNightAction({
@@ -446,7 +444,7 @@ async function runAIVotes(gameId: string) {
             if (votablePlayers.length === 0) continue;
 
             const chatSummary = game.chatMessages
-                .slice(-10) // Get last 10 messages
+                .slice(-10)
                 .map(m => `${m.senderName}: ${m.text}`);
 
             const perspective = {
@@ -462,18 +460,20 @@ async function runAIVotes(gameId: string) {
                 const vote = await generateAIVote(perspective);
                 const targetId = vote.targetId;
 
-                // Validate the vote
                 const isValidTarget = votablePlayers.some(p => p.userId === targetId);
                 if (targetId && isValidTarget) {
                     await submitVote(gameId, aiPlayer.userId, targetId);
+
+                    if (vote.reasoning && Math.random() < 0.4) { // 40% chance
+                        await new Promise(resolve => setTimeout(resolve, Math.random() * 3000 + 1000));
+                        await sendChatMessage(gameId, aiPlayer.userId, aiPlayer.displayName, vote.reasoning, true);
+                    }
                 } else {
-                    // Default to a random vote if AI fails
                     const randomTarget = votablePlayers[Math.floor(Math.random() * votablePlayers.length)];
                     await submitVote(gameId, aiPlayer.userId, randomTarget.userId);
                 }
             } catch (err) {
                  console.error(`Error generating AI vote for ${aiPlayer.displayName}:`, err);
-                 // Fallback vote
                  const randomTarget = votablePlayers[Math.floor(Math.random() * votablePlayers.length)];
                  await submitVote(gameId, aiPlayer.userId, randomTarget.userId);
             }
@@ -512,7 +512,7 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
                     game: toPlainObject(game),
                     aiPlayer: toPlainObject(aiPlayer),
                     trigger: triggerMessage,
-                    players: toPlainObject(game.players), // AI will get public data of other players
+                    players: toPlainObject(game.players),
                     chatType,
                     seerChecks: (privateDataSnap.data() as PlayerPrivateData)?.seerChecks,
                 };
@@ -529,6 +529,51 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
         console.error("Error in triggerAIChat:", e);
     }
 }
+
+async function triggerAIReactionToGameEvent(gameId: string, event: GameEvent) {
+    const adminDb = getAdminDb();
+    try {
+        const gameDoc = await getDoc(doc(adminDb, 'games', gameId));
+        if (!gameDoc.exists()) return;
+
+        let game = gameDoc.data() as Game;
+        if (game.status === 'finished') return;
+        
+        if (event.type === 'special' || !event.message) return;
+
+        const aiPlayersToTrigger = game.players.filter(p => p.isAI && p.isAlive);
+        
+        for (const publicAiPlayer of aiPlayersToTrigger) {
+             const shouldTrigger = Math.random() < 0.4; // 40% chance to react
+
+             if (shouldTrigger) {
+                 const privateDataSnap = await getDoc(doc(adminDb, `games/${gameId}/playerData`, publicAiPlayer.userId));
+                 if (!privateDataSnap.exists()) continue;
+                 
+                 const aiPlayer: Player = { ...publicAiPlayer, ...(privateDataSnap.data() as PlayerPrivateData) };
+                 
+                const perspective = {
+                    game: toPlainObject(game),
+                    aiPlayer: toPlainObject(aiPlayer),
+                    trigger: `Ha ocurrido un evento: "${event.message}"`,
+                    players: toPlainObject(game.players),
+                    chatType: 'public' as const,
+                    seerChecks: (privateDataSnap.data() as PlayerPrivateData)?.seerChecks,
+                };
+                
+                generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
+                    if (shouldSend && message) {
+                        await new Promise(resolve => setTimeout(resolve, Math.random() * 5000 + 1000));
+                        await sendChatMessage(gameId, aiPlayer.userId, aiPlayer.displayName, message, true);
+                    }
+                }).catch(aiError => console.error(`Error generating AI event reaction for ${aiPlayer.displayName}:`, aiError));
+            }
+        }
+    } catch (e) {
+        console.error("Error in triggerAIReactionToGameEvent:", e);
+    }
+}
+
 
 export async function sendChatMessage(gameId: string, senderId: string, senderName: string, text: string, isFromAI: boolean = false) {
     const adminDb = getAdminDb();
@@ -604,7 +649,25 @@ export async function processNight(gameId: string) {
 
             await processNightEngine(transaction, gameRef, game, fullPlayers);
         });
-        await runNightAIActions(gameId);
+
+        const updatedGameDoc = await getDoc(gameRef);
+        if (updatedGameDoc.exists()) {
+            const game = updatedGameDoc.data() as Game;
+            
+            if (game.phase === 'night') {
+                 await runNightAIActions(gameId);
+            }
+            
+            if(game.phase === 'day') {
+                const latestNightResult = game.events
+                    .filter(e => e.type === 'night_result' && e.round === game.currentRound)
+                    .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))[0];
+                
+                if (latestNightResult) {
+                    await triggerAIReactionToGameEvent(gameId, latestNightResult);
+                }
+            }
+        }
     } catch (e) { console.error("Failed to process night", e); }
 }
 
@@ -612,7 +675,6 @@ export async function processVotes(gameId: string) {
     const adminDb = getAdminDb();
     const gameRef = doc(adminDb, 'games', gameId);
     try {
-        // Run AI votes before processing
         await runAIVotes(gameId);
 
         await runTransaction(adminDb, async (transaction) => {
@@ -626,10 +688,20 @@ export async function processVotes(gameId: string) {
             await processVotesEngine(transaction, gameRef, game, fullPlayers);
         });
 
-        // This check is important. If the game phase changed to night, THEN run night AI actions.
         const updatedGameSnap = await getDoc(gameRef);
-        if (updatedGameSnap.exists() && updatedGameSnap.data()?.phase === 'night') {
-            await runNightAIActions(gameId);
+        if (updatedGameSnap.exists()) {
+            const game = updatedGameSnap.data() as Game;
+            const voteEvent = game.events
+                .filter(e => e.type === 'vote_result' && e.round === (game.phase === 'night' ? game.currentRound -1 : game.currentRound))
+                .sort((a,b) => getMillis(b.createdAt) - getMillis(a.createdAt))[0];
+
+            if (voteEvent) {
+                await triggerAIReactionToGameEvent(gameId, voteEvent);
+            }
+
+            if (game.phase === 'night') {
+                await runNightAIActions(gameId);
+            }
         }
     } catch (e) { console.error("Failed to process votes", e); }
 }
@@ -777,7 +849,8 @@ export async function sendGhostMessage(gameId: string, ghostId: string, recipien
             const ghostEvent: GameEvent = {
                 id: `evt_ghost_${Date.now()}`, gameId, round: game.currentRound, type: 'special',
                 message: `Has recibido un misterioso mensaje desde el más allá: "${finalMessage}"`,
-                createdAt: new Date(), data: { targetId: recipientId },
+                data: { targetId: recipientId },
+                createdAt: new Date(),
             };
             
             transaction.update(ghostPrivateRef, { ghostMessageSent: true });
