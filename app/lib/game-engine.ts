@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { 
@@ -52,26 +53,6 @@ export const generateRoles = (playerCount: number, settings: Game['settings']): 
     return roles.sort(() => Math.random() - 0.5);
 };
 
-
-async function getFullPlayersTransactional(transaction: Transaction, gameId: string, game: Game): Promise<Player[]> {
-    const adminDb = getAdminDb();
-    const playerPrivateRefs = game.players.map(p => adminDb.collection('games').doc(gameId).collection('playerData').doc(p.userId));
-    const playerPrivateSnaps = await transaction.getAll(...playerPrivateRefs);
-
-    const privateDataMap = new Map<string, PlayerPrivateData>();
-    playerPrivateSnaps.forEach(snap => {
-        if (snap.exists) {
-            privateDataMap.set(snap.id, snap.data() as PlayerPrivateData);
-        }
-    });
-
-    const fullPlayers: Player[] = game.players.map(publicData => {
-        const privateInfo = privateDataMap.get(publicData.userId) || {};
-        return { ...publicData, ...privateInfo } as Player;
-    });
-
-    return fullPlayers;
-}
 
 async function performKill(transaction: Transaction, gameRef: DocumentReference, gameData: Game, players: Player[], playerIdToKill: string | null, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; updatedPlayers: Player[]; triggeredHunterId: string | null; }> {
     const adminDb = getAdminDb();
