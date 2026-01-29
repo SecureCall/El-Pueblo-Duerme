@@ -25,7 +25,7 @@ export default function HomePage() {
         )}
         <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
 
-        <main className="relative z-10 flex flex-col items-center text-center text-white space-y-6 w-full max-w-2xl">
+        <main className="relative z-10 flex flex-col items-center text-center text-white space-y-8 w-full max-w-2xl">
           <div className="relative h-48 w-48 rounded-full overflow-hidden shadow-lg">
              <Image
                 src="/logo.png"
@@ -45,19 +45,19 @@ export default function HomePage() {
             </p>
           </div>
           
-          <div className="flex flex-wrap items-center justify-center gap-4">
-              <Button asChild size="lg" variant="secondary">
-                <Link href="/create">Crear Partida</Link>
-              </Button>
-              <Button asChild variant="ghost">
-                  <Link href="/public-games">Salas Públicas</Link>
-              </Button>
-              <Button asChild variant="ghost">
-                  <Link href="/how-to-play">Cómo Jugar</Link>
-              </Button>
-               <Button asChild variant="ghost">
-                  <Link href="/profile">Mi Perfil</Link>
-              </Button>
+          <div className="flex items-baseline justify-center gap-x-6">
+            <Button asChild variant="secondary" size="lg">
+              <Link href="/create">Crear Partida</Link>
+            </Button>
+            <Button asChild variant="link" className="text-white/80 hover:text-white hover:no-underline">
+                <Link href="/public-games">Salas Públicas</Link>
+            </Button>
+            <Button asChild variant="link" className="text-white/80 hover:text-white hover:no-underline">
+                <Link href="/how-to-play">Cómo Jugar</Link>
+            </Button>
+            <Button asChild variant="link" className="text-white/80 hover:text-white hover:no-underline">
+                <Link href="/profile">Mi Perfil</Link>
+            </Button>
           </div>
 
           <div className="w-full max-w-md pt-6">
