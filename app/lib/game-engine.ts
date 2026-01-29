@@ -242,6 +242,7 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
       bites: new Map<string, number>(),
       gameUpdates: {} as Partial<Game>,
       playerUpdates: new Map<string, Partial<PlayerPrivateData>>(),
+      newEvents: [] as GameEvent[],
   };
 
   const getPlayer = (userId: string) => {
@@ -275,7 +276,18 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
                   break;
 
               case 'werewolf_kill':
-                  if (!context.protections.get(targetId)?.has('guard') && !context.protections.get(targetId)?.has('bless')) {
+                  if (game.witchFoundSeer && target.role === 'witch') {
+                        const wolfEventMessage = `Intentasteis atacar a la Bruja, pero un poder oscuro la protegió.`;
+                        const wolves = fullPlayers.filter(p => p.isAlive && (p.role === 'werewolf' || p.role === 'wolf_cub'));
+                        for (const wolf of wolves) {
+                            context.newEvents.push({
+                                id: `evt_witch_protect_${Date.now()}_${wolf.userId}`,
+                                gameId: game.id, round: game.currentRound, type: 'special',
+                                message: wolfEventMessage,
+                                data: { targetId: wolf.userId }, createdAt: new Date(),
+                            });
+                        }
+                  } else if (!context.protections.get(targetId)?.has('guard') && !context.protections.get(targetId)?.has('bless')) {
                       context.deathMarks.set(targetId, 'werewolf_kill');
                   }
                   break;
@@ -326,6 +338,33 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
               case 'elder_leader_exile':
                   context.gameUpdates.exiledPlayerId = targetId;
                   break;
+              
+              case 'witch_hunt':
+                  if (target.role === 'seer' && !game.witchFoundSeer) {
+                      context.gameUpdates.witchFoundSeer = true;
+                      
+                      const witchEvent: GameEvent = {
+                          id: `evt_witch_find_${Date.now()}`,
+                          gameId: game.id, round: game.currentRound, type: 'special',
+                          message: '¡Has encontrado a la Vidente! A partir de ahora, la manada no puede elegirte como objetivo nocturno. Los lobos han sido informados de tu descubrimiento.',
+                          data: { targetId: actor.userId },
+                          createdAt: new Date(),
+                      };
+                      context.newEvents.push(witchEvent);
+                      
+                      const wolfEventMessage = `La Bruja (${actor.displayName}) ha encontrado a la Vidente (${target.displayName}). Ya no podéis atacar a la Bruja.`;
+                      const wolves = fullPlayers.filter(p => p.isAlive && (p.role === 'werewolf' || p.role === 'wolf_cub'));
+                      
+                      for (const wolf of wolves) {
+                           context.newEvents.push({
+                              id: `evt_witch_inform_${Date.now()}_${wolf.userId}`,
+                              gameId: game.id, round: game.currentRound, type: 'special',
+                              message: wolfEventMessage,
+                              data: { targetId: wolf.userId }, createdAt: new Date(),
+                          });
+                      }
+                  }
+                  break;
           }
       }
   }
@@ -333,6 +372,10 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
   let mutableGame = JSON.parse(JSON.stringify(game));
   let mutableFullPlayers = JSON.parse(JSON.stringify(fullPlayers));
   Object.assign(mutableGame, context.gameUpdates);
+
+  if (context.newEvents.length > 0) {
+      mutableGame.events.push(...context.newEvents);
+  }
 
   context.playerUpdates.forEach((updates, userId) => {
       const playerIndex = mutableFullPlayers.findIndex((p:Player) => p.userId === userId);
