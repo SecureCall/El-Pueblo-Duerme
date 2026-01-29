@@ -25,7 +25,7 @@ import { getAdminDb } from "./firebase-admin";
 import { toPlainObject, splitPlayerData } from "./utils";
 import { masterActions } from "./master-actions";
 import { secretObjectives } from "./objectives";
-import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine, generateRoles } from './game-engine';
+import { processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotesEngine, processNightEngine, generateRoles } from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 
 const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
@@ -777,6 +777,3 @@ export async function executeMasterAction(gameId: string, actionId: MasterAction
     }
 }
 
-    
-
-    
