@@ -1,5 +1,7 @@
+import type { NextConfig } from 'next';
+
 /** @type {import('next').NextConfig} */
-const nextConfig = {
+const nextConfig: NextConfig = {
     reactStrictMode: true,
     webpack: (config) => {
         // This is to suppress a benign warning from a dependency of Genkit (OpenTelemetry).
@@ -12,4 +14,4 @@ const nextConfig = {
     },
 };
 
-module.exports = nextConfig;
+export default nextConfig;
