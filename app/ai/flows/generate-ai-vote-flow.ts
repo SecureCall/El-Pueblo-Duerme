@@ -2,7 +2,8 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { GameSchema, PlayerSchema } from '@/types/zod';
+import { AIVotePerspectiveSchema, AIVoteOutputSchema } from '@/types/zod';
+import type { AIVotePerspective, AIVoteOutput } from '@/types';
 
 const sanitizeObject = (obj: any): any => {
     if (obj === undefined) return null;
@@ -16,24 +17,6 @@ const sanitizeObject = (obj: any): any => {
     }
     return newObj;
 };
-
-export const AIVotePerspectiveSchema = z.object({
-  game: GameSchema,
-  aiPlayer: PlayerSchema,
-  votablePlayers: z.array(PlayerSchema),
-  chatHistory: z.array(z.string()).describe("A summary of recent chat messages to gauge sentiment."),
-  voteHistory: z.array(z.object({ voterName: z.string(), targetName: z.string() })).describe("A record of who voted for whom in the previous day phase to detect voting blocs or players targeting you."),
-  seerChecks: z.array(z.object({ targetName: z.string(), isWerewolf: z.boolean() })).optional().describe("A seer's knowledge of other players' identities."),
-  loverName: z.string().optional().describe("The name of your lover, if you are one."),
-  executionerTargetName: z.string().optional().describe("The name of your executioner target, if you are one."),
-});
-export type AIVotePerspective = z.infer<typeof AIVotePerspectiveSchema>;
-
-export const AIVoteOutputSchema = z.object({
-  targetId: z.string().nullable().describe("The userId of the player to vote for. Null if abstaining."),
-  reasoning: z.string().describe("A brief, in-character thought process for the vote, phrased as if speaking to the village."),
-});
-export type AIVoteOutput = z.infer<typeof AIVoteOutputSchema>;
 
 const prompt = ai.definePrompt({
     name: 'generateAIVotePrompt',
