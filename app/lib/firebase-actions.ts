@@ -1,5 +1,4 @@
 
-
 'use server';
 import { getAdminDb } from './firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
@@ -491,7 +490,7 @@ export async function sendChatMessage(
         let latestGame: Game | null = null;
         await adminDb.runTransaction(async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists) throw new Error('Game not found');
+            if (!gameDoc.exists()) throw new Error('Game not found');
             const game = gameDoc.data() as Game;
             latestGame = game;
 
@@ -553,7 +552,7 @@ async function sendSpecialChatMessage(
     try {
         await adminDb.runTransaction(async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists) throw new Error('Game not found');
+            if (!gameDoc.exists()) throw new Error('Game not found');
             const game = gameDoc.data() as Game;
             
             const playerPrivateRef = adminDb.collection(`games/${gameId}/playerData`).doc(senderId);
@@ -718,7 +717,7 @@ export async function processJuryVotes(gameId: string) {
     try {
         await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists) throw new Error("Game not found!");
+            if (!gameSnap.exists()) throw new Error("Game not found!");
             const game = gameSnap.data() as Game;
             const fullPlayers = await getFullPlayers(gameId, game, transaction);
             await gameEngine.processJuryVotesEngine(transaction, gameRef, game, fullPlayers);
@@ -1032,20 +1031,6 @@ export async function updatePlayerAvatar(gameId: string, userId: string, newAvat
     }
 }
 
-const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: PlayerPublicData[], privatePlayersData: Record<string, PlayerPrivateData> } => {
-    const publicPlayersData: PlayerPublicData[] = [];
-    const privatePlayersData: Record<string, PlayerPrivateData> = {};
-
-    fullPlayers.forEach(player => {
-        const { publicData, privateData } = splitPlayerData(player);
-        publicPlayersData.push(publicData);
-        privatePlayersData[player.userId] = privateData;
-    });
-
-    return { publicPlayersData, privatePlayersData };
-};
-
-
 export async function runAIActions(gameId: string, phase: 'day' | 'night') {
     const adminDb = getAdminDb();
     try {
@@ -1323,3 +1308,4 @@ export const getDeterministicAIAction = (
             return { actionType: 'NONE', targetId: '' };
     }
 };
+
