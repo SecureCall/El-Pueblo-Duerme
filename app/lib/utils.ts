@@ -2,6 +2,7 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { Timestamp } from "firebase/firestore";
+import type { Player, PlayerPublicData, PlayerPrivateData } from "@/types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -73,3 +74,22 @@ export const sanitizeHTML = (text: string): string => {
   };
   return text.replace(/[&<>"']/g, (m) => map[m]);
 };
+
+
+export function splitPlayerData(player: Player): { publicData: PlayerPublicData, privateData: PlayerPrivateData } {
+  const { 
+    userId, gameId, displayName, avatarUrl, isAlive, isAI, 
+    princeRevealed, joinedAt, votedFor, lastActiveAt,
+    ...privateData
+  } = player;
+
+  const publicData: PlayerPublicData = {
+    userId, gameId, displayName, avatarUrl, isAlive, isAI,
+    princeRevealed: princeRevealed || false,
+    joinedAt,
+    votedFor: votedFor || null,
+    lastActiveAt: lastActiveAt || null,
+  };
+
+  return { publicData, privateData: privateData as PlayerPrivateData };
+}

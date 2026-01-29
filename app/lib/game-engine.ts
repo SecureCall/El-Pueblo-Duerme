@@ -12,7 +12,7 @@ import {
   type GameEvent, type PlayerRole, type PlayerPublicData, type PlayerPrivateData,
   type NightActionType,
 } from "@/types";
-import { toPlainObject, getMillis } from "@/lib/utils";
+import { toPlainObject, getMillis, splitPlayerData } from "@/lib/utils";
 import { roleDetails } from "./roles";
 import { getAdminDb } from "./firebase-admin";
 
@@ -66,8 +66,8 @@ async function getFullPlayersTransactional(transaction: Transaction, gameId: str
     });
 
     const fullPlayers: Player[] = game.players.map(publicData => {
-        const privateData = privateDataMap.get(publicData.userId) || {};
-        return { ...publicData, ...privateData } as Player;
+        const privateInfo = privateDataMap.get(publicData.userId) || {};
+        return { ...publicData, ...privateInfo } as Player;
     });
 
     return fullPlayers;
@@ -733,4 +733,3 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
 
     return { publicPlayersData, privatePlayersData };
 };
-

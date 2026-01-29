@@ -14,7 +14,7 @@ import {
   type PlayerPublicData,
   type PlayerPrivateData
 } from "@/types";
-import { toPlainObject, getMillis, sanitizeHTML } from "./utils";
+import { toPlainObject, getMillis, sanitizeHTML, splitPlayerData } from "./utils";
 import { masterActions } from "./master-actions";
 import { secretObjectives } from "./objectives";
 import * as gameEngine from './game-engine';
@@ -64,22 +64,6 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     executionerTargetId: null,
     secretObjectiveId: null,
 });
-
-function splitPlayerData(player: Player): { publicData: PlayerPublicData, privateData: PlayerPrivateData } {
-  const { 
-    userId, gameId, displayName, avatarUrl, isAlive, isAI, 
-    princeRevealed, joinedAt, votedFor, lastActiveAt,
-    ...privateData
-  } = player;
-
-  const publicData: PlayerPublicData = {
-    userId, gameId, displayName, avatarUrl, isAlive, isAI,
-    princeRevealed, joinedAt, votedFor, lastActiveAt
-  };
-
-  return { publicData, privateData: privateData as PlayerPrivateData };
-}
-
 
 export async function createGame(
   options: {

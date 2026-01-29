@@ -5,7 +5,7 @@ service cloud.firestore {
 
     match /games/{gameId} {
       // Un usuario solo puede leer un juego si es parte de él
-      allow read: if request.auth != null && get(/databases/$(database)/documents/games/$(gameId)).data.playerUids[request.auth.uid] == true;
+      allow read: if request.auth != null && resource.data.playerUids[request.auth.uid] == true;
       
       // La creación y actualización de salas debe ser solo a través de acciones de servidor seguras.
       allow write: if false;
