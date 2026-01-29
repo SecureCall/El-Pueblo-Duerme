@@ -1,4 +1,1 @@
-
-// Flows will be imported for their side effects in this file.
-// import './flows/take-ai-turn-flow';
-import './flows/generate-ai-chat-flow';
+// This file is obsolete and should be deleted.

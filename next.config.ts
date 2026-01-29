@@ -1,2 +1,6 @@
-// THIS FILE IS A DUPLICATE AND SHOULD BE DELETED.
-// Please use next.config.mjs as the single source of truth for the Next.js configuration.
+// This file is obsolete and should be deleted to resolve build conflicts.
+// The correct configuration is in next.config.mjs.
+/** @type {import('next').NextConfig} */
+const nextConfig = {};
+
+module.exports = nextConfig;

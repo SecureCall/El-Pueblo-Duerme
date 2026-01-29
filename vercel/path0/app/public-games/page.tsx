@@ -1,4 +1,1 @@
-// This file is a neutralized placeholder to resolve build errors.
-export default function Page() {
-  return null;
-}
+// This file is obsolete and should be deleted.
