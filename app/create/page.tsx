@@ -1,33 +1,23 @@
 
 'use client';
 import { CreateGameForm } from '../components/game/CreateGameForm';
-import { PlaceHolderImages } from '../lib/placeholder-images';
 import { GameMusic } from '../components/game/GameMusic';
 import Image from 'next/image';
-import { useEffect } from 'react';
-import { playNarration } from '../lib/sounds';
 
 export default function CreateGamePage() {
-    const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
-    
-    useEffect(() => {
-        playNarration('salas.mp3');
-    }, []);
 
     return (
         <>
             <GameMusic src="/audio/menu-theme.mp3" />
             <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 overflow-hidden">
-                {bgImage && (
-                    <Image
-                        src={bgImage.imageUrl}
-                        alt={bgImage.description}
-                        fill
-                        className="object-cover z-0"
-                        data-ai-hint={bgImage.imageHint}
-                        priority
-                    />
-                )}
+                <Image
+                    src="/noche.png"
+                    alt="A mysterious, dark, misty forest at night."
+                    fill
+                    className="object-cover z-0"
+                    data-ai-hint="night village"
+                    priority
+                />
                 <div className="absolute inset-0 bg-background/70 backdrop-blur-sm" />
 
                 <main className="relative z-10 flex flex-col items-center text-center text-white space-y-6 w-full max-w-md">

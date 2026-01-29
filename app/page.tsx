@@ -1,28 +1,21 @@
+
 'use client';
 
 import Link from 'next/link';
 import { Button } from './components/ui/button';
 import { JoinGameForm } from './components/JoinGameForm';
-import { PlaceHolderImages } from './lib/placeholder-images';
 import Image from 'next/image';
 import { BookOpen, Users, User } from 'lucide-react';
 import { GameMusic } from './components/game/GameMusic';
-import { useEffect } from 'react';
-import { playNarration } from './lib/sounds';
 import { useGameSession } from './hooks/use-game-session';
 import { useRouter } from 'next/navigation';
 import { useToast } from './hooks/use-toast';
 
 export default function Home() {
-  const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
   const { displayName, isSessionLoaded } = useGameSession();
   const router = useRouter();
   const { toast } = useToast();
   
-  useEffect(() => {
-    playNarration('Que comience el juego.mp3');
-  }, []);
-
   const handlePublicGamesClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (!isSessionLoaded) {
       e.preventDefault();
@@ -48,16 +41,14 @@ export default function Home() {
     <>
       <GameMusic src="/audio/menu-theme.mp3" />
       <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 overflow-hidden">
-        {bgImage && (
-          <Image
-            src={bgImage.imageUrl}
-            alt={bgImage.description}
-            fill
-            className="object-cover z-0"
-            data-ai-hint={bgImage.imageHint}
-            priority
-          />
-        )}
+        <Image
+          src="/noche.png"
+          alt="A mysterious, dark, misty forest at night."
+          fill
+          className="object-cover z-0"
+          data-ai-hint="night village"
+          priority
+        />
         <div className="absolute inset-0 bg-background/70 backdrop-blur-sm" />
         <main className="relative z-10 flex flex-col items-center justify-center text-center text-white space-y-8">
           <img

@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -9,9 +8,7 @@ import { collection, query, where, Timestamp, orderBy } from 'firebase/firestore
 import { useCollection } from '../firebase/firestore/use-collection';
 import { useFirebase } from '../firebase/provider';
 import type { Game } from '../types';
-import { PlaceHolderImages } from '../lib/placeholder-images';
 import { GameMusic } from '../components/game/GameMusic';
-import { playNarration } from '../lib/sounds';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Users, Loader2, HomeIcon } from 'lucide-react';
@@ -33,12 +30,14 @@ function GameCard({ game }: { game: Game }) {
         // Directly navigate to the game room, the join logic is handled there.
         router.push(`/game/${game.id}`);
     }
+    
+    const creator = game.players.find(p => p.userId === game.creator);
 
     return (
         <Card className="bg-card/80 border-border/50 transition-all hover:shadow-lg hover:border-primary">
             <CardHeader>
                 <CardTitle className="truncate font-headline text-2xl">{game.name}</CardTitle>
-                <CardDescription>Creada por {game.players.find(p => p.userId === game.creator)?.displayName || 'alguien'}</CardDescription>
+                <CardDescription>Creada por {creator?.displayName || 'alguien'}</CardDescription>
             </CardHeader>
             <CardContent className="flex justify-between items-center">
                 <div className="flex items-center gap-2 text-muted-foreground">
@@ -55,7 +54,6 @@ function GameCard({ game }: { game: Game }) {
 
 
 export default function PublicGamesPage() {
-    const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
     const { firestore } = useFirebase();
     const { displayName, setDisplayName } = useGameSession();
     const { toast } = useToast();
@@ -87,9 +85,6 @@ export default function PublicGamesPage() {
         return [...publicGames].sort((a, b) => getMillis(b.lastActiveAt) - getMillis(a.lastActiveAt));
     }, [publicGames]);
 
-    useEffect(() => {
-        playNarration('salas.mp3');
-    }, []);
 
     const handleNameSubmit = (name: string) => {
         if (name.trim().length < 2 || name.trim().length > 20) {
@@ -140,16 +135,14 @@ export default function PublicGamesPage() {
                 onNameSubmit={handleNameSubmit}
             />
             <div className="relative min-h-screen w-full flex flex-col items-center p-4 overflow-y-auto">
-                {bgImage && (
-                    <Image
-                        src={bgImage.imageUrl}
-                        alt={bgImage.description}
-                        fill
-                        className="object-cover z-0"
-                        data-ai-hint={bgImage.imageHint}
-                        priority
-                    />
-                )}
+                <Image
+                    src="/noche.png"
+                    alt="A mysterious, dark, misty forest at night."
+                    fill
+                    className="object-cover z-0"
+                    data-ai-hint="night village"
+                    priority
+                />
                 <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
 
                 <main className="relative z-10 w-full max-w-6xl mx-auto space-y-8 text-white py-12">

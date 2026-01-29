@@ -7,7 +7,6 @@ import { Button } from '../components/ui/button';
 import Link from 'next/link';
 import { HomeIcon, Trophy, Swords } from 'lucide-react';
 import Image from 'next/image';
-import { PlaceHolderImages } from '../lib/placeholder-images';
 import { GameMusic } from '../components/game/GameMusic';
 import { BarChart, XAxis, YAxis, Tooltip, Bar, ResponsiveContainer, Legend } from 'recharts';
 import { roleDetails } from '../lib/roles';
@@ -17,7 +16,6 @@ import { es } from "date-fns/locale";
 
 export default function ProfilePage() {
     const { stats, displayName } = useGameSession();
-    const bgImage = PlaceHolderImages.find((img) => img.id === 'game-bg-night');
 
     const winRate = stats.victories + stats.defeats > 0
         ? Math.round((stats.victories / (stats.victories + stats.defeats)) * 100)
@@ -35,16 +33,14 @@ export default function ProfilePage() {
         <>
             <GameMusic src="/audio/lobby-theme.mp3" />
             <div className="relative min-h-screen w-full flex flex-col items-center p-4 overflow-y-auto">
-                {bgImage && (
-                    <Image
-                        src={bgImage.imageUrl}
-                        alt={bgImage.description}
-                        fill
-                        className="object-cover z-0"
-                        data-ai-hint={bgImage.imageHint}
-                        priority
-                    />
-                )}
+                <Image
+                    src="/noche.png"
+                    alt="A mysterious, dark, misty forest at night."
+                    fill
+                    className="object-cover z-0"
+                    data-ai-hint="night village"
+                    priority
+                />
                 <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
 
                 <main className="relative z-10 w-full max-w-4xl mx-auto space-y-8 text-white py-12">

@@ -1,6 +1,2 @@
-// This file is obsolete and should be deleted to resolve build conflicts.
+// THIS FILE IS OBSOLETE AND SHOULD BE DELETED.
 // The correct configuration is in next.config.mjs.
-/** @type {import('next').NextConfig} */
-const nextConfig = {};
-
-module.exports = nextConfig;
