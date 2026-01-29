@@ -299,6 +299,28 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
           if (!target) continue;
 
           switch (action.actionType) {
+              case 'resurrect': {
+                  if (target.isAlive) break; 
+                  const actorUpdates = context.playerUpdates.get(actor.userId) || {};
+                  context.playerUpdates.set(actor.userId, { ...actorUpdates, resurrectorAngelUsed: true });
+                  
+                  const targetUpdates = context.playerUpdates.get(targetId) || {};
+                  context.playerUpdates.set(targetId, { ...targetUpdates, isAlive: true });
+
+                  context.newEvents.push({
+                      id: `evt_resurrect_${Date.now()}`,
+                      gameId: game.id, round: game.currentRound, type: 'special',
+                      message: `${target.displayName} ha sido devuelto a la vida por el Ángel Resucitador.`,
+                      data: { resurrectedPlayerId: targetId }, createdAt: new Date(),
+                  });
+                  break;
+              }
+              case 'banshee_scream': {
+                  const updates = context.playerUpdates.get(actor.userId) || {};
+                  const newScreams = { ...(actor.bansheeScreams || {}), [game.currentRound]: targetId };
+                  context.playerUpdates.set(actor.userId, { ...updates, bansheeScreams: newScreams });
+                  break;
+              }
               case 'priest_bless':
               case 'guardian_protect':
               case 'doctor_heal':
@@ -781,6 +803,8 @@ export async function checkGameOver(gameData: Game, fullPlayers: Player[], lynch
 
 const getActionPriority = (actionType: NightActionType) => {
     switch (actionType) {
+        case 'resurrect':
+            return 0;
         case 'silencer_silence':
         case 'elder_leader_exile':
             return 1;
@@ -824,5 +848,6 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
     
 
     
+
 
 

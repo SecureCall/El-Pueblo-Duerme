@@ -1,4 +1,5 @@
 
+
 import { z } from 'zod';
 import { PlayerRoleEnum } from './player-role.enum';
 
@@ -50,6 +51,7 @@ export const PlayerPrivateDataSchema = z.object({
     ghostMessageSent: z.boolean(),
     resurrectorAngelUsed: z.boolean(),
     bansheeScreams: z.record(z.string()),
+    bansheePoints: z.number().optional(),
     lookoutUsed: z.boolean(),
     executionerTargetId: z.string().nullable(),
     secretObjectiveId: z.string().nullable(),

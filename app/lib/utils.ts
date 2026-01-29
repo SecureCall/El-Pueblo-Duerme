@@ -1,4 +1,5 @@
 
+
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { Timestamp } from "firebase/firestore";
@@ -108,6 +109,7 @@ export function splitPlayerData(player: Player): { publicData: PlayerPublicData,
       ghostMessageSent: false,
       resurrectorAngelUsed: false,
       bansheeScreams: {},
+      bansheePoints: 0,
       lookoutUsed: false,
       executionerTargetId: null,
       secretObjectiveId: null,
