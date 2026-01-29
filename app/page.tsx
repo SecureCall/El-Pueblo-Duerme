@@ -5,7 +5,6 @@ import { Button } from './components/ui/button';
 import { JoinGameForm } from './components/JoinGameForm';
 import { GameMusic } from './components/game/GameMusic';
 import { PlaceHolderImages } from './lib/placeholder-images';
-import { Card, CardContent } from './components/ui/card';
 
 export default function HomePage() {
   const bgImage = PlaceHolderImages.find((img) => img.id === 'home-background');
@@ -26,38 +25,48 @@ export default function HomePage() {
         )}
         <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
 
-        <main className="relative z-10 flex flex-col items-center text-center text-white space-y-8 w-full max-w-md">
+        <main className="relative z-10 flex flex-col items-center text-center text-white space-y-6 w-full max-w-2xl">
+          <div className="relative h-48 w-48">
+             <Image
+                src="/logo.png"
+                alt="El Pueblo Duerme Logo"
+                fill
+                className="object-contain"
+                priority
+              />
+          </div>
+
           <div className="space-y-2">
             <h1 className="font-headline text-6xl md:text-8xl font-bold tracking-tight text-shadow-lg shadow-black/50">
               El Pueblo Duerme
             </h1>
-            <p className="text-lg md:text-xl text-white/80">
-              Un juego de misterio, engaño y supervivencia.
+            <p className="text-lg md:text-xl text-white/80 max-w-lg">
+              Una noche más cae sobre el pueblo. Entre vosotros se esconden lobos. ¿Podréis descubrirlos antes de que sea tarde?
             </p>
           </div>
           
-          <div className="w-full space-y-4">
-              <JoinGameForm />
-              <div className="relative flex items-center">
-                  <div className="flex-grow border-t border-border/50"></div>
-                  <span className="flex-shrink mx-4 text-muted-foreground">O</span>
-                  <div className="flex-grow border-t border-border/50"></div>
-              </div>
-              <Button asChild className="w-full font-bold text-lg" variant="default">
-                <Link href="/create">Crear una Nueva Partida</Link>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+              <Button asChild size="lg" variant="secondary">
+                <Link href="/create">Crear Partida</Link>
+              </Button>
+              <Button asChild variant="ghost">
+                  <Link href="/public-games">Salas Públicas</Link>
+              </Button>
+              <Button asChild variant="ghost">
+                  <Link href="/how-to-play">Cómo Jugar</Link>
+              </Button>
+               <Button asChild variant="ghost">
+                  <Link href="/profile">Mi Perfil</Link>
               </Button>
           </div>
 
-           <div className="absolute bottom-4 right-4 space-x-4">
-              <Button asChild variant="link">
-                  <Link href="/public-games">Partidas Públicas</Link>
-              </Button>
-              <Button asChild variant="link">
-                  <Link href="/how-to-play">Cómo Jugar</Link>
-              </Button>
-               <Button asChild variant="link">
-                  <Link href="/profile">Mi Perfil</Link>
-              </Button>
+          <div className="w-full max-w-md pt-6">
+            <div className="relative flex items-center py-4">
+                <div className="flex-grow border-t border-border/50"></div>
+                <span className="flex-shrink mx-4 text-muted-foreground">O únete con un código</span>
+                <div className="flex-grow border-t border-border/50"></div>
+            </div>
+            <JoinGameForm />
           </div>
 
         </main>
