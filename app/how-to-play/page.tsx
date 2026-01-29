@@ -15,8 +15,6 @@ import { roleDetails } from '../lib/roles';
 import type { PlayerRole } from '../types';
 import { GameMusic } from '../components/game/GameMusic';
 
-const allRoleKeys = Object.keys(roleDetails) as PlayerRole[];
-
 const RoleSection = ({ title, roleKeys, teamColor }: { title: string, roleKeys: PlayerRole[], teamColor: string }) => (
     <Card className="bg-card/80">
         <CardHeader>
@@ -24,7 +22,7 @@ const RoleSection = ({ title, roleKeys, teamColor }: { title: string, roleKeys: 
         </CardHeader>
         <CardContent>
             <Accordion type="single" collapsible className="w-full">
-                {roleKeys.map((roleKey) => {
+                {roleKeys.sort((a, b) => roleDetails[a]!.name.localeCompare(roleDetails[b]!.name)).map((roleKey) => {
                     const details = roleDetails[roleKey];
                     if (!details) return null;
                     return (
@@ -55,6 +53,10 @@ const RoleSection = ({ title, roleKeys, teamColor }: { title: string, roleKeys: 
 );
 
 export default function HowToPlayPage() {
+    const allRoleKeys = Object.keys(roleDetails) as PlayerRole[];
+    const villageTeam = allRoleKeys.filter(key => roleDetails[key]?.team === 'Aldeanos');
+    const wolfTeam = allRoleKeys.filter(key => roleDetails[key]?.team === 'Lobos');
+    const neutralTeam = allRoleKeys.filter(key => roleDetails[key]?.team === 'Neutral');
 
     return (
         <>
@@ -93,7 +95,9 @@ export default function HowToPlayPage() {
                         </CardContent>
                     </Card>
 
-                    <RoleSection title="Roles" roleKeys={allRoleKeys} teamColor="text-primary" />
+                    {villageTeam.length > 0 && <RoleSection title="El Pueblo" roleKeys={villageTeam} teamColor="text-blue-400" />}
+                    {wolfTeam.length > 0 && <RoleSection title="Los Lobos" roleKeys={wolfTeam} teamColor="text-destructive" />}
+                    {neutralTeam.length > 0 && <RoleSection title="Roles Neutrales" roleKeys={neutralTeam} teamColor="text-purple-400" />}
 
                     <div className="text-center pt-4">
                         <Button asChild>
@@ -108,4 +112,3 @@ export default function HowToPlayPage() {
         </>
     );
 }
-
