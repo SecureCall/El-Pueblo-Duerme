@@ -9,13 +9,21 @@ let app: App | undefined;
 function initializeAdmin() {
   if (getApps().length === 0) {
     try {
-      // Standard for Google Cloud environments (like Cloud Run, App Engine).
+      const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+      if (!serviceAccount) {
+        throw new Error("FIREBASE_SERVICE_ACCOUNT environment variable is not set.");
+      }
+      
       app = initializeApp({
-        credential: credential.applicationDefault(),
+        credential: credential.cert(JSON.parse(serviceAccount)),
       });
-       console.log("Firebase Admin SDK initialized successfully with Application Default Credentials.");
+      console.log("Firebase Admin SDK initialized successfully.");
+
     } catch (e: any) {
         console.error("CRITICAL: Failed to initialize Firebase Admin SDK.", e.message);
+        // In a real production environment, you might want to exit the process
+        // or have a more robust error handling mechanism.
+        // For this context, we throw an error to make the failure obvious.
         throw new Error("Could not initialize Firebase Admin SDK. Ensure server environment is set up correctly.");
     }
   } else {
