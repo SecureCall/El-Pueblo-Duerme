@@ -26,7 +26,7 @@ export default function HomePage() {
         <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
 
         <main className="relative z-10 flex flex-col items-center text-center text-white space-y-6 w-full max-w-2xl">
-          <div className="relative h-48 w-48">
+          <div className="relative h-48 w-48 rounded-full overflow-hidden shadow-lg">
              <Image
                 src="/logo.png"
                 alt="El Pueblo Duerme Logo"

@@ -1,15 +1,19 @@
 
 import type { Metadata } from 'next';
-import { Inter, Uncial_Antiqua } from 'next/font/google';
+import { Playfair_Display, PT_Sans } from 'next/font/google';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseProvider } from './firebase/provider';
 import { cn } from './lib/utils';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
-const uncial = Uncial_Antiqua({
+const ptSans = PT_Sans({ 
+  subsets: ['latin'], 
+  weight: ['400', '700'],
+  variable: '--font-sans' 
+});
+
+const playfair = Playfair_Display({
   subsets: ['latin'],
-  weight: ['400'],
   variable: '--font-headline',
 });
 
@@ -25,7 +29,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es" className="dark">
-      <body className={cn(inter.variable, uncial.variable, "font-sans")}>
+      <body className={cn(ptSans.variable, playfair.variable, "font-sans")}>
         <FirebaseProvider>
           {children}
           <Toaster />
