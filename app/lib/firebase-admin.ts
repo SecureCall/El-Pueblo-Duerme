@@ -9,22 +9,15 @@ let app: App | undefined;
 function initializeAdmin() {
   if (getApps().length === 0) {
     try {
-      const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
-      if (!serviceAccount) {
-        throw new Error("FIREBASE_SERVICE_ACCOUNT environment variable is not set.");
-      }
-      
-      app = initializeApp({
-        credential: credential.cert(JSON.parse(serviceAccount)),
-      });
-      console.log("Firebase Admin SDK initialized successfully.");
+      // In a managed environment like Firebase App Hosting,
+      // the Admin SDK is automatically configured via Application Default Credentials.
+      app = initializeApp();
+      console.log("Firebase Admin SDK initialized successfully via ADC.");
 
     } catch (e: any) {
         console.error("CRITICAL: Failed to initialize Firebase Admin SDK.", e.message);
-        // In a real production environment, you might want to exit the process
-        // or have a more robust error handling mechanism.
         // For this context, we throw an error to make the failure obvious.
-        throw new Error("Could not initialize Firebase Admin SDK. Ensure server environment is set up correctly.");
+        throw new Error(`Could not initialize Firebase Admin SDK. Error: ${e.message}`);
     }
   } else {
     app = getApps()[0];
