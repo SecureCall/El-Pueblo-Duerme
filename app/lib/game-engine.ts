@@ -367,6 +367,19 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
                   break;
 
               case 'werewolf_kill':
+                  if (game.leprosaBlockedRound === game.currentRound) {
+                      const wolfEventMessage = `El miasma de la Leprosa que matasteis la noche anterior os impide cazar esta noche.`;
+                      const wolves = fullPlayers.filter(p => p.isAlive && (p.role === 'werewolf' || p.role === 'wolf_cub'));
+                      for (const wolf of wolves) {
+                          context.newEvents.push({
+                              id: `evt_leprosa_block_${Date.now()}_${wolf.userId}`,
+                              gameId: game.id, round: game.currentRound, type: 'special',
+                              message: wolfEventMessage,
+                              data: { targetId: wolf.userId }, createdAt: new Date(),
+                          });
+                      }
+                      break; // Skip the kill
+                  }
                   if (target.role === 'cursed' && game.settings.cursed) {
                       const updates = context.playerUpdates.get(targetId) || {};
                       context.playerUpdates.set(targetId, { ...updates, role: 'werewolf' });
@@ -825,6 +838,18 @@ export async function checkGameOver(gameData: Game, fullPlayers: Player[], lynch
     const alivePlayers = fullPlayers.filter(p => p.isAlive);
     const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'witch', 'seeker_fairy'];
 
+    if (gameData.settings.vampire) {
+        const vampire = fullPlayers.find(p => p.role === 'vampire' && p.isAlive);
+        if (vampire && gameData.vampireKills >= 3) {
+            return {
+                isGameOver: true,
+                winnerCode: 'vampire',
+                message: '¡El Vampiro ha ganado! Ha reclamado suficientes víctimas para saciar su sed de sangre.',
+                winners: [vampire],
+            };
+        }
+    }
+    
     if (gameData.settings.cult_leader) {
         const cultLeader = fullPlayers.find(p => p.role === 'cult_leader' && p.isAlive);
         if (cultLeader) {
@@ -984,6 +1009,7 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
     
 
     
+
 
 
 

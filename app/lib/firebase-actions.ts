@@ -499,7 +499,10 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
         if (!isSeerOrApprentice) throw new Error("No tienes el don de la videncia.");
 
         const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed'];
-        const isWerewolf = !!(targetData.role && (wolfRoles.includes(targetData.role) || (targetData.role === 'lycanthrope' && game.settings.lycanthrope)));
+        if (game.settings.lycanthrope) {
+            wolfRoles.push('lycanthrope');
+        }
+        const isWerewolf = !!(targetData.role && wolfRoles.includes(targetData.role));
 
         const newCheck = { targetName: targetPublicData.displayName, isWerewolf };
         const updatedChecks = [...(seerData.seerChecks || []), newCheck];
@@ -776,4 +779,5 @@ export async function executeMasterAction(gameId: string, actionId: MasterAction
         return { success: false, error: (error as Error).message };
     }
 }
+
 
