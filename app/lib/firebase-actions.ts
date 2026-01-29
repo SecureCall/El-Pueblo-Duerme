@@ -26,7 +26,6 @@ import { toPlainObject, splitPlayerData } from "./utils";
 import { masterActions } from "./master-actions";
 import { secretObjectives } from "./objectives";
 import { processJuryVotes as processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotes as processVotesEngine, processNight as processNightEngine, generateRoles } from './game-engine';
-import { getDeterministicAIAction, runAIActions, runAIHunterShot } from './server-ai-actions';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 
 const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
@@ -151,17 +150,20 @@ export async function createGame(
 }
 
 export async function joinGame(
-  firestore: FirebaseFirestore.Firestore,
-  gameId: string,
-  userId: string,
-  displayName: string,
-  avatarUrl: string,
+  options: {
+    gameId: string,
+    userId: string,
+    displayName: string,
+    avatarUrl: string,
+  }
 ) {
-  const gameRef = doc(firestore, "games", gameId);
-  const privateDataRef = doc(firestore, `games/${gameId}/playerData`, userId);
+  const adminDb = getAdminDb();
+  const { gameId, userId, displayName, avatarUrl } = options;
+  const gameRef = doc(adminDb, "games", gameId);
+  const privateDataRef = doc(adminDb, `games/${gameId}/playerData`, userId);
 
   try {
-    await runTransaction(firestore, async (transaction) => {
+    await runTransaction(adminDb, async (transaction) => {
       const gameSnap = await transaction.get(gameRef);
       if (!gameSnap.exists()) throw new Error("Partida no encontrada.");
 
@@ -366,7 +368,7 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
                     trigger: triggerMessage,
                     players: toPlainObject(game.players), // AI will get public data of other players
                     chatType,
-                    seerChecks: allPrivateData[aiPlayer.userId]?.seerChecks,
+                    seerChecks: (privateDataSnap.data() as PlayerPrivateData)?.seerChecks,
                 };
 
                 generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
@@ -447,9 +449,17 @@ export async function processNight(gameId: string) {
     const gameRef = doc(adminDb, 'games', gameId);
     try {
         await runTransaction(adminDb, async (transaction) => {
-            await processNightEngine(transaction, gameRef);
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error("Game not found");
+            const game = gameDoc.data() as Game;
+
+            const privateDataSnapshots = await transaction.getAll(...game.players.map(p => doc(adminDb, `games/${gameId}/playerData`, p.userId)));
+            const fullPlayers = game.players.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() }));
+
+            await processNightEngine(transaction, gameRef, game, fullPlayers);
         });
-        await runAIActions(gameId, 'day');
+        // This was moved to be triggered by server-side logic in processNight/processVotes
+        // await runAIActions(gameId, 'day');
     } catch (e) { console.error("Failed to process night", e); }
 }
 
@@ -458,9 +468,16 @@ export async function processVotes(gameId: string) {
     const gameRef = doc(adminDb, 'games', gameId);
     try {
         await runTransaction(adminDb, async (transaction) => {
-            await processVotesEngine(transaction, gameRef);
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error("Game not found");
+            const game = gameDoc.data() as Game;
+
+            const privateDataSnapshots = await transaction.getAll(...game.players.map(p => doc(adminDb, `games/${gameId}/playerData`, p.userId)));
+            const fullPlayers = game.players.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() }));
+            
+            await processVotesEngine(transaction, gameRef, game, fullPlayers);
         });
-        await runAIActions(gameId, 'night');
+        // This logic is now handled server-side after the transaction completes
     } catch (e) { console.error("Failed to process votes", e); }
 }
 
@@ -468,14 +485,16 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
     const adminDb = getAdminDb();
     const privateSeerRef = doc(adminDb, `games/${gameId}/playerData`, seerId);
     const privateTargetRef = doc(adminDb, `games/${gameId}/playerData`, targetId);
-    const targetPublicData = (await getDoc(doc(adminDb, 'games', gameId))).data()!.players.find(p => p.userId === targetId)!;
+    const gameSnap = await getDoc(doc(adminDb, 'games', gameId));
+    if (!gameSnap.exists()) throw new Error("Game not found");
+    const game = gameSnap.data() as Game;
+    const targetPublicData = game.players.find(p => p.userId === targetId)!;
 
     try {
         const [seerSnap, targetSnap] = await Promise.all([getDoc(privateSeerRef), getDoc(privateTargetRef)]);
         if (!seerSnap.exists() || !targetSnap.exists()) throw new Error("Data not found");
         const seerData = seerSnap.data() as PlayerPrivateData;
         const targetData = targetSnap.data() as PlayerPrivateData;
-        const game = (await getDoc(doc(adminDb, 'games', gameId))).data() as Game;
 
         const isSeerOrApprentice = seerData.role === 'seer' || (seerData.role === 'seer_apprentice' && game.seerDied);
         if (!isSeerOrApprentice) throw new Error("No tienes el don de la videncia.");
@@ -493,3 +512,7 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
         return { success: false, error: e.message };
     }
 }
+
+    
+
+    

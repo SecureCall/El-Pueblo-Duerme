@@ -9,12 +9,10 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { AvatarSelectionModal } from "@/components/game/AvatarSelectionModal";
 import { useGameSession } from "@/hooks/use-game-session";
 import { PlayerGrid } from "@/components/game/PlayerGrid";
 import type { MasterActionState } from "@/components/game/MasterActionBar";
 import Link from "next/link";
-import { updatePlayerAvatar } from "@/lib/firebase-actions";
 
 interface GameLobbyProps {
   game: Game;
@@ -26,7 +24,6 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
   const { toast } = useToast();
   const { userId, setAvatarUrl, currentPlayer } = useGameSession();
   const [canShare, setCanShare] = useState(false);
-  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
 
 
@@ -35,25 +32,6 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
       setCanShare(true);
     }
   }, []);
-
-  const handleAvatarChange = async (newAvatarUrl: string) => {
-      if (!userId || !currentPlayer) return;
-      
-      // Optimistically update local state via session hook
-      setAvatarUrl(newAvatarUrl);
-      setIsAvatarModalOpen(false);
-
-      const result = await updatePlayerAvatar(game.id, userId, newAvatarUrl);
-      if(result?.error) {
-           toast({
-              variant: "destructive",
-              title: "Error",
-              description: "No se pudo actualizar el avatar en la base de datos.",
-          });
-          // Note: Reverting optimistic update could be complex, for now we just show an error.
-      }
-  };
-
 
   const copyGameId = () => {
     navigator.clipboard.writeText(game.id);
@@ -93,11 +71,6 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
 
   return (
     <>
-      <AvatarSelectionModal
-        isOpen={isAvatarModalOpen}
-        onClose={() => setIsAvatarModalOpen(false)}
-        onSelectAvatar={handleAvatarChange}
-      />
       <div className="w-full max-w-4xl mx-auto p-4 space-y-8">
         <Card className="text-center bg-card/80">
           <CardHeader>
@@ -152,7 +125,7 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
             currentPlayer={currentPlayer}
             onPlayerClick={(player) => {
                 if(player.userId === currentPlayer.userId) {
-                    setIsAvatarModalOpen(true);
+                    toast({ title: 'Cambiar avatar', description: 'Esta función estará disponible pronto.' });
                 }
             }}
             clickable={true}
@@ -169,3 +142,7 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
     </>
   );
 }
+
+    
+
+    
