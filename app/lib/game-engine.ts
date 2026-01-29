@@ -1,11 +1,11 @@
 
-
 'use server';
 
 import { 
   Timestamp,
   type Transaction,
   DocumentReference,
+  FieldValue,
 } from "firebase-admin/firestore";
 import { 
   type Game, 
@@ -17,7 +17,7 @@ import { toPlainObject, getMillis, splitPlayerData } from "@/lib/utils";
 import { roleDetails } from "./roles";
 import { getAdminDb } from "./firebase-admin";
 
-const PHASE_DURATION_SECONDS = 60;
+export const PHASE_DURATION_SECONDS = 60;
 
 export const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
     let roles: PlayerRole[] = [];
@@ -367,7 +367,7 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
         const screamTargetId = bansheeAction.targetId;
         if (killedPlayerIdsThisNight.includes(screamTargetId)) {
             const bansheePrivateRef = adminDb.collection('games').doc(game.id).collection('playerData').doc(bansheeAction.playerId);
-            transaction.update(bansheePrivateRef, { bansheePoints: FieldValue.increment(1) });
+            transaction.update(bansheePrivateRef, { 'bansheePoints': FieldValue.increment(1) });
         }
     }
 
@@ -714,3 +714,6 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
 
     return { publicPlayersData, privatePlayersData };
 };
+
+
+    

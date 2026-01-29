@@ -1,1 +1,1 @@
-// This file is intentionally blank. All logic has been moved to game-engine.ts
+// This file is a neutralized placeholder to resolve build errors.

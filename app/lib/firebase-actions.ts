@@ -30,7 +30,7 @@ import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 
 const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
 const MINIMUM_PLAYERS = 3;
-const PHASE_DURATION_SECONDS = 60;
+export const PHASE_DURATION_SECONDS = 60;
 
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -325,7 +325,7 @@ export async function resetGame(gameId: string) {
                 events: [], chatMessages: [], wolfChatMessages: [], fairyChatMessages: [],
                 twinChatMessages: [], loversChatMessages: [], ghostChatMessages: [], nightActions: [],
                 twins: null, lovers: null, phaseEndsAt: new Date(), pendingHunterShot: null,
-                wolfCubRevengeRound: 0, players: resetHumanPlayersPublic, vampireKills: 0, boat: [],
+                wolfCubRevengeRound: 0, players: resetHumanPlayers, vampireKills: 0, boat: [],
                 leprosaBlockedRound: 0, witchFoundSeer: false, seerDied: false,
                 silencedPlayerId: null, exiledPlayerId: null, troublemakerUsed: false,
                 fairiesFound: false, fairyKillUsed: false, juryVotes: {}, masterKillUsed: false
@@ -512,7 +512,270 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
         return { success: false, error: e.message };
     }
 }
+export async function submitVote(gameId: string, voterId: string, targetId: string) {
+    const adminDb = getAdminDb();
+    const gameRef = doc(adminDb, 'games', gameId);
+    try {
+        await runTransaction(adminDb, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found");
+            const game = gameSnap.data() as Game;
+            if (game.phase !== 'day' || game.status === 'finished') return;
+            const playerIndex = game.players.findIndex(p => p.userId === voterId && p.isAlive);
+            if (playerIndex === -1) throw new Error("Player not found or is not alive");
+            
+            const playerPrivateRef = doc(adminDb, `games/${gameId}/playerData`, voterId);
+            const privateSnap = await transaction.get(playerPrivateRef);
+            if (!privateSnap.exists()) throw new Error("Private data not found");
+            const privateData = privateSnap.data() as PlayerPrivateData;
+            if(privateData.votedFor) return;
 
-    
+            const siren = game.players.map((p, i) => ({...p, role: game.players[i].role})).find(p => p.role === 'river_siren');
+            
+            const sirenPrivateRef = siren ? doc(adminDb, `games/${gameId}/playerData`, siren.userId) : null;
+            const sirenPrivateSnap = sirenPrivateRef ? await transaction.get(sirenPrivateRef) : null;
+            const sirenPrivateData = sirenPrivateSnap?.data() as PlayerPrivateData | undefined;
+
+            const charmedPlayerId = sirenPrivateData?.riverSirenTargetId;
+
+            if (voterId === charmedPlayerId && siren && siren.isAlive) {
+                if (sirenPrivateData?.votedFor) {
+                    transaction.update(playerPrivateRef, { votedFor: sirenPrivateData.votedFor });
+                } else {
+                    throw new Error("Debes esperar a que la Sirena vote primero.");
+                }
+            } else {
+                 transaction.update(playerPrivateRef, { votedFor: targetId });
+            }
+        });
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: "No se pudo registrar tu voto." };
+    }
+}
+
+export async function submitTroublemakerAction(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
+    const adminDb = getAdminDb();
+    const gameRef = doc(adminDb, 'games', gameId);
+    try {
+        await runTransaction(adminDb, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Partida no encontrada");
+            let game = gameSnap.data() as Game;
+            
+            const privateRef = doc(adminDb, `games/${gameId}/playerData`, troublemakerId);
+            const privateSnap = await transaction.get(privateRef);
+            const playerPrivate = privateSnap.data();
+
+            if (!playerPrivate || playerPrivate.role !== 'troublemaker' || game.troublemakerUsed) throw new Error("No puedes realizar esta acción.");
+            
+            const target1 = game.players.find(p => p.userId === target1Id);
+            const target2 = game.players.find(p => p.userId === target2Id);
+            const message = `${target1?.displayName} y ${target2?.displayName} han muerto en una pelea mortal provocada por la Alborotadora.`;
+            
+            let result1 = await killPlayer(transaction, gameRef, game, [target1, target2], target1Id, 'troublemaker_duel', message);
+            let result2 = await killPlayer(transaction, gameRef, result1.updatedGame, result1.updatedPlayers, target2Id, 'troublemaker_duel', message);
+            
+            transaction.update(gameRef, { troublemakerUsed: true });
+        });
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: (error as Error).message };
+    }
+}
+
+export async function processJuryVotes(gameId: string) {
+    const adminDb = getAdminDb();
+    const gameRef = doc(adminDb, 'games', gameId);
+    try {
+        await runTransaction(adminDb, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error("Game not found");
+            const game = gameDoc.data() as Game;
+
+            const privateDataSnapshots = await transaction.getAll(...game.players.map(p => doc(adminDb, `games/${gameId}/playerData`, p.userId)));
+            const fullPlayers = game.players.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() }));
+
+            await processJuryVotesEngine(transaction, gameRef, game, fullPlayers);
+        });
+    } catch (e) { console.error("Failed to process jury votes", e); }
+}
+
+export async function sendGhostMessage(gameId: string, ghostId: string, recipientId: string, template: string, subjectId?: string) {
+    const adminDb = getAdminDb();
+    const gameRef = doc(adminDb, 'games', gameId);
+    try {
+        await runTransaction(adminDb, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error("Game not found");
+            const game = gameDoc.data() as Game;
+            const ghostPrivateRef = doc(adminDb, `games/${gameId}/playerData`, ghostId);
+            const ghostPrivateSnap = await transaction.get(ghostPrivateRef);
+            const ghostPrivate = ghostPrivateSnap.data();
+
+            if (!ghostPrivate || ghostPrivate.role !== 'ghost' || ghostPrivate.ghostMessageSent) {
+                throw new Error("No tienes permiso para realizar esta acción.");
+            }
+            
+            const subjectName = subjectId ? game.players.find(p => p.userId === subjectId)?.displayName : 'alguien';
+            const finalMessage = template.replace('{player}', subjectName || 'alguien');
+
+            const ghostEvent: GameEvent = {
+                id: `evt_ghost_${Date.now()}`, gameId, round: game.currentRound, type: 'special',
+                message: `Has recibido un misterioso mensaje desde el más allá: "${finalMessage}"`,
+                createdAt: new Date(), data: { targetId: recipientId },
+            };
+            
+            transaction.update(ghostPrivateRef, { ghostMessageSent: true });
+            transaction.update(gameRef, { events: arrayUnion(toPlainObject(ghostEvent)) });
+        });
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: (error as Error).message };
+    }
+}
+async function sendSpecialChatMessage(gameId: string, senderId: string, senderName: string, text: string, chatType: 'wolf' | 'fairy' | 'lovers' | 'twin' | 'ghost' ) {
+    const adminDb = getAdminDb();
+    if (!text?.trim()) return { success: false, error: 'El mensaje no puede estar vacío.' };
+    const gameRef = doc(adminDb, 'games', gameId);
+
+    try {
+        await runTransaction(adminDb, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error('Game not found');
+            const game = gameDoc.data() as Game;
+
+            const privateRef = doc(adminDb, `games/${gameId}/playerData`, senderId);
+            const privateSnap = await transaction.get(privateRef);
+            const privateData = privateSnap.data();
+            
+            let canSend = false;
+            let chatField: keyof Game = 'chatMessages';
+
+            switch (chatType) {
+                case 'wolf':
+                    if (privateData?.role && ['werewolf', 'wolf_cub'].includes(privateData.role)) {
+                        canSend = true; chatField = 'wolfChatMessages';
+                    }
+                    break;
+                case 'fairy':
+                    if (game.fairiesFound && privateData?.role && ['seeker_fairy', 'sleeping_fairy'].includes(privateData.role)) {
+                        canSend = true; chatField = 'fairyChatMessages';
+                    }
+                    break;
+                case 'twin':
+                     if (game.twins?.includes(senderId)) {
+                        canSend = true; chatField = 'twinChatMessages';
+                     }
+                    break;
+                case 'lovers':
+                    if (privateData?.isLover) {
+                        canSend = true; chatField = 'loversChatMessages';
+                    }
+                    break;
+                case 'ghost':
+                    const publicPlayer = game.players.find(p => p.userId === senderId);
+                    if (publicPlayer && !publicPlayer.isAlive) {
+                         canSend = true; chatField = 'ghostChatMessages';
+                    }
+                    break;
+            }
+
+            if (!canSend) throw new Error("No tienes permiso para enviar mensajes en este chat.");
+            
+            const messageData: ChatMessage = {id: `${Date.now()}_${senderId}`, senderId, senderName, text: text.trim(), round: game.currentRound, createdAt: new Date() };
+            transaction.update(gameRef, { [chatField]: arrayUnion(toPlainObject(messageData)) });
+        });
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: (error as Error).message };
+    }
+}
+export const sendWolfChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'wolf');
+export const sendFairyChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'fairy');
+export const sendTwinChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'twin');
+export const sendLoversChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'lovers');
+export const sendGhostChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'ghost');
+export async function submitJuryVote(gameId: string, voterId: string, targetId: string) {
+    const adminDb = getAdminDb();
+    const gameRef = doc(adminDb, 'games', gameId);
+    try {
+        await updateDoc(gameRef, { [`juryVotes.${voterId}`]: targetId });
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: (error as Error).message };
+    }
+}
+export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
+    const adminDb = getAdminDb();
+    const gameRef = doc(adminDb, 'games', gameId);
+    try {
+        await runTransaction(adminDb, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) throw new Error("Game not found");
+            let game = gameSnap.data() as Game;
+
+            if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId) return;
+
+            const privateDataSnapshots = await transaction.getAll(...game.players.map(p => doc(adminDb, `games/${gameId}/playerData`, p.userId)));
+            const fullPlayers = game.players.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() }));
+
+            let { updatedGame, updatedPlayers, triggeredHunterId: anotherHunterId } = await killPlayer(transaction, gameRef, game, fullPlayers, targetId, 'hunter_shot', `En su último aliento, el Cazador dispara y se lleva consigo a ${game.players.find(p=>p.userId === targetId)?.displayName}.`);
+            
+            if(anotherHunterId) {
+                updatedGame.pendingHunterShot = anotherHunterId;
+                transaction.update(gameRef, toPlainObject(updatedGame));
+            } else {
+                 // Game over check or next phase logic
+                 const gameOverInfo = await checkGameOver(updatedGame, updatedPlayers);
+                 if (gameOverInfo.isGameOver) {
+                    updatedGame.status = "finished";
+                    updatedGame.phase = "finished";
+                    updatedGame.events.push({ id: `evt_gameover_${Date.now()}`, gameId, round: updatedGame.currentRound, type: 'game_over', message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: new Date() });
+                 } else {
+                     updatedGame.phase = 'day';
+                     updatedGame.pendingHunterShot = null;
+                 }
+                 transaction.update(gameRef, toPlainObject(updatedGame));
+            }
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error submitting hunter shot:", error);
+        return { success: false, error: (error as Error).message };
+    }
+}
+export async function executeMasterAction(gameId: string, actionId: MasterActionId, sourceId: string | null, targetId: string) {
+    const adminDb = getAdminDb();
+    const gameRef = doc(adminDb, 'games', gameId);
+     try {
+        await runTransaction(adminDb, async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            if (!gameDoc.exists()) throw new Error("Game not found");
+            let game = gameDoc.data() as Game;
+            const privateDataSnapshots = await transaction.getAll(...game.players.map(p => doc(adminDb, `games/${gameId}/playerData`, p.userId)));
+            const fullPlayers = game.players.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() as PlayerPrivateData }));
+
+
+            if (actionId === 'master_kill') {
+                 if (game.masterKillUsed) throw new Error("El Zarpazo del Destino ya ha sido utilizado.");
+                 const { updatedGame } = await killPlayerUnstoppable(transaction, gameRef, game, fullPlayers, targetId, 'special', `Por intervención divina, ${game.players.find(p=>p.userId === targetId)?.displayName} ha sido eliminado.`);
+                 game = updatedGame;
+                 game.masterKillUsed = true;
+            } else {
+                const action = masterActions[actionId as keyof typeof masterActions];
+                if (action) {
+                    const { updatedGame } = action.execute(game, sourceId!, targetId, fullPlayers);
+                    game = updatedGame;
+                }
+            }
+            transaction.update(gameRef, toPlainObject(game));
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error executing master action:", error);
+        return { success: false, error: (error as Error).message };
+    }
+}
 
     
