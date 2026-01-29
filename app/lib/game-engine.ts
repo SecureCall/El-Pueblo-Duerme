@@ -5,9 +5,7 @@ import {
   Timestamp,
   type Transaction,
   DocumentReference,
-  doc,
-  increment,
-} from "firebase/firestore";
+} from "firebase-admin/firestore";
 import { 
   type Game, 
   type Player, 
@@ -57,12 +55,12 @@ export const generateRoles = (playerCount: number, settings: Game['settings']): 
 
 async function getFullPlayersTransactional(transaction: Transaction, gameId: string, game: Game): Promise<Player[]> {
     const adminDb = getAdminDb();
-    const playerPrivateRefs = game.players.map(p => doc(adminDb, 'games', gameId, 'playerData', p.userId));
+    const playerPrivateRefs = game.players.map(p => adminDb.collection('games').doc(gameId).collection('playerData').doc(p.userId));
     const playerPrivateSnaps = await transaction.getAll(...playerPrivateRefs);
 
     const privateDataMap = new Map<string, PlayerPrivateData>();
     playerPrivateSnaps.forEach(snap => {
-        if (snap.exists()) {
+        if (snap.exists) {
             privateDataMap.set(snap.id, snap.data() as PlayerPrivateData);
         }
     });
@@ -121,7 +119,7 @@ async function performKill(transaction: Transaction, gameRef: DocumentReference,
                 newPlayers[execIndex].role = 'villager';
                 newPlayers[execIndex].executionerTargetId = null;
 
-                const execPrivateRef = doc(adminDb, 'games', newGameData.id, 'playerData', executioner.userId);
+                const execPrivateRef = adminDb.collection('games').doc(newGameData.id).collection('playerData').doc(executioner.userId);
                 transaction.update(execPrivateRef, { role: 'villager', executionerTargetId: null });
 
                 newGameData.events.push({
@@ -147,7 +145,7 @@ async function performKill(transaction: Transaction, gameRef: DocumentReference,
             newPlayers[shapeshifterIndex].role = newRole;
             newPlayers[shapeshifterIndex].shapeshifterTargetId = null; 
             
-            const shifterPrivateRef = doc(adminDb, 'games', newGameData.id, 'playerData', shifter.userId);
+            const shifterPrivateRef = adminDb.collection('games').doc(newGameData.id).collection('playerData').doc(shifter.userId);
             transaction.update(shifterPrivateRef, {
                 role: newRole,
                 shapeshifterTargetId: null,
@@ -214,7 +212,7 @@ export async function killPlayer(transaction: Transaction, gameRef: DocumentRefe
         if (playerIndex > -1) {
             updatedPlayers[playerIndex].princeRevealed = true;
             
-            const playerPrivateRef = doc(adminDb, 'games', gameData.id, 'playerData', playerIdToKill);
+            const playerPrivateRef = adminDb.collection('games').doc(gameData.id).collection('playerData').doc(playerIdToKill);
             transaction.update(playerPrivateRef, { princeRevealed: true });
 
             updatedGame.events.push({
@@ -387,8 +385,8 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
     if (bansheeAction) {
         const screamTargetId = bansheeAction.targetId;
         if (killedPlayerIdsThisNight.includes(screamTargetId)) {
-            const bansheePrivateRef = doc(adminDb, 'games', game.id, 'playerData', bansheeAction.playerId);
-            transaction.update(bansheePrivateRef, { bansheePoints: increment(1) });
+            const bansheePrivateRef = adminDb.collection('games').doc(game.id).collection('playerData').doc(bansheeAction.playerId);
+            transaction.update(bansheePrivateRef, { bansheePoints: FieldValue.increment(1) });
         }
     }
 
@@ -426,7 +424,7 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
   mutableGame.events.push(nightEvent);
 
   for (const p of mutableFullPlayers) {
-    const playerPrivateRef = doc(adminDb, `games/${mutableGame.id}/playerData/${p.userId}`);
+    const playerPrivateRef = adminDb.collection(`games/${mutableGame.id}/playerData`).doc(p.userId);
     transaction.update(playerPrivateRef, { usedNightAbility: false, votedFor: null });
   }
   
@@ -443,6 +441,7 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
   return { nightEvent };
 }
 export async function processVotesEngine(transaction: Transaction, gameRef: DocumentReference, game: Game, fullPlayers: Player[]) {
+    const adminDb = getAdminDb();
     if (game.phase !== 'day') return { voteEvent: undefined };
     if (game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now()) return { voteEvent: undefined };
 
@@ -477,7 +476,7 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
         game.events.push(tieEvent);
         
         for (const p of fullPlayers) { 
-            const playerPrivateRef = doc(getAdminDb(), 'games', game.id, 'playerData', p.userId);
+            const playerPrivateRef = adminDb.collection('games').doc(game.id).collection('playerData').doc(p.userId);
             transaction.update(playerPrivateRef, { votedFor: null });
         }
         const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
@@ -533,7 +532,7 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
     const nextRound = game.currentRound + 1;
 
     for (const p of fullPlayers) {
-        const playerPrivateRef = doc(getAdminDb(), 'games', game.id, 'playerData', p.userId);
+        const playerPrivateRef = adminDb.collection('games').doc(game.id).collection('playerData').doc(p.userId);
         transaction.update(playerPrivateRef, { votedFor: null, usedNightAbility: false });
     }
     
@@ -606,7 +605,7 @@ export async function processJuryVotesEngine(transaction: Transaction, gameRef: 
     const nextRound = game.currentRound + 1;
     
     for (const p of fullPlayers) {
-        const playerPrivateRef = doc(adminDb, 'games', game.id, 'playerData', p.userId);
+        const playerPrivateRef = adminDb.collection('games').doc(game.id).collection('playerData').doc(p.userId);
         transaction.update(playerPrivateRef, { votedFor: null, usedNightAbility: false });
     }
 
@@ -735,17 +734,3 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
     return { publicPlayersData, privatePlayersData };
 };
 
-const splitPlayerData = (player: Player): { publicData: PlayerPublicData, privateData: PlayerPrivateData } => {
-    const { 
-      userId, gameId, displayName, avatarUrl, isAlive, isAI, 
-      princeRevealed, joinedAt, votedFor, lastActiveAt,
-      ...privateData
-    } = player;
-  
-    const publicData: PlayerPublicData = {
-      userId, gameId, displayName, avatarUrl, isAlive, isAI,
-      princeRevealed, joinedAt, votedFor, lastActiveAt
-    };
-  
-    return { publicData, privateData: privateData as PlayerPrivateData };
-  }

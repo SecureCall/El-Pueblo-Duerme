@@ -1,43 +1,45 @@
+
 // IMPORTANT: This file is server-only and should not be imported on the client.
 import 'server-only';
 import { initializeApp, getApps, credential, type App } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getAuth, type Auth } from 'firebase-admin/auth';
 
-let app: App;
-let adminDb: Firestore;
-let adminAuth: Auth;
+let app: App | undefined;
 
 function initializeAdmin() {
-  if (getApps().length > 0) {
-    app = getApps()[0];
-  } else {
+  if (getApps().length === 0) {
     try {
-      // Use Application Default Credentials, standard for Google Cloud environments.
+      // Standard for Google Cloud environments (like Cloud Run, App Engine).
       app = initializeApp({
         credential: credential.applicationDefault(),
       });
-    } catch (e) {
-        console.error("Could not initialize Firebase Admin SDK with Application Default Credentials.", e);
-        throw new Error("Could not initialize Firebase Admin SDK. Ensure your service account credentials are set up correctly in your environment (e.g., GOOGLE_APPLICATION_CREDENTIALS).");
+       console.log("Firebase Admin SDK initialized successfully with Application Default Credentials.");
+    } catch (e: any) {
+        console.error("CRITICAL: Failed to initialize Firebase Admin SDK.", e.message);
+        throw new Error("Could not initialize Firebase Admin SDK. Ensure server environment is set up correctly.");
     }
+  } else {
+    app = getApps()[0];
   }
-  adminDb = getFirestore(app);
-  adminAuth = getAuth(app);
 }
+
+// Immediately initialize on module load in the server environment.
+initializeAdmin();
 
 // Function to get the initialized Firestore instance.
 export function getAdminDb(): Firestore {
-  if (!adminDb) {
-    initializeAdmin();
+  if (!app) {
+    // This should theoretically not be reached if initialization is correct.
+    throw new Error("Firebase Admin App is not initialized.");
   }
-  return adminDb;
+  return getFirestore(app);
 }
 
 // Function to get the initialized Auth instance.
 export function getAdminAuth(): Auth {
-  if (!adminAuth) {
-    initializeAdmin();
+  if (!app) {
+     throw new Error("Firebase Admin App is not initialized.");
   }
-  return adminAuth;
+  return getAuth(app);
 }

@@ -3,25 +3,19 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isPlayerInGame(gameId) {
-        // Check if the player's UID is a key in the playerUids map on the game document.
-        // This is more efficient than checking a subcollection.
-        return request.auth != null && get(/databases/$(database)/documents/games/$(gameId)).data.playerUids[request.auth.uid] == true;
-    }
-
     match /games/{gameId} {
-      // Allow read only if the user is authenticated and part of the game.
-      allow read: if isPlayerInGame(gameId);
+      // Un usuario solo puede leer un juego si es parte de él
+      allow read: if request.auth != null && get(/databases/$(database)/documents/games/$(gameId)).data.playerUids[request.auth.uid] == true;
       
-      // Deny all client-side writes. All mutations must go through server actions.
+      // La creación y actualización de salas debe ser solo a través de acciones de servidor seguras.
       allow write: if false;
 
-      // Subcollection for private player data.
+      // Subcolección para los datos privados de los jugadores
       match /playerData/{userId} {
-        // A user can only ever read their OWN private data.
-        allow read: if request.auth.uid == userId && isPlayerInGame(gameId);
-        
-        // Deny all client-side writes.
+        // Un jugador solo puede leer su propio documento de datos privados.
+        allow read: if request.auth != null && request.auth.uid == userId;
+
+        // Las escrituras deben ser manejadas por el servidor.
         allow write: if false; 
       }
     }
