@@ -31,10 +31,13 @@ import { cn } from "@/lib/utils";
 import { Label } from "../ui/label";
 
 const roleKeys = [
-  'seer', 'doctor', 'hunter', 'cupid', 'guardian', 'priest', 'prince', 'lycanthrope', 'twin', 'hechicera',
-  'ghost', 'virginia_woolf', 'leprosa', 'river_siren', 'lookout', 'troublemaker', 'silencer', 'seer_apprentice',
-  'elder_leader', 'resurrector_angel', 'wolf_cub', 'cursed', 'witch', 'seeker_fairy', 'shapeshifter', 'drunk_man',
-  'cult_leader', 'fisherman', 'vampire', 'banshee', 'executioner', 'sleeping_fairy'
+  'seer', 'doctor', 'hunter', 
+  'cupid', 'guardian', 'priest', 
+  'prince', 'lycanthrope', 'twin', 
+  'hechicera', 'wolf_cub', 'cursed',
+  'cult_leader', 'fisherman', 'vampire',
+  'ghost', 'virginia_woolf', 'leprosa',
+  'river_siren', 'lookout', 'troublemaker'
 ] as const;
 
 type RoleKey = typeof roleKeys[number];
@@ -65,28 +68,17 @@ const defaultValues: z.infer<typeof CreateGameSchema> = {
     lycanthrope: false,
     twin: false,
     hechicera: false,
+    wolf_cub: false,
+    cursed: false,
+    cult_leader: false,
+    fisherman: false,
+    vampire: false,
     ghost: false,
     virginia_woolf: false,
     leprosa: false,
     river_siren: false,
     lookout: false,
     troublemaker: false,
-    silencer: false,
-    seer_apprentice: false,
-    elder_leader: false,
-    resurrector_angel: false,
-    wolf_cub: false,
-    cursed: false,
-    witch: false,
-    seeker_fairy: false,
-    shapeshifter: false,
-    drunk_man: false,
-    cult_leader: false,
-    fisherman: false,
-    vampire: false,
-    banshee: false,
-    executioner: false,
-    sleeping_fairy: false,
 };
 
 export function CreateGameForm() {
@@ -118,7 +110,22 @@ export function CreateGameForm() {
 
     setIsSubmitting(true);
     
-    const { gameName, displayName: playerDisplayName, maxPlayers: formMaxPlayers, ...gameSettings } = data;
+    const { gameName, displayName: playerDisplayName, maxPlayers: formMaxPlayers, ...rest } = data;
+    
+    const gameSettings: Partial<GameSettings> = { ...rest };
+
+    const allRoleKeys: (keyof GameSettings)[] = [
+      'seer', 'doctor', 'hunter', 'cupid', 'guardian', 'priest', 'prince', 'lycanthrope', 'twin', 'hechicera',
+      'ghost', 'virginia_woolf', 'leprosa', 'river_siren', 'lookout', 'troublemaker', 'silencer', 'seer_apprentice',
+      'elder_leader', 'resurrector_angel', 'wolf_cub', 'cursed', 'witch', 'seeker_fairy', 'shapeshifter', 'drunk_man',
+      'cult_leader', 'fisherman', 'vampire', 'banshee', 'executioner', 'sleeping_fairy'
+    ];
+    
+    allRoleKeys.forEach(key => {
+        if (!(key in gameSettings)) {
+            gameSettings[key] = false;
+        }
+    });
 
     const result = await createGame({
       userId,
@@ -126,7 +133,7 @@ export function CreateGameForm() {
       avatarUrl,
       gameName,
       maxPlayers: formMaxPlayers,
-      settings: { ...gameSettings, werewolves, fillWithAI: false, isPublic: false, juryVoting: true },
+      settings: { ...gameSettings, werewolves, fillWithAI: false, isPublic: false, juryVoting: true } as Game['settings'],
     });
     
     if (result.gameId) {
@@ -262,4 +269,3 @@ export function CreateGameForm() {
     </Card>
   );
 }
-
