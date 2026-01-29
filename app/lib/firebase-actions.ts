@@ -4,12 +4,14 @@ import {
   doc,
   setDoc,
   getDoc,
+  getDocs,
+  collection,
   updateDoc,
   arrayUnion,
   Timestamp,
   runTransaction,
   FieldValue,
-} from "firebase/firestore";
+} from "firebase-admin/firestore";
 import { 
   type Game, 
   type Player, 
@@ -27,6 +29,7 @@ import { masterActions } from "./master-actions";
 import { secretObjectives } from "./objectives";
 import { processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotesEngine, processNightEngine, generateRoles } from './game-engine';
 import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
+import { generateAIAction } from "@/ai/flows/generate-ai-action-flow";
 
 const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
 const MINIMUM_PLAYERS = 3;
@@ -337,6 +340,80 @@ export async function resetGame(gameId: string) {
     }
 }
 
+async function runNightAIActions(gameId: string) {
+    const adminDb = getAdminDb();
+    const gameRef = doc(adminDb, 'games', gameId);
+    
+    try {
+        const gameSnap = await getDoc(gameRef);
+        if (!gameSnap.exists()) return;
+        const game = gameSnap.data() as Game;
+
+        if (game.status !== 'in_progress' || game.phase !== 'night') {
+            // It's possible the game ended after the transaction, so we double check.
+            return;
+        }
+
+        const privateDataCol = collection(adminDb, `games/${gameId}/playerData`);
+        const privateDataSnap = await getDocs(privateDataCol);
+        const allPrivateData: Record<string, PlayerPrivateData> = {};
+        privateDataSnap.forEach(doc => {
+            allPrivateData[doc.id] = doc.data() as PlayerPrivateData;
+        });
+
+        const fullPlayers = game.players.map(p => ({
+            ...p,
+            ...(allPrivateData[p.userId] || {})
+        })) as Player[];
+
+        const aliveAIPlayers = fullPlayers.filter(p => p.isAI && p.isAlive);
+
+        for (const aiPlayer of aliveAIPlayers) {
+             if (aiPlayer.usedNightAbility || !aiPlayer.role) continue;
+            
+             const canPerformAction = (
+                ['werewolf', 'wolf_cub', 'seer', 'doctor', 'hechicera', 'guardian', 'priest', 
+                 'vampire', 'cult_leader', 'fisherman', 'silencer', 'elder_leader', 'witch', 
+                 'banshee', 'lookout', 'seeker_fairy', 'resurrector_angel'].includes(aiPlayer.role) ||
+                (aiPlayer.role === 'seer_apprentice' && !!game.seerDied) ||
+                (game.currentRound === 1 && ['cupid', 'shapeshifter', 'virginia_woolf', 'river_siren'].includes(aiPlayer.role))
+            );
+
+            if (canPerformAction) {
+                const perspective = {
+                    game: toPlainObject(game),
+                    aiPlayer: toPlainObject(aiPlayer),
+                    possibleTargets: toPlainObject(fullPlayers.filter(p => p.isAlive)),
+                };
+                
+                await new Promise(resolve => setTimeout(resolve, Math.random() * 5000 + 2000));
+                
+                try {
+                    const action = await generateAIAction(perspective);
+                    if (action && action.actionType && action.targetIds.length > 0) {
+                        // A quick check to see if the action is still valid.
+                        const currentPrivateSnap = await getDoc(doc(adminDb, `games/${gameId}/playerData`, aiPlayer.userId));
+                        if(currentPrivateSnap.exists() && !currentPrivateSnap.data()?.usedNightAbility) {
+                            await submitNightAction({
+                                gameId,
+                                round: game.currentRound,
+                                playerId: aiPlayer.userId,
+                                actionType: action.actionType,
+                                targetId: action.targetIds.join('|'),
+                            });
+                        }
+                    }
+                } catch (err) {
+                     console.error(`Error generating AI action for ${aiPlayer.displayName}:`, err);
+                }
+            }
+        }
+    } catch (e) {
+        console.error(`Error running night AI actions for game ${gameId}:`, e);
+    }
+}
+
+
 async function triggerAIChat(gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
     const adminDb = getAdminDb();
     try {
@@ -457,8 +534,7 @@ export async function processNight(gameId: string) {
 
             await processNightEngine(transaction, gameRef, game, fullPlayers);
         });
-        // This was moved to be triggered by server-side logic in processNight/processVotes
-        // await runAIActions(gameId, 'day');
+        await runNightAIActions(gameId);
     } catch (e) { console.error("Failed to process night", e); }
 }
 
@@ -476,7 +552,7 @@ export async function processVotes(gameId: string) {
             
             await processVotesEngine(transaction, gameRef, game, fullPlayers);
         });
-        // This logic is now handled server-side after the transaction completes
+        await runNightAIActions(gameId);
     } catch (e) { console.error("Failed to process votes", e); }
 }
 
@@ -600,6 +676,7 @@ export async function processJuryVotes(gameId: string) {
 
             await processJuryVotesEngine(transaction, gameRef, game, fullPlayers);
         });
+        await runNightAIActions(gameId);
     } catch (e) { console.error("Failed to process jury votes", e); }
 }
 
@@ -780,4 +857,4 @@ export async function executeMasterAction(gameId: string, actionId: MasterAction
     }
 }
 
-
+    
