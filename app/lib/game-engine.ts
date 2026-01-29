@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { 
@@ -254,6 +255,42 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
   for (const action of actions) {
       const actor = getPlayer(action.playerId);
       if (!actor || !actor.isAlive || game.exiledPlayerId === actor.userId) continue;
+
+      // Handle targetless actions
+      if (action.actionType === 'lookout_spy') {
+          const lookoutPrivateRef = adminDb.collection('games').doc(game.id).collection('playerData').doc(actor.userId);
+          const lookoutUpdates = context.playerUpdates.get(actor.userId) || {};
+          context.playerUpdates.set(actor.userId, { ...lookoutUpdates, lookoutUsed: true });
+
+          const wolvesAttackedLookout = context.deathMarks.get(actor.userId) === 'werewolf_kill';
+
+          if (wolvesAttackedLookout) {
+              // Lookout was targeted, they die. The deathMark is already set. Nothing more to do.
+          } else {
+              // Lookout succeeds.
+              const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
+              const aliveWolves = fullPlayers.filter(p => p.isAlive && p.role && wolfRoles.includes(p.role));
+              
+              if (aliveWolves.length > 0) {
+                  const wolfNames = aliveWolves.map(w => w.displayName).join(', ');
+                  const successMessage = `En las sombras, has logrado identificar a la manada. Los lobos son: ${wolfNames}.`;
+                  context.newEvents.push({
+                      id: `evt_lookout_success_${Date.now()}`,
+                      gameId: game.id, round: game.currentRound, type: 'special',
+                      message: successMessage, data: { targetId: actor.userId }, createdAt: new Date(),
+                  });
+              } else {
+                  const noWolvesMessage = `Has espiado en la noche, pero no has encontrado rastro de lobos.`;
+                   context.newEvents.push({
+                      id: `evt_lookout_nowolves_${Date.now()}`,
+                      gameId: game.id, round: game.currentRound, type: 'special',
+                      message: noWolvesMessage, data: { targetId: actor.userId }, createdAt: new Date(),
+                  });
+              }
+          }
+          continue; // Done with this action, move to the next.
+      }
+
 
       const targetIds = action.targetId.split('|');
 
@@ -760,3 +797,4 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
     
 
     
+
