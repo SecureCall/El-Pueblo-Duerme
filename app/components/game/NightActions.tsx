@@ -74,7 +74,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
     let selectionLimit = 1;
     if (isWerewolfTeam && wolfCubRevengeActive) selectionLimit = 2;
     if (isCupidFirstNight) selectionLimit = 2;
-    if (isLookout || currentPlayer.role === 'sleeping_fairy') selectionLimit = 0;
+    if (isLookout || (currentPlayer.role === 'sleeping_fairy' && !canFairiesKill)) selectionLimit = 0;
 
 
     const handlePlayerSelect = (player: Player) => {
@@ -387,7 +387,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                     </div>
                 ) : canPerformAction ? (
                     <>
-                        {(!isLookout && currentPlayer.role !== 'sleeping_fairy') && (
+                        {(!isLookout && (currentPlayer.role !== 'sleeping_fairy' || canFairiesKill)) && (
                             <PlayerGrid 
                                 game={game}
                                 players={playersForGrid}
@@ -409,7 +409,7 @@ export function NightActions({ game, players, currentPlayer, wolfMessages, fairy
                         <Button 
                             className="w-full mt-6 text-lg" 
                             onClick={handleSubmit} 
-                            disabled={(selectedPlayerIds.length !== selectionLimit && !isLookout && currentPlayer.role !== 'sleeping_fairy') || isSubmitting}
+                            disabled={(selectedPlayerIds.length !== selectionLimit && !isLookout && (currentPlayer.role !== 'sleeping_fairy' || canFairiesKill)) || isSubmitting}
                         >
                             {isSubmitting 
                                 ? <Loader2 className="animate-spin" /> 

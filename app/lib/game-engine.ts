@@ -337,13 +337,6 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
                   }
                   break;
 
-              case 'fairy_kill':
-                   if (!context.protections.get(targetId)?.has('bless')) {
-                       context.deathMarks.set(targetId, 'special');
-                       context.gameUpdates.fairyKillUsed = true;
-                   }
-                  break;
-
               case 'vampire_bite':
                   const newBiteCount = (target.biteCount || 0) + 1;
                   context.bites.set(targetId, newBiteCount);
@@ -399,6 +392,40 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
                               message: wolfEventMessage,
                               data: { targetId: wolf.userId }, createdAt: new Date(),
                           });
+                      }
+                  }
+                  break;
+              case 'fairy_find':
+                  if (target.role === 'sleeping_fairy') {
+                      context.gameUpdates.fairiesFound = true;
+                      const seekerEvent: GameEvent = {
+                          id: `evt_fairy_found_seeker_${Date.now()}`,
+                          gameId: game.id, round: game.currentRound, type: 'special',
+                          message: `¡Has encontrado a tu compañera! Ahora podéis hablar en secreto y tramar vuestra venganza. Tenéis un solo asesinato que podéis cometer juntas.`,
+                          data: { targetId: actor.userId }, createdAt: new Date(),
+                      };
+                      const sleeperEvent: GameEvent = {
+                          id: `evt_fairy_found_sleeper_${Date.now()}`,
+                          gameId: game.id, round: game.currentRound, type: 'special',
+                          message: `¡El Hada Buscadora te ha encontrado! Ahora podéis hablar en secreto y tramar vuestra venganza. Tenéis un solo asesinato que podéis cometer juntas.`,
+                          data: { targetId: target.userId }, createdAt: new Date(),
+                      };
+                      context.newEvents.push(seekerEvent, sleeperEvent);
+                  } else {
+                       const notFoundEvent: GameEvent = {
+                          id: `evt_fairy_not_found_${Date.now()}`,
+                          gameId: game.id, round: game.currentRound, type: 'special',
+                          message: `Has buscado, pero ${target.displayName} no es el Hada Durmiente. Debes seguir buscando.`,
+                          data: { targetId: actor.userId }, createdAt: new Date(),
+                      };
+                      context.newEvents.push(notFoundEvent);
+                  }
+                  break;
+              case 'fairy_kill':
+                  if (game.fairiesFound && !game.fairyKillUsed) {
+                      if (!context.protections.get(targetId)?.has('guard') && !context.protections.get(targetId)?.has('bless')) {
+                          context.deathMarks.set(targetId, 'special');
+                          context.gameUpdates.fairyKillUsed = true;
                       }
                   }
                   break;
@@ -797,4 +824,5 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
     
 
     
+
 
