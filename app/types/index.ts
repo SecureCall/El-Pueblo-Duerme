@@ -13,6 +13,9 @@ import {
     NightActionTypeSchema,
     PlayerRoleSchema,
     RoleDataSchema,
+    AIChatPerspectiveSchema,
+    AIActionPerspectiveSchema,
+    AIActionOutputSchema,
 } from './zod';
 
 // Re-export enums for convenience
@@ -31,20 +34,12 @@ export type GameEvent = z.infer<typeof GameEventSchema>;
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type GameSettings = z.infer<typeof GameSettingsSchema>;
 
+// AI-related types
+export type AIChatPerspective = z.infer<typeof AIChatPerspectiveSchema>;
+export type GenerateAIChatMessageOutput = z.infer<typeof AIActionOutputSchema>;
+export type AIActionPerspective = z.infer<typeof AIActionPerspectiveSchema>;
+export type AIActionOutput = z.infer<typeof AIActionOutputSchema>;
 
-export interface AIPlayerPerspective {
-  game: Game;
-  aiPlayer: Player;
-  trigger: string;
-  players: Player[];
-  chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost';
-  seerChecks?: { targetName: string; isWerewolf: boolean; }[];
-};
-
-export interface GenerateAIChatMessageOutput {
-    message: string;
-    shouldSend: boolean;
-};
 
 // ===============================================================================================
 // Role-specific logic interfaces

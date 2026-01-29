@@ -3,8 +3,8 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import type { AIPlayerPerspective, GenerateAIChatMessageOutput, NightAction, PlayerRole } from '@/types';
-import { AIPlayerPerspectiveSchema, GenerateAIChatMessageOutputSchema } from '@/types/zod';
+import type { AIChatPerspective, GenerateAIChatMessageOutput, NightAction, PlayerRole } from '@/types';
+import { AIChatPerspectiveSchema, GenerateAIChatMessageOutputSchema } from '@/types/zod';
 
 // Helper function to sanitize any object and replace undefined with null recursively.
 const sanitizeObject = (obj: any): any => {
@@ -32,7 +32,7 @@ const sanitizeObject = (obj: any): any => {
 
 const prompt = ai.definePrompt({
     name: 'generateAIChatMessagePrompt',
-    input: { schema: AIPlayerPerspectiveSchema },
+    input: { schema: AIChatPerspectiveSchema },
     output: { schema: GenerateAIChatMessageOutputSchema },
     prompt: `You are an AI player in a social deduction game called "El Pueblo Duerme", similar to Werewolf/Mafia.
 You must stay in character. Your response will be a JSON object with a 'message' (in Spanish) and a 'shouldSend' boolean.
@@ -93,7 +93,7 @@ Now, generate your response for the current situation.
 const generateAiChatMessageFlow = ai.defineFlow(
     {
         name: 'generateAiChatMessageFlow',
-        inputSchema: AIPlayerPerspectiveSchema,
+        inputSchema: AIChatPerspectiveSchema,
         outputSchema: GenerateAIChatMessageOutputSchema,
     },
     async (perspective) => {
@@ -105,7 +105,7 @@ const generateAiChatMessageFlow = ai.defineFlow(
 
 
 export async function generateAIChatMessage(
-    perspective: AIPlayerPerspective
+    perspective: AIChatPerspective
 ): Promise<GenerateAIChatMessageOutput> {
     try {
         // Deep sanitize the entire input object to remove any 'undefined' values recursively.

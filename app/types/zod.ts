@@ -188,7 +188,7 @@ export const RoleDataSchema = z.object({
   alliance: z.enum(['Aldeanos', 'Lobos', 'Neutral', 'Enamorados']),
 });
 
-export const AIPlayerPerspectiveSchema = z.object({
+export const AIChatPerspectiveSchema = z.object({
   game: GameSchema,
   aiPlayer: PlayerSchema,
   trigger: z.string(),
@@ -205,4 +205,14 @@ export const GenerateAIChatMessageOutputSchema = z.object({
   shouldSend: z.boolean(),
 });
 
-    
+export const AIActionPerspectiveSchema = z.object({
+  game: GameSchema,
+  aiPlayer: PlayerSchema,
+  possibleTargets: z.array(PlayerSchema),
+});
+
+export const AIActionOutputSchema = z.object({
+  actionType: NightActionTypeSchema.nullable().describe("The type of night action the AI should perform. Null if no action is to be taken."),
+  targetIds: z.array(z.string()).describe("An array of user IDs for the target(s) of the action. Empty if no target is needed or action is null."),
+  reasoning: z.string().describe("A brief, in-character thought process for the chosen action."),
+});
