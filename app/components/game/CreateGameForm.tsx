@@ -31,7 +31,10 @@ import { cn } from "@/lib/utils";
 import { Label } from "../ui/label";
 
 const roleKeys = [
-  'seer', 'doctor', 'hunter', 'cupid', 'guardian', 'priest', 'prince', 'lycanthrope', 'twin', 'hechicera'
+  'seer', 'doctor', 'hunter', 'cupid', 'guardian', 'priest', 'prince', 'lycanthrope', 'twin', 'hechicera',
+  'ghost', 'virginia_woolf', 'leprosa', 'river_siren', 'lookout', 'troublemaker', 'silencer', 'seer_apprentice',
+  'elder_leader', 'resurrector_angel', 'wolf_cub', 'cursed', 'witch', 'seeker_fairy', 'shapeshifter', 'drunk_man',
+  'cult_leader', 'fisherman', 'vampire', 'banshee', 'executioner', 'sleeping_fairy'
 ] as const;
 
 type RoleKey = typeof roleKeys[number];
@@ -62,6 +65,28 @@ const defaultValues: z.infer<typeof CreateGameSchema> = {
     lycanthrope: false,
     twin: false,
     hechicera: false,
+    ghost: false,
+    virginia_woolf: false,
+    leprosa: false,
+    river_siren: false,
+    lookout: false,
+    troublemaker: false,
+    silencer: false,
+    seer_apprentice: false,
+    elder_leader: false,
+    resurrector_angel: false,
+    wolf_cub: false,
+    cursed: false,
+    witch: false,
+    seeker_fairy: false,
+    shapeshifter: false,
+    drunk_man: false,
+    cult_leader: false,
+    fisherman: false,
+    vampire: false,
+    banshee: false,
+    executioner: false,
+    sleeping_fairy: false,
 };
 
 export function CreateGameForm() {
