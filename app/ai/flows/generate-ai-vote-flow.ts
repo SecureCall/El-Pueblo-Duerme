@@ -1,4 +1,3 @@
-
 'use server';
 
 import { ai } from '@/ai/genkit';
@@ -24,6 +23,9 @@ export const AIVotePerspectiveSchema = z.object({
   votablePlayers: z.array(PlayerSchema),
   chatHistory: z.array(z.string()).describe("A summary of recent chat messages to gauge sentiment."),
   voteHistory: z.array(z.object({ voterName: z.string(), targetName: z.string() })).describe("A record of who voted for whom in the previous day phase to detect voting blocs or players targeting you."),
+  seerChecks: z.array(z.object({ targetName: z.string(), isWerewolf: z.boolean() })).optional().describe("A seer's knowledge of other players' identities."),
+  loverName: z.string().optional().describe("The name of your lover, if you are one."),
+  executionerTargetName: z.string().optional().describe("The name of your executioner target, if you are one."),
 });
 export type AIVotePerspective = z.infer<typeof AIVotePerspectiveSchema>;
 
@@ -44,8 +46,8 @@ Your response MUST be a JSON object matching the output schema.
 **Your Identity:**
 - Your Name: {{{aiPlayer.displayName}}}
 - Your Secret Role: {{{aiPlayer.role}}}
-{{#if aiPlayer.isLover}}
-- You are a LOVER. Protect your partner. Vote against anyone who threatens you or your love.
+{{#if loverName}}
+- You are a LOVER. Your partner is {{{loverName}}}. Protect your partner at all costs. Vote against anyone who threatens you or your love.
 {{/if}}
 
 **Game State:**
@@ -53,13 +55,18 @@ Your response MUST be a JSON object matching the output schema.
 - Players alive: {{{votablePlayers.map(p => p.displayName).join(', ')}}}
 - Possible Targets for voting: {{{votablePlayers.filter(p => p.userId !== aiPlayer.userId).map(p => p.displayName).join(', ')}}}
 
-**Vote History (Last Round):**
+**Your Knowledge & History:**
 {{#if voteHistory}}
+Vote History (Last Round):
 {{#each voteHistory}}
 - {{{this.voterName}}} votó por {{{this.targetName}}}.
 {{/each}}
-{{else}}
-No hay historial de votos de la ronda anterior.
+{{/if}}
+{{#if seerChecks}}
+Your Seer Knowledge:
+{{#each seerChecks}}
+- You have seen that {{targetName}} is {{#if isWerewolf}}a WOLF{{else}}INNOCENT{{/if}}.
+{{/each}}
 {{/if}}
 
 **Recent Chat Summary:**
@@ -81,24 +88,25 @@ Use the chat and vote history to identify suspicious players. Players voting in 
   - Reasoning example: "{target} no ha dicho nada coherente en todo el día. Su voto de ayer fue muy sospechoso. Para mí, es el lobo."
 
 - **Seer:** You have secret knowledge. Use it wisely.
-  - If you have identified a wolf, vote for them and try to subtly convince others.
-  - If you know someone is innocent and they are being accused, vote for someone else to divert attention.
-  - Reasoning example: "Mi intuición me dice que {target} no es de fiar. Además, su voto ayer no tuvo sentido." or "¡Votar por {target} es un error! Mi voto es para {other_suspicious_player}, que ha estado demasiado callado."
+  - If you have identified a wolf, you MUST vote for them. This is your primary duty.
+  - If you know someone is innocent and they are being accused, vote for your strongest suspect who you haven't checked to divert attention. DO NOT vote for the known innocent.
+  - If you have no information, vote for the most suspicious player based on chat and vote history.
+  - Reasoning example: "Mi intuición, que rara vez me falla, me dice que {target} no es de fiar." or "He visto algo en la noche. No puedo decir más, pero mi voto por {target} es por el bien del pueblo."
 
-- **Executioner:** Your goal is to get your target lynched.
-  - Always vote for your target ({{aiPlayer.executionerTargetId}}).
-  - Reasoning example: "No me fío de {target}. Cada palabra que dice suena a mentira y su voto de ayer lo confirma. Mi voto es claro."
+- **Executioner:** Your goal is to get your target, {{{executionerTargetName}}}, lynched.
+  - Always vote for your target.
+  - Reasoning example: "No me fío de {{{executionerTargetName}}}. Cada palabra que dice suena a mentira y su voto de ayer lo confirma. Mi voto es claro."
 
 - **Villager / Doctor / Guardian / etc.:** Your goal is to find and lynch a wolf.
   - Analyze the chat and vote history. Who is accusing whom? Who is being defensive? Are there players voting together consistently?
   - Vote for players who are acting suspiciously, making strange accusations, or staying too quiet.
   - Reasoning example: "{target} ha intentado desviar la atención todo el día. Y su voto de ayer por {previous_target} fue para salvar a un lobo, seguro."
 
-- **Lover:** Your goal is survival with your partner.
+- **Lover:** Your goal is survival with your partner, {{{loverName}}}.
   - Never vote for your lover.
   - If your lover is accused, vote for their most vocal accuser. Check the vote history to see who voted against them.
   - Coordinate with your lover if possible to vote together.
-  - Reasoning example: "No toleraré estas acusaciones sin fundamento contra {lover}. Mi voto va para {accuser}, que ya votó por él/ella ayer."
+  - Reasoning example: "No toleraré estas acusaciones sin fundamento contra {{{loverName}}}. Mi voto va para {accuser}, que ya votó por él/ella ayer."
 
 **IMPORTANT RULES:**
 1.  **Valid Target:** You MUST choose from the 'votablePlayers' list.

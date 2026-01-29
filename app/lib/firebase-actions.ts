@@ -24,7 +24,7 @@ import {
   type ChatMessage,
 } from "@/types";
 import { getAdminDb } from "./firebase-admin";
-import { toPlainObject, splitPlayerData } from "./utils";
+import { toPlainObject, splitPlayerData, getMillis } from "./utils";
 import { masterActions } from "./master-actions";
 import { secretObjectives } from "./objectives";
 import { processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotesEngine, processNightEngine, generateRoles } from './game-engine';
@@ -328,7 +328,7 @@ export async function resetGame(gameId: string) {
                 events: [], chatMessages: [], wolfChatMessages: [], fairyChatMessages: [],
                 twinChatMessages: [], loversChatMessages: [], ghostChatMessages: [], nightActions: [],
                 twins: null, lovers: null, phaseEndsAt: new Date(), pendingHunterShot: null,
-                wolfCubRevengeRound: 0, players: resetHumanPlayers, vampireKills: 0, boat: [],
+                wolfCubRevengeRound: 0, players: resetHumanPlayersPublic, vampireKills: 0, boat: [],
                 leprosaBlockedRound: 0, witchFoundSeer: false, seerDied: false,
                 silencedPlayerId: null, exiledPlayerId: null, troublemakerUsed: false,
                 fairiesFound: false, fairyKillUsed: false, juryVotes: {}, masterKillUsed: false
@@ -423,6 +423,90 @@ async function runNightAIActions(gameId: string) {
     }
 }
 
+async function runAIJuryVotes(gameId: string) {
+    const adminDb = getAdminDb();
+    const gameRef = doc(adminDb, 'games', gameId);
+
+    try {
+        const gameSnap = await getDoc(gameRef);
+        if (!gameSnap.exists()) return;
+        const game = gameSnap.data() as Game;
+
+        if (game.status !== 'in_progress' || game.phase !== 'jury_voting') {
+            return;
+        }
+        
+        const lastVoteEvent = [...game.events].sort((a,b) => getMillis(b.createdAt) - getMillis(a.createdAt)).find(e => e.type === 'vote_result');
+        const tiedPlayerIds = lastVoteEvent?.data?.tiedPlayerIds;
+        if (!tiedPlayerIds || tiedPlayerIds.length === 0) return;
+
+        const privateDataCol = collection(adminDb, `games/${gameId}/playerData`);
+        const privateDataSnap = await getDocs(privateDataCol);
+        const allPrivateData: Record<string, PlayerPrivateData> = {};
+        privateDataSnap.forEach(doc => {
+            allPrivateData[doc.id] = doc.data() as PlayerPrivateData;
+        });
+
+        const fullPlayers = game.players.map(p => ({
+            ...p,
+            ...(allPrivateData[p.userId] || {})
+        })) as Player[];
+
+        const deadAIPlayers = fullPlayers.filter(p => p.isAI && !p.isAlive && !game.juryVotes?.[p.userId]);
+
+        const voteHistory = fullPlayers
+            .filter(p => p.votedFor)
+            .map(p => {
+                const target = fullPlayers.find(t => t.userId === p.votedFor);
+                return {
+                    voterName: p.displayName,
+                    targetName: target?.displayName || 'Nadie',
+                };
+            });
+
+        for (const aiPlayer of deadAIPlayers) {
+            const votablePlayers = fullPlayers.filter(p => tiedPlayerIds.includes(p.userId));
+            if (votablePlayers.length === 0) continue;
+
+            const chatSummary = game.chatMessages
+                .slice(-10)
+                .map(m => `${m.senderName}: ${m.text}`);
+            
+            const perspective = {
+                game: toPlainObject(game),
+                aiPlayer: toPlainObject(aiPlayer),
+                votablePlayers: toPlainObject(votablePlayers),
+                chatHistory: chatSummary,
+                voteHistory: voteHistory,
+                seerChecks: aiPlayer.seerChecks,
+                loverName: undefined,
+                executionerTargetName: undefined,
+            };
+
+            await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
+            
+            try {
+                const vote = await generateAIVote(perspective);
+                const targetId = vote.targetId;
+
+                const isValidTarget = votablePlayers.some(p => p.userId === targetId);
+                if (targetId && isValidTarget) {
+                    await submitJuryVote(gameId, aiPlayer.userId, targetId);
+                } else {
+                    const randomTarget = votablePlayers[Math.floor(Math.random() * votablePlayers.length)];
+                    await submitJuryVote(gameId, aiPlayer.userId, randomTarget.userId);
+                }
+            } catch (err) {
+                 console.error(`Error generating AI jury vote for ${aiPlayer.displayName}:`, err);
+                 const randomTarget = votablePlayers[Math.floor(Math.random() * votablePlayers.length)];
+                 await submitJuryVote(gameId, aiPlayer.userId, randomTarget.userId);
+            }
+        }
+    } catch (e) {
+        console.error(`Error running AI jury votes for game ${gameId}:`, e);
+    }
+}
+
 async function runAIVotes(gameId: string) {
     const adminDb = getAdminDb();
     const gameRef = doc(adminDb, 'games', gameId);
@@ -467,6 +551,10 @@ async function runAIVotes(gameId: string) {
             const chatSummary = game.chatMessages
                 .slice(-10)
                 .map(m => `${m.senderName}: ${m.text}`);
+            
+            const loverId = game.lovers?.find(id => id !== aiPlayer.userId) && aiPlayer.isLover ? game.lovers.find(id => id !== aiPlayer.userId) : undefined;
+            const loverName = loverId ? fullPlayers.find(p => p.userId === loverId)?.displayName : undefined;
+            const executionerTargetName = aiPlayer.executionerTargetId ? fullPlayers.find(p => p.userId === aiPlayer.executionerTargetId)?.displayName : undefined;
 
             const perspective = {
                 game: toPlainObject(game),
@@ -474,6 +562,9 @@ async function runAIVotes(gameId: string) {
                 votablePlayers: toPlainObject(votablePlayers),
                 chatHistory: chatSummary,
                 voteHistory: voteHistory,
+                seerChecks: aiPlayer.seerChecks,
+                loverName,
+                executionerTargetName,
             };
 
             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
@@ -820,6 +911,7 @@ export async function processJuryVotes(gameId: string) {
     const adminDb = getAdminDb();
     const gameRef = doc(adminDb, 'games', gameId);
     try {
+        await runAIJuryVotes(gameId);
         await runTransaction(adminDb, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error("Game not found");
