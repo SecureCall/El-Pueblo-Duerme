@@ -367,6 +367,16 @@ async function runNightAIActions(gameId: string) {
         })) as Player[];
 
         const aliveAIPlayers = fullPlayers.filter(p => p.isAI && p.isAlive);
+        
+        const voteHistory = fullPlayers
+            .filter(p => p.votedFor)
+            .map(p => {
+                const target = fullPlayers.find(t => t.userId === p.votedFor);
+                return {
+                    voterName: p.displayName,
+                    targetName: target?.displayName || 'Nadie',
+                };
+            });
 
         for (const aiPlayer of aliveAIPlayers) {
              if (aiPlayer.usedNightAbility || !aiPlayer.role) continue;
@@ -384,6 +394,7 @@ async function runNightAIActions(gameId: string) {
                     game: toPlainObject(game),
                     aiPlayer: toPlainObject(aiPlayer),
                     possibleTargets: toPlainObject(fullPlayers.filter(p => p.isAlive)),
+                    voteHistory: voteHistory,
                 };
                 
                 await new Promise(resolve => setTimeout(resolve, Math.random() * 5000 + 2000));
@@ -439,6 +450,16 @@ async function runAIVotes(gameId: string) {
 
         const aliveAIPlayers = fullPlayers.filter(p => p.isAI && p.isAlive && !p.votedFor);
 
+        const voteHistory = fullPlayers
+            .filter(p => p.votedFor)
+            .map(p => {
+                const target = fullPlayers.find(t => t.userId === p.votedFor);
+                return {
+                    voterName: p.displayName,
+                    targetName: target?.displayName || 'Nadie',
+                };
+            });
+
         for (const aiPlayer of aliveAIPlayers) {
             const votablePlayers = fullPlayers.filter(p => p.isAlive && p.userId !== aiPlayer.userId);
             if (votablePlayers.length === 0) continue;
@@ -452,6 +473,7 @@ async function runAIVotes(gameId: string) {
                 aiPlayer: toPlainObject(aiPlayer),
                 votablePlayers: toPlainObject(votablePlayers),
                 chatHistory: chatSummary,
+                voteHistory: voteHistory,
             };
 
             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
@@ -746,36 +768,21 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
             if (!gameSnap.exists()) throw new Error("Game not found");
             const game = gameSnap.data() as Game;
             if (game.phase !== 'day' || game.status === 'finished') return;
+
             const playerIndex = game.players.findIndex(p => p.userId === voterId && p.isAlive);
             if (playerIndex === -1) throw new Error("Player not found or is not alive");
             
-            const playerPrivateRef = doc(adminDb, `games/${gameId}/playerData`, voterId);
-            const privateSnap = await transaction.get(playerPrivateRef);
-            if (!privateSnap.exists()) throw new Error("Private data not found");
-            const privateData = privateSnap.data() as PlayerPrivateData;
-            if(privateData.votedFor) return;
+            if (game.players[playerIndex].votedFor) return; // Already voted
 
-            const siren = game.players.map((p, i) => ({...p, role: game.players[i].role})).find(p => p.role === 'river_siren');
-            
-            const sirenPrivateRef = siren ? doc(adminDb, `games/${gameId}/playerData`, siren.userId) : null;
-            const sirenPrivateSnap = sirenPrivateRef ? await transaction.get(sirenPrivateRef) : null;
-            const sirenPrivateData = sirenPrivateSnap?.data() as PlayerPrivateData | undefined;
-
-            const charmedPlayerId = sirenPrivateData?.riverSirenTargetId;
-
-            if (voterId === charmedPlayerId && siren && siren.isAlive) {
-                if (sirenPrivateData?.votedFor) {
-                    transaction.update(playerPrivateRef, { votedFor: sirenPrivateData.votedFor });
-                } else {
-                    throw new Error("Debes esperar a que la Sirena vote primero.");
-                }
-            } else {
-                 transaction.update(playerPrivateRef, { votedFor: targetId });
-            }
+            // Client-side handles most of the siren logic UI.
+            // The authoritative decision is made in processVotesEngine to ensure server-side enforcement.
+            game.players[playerIndex].votedFor = targetId;
+            transaction.update(gameRef, { players: toPlainObject(game.players) });
         });
         return { success: true };
     } catch (error: any) {
-        return { success: false, error: "No se pudo registrar tu voto." };
+        console.error("Error submitting vote: ", error);
+        return { success: false, error: (error as Error).message || "No se pudo registrar tu voto." };
     }
 }
 

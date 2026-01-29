@@ -1,3 +1,4 @@
+
 'use server';
 
 import { ai } from '@/ai/genkit';
@@ -45,6 +46,15 @@ Your response MUST be a JSON object matching the output schema.
 - Players alive: {{{game.players.filter(p => p.isAlive).map(p => p.displayName).join(', ')}}}
 - Possible Targets: {{{possibleTargets.map(p => p.displayName).join(', ')}}}
 
+**Vote History (Last Round):**
+{{#if voteHistory}}
+{{#each voteHistory}}
+- {{{this.voterName}}} votó por {{{this.targetName}}}.
+{{/each}}
+{{else}}
+No hay historial de votos de la ronda anterior.
+{{/if}}
+
 **Your Knowledge & History:**
 {{#if aiPlayer.seerChecks}}
 - As a Seer, you have seen:
@@ -52,7 +62,7 @@ Your response MUST be a JSON object matching the output schema.
   - {{targetName}} is {{#if isWerewolf}}a WOLF{{else}}INNOCENT{{/if}}.
 {{/each}}
 {{/if}}
-- Players who voted for you: (You need to infer this from game events or chat, but for now, focus on your role's primary function)
+- Players who voted for you: (You need to infer this from the vote history)
 
 **Your Task:**
 Decide your action and target(s). Provide a brief, in-character reasoning.
@@ -62,41 +72,42 @@ Decide your action and target(s). Provide a brief, in-character reasoning.
 - **Werewolf / Wolf Cub:** Your goal is to kill a villager.
   - Choose a target who seems influential, intelligent, or is a suspected Seer. Avoid players who seem harmless.
   - Do NOT target other werewolves.
-  - Reasoning: "I think {target} is the Seer, they ask too many pointed questions. We must eliminate them."
+  - Consider attacking players who voted for your fellow wolves or who seem to be leading the village.
+  - Reasoning: "I think {target} is the Seer, they ask too many pointed questions. We must eliminate them." or "{target} votó por nuestro hermano lobo ayer, debe morir."
 
 - **Seer:** Your goal is to identify werewolves.
-  - Choose a player to investigate who has been acting suspiciously, or a quiet player.
+  - Choose a player to investigate who has been acting suspiciously, or a quiet player. Check the vote history for unusual voting patterns.
   - Do not investigate players you have already checked.
-  - Reasoning: "{target} voted strangely yesterday. I need to know their true identity."
+  - Reasoning: "{target} votó de forma extraña ayer. Necesito saber su verdadera identidad."
 
 - **Doctor / Guardian / Priest:** Your goal is to protect someone.
-  - Protect players who are confirmed innocents, or who were heavily accused and might be targeted.
-  - Protecting yourself is a valid strategy if you feel threatened.
+  - Protect players who are confirmed innocents, or who were heavily accused and might be targeted. Check the vote history to see who was almost lynched.
+  - Protecting yourself is a valid strategy if you feel threatened (e.g., if many players voted for you).
   - Avoid protecting the same person two nights in a row (check 'lastHealedRound').
-  - Reasoning: "{target} was almost lynched yesterday. The wolves will surely go after them tonight. I must protect them."
+  - Reasoning: "{target} fue casi linchado ayer. Los lobos seguramente irán a por él esta noche. Debo protegerle."
 
 - **Hechicera (Witch):** You have a poison and a save potion.
   - Use 'hechicera_save' if you think an important player (like a confirmed Seer) is being attacked.
-  - Use 'hechicera_poison' to eliminate a player you strongly suspect is a wolf.
+  - Use 'hechicera_poison' to eliminate a player you strongly suspect is a wolf, perhaps someone who voted with the wolves.
   - You can only use each potion once. Be strategic.
-  - Reasoning: "I'm saving my save potion. But I am almost certain {target} is a wolf. Time to use my poison."
+  - Reasoning: "Guardo mi poción de salvar. Pero estoy casi segura de que {target} es un lobo, su voto lo delató. Es hora de usar mi veneno."
 
 - **Cupid:** Your action is only on the first night. You've already done it. Set actionType to null.
-  - Reasoning: "My arrows have flown. Now I must hope my chosen pair survives."
+  - Reasoning: "Mis flechas han volado. Ahora debo esperar que mi pareja elegida sobreviva."
 
 - **Vampire:** You must bite players to win.
-  - Choose a player to bite. Avoid biting the same player too many times in a row to avoid suspicion.
+  - Choose a player to bite. Avoid players who seem to be protected or are leading votes against you.
   - Remember, 3 bites on one person kills them.
-  - Reasoning: "{target} seems weak-willed. They will be my next meal."
+  - Reasoning: "{target} parece de voluntad débil. Será mi próxima comida."
 
 - **Cult Leader:** You must convert players to your cult.
-  - Choose a player who seems like they could be swayed or is an outcast.
+  - Choose a player who seems like they could be swayed or is an outcast. Look for players who vote against the majority.
   - Avoid trying to convert players who are already in your cult.
-  - Reasoning: "{target} seems lost. They will be a perfect addition to our family."
+  - Reasoning: "{target} parece perdido. Será una adición perfecta a nuestra familia."
 
 - **Executioner, Villager, Drunk Man, etc. (Roles with no night action):**
-  - If your role has no night action, set `actionType` to null.
-  - Reasoning: "I must sleep and gather my strength for the accusations of the day."
+  - If your role has no night action, set \`actionType\` to null.
+  - Reasoning: "Debo dormir y recuperar fuerzas para las acusaciones del día."
 
 **IMPORTANT RULES:**
 1.  **Selection Limit:** Most roles target 1 player. Werewolves target 1 (unless wolf cub died). Cupid targets 2 (on night 1 only).

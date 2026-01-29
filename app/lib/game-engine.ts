@@ -639,12 +639,13 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
 
   for (const p of mutableFullPlayers) {
     const playerPrivateRef = adminDb.collection(`games/${mutableGame.id}/playerData`).doc(p.userId);
-    transaction.update(playerPrivateRef, { usedNightAbility: false, votedFor: null });
+    transaction.update(playerPrivateRef, { usedNightAbility: false });
   }
   
   const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
   
   const {publicPlayersData} = splitFullPlayerList(mutableFullPlayers);
+  publicPlayersData.forEach(p => p.votedFor = null); // Reset votes for the new day
 
   transaction.update(gameRef, toPlainObject({
       players: publicPlayersData,
@@ -662,13 +663,22 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
     const lastVoteEvent = [...game.events].sort((a,b) => getMillis(b.createdAt) - getMillis(a.createdAt)).find(e => e.type === 'vote_result');
     const isTiebreaker = Array.isArray(lastVoteEvent?.data?.tiedPlayerIds) && !lastVoteEvent?.data?.final;
 
+    const siren = fullPlayers.find(p => p.role === 'river_siren' && p.isAlive);
+    const charmedPlayerId = siren?.riverSirenTargetId;
+
     const alivePlayers = fullPlayers.filter(p => p.isAlive);
     const voteCounts: Record<string, number> = {};
     
     alivePlayers.forEach(player => {
-        if (player.votedFor) {
-            if (!isTiebreaker || (lastVoteEvent!.data.tiedPlayerIds && lastVoteEvent!.data.tiedPlayerIds.includes(player.votedFor))) {
-                voteCounts[player.votedFor] = (voteCounts[player.votedFor] || 0) + 1;
+        let finalVote = player.votedFor;
+        // Siren override logic
+        if (siren && charmedPlayerId === player.userId && siren.votedFor) {
+            finalVote = siren.votedFor;
+        }
+        
+        if (finalVote) {
+            if (!isTiebreaker || (lastVoteEvent!.data.tiedPlayerIds && lastVoteEvent!.data.tiedPlayerIds.includes(finalVote))) {
+                voteCounts[finalVote] = (voteCounts[finalVote] || 0) + 1;
             }
         }
     });
@@ -689,12 +699,10 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
         const tieEvent: GameEvent = { id: `evt_vote_tie_${game.currentRound}`, gameId: game.id, round: game.currentRound, type: 'vote_result', message: `¡La votación resultó en un empate! Se requiere una segunda votación solo entre los siguientes jugadores: ${tiedPlayerNames}.`, data: { tiedPlayerIds: mostVotedPlayerIds, final: false }, createdAt: new Date() };
         game.events.push(tieEvent);
         
-        for (const p of fullPlayers) { 
-            const playerPrivateRef = adminDb.collection('games').doc(game.id).collection('playerData').doc(p.userId);
-            transaction.update(playerPrivateRef, { votedFor: null });
-        }
+        const updatedPlayers = game.players.map(p => ({...p, votedFor: null}));
+        
         const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
-        transaction.update(gameRef, toPlainObject({ events: game.events, phaseEndsAt }));
+        transaction.update(gameRef, toPlainObject({ events: game.events, phaseEndsAt, players: updatedPlayers }));
         return { voteEvent: tieEvent };
     }
 
@@ -747,7 +755,7 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
 
     for (const p of fullPlayers) {
         const playerPrivateRef = adminDb.collection('games').doc(game.id).collection('playerData').doc(p.userId);
-        transaction.update(playerPrivateRef, { votedFor: null, usedNightAbility: false });
+        transaction.update(playerPrivateRef, { usedNightAbility: false });
     }
     
     transaction.update(gameRef, toPlainObject({
@@ -820,7 +828,7 @@ export async function processJuryVotesEngine(transaction: Transaction, gameRef: 
     
     for (const p of fullPlayers) {
         const playerPrivateRef = adminDb.collection('games').doc(game.id).collection('playerData').doc(p.userId);
-        transaction.update(playerPrivateRef, { votedFor: null, usedNightAbility: false });
+        transaction.update(playerPrivateRef, { usedNightAbility: false });
     }
 
     transaction.update(gameRef, toPlainObject({
@@ -1009,6 +1017,7 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
     
 
     
+
 
 
 

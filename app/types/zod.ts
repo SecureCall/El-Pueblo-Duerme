@@ -209,6 +209,7 @@ export const AIActionPerspectiveSchema = z.object({
   game: GameSchema,
   aiPlayer: PlayerSchema,
   possibleTargets: z.array(PlayerSchema),
+  voteHistory: z.array(z.object({ voterName: z.string(), targetName: z.string() })).describe("A record of who voted for whom in the previous day phase to detect voting blocs or players targeting you."),
 });
 
 export const AIActionOutputSchema = z.object({
@@ -222,6 +223,7 @@ export const AIVotePerspectiveSchema = z.object({
   aiPlayer: PlayerSchema,
   votablePlayers: z.array(PlayerSchema),
   chatHistory: z.array(z.string()).describe("A summary of recent chat messages to gauge sentiment."),
+  voteHistory: z.array(z.object({ voterName: z.string(), targetName: z.string() })).describe("A record of who voted for whom in the previous day phase to detect voting blocs or players targeting you."),
 });
 export type AIVotePerspective = z.infer<typeof AIVotePerspectiveSchema>;
 
