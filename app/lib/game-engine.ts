@@ -256,6 +256,38 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
       const actor = getPlayer(action.playerId);
       if (!actor || !actor.isAlive || game.exiledPlayerId === actor.userId) continue;
 
+      if (action.actionType === 'cupid_love') {
+        if (game.currentRound !== 1) continue;
+        const targetIds = action.targetId.split('|');
+        if (targetIds.length !== 2) continue;
+
+        const [lover1Id, lover2Id] = targetIds;
+        context.gameUpdates.lovers = [lover1Id, lover2Id];
+
+        const lover1Updates = context.playerUpdates.get(lover1Id) || {};
+        context.playerUpdates.set(lover1Id, { ...lover1Updates, isLover: true });
+
+        const lover2Updates = context.playerUpdates.get(lover2Id) || {};
+        context.playerUpdates.set(lover2Id, { ...lover2Updates, isLover: true });
+
+        const lover1Name = getPlayer(lover1Id)?.displayName;
+        const lover2Name = getPlayer(lover2Id)?.displayName;
+        
+        context.newEvents.push({
+            id: `evt_lover_link_${Date.now()}_1`,
+            gameId: game.id, round: game.currentRound, type: 'special',
+            message: `Has sido flechado por Cupido. Tu amor eterno es ${lover2Name}. Vuestro objetivo ahora es sobrevivir juntos, por encima de todo.`,
+            data: { targetId: lover1Id }, createdAt: new Date(),
+        });
+        context.newEvents.push({
+            id: `evt_lover_link_${Date.now()}_2`,
+            gameId: game.id, round: game.currentRound, type: 'special',
+            message: `Has sido flechado por Cupido. Tu amor eterno es ${lover1Name}. Vuestro objetivo ahora es sobrevivir juntos, por encima de todo.`,
+            data: { targetId: lover2Id }, createdAt: new Date(),
+        });
+        continue;
+      }
+
       // Handle targetless actions
       if (action.actionType === 'lookout_spy') {
           const lookoutPrivateRef = adminDb.collection('games').doc(game.id).collection('playerData').doc(actor.userId);
@@ -377,7 +409,46 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
                     const updates = context.playerUpdates.get(actor.userId) || {};
                     context.playerUpdates.set(actor.userId, {...updates, potions: {...actor.potions, save: game.currentRound}});
                     break;
-              
+                
+                case 'shapeshifter_select': {
+                    if (game.currentRound !== 1) break;
+                    const actorUpdates = context.playerUpdates.get(actor.userId) || {};
+                    context.playerUpdates.set(actor.userId, { ...actorUpdates, shapeshifterTargetId: targetId });
+                    break;
+                }
+                case 'virginia_woolf_link': {
+                    if (game.currentRound !== 1) break;
+                    const actorUpdates = context.playerUpdates.get(actor.userId) || {};
+                    context.playerUpdates.set(actor.userId, { ...actorUpdates, virginiaWoolfTargetId: targetId });
+                    break;
+                }
+                case 'river_siren_charm': {
+                    if (game.currentRound !== 1) break;
+                    const actorUpdates = context.playerUpdates.get(actor.userId) || {};
+                    context.playerUpdates.set(actor.userId, { ...actorUpdates, riverSirenTargetId: targetId });
+                    break;
+                }
+                case 'fisherman_catch': {
+                    const boatUpdates = context.gameUpdates.boat || [...game.boat];
+                    if (!boatUpdates.includes(targetId)) {
+                        boatUpdates.push(targetId);
+                        context.gameUpdates.boat = boatUpdates;
+
+                        const targetPlayer = getPlayer(targetId);
+                        const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub'];
+                        if (targetPlayer?.role && wolfRoles.includes(targetPlayer.role)) {
+                            // Fisherman caught a wolf and dies.
+                            context.deathMarks.set(actor.userId, 'special');
+                            context.newEvents.push({
+                                id: `evt_fisherman_fail_${Date.now()}`,
+                                gameId: game.id, round: game.currentRound, type: 'special',
+                                message: `¡Has pescado a un Lobo! La bestia te arrastra a las profundidades.`,
+                                data: { targetId: actor.userId }, createdAt: new Date(),
+                            });
+                        }
+                    }
+                    break;
+                }
               case 'cult_recruit':
                   const cultUpdates = context.playerUpdates.get(targetId) || {};
                   context.playerUpdates.set(targetId, { ...cultUpdates, isCultMember: true });
@@ -732,6 +803,28 @@ export async function checkGameOver(gameData: Game, fullPlayers: Player[], lynch
     const alivePlayers = fullPlayers.filter(p => p.isAlive);
     const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'witch', 'seeker_fairy'];
 
+    if (gameData.settings.fisherman) {
+        const fisherman = fullPlayers.find(p => p.role === 'fisherman' && p.isAlive);
+        if (fisherman) {
+            const aliveVillagers = alivePlayers.filter(p => {
+                const pRole = p.role;
+                if (!pRole) return false;
+                const details = roleDetails[pRole];
+                // Exclude fisherman himself from the count
+                return details?.team === 'Aldeanos' && p.userId !== fisherman.userId;
+            });
+            const villagersInBoat = gameData.boat.filter(id => aliveVillagers.some(p => p.userId === id));
+
+            if (aliveVillagers.length > 0 && villagersInBoat.length === aliveVillagers.length) {
+                return {
+                    isGameOver: true, winnerCode: 'fisherman',
+                    message: `¡El Pescador ha ganado! Ha salvado a todos los aldeanos restantes en su barco.`,
+                    winners: [fisherman],
+                };
+            }
+        }
+    }
+    
     if (lynchedPlayer) {
         if (lynchedPlayer.role === 'drunk_man' && gameData.settings.drunk_man) {
             return {
@@ -805,27 +898,33 @@ const getActionPriority = (actionType: NightActionType) => {
     switch (actionType) {
         case 'resurrect':
             return 0;
+        case 'cupid_love':
+        case 'shapeshifter_select':
+        case 'virginia_woolf_link':
+        case 'river_siren_charm':
+            return 1;
         case 'silencer_silence':
         case 'elder_leader_exile':
-            return 1;
+            return 2;
         case 'priest_bless':
         case 'guardian_protect':
         case 'doctor_heal':
-            return 2;
+            return 3;
         case 'werewolf_kill':
         case 'hechicera_poison':
         case 'fairy_kill':
         case 'vampire_bite':
-            return 3;
-        case 'hechicera_save':
             return 4;
+        case 'hechicera_save':
+            return 5;
         case 'seer_check':
         case 'cult_recruit':
+        case 'fisherman_catch':
         case 'witch_hunt':
         case 'lookout_spy':
         case 'banshee_scream':
         case 'fairy_find':
-            return 5;
+            return 6;
         default:
             return 99;
     }
@@ -848,6 +947,7 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
     
 
     
+
 
 
 
