@@ -1,34 +1,42 @@
 
-import { initializeApp, getApps, getApp, type App, credential, type ServiceAccount } from 'firebase-admin/app';
+'use server-only';
+
+import { initializeApp, getApps, getApp, type App, credential } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getAuth, type Auth } from 'firebase-admin/auth';
-import 'server-only';
 
-let adminApp: App;
+let app: App;
+let db: Firestore;
+let auth: Auth;
 
-const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT;
-
-if (!getApps().length) {
-  if (!serviceAccountString) {
-    // This error will be thrown during server-side rendering if the environment variable is not set.
-    // This is a critical failure, as the server cannot operate without credentials.
-    throw new Error('La variable de entorno FIREBASE_SERVICE_ACCOUNT no está definida. Esta es necesaria para las operaciones del servidor. Por favor, siga las instrucciones para configurar su serviceAccountKey.json.');
+function initializeAdmin() {
+  if (!getApps().length) {
+    try {
+      app = initializeApp({
+        credential: credential.applicationDefault(),
+      });
+    } catch (e) {
+      console.error("Error initializing firebase-admin:", e);
+      // We are throwing a more specific error here to help debugging.
+      throw new Error("Could not initialize Firebase Admin SDK. Check server logs for details.");
+    }
+  } else {
+    app = getApp();
   }
-
-  let serviceAccount: ServiceAccount;
-  try {
-    serviceAccount = JSON.parse(serviceAccountString);
-  } catch (e) {
-    throw new Error('No se pudo parsear el contenido de FIREBASE_SERVICE_ACCOUNT. Asegúrese de que es un JSON válido.');
-  }
-
-  adminApp = initializeApp({
-    credential: credential.cert(serviceAccount),
-  });
-
-} else {
-  adminApp = getApp();
+  db = getFirestore(app);
+  auth = getAuth(app);
 }
 
-export const adminDb: Firestore = getFirestore(adminApp);
-export const adminAuth: Auth = getAuth(adminApp);
+export function getAdminDb(): Firestore {
+  if (!db) {
+    initializeAdmin();
+  }
+  return db;
+}
+
+export function getAdminAuth(): Auth {
+  if (!auth) {
+    initializeAdmin();
+  }
+  return auth;
+}
