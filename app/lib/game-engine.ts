@@ -13,11 +13,9 @@ import {
   type GameEvent, type PlayerRole, type PlayerPublicData, type PlayerPrivateData,
   type NightActionType,
 } from "@/types";
-import { toPlainObject, getMillis, splitPlayerData } from "@/lib/utils";
+import { toPlainObject, getMillis, splitPlayerData, PHASE_DURATION_SECONDS } from "@/lib/utils";
 import { roleDetails } from "./roles";
 import { getAdminDb } from "./firebase-admin";
-
-export const PHASE_DURATION_SECONDS = 60;
 
 export const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
     let roles: PlayerRole[] = [];
@@ -715,5 +713,7 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
     return { publicPlayersData, privatePlayersData };
 };
 
+
+    
 
     

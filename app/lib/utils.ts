@@ -4,6 +4,8 @@ import { twMerge } from "tailwind-merge"
 import { Timestamp } from "firebase/firestore";
 import type { Player, PlayerPublicData, PlayerPrivateData } from "@/types";
 
+export const PHASE_DURATION_SECONDS = 60;
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
@@ -116,3 +118,5 @@ export function splitPlayerData(player: Player): { publicData: PlayerPublicData,
 
   return { publicData, privateData: fullPrivateData };
 }
+
+    

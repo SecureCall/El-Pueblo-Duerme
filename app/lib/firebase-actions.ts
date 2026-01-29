@@ -30,7 +30,6 @@ import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
 
 const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
 const MINIMUM_PLAYERS = 3;
-export const PHASE_DURATION_SECONDS = 60;
 
 function generateGameId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -777,5 +776,7 @@ export async function executeMasterAction(gameId: string, actionId: MasterAction
         return { success: false, error: (error as Error).message };
     }
 }
+
+    
 
     
