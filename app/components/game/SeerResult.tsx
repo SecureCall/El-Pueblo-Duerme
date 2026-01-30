@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +19,7 @@ export function SeerResult({ targetName, isWerewolf }: SeerResultProps) {
                 {isWerewolf ? (
                     <>
                         <div className="relative h-24 w-24 mx-auto">
-                            <Image src="/roles/hombre-lobo.png" alt="Hombre Lobo" fill className="object-contain" unoptimized/>
+                            <Image src="/roles/Hombre Lobo.png" alt="Hombre Lobo" fill className="object-contain" unoptimized/>
                         </div>
                         <p className="text-lg font-bold text-destructive">¡Es un Hombre Lobo!</p>
                         <p className="text-muted-foreground">La oscuridad y la malicia residen en su corazón. Debes alertar al pueblo.</p>
@@ -28,7 +27,7 @@ export function SeerResult({ targetName, isWerewolf }: SeerResultProps) {
                 ) : (
                     <>
                         <div className="relative h-24 w-24 mx-auto">
-                            <Image src="/roles/aldeano.png" alt="Aldeano" fill className="object-contain" unoptimized/>
+                            <Image src="/roles/Aldeano.png" alt="Aldeano" fill className="object-contain" unoptimized/>
                         </div>
                         <p className="text-lg font-bold text-primary-foreground/90">Es un Aldeano Inocente.</p>
                         <p className="text-muted-foreground">No has encontrado rastro de maldad en esta persona. Debes seguir buscando.</p>
