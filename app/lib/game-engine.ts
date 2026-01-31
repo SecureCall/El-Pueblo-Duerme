@@ -1109,9 +1109,7 @@ export async function checkGameOver(gameData: Game, fullPlayers: Player[], lynch
     }
 
     const aliveWolves = alivePlayers.filter(p => p.role && wolfRoles.includes(p.role));
-    // The Cursed player becomes a wolf, so we check the current role.
-    const aliveCursedAsWolf = alivePlayers.filter(p => p.role === 'werewolf' && fullPlayers.find(fp => fp.userId === p.userId && fp.role === 'cursed'));
-    const aliveWolvesCount = aliveWolves.length + aliveCursedAsWolf.length;
+    const aliveWolvesCount = aliveWolves.length;
     
     const neutralThreats = alivePlayers.filter(p => {
         if (!p.role) return false;
@@ -1202,6 +1200,8 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
     
 
     
+
+
 
 
 
