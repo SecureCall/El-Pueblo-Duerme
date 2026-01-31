@@ -996,7 +996,7 @@ export async function checkGameOver(gameData: Game, fullPlayers: Player[], lynch
     }
     
     const alivePlayers = fullPlayers.filter(p => p.isAlive);
-    const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'witch', 'seeker_fairy'];
+    const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'witch', 'seeker_fairy'];
 
     if (gameData.settings.vampire) {
         const vampire = fullPlayers.find(p => p.role === 'vampire' && p.isAlive);
@@ -1088,16 +1088,30 @@ export async function checkGameOver(gameData: Game, fullPlayers: Player[], lynch
         }
     }
 
-    const aliveWolvesCount = alivePlayers.filter(p => p.role && wolfRoles.includes(p.role)).length;
-    const aliveNonWolves = alivePlayers.filter(p => p.role && !wolfRoles.includes(p.role));
+    const aliveWolves = alivePlayers.filter(p => p.role && wolfRoles.includes(p.role));
+    // The Cursed player becomes a wolf, so we check the current role.
+    const aliveCursedAsWolf = alivePlayers.filter(p => p.role === 'werewolf' && fullPlayers.find(fp => fp.userId === p.userId && fp.role === 'cursed'));
+    const aliveWolvesCount = aliveWolves.length + aliveCursedAsWolf.length;
+    
+    const neutralThreats = alivePlayers.filter(p => {
+        if (!p.role) return false;
+        const details = roleDetails[p.role];
+        // A threat is a neutral player who hasn't met their win condition and isn't aligned with the village implicitly.
+        if (details?.team !== 'Neutral') return false;
+        if (p.role === 'executioner' && p.executionerTargetId) return true; // Threat until target is lynched
+        if (p.role === 'vampire' || p.role === 'cult_leader' || p.role === 'banshee') return true; // Always threats until they win
+        return false;
+    });
 
-    if (aliveWolvesCount > 0 && aliveWolvesCount >= aliveNonWolves.length) {
+    const totalThreats = aliveWolvesCount + neutralThreats.length;
+    const nonThreats = alivePlayers.length - totalThreats;
+    
+    if (aliveWolvesCount > 0 && aliveWolvesCount >= (alivePlayers.length - aliveWolvesCount)) {
         return { isGameOver: true, winnerCode: 'wolves', message: "¡Los hombres lobo han ganado! Superan en número al pueblo.", winners: fullPlayers.filter(p => p.role && wolfRoles.includes(p.role)) };
     }
     
-    const threats = alivePlayers.filter(p => p.role && wolfRoles.includes(p.role));
-    if (threats.length === 0 && alivePlayers.length > 0) {
-        return { isGameOver: true, winnerCode: 'villagers', message: "¡El pueblo ha ganado! Todas las amenazas han sido eliminadas.", winners: aliveNonWolves };
+    if (totalThreats === 0 && alivePlayers.length > 0) {
+        return { isGameOver: true, winnerCode: 'villagers', message: "¡El pueblo ha ganado! Todas las amenazas han sido eliminadas.", winners: alivePlayers };
     }
     
     if (alivePlayers.length === 0) {
@@ -1169,6 +1183,7 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
     
 
     
+
 
 
 

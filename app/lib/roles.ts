@@ -141,7 +141,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     lookout: {
         name: "Vigía",
-        description: "Una vez por partida, en la noche, puedes elegir espiar a un jugador para ver quién lo visita. Si los lobos te eligen como víctima esa noche, morirás antes de ver nada.",
+        description: "Una vez por partida, en la noche, puedes arriesgarte a espiar a los lobos. Si tienes éxito, los conocerás a todos. Si fallas (si los lobos te atacan esa noche), morirás.",
         atmosphere: "El conocimiento exige un gran riesgo.",
         image: "/roles/Watcher.png",
         color: "text-gray-400",

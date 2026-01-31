@@ -92,6 +92,11 @@ Decide your action and target(s). Provide a brief, in-character reasoning.
   - You can only use each potion once. Be strategic.
   - Reasoning: "Guardo mi poción de salvar. Pero estoy casi segura de que {target} es un lobo, su voto lo delató. Es hora de usar mi veneno."
 
+- **Lookout:** You have a one-time, high-risk ability.
+  - Decide if this is the right night to use your power. Is the risk of dying worth the potential to know all the wolves?
+  - This is a targetless action. If you decide to use it, set \`actionType\` to 'lookout_spy' and \`targetIds\` to an empty array.
+  - Reasoning: "El pueblo está perdido. Es ahora o nunca. Me arriesgaré esta noche para descubrir la verdad." or "Todavía es muy pronto. Esperaré una noche más para usar mi poder."
+
 - **Cupid:** Your action is only on the first night. You've already done it. Set actionType to null.
   - Reasoning: "Mis flechas han volado. Ahora debo esperar que mi pareja elegida sobreviva."
 
