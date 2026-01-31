@@ -1,10 +1,9 @@
 
 'use server';
 
-import { z } from 'genkit';
 import type { AIChatPerspective, GenerateAIChatMessageOutput } from '@/types';
 import { AIChatPerspectiveSchema, GenerateAIChatMessageOutputSchema } from '@/types/zod';
-import type { Flow } from 'genkit';
+import { ai } from '@/ai/genkit';
 
 // Helper function to sanitize any object and replace undefined with null recursively.
 const sanitizeObject = (obj: any): any => {
@@ -29,30 +28,11 @@ const sanitizeObject = (obj: any): any => {
     return newObj;
 };
 
-let generateAiChatMessageFlow: Flow<typeof AIChatPerspectiveSchema, typeof GenerateAIChatMessageOutputSchema> | null = null;
-
-async function initializeFlow() {
-    if (generateAiChatMessageFlow) {
-        return;
-    }
-    
-    // Use variables for package names to hide them from static analysis,
-    // ensuring they are only loaded when this function is actually called.
-    const genkitPackage = 'genkit';
-    const googleAIPackage = '@genkit-ai/google-genai';
-
-    const { genkit } = await import(genkitPackage);
-    const { googleAI } = await import(googleAIPackage);
-    
-    const ai = genkit({
-      plugins: [googleAI({apiKey: process.env.GEMINI_API_KEY})],
-    });
-
-    const prompt = ai.definePrompt({
-        name: 'generateAIChatMessagePrompt',
-        input: { schema: AIChatPerspectiveSchema },
-        output: { schema: GenerateAIChatMessageOutputSchema },
-        prompt: `You are an AI player in a social deduction game called "El Pueblo Duerme", similar to Werewolf/Mafia.
+const prompt = ai.definePrompt({
+    name: 'generateAIChatMessagePrompt',
+    input: { schema: AIChatPerspectiveSchema },
+    output: { schema: GenerateAIChatMessageOutputSchema },
+    prompt: `You are an AI player in a social deduction game called "El Pueblo Duerme", similar to Werewolf/Mafia.
 You must stay in character. Your response will be a JSON object with a 'message' (in Spanish) and a 'shouldSend' boolean.
 Only set shouldSend to true if you have a compelling, in-character reason to speak. Do not respond to every single event. Be more selective and human.
 
@@ -118,34 +98,26 @@ Based on your role, knowledge, the game state, and the trigger, decide if you sh
 
 Now, generate your response for the current situation.
 `,
-    });
+});
 
-    generateAiChatMessageFlow = ai.defineFlow(
-        {
-            name: 'generateAiChatMessageFlow',
-            inputSchema: AIChatPerspectiveSchema,
-            outputSchema: GenerateAIChatMessageOutputSchema,
-        },
-        async (perspective) => {
-            // The input is now expected to be fully sanitized by the wrapper function.
-            const { output } = await prompt(perspective);
-            return output || { message: '', shouldSend: false };
-        }
-    );
-}
+const generateAiChatMessageFlow = ai.defineFlow(
+    {
+        name: 'generateAiChatMessageFlow',
+        inputSchema: AIChatPerspectiveSchema,
+        outputSchema: GenerateAIChatMessageOutputSchema,
+    },
+    async (perspective) => {
+        const { output } = await prompt(perspective);
+        return output || { message: '', shouldSend: false };
+    }
+);
+
 
 export async function generateAIChatMessage(
     perspective: AIChatPerspective
 ): Promise<GenerateAIChatMessageOutput> {
     try {
-        await initializeFlow();
-        // Deep sanitize the entire input object to remove any 'undefined' values recursively.
         const sanitizedPerspective = sanitizeObject(perspective);
-        
-        if (!generateAiChatMessageFlow) {
-          throw new Error("AI flow not initialized.");
-        }
-
         const result = await generateAiChatMessageFlow(sanitizedPerspective);
         return result;
     } catch (error) {

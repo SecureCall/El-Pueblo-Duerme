@@ -4,7 +4,7 @@
 import { z } from 'zod';
 import type { AIActionPerspective, AIActionOutput } from '@/types';
 import { AIActionPerspectiveSchema, AIActionOutputSchema } from '@/types/zod';
-import type { Flow } from 'genkit';
+import { ai } from '@/ai/genkit';
 
 // Helper to remove undefined values, which Zod doesn't like.
 const sanitizeObject = (obj: any): any => {
@@ -26,32 +26,11 @@ const sanitizeObject = (obj: any): any => {
     return newObj;
 };
 
-// Module-level variable to cache the initialized flow
-let generateAiActionFlow: Flow<typeof AIActionPerspectiveSchema, typeof AIActionOutputSchema> | null = null;
-
-
-async function initializeFlow() {
-    if (generateAiActionFlow) {
-        return;
-    }
-    // Use variables for package names to hide them from static analysis,
-    // ensuring they are only loaded when this function is actually called.
-    const genkitPackage = 'genkit';
-    const googleAIPackage = '@genkit-ai/google-genai';
-
-    const { genkit } = await import(genkitPackage);
-    const { googleAI } = await import(googleAIPackage);
-    
-    // Initialize Genkit inside the function
-    const ai = genkit({
-      plugins: [googleAI({apiKey: process.env.GEMINI_API_KEY})],
-    });
-
-    const prompt = ai.definePrompt({
-        name: 'generateAIActionPrompt',
-        input: { schema: AIActionPerspectiveSchema },
-        output: { schema: AIActionOutputSchema },
-        prompt: `You are an AI player in a social deduction game called "El Pueblo Duerme". It's the night phase. Based on your role, the game state, and your knowledge, you must decide what night action to take.
+const prompt = ai.definePrompt({
+    name: 'generateAIActionPrompt',
+    input: { schema: AIActionPerspectiveSchema },
+    output: { schema: AIActionOutputSchema },
+    prompt: `You are an AI player in a social deduction game called "El Pueblo Duerme". It's the night phase. Based on your role, the game state, and your knowledge, you must decide what night action to take.
 
 Your response MUST be a JSON object matching the output schema.
 
@@ -142,30 +121,26 @@ Decide your action and target(s). Provide a brief, in-character reasoning.
 
 Now, based on all this, generate your JSON response.
 `
-    });
+});
 
-    generateAiActionFlow = ai.defineFlow(
-        {
-            name: 'generateAiActionFlow',
-            inputSchema: AIActionPerspectiveSchema,
-            outputSchema: AIActionOutputSchema,
-        },
-        async (perspective) => {
-            const { output } = await prompt(perspective);
-            return output || { actionType: null, targetIds: [], reasoning: "Error generating action." };
-        }
-    );
-}
+const generateAiActionFlow = ai.defineFlow(
+    {
+        name: 'generateAiActionFlow',
+        inputSchema: AIActionPerspectiveSchema,
+        outputSchema: AIActionOutputSchema,
+    },
+    async (perspective) => {
+        const { output } = await prompt(perspective);
+        return output || { actionType: null, targetIds: [], reasoning: "Error generating action." };
+    }
+);
+
 
 export async function generateAIAction(
     perspective: AIActionPerspective
 ): Promise<AIActionOutput> {
     try {
-        await initializeFlow();
         const sanitizedPerspective = sanitizeObject(perspective);
-        if (!generateAiActionFlow) {
-          throw new Error("AI flow not initialized.");
-        }
         const result = await generateAiActionFlow(sanitizedPerspective);
         return result;
     } catch (error) {

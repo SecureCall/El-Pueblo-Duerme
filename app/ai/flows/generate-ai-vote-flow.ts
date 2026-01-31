@@ -4,7 +4,7 @@
 import { z } from 'zod';
 import { AIVotePerspectiveSchema, AIVoteOutputSchema } from '@/types/zod';
 import type { AIVotePerspective, AIVoteOutput } from '@/types';
-import type { Flow } from 'genkit';
+import { ai } from '@/ai/genkit';
 
 const sanitizeObject = (obj: any): any => {
     if (obj === undefined) return null;
@@ -19,30 +19,11 @@ const sanitizeObject = (obj: any): any => {
     return newObj;
 };
 
-let generateAiVoteFlow: Flow<typeof AIVotePerspectiveSchema, typeof AIVoteOutputSchema> | null = null;
-
-async function initializeFlow() {
-    if (generateAiVoteFlow) {
-        return;
-    }
-
-    // Use variables for package names to hide them from static analysis,
-    // ensuring they are only loaded when this function is actually called.
-    const genkitPackage = 'genkit';
-    const googleAIPackage = '@genkit-ai/google-genai';
-
-    const { genkit } = await import(genkitPackage);
-    const { googleAI } = await import(googleAIPackage);
-    
-    const ai = genkit({
-      plugins: [googleAI({apiKey: process.env.GEMINI_API_KEY})],
-    });
-    
-    const prompt = ai.definePrompt({
-        name: 'generateAIVotePrompt',
-        input: { schema: AIVotePerspectiveSchema },
-        output: { schema: AIVoteOutputSchema },
-        prompt: `You are an AI player in a social deduction game called "El Pueblo Duerme". It's the day phase, and time to vote to lynch someone. Based on your role, the game state, and the chat, you must decide who to vote for.
+const prompt = ai.definePrompt({
+    name: 'generateAIVotePrompt',
+    input: { schema: AIVotePerspectiveSchema },
+    output: { schema: AIVoteOutputSchema },
+    prompt: `You are an AI player in a social deduction game called "El Pueblo Duerme". It's the day phase, and time to vote to lynch someone. Based on your role, the game state, and the chat, you must decide who to vote for.
 
 Your response MUST be a JSON object matching the output schema.
 
@@ -118,30 +99,26 @@ Use the chat and vote history to identify suspicious players. Players voting in 
 
 Now, based on all this, generate your JSON response.
 `
-    });
+});
 
-    generateAiVoteFlow = ai.defineFlow(
-        {
-            name: 'generateAiVoteFlow',
-            inputSchema: AIVotePerspectiveSchema,
-            outputSchema: AIVoteOutputSchema,
-        },
-        async (perspective) => {
-            const { output } = await prompt(perspective);
-            return output || { targetId: null, reasoning: "Error generating vote." };
-        }
-    );
-}
+const generateAiVoteFlow = ai.defineFlow(
+    {
+        name: 'generateAiVoteFlow',
+        inputSchema: AIVotePerspectiveSchema,
+        outputSchema: AIVoteOutputSchema,
+    },
+    async (perspective) => {
+        const { output } = await prompt(perspective);
+        return output || { targetId: null, reasoning: "Error generating vote." };
+    }
+);
+
 
 export async function generateAIVote(
     perspective: AIVotePerspective
 ): Promise<AIVoteOutput> {
     try {
-        await initializeFlow();
         const sanitizedPerspective = sanitizeObject(perspective);
-        if (!generateAiVoteFlow) {
-          throw new Error("AI flow not initialized.");
-        }
         const result = await generateAiVoteFlow(sanitizedPerspective);
         return result;
     } catch (error) {
