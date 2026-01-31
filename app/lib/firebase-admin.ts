@@ -1,7 +1,7 @@
 
 // IMPORTANT: This file is server-only and should not be imported on the client.
 import 'server-only';
-import { initializeApp, getApps, type App, getApp } from 'firebase-admin/app';
+import { applicationDefault, initializeApp, getApps, type App, getApp } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getAuth, type Auth } from 'firebase-admin/auth';
 
@@ -11,9 +11,9 @@ let app: App | undefined;
 
 function ensureAdminInitialized() {
   if (getApps().length === 0) {
-    // Initialize without any parameters to use Application Default Credentials.
-    // This is the standard and most robust way for Google Cloud environments like App Hosting.
-    app = initializeApp();
+    app = initializeApp({
+      credential: applicationDefault(),
+    });
   } else {
     app = getApp();
   }
