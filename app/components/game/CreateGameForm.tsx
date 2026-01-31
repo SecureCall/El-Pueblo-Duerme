@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useGameSession } from "@/hooks/use-game-session";
-import { createGame } from "@/lib/firebase-actions";
+import { createGame } from "@/lib/lobby-actions";
 import { Slider } from "@/components/ui/slider";
 import { roleDetails } from "@/lib/roles";
 import type { Game, GameSettings } from "@/types";

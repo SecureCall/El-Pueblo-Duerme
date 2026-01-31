@@ -5,7 +5,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useGameSession } from '@/hooks/use-game-session';
 import { useGameState } from '@/hooks/use-game-state';
 import { EnterNameModal } from '@/components/game/EnterNameModal';
-import { joinGame } from '@/lib/firebase-actions';
+import { joinGame } from '@/lib/lobby-actions';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { GameLobby } from '@/components/game/GameLobby';
 import { GameBoard } from '@/components/game/GameBoard';

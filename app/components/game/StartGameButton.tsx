@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
-import { startGame } from "@/lib/firebase-actions";
+import { startGame } from "@/lib/lobby-actions";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useGameSession } from "@/hooks/use-game-session";

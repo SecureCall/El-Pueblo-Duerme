@@ -10,7 +10,7 @@ import { Milestone, Loader2, Play } from 'lucide-react';
 import { playNarration } from '@/lib/sounds';
 import { roleDetails } from '@/lib/roles';
 import { useGameSession } from '@/hooks/use-game-session';
-import { resetGame } from '@/lib/firebase-actions';
+import { resetGame } from '@/lib/lobby-actions';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Shield, Bot, Wand2 } from 'lucide-react';
