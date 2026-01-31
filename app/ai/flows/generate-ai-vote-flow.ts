@@ -1,9 +1,12 @@
+
 'use server';
 
-import { ai } from '@/ai/genkit';
+import { getAI } from '@/ai/genkit';
 import { z } from 'zod';
 import { AIVotePerspectiveSchema, AIVoteOutputSchema } from '@/types/zod';
 import type { AIVotePerspective, AIVoteOutput } from '@/types';
+
+const ai = getAI();
 
 const sanitizeObject = (obj: any): any => {
     if (obj === undefined) return null;

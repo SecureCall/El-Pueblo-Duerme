@@ -1,10 +1,12 @@
 
 'use server';
 
-import { ai } from '@/ai/genkit';
+import { getAI } from '@/ai/genkit';
 import { z } from 'genkit';
 import type { AIChatPerspective, GenerateAIChatMessageOutput, NightAction, PlayerRole } from '@/types';
 import { AIChatPerspectiveSchema, GenerateAIChatMessageOutputSchema } from '@/types/zod';
+
+const ai = getAI();
 
 // Helper function to sanitize any object and replace undefined with null recursively.
 const sanitizeObject = (obj: any): any => {

@@ -1,10 +1,12 @@
 
 'use server';
 
-import { ai } from '@/ai/genkit';
+import { getAI } from '@/ai/genkit';
 import { z } from 'zod';
 import type { AIActionPerspective, AIActionOutput } from '@/types';
 import { AIActionPerspectiveSchema, AIActionOutputSchema } from '@/types/zod';
+
+const ai = getAI();
 
 // Helper to remove undefined values, which Zod doesn't like.
 const sanitizeObject = (obj: any): any => {
