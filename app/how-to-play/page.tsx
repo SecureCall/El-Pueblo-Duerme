@@ -68,6 +68,7 @@ export default function HowToPlayPage() {
                     fill
                     className="object-cover z-0"
                     data-ai-hint="night village"
+                    priority
                 />
                 <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
 
