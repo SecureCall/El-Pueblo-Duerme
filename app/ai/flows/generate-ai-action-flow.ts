@@ -44,7 +44,7 @@ async function initializeFlow() {
     
     // Initialize Genkit inside the function
     const ai = genkit({
-      plugins: [googleAI()],
+      plugins: [googleAI({apiKey: process.env.GEMINI_API_KEY})],
     });
 
     const prompt = ai.definePrompt({
