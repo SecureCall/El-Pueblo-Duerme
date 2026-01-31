@@ -8,7 +8,14 @@ import type { Game, Player, GameEvent, PlayerPrivateData, NightActionType, ChatM
 import { generateAIAction } from '@/ai/flows/generate-ai-action-flow';
 import { generateAIChatMessage } from '@/ai/flows/generate-ai-chat-flow';
 import { generateAIVote } from '@/ai/flows/generate-ai-vote-flow';
-import { submitNightAction, submitVote, sendChatMessage, submitJuryVote } from './firebase-actions';
+import { 
+    submitNightAction, 
+    submitVote, 
+    sendChatMessageForAI, 
+    submitJuryVote 
+} from './ai-callable-actions';
+import { sendChatMessage } from './firebase-actions';
+
 
 export async function runNightAIActions(gameId: string) {
     const adminDb = getAdminDb();
@@ -248,7 +255,7 @@ export async function runAIVotes(gameId: string) {
 
                     if (vote.reasoning && Math.random() < 0.4) { // 40% chance
                         await new Promise(resolve => setTimeout(resolve, Math.random() * 3000 + 1000));
-                        await sendChatMessage(gameId, aiPlayer.userId, aiPlayer.displayName, vote.reasoning, true);
+                        await sendChatMessageForAI(gameId, aiPlayer.userId, aiPlayer.displayName, vote.reasoning);
                     }
                 } else {
                     const randomTarget = votablePlayers[Math.floor(Math.random() * votablePlayers.length)];

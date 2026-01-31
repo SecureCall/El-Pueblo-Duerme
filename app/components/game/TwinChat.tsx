@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, Users2 } from 'lucide-react';
-import { sendTwinChatMessage } from '@/lib/firebase-actions';
+import { sendTwinChatMessage } from '@/lib/ai-callable-actions';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';

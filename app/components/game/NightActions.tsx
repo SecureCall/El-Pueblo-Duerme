@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { PlayerGrid } from '@/components/game/PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
-import { submitNightAction, getSeerResult } from '@/lib/firebase-actions';
+import { getSeerResult } from '@/lib/firebase-actions';
+import { submitNightAction } from '@/lib/ai-callable-actions';
 import { Loader2, Heart, FlaskConical, Shield, AlertTriangle, BotIcon, Eye, Wand2, UserX } from 'lucide-react';
 import { SeerResult } from '@/components/game/SeerResult';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';

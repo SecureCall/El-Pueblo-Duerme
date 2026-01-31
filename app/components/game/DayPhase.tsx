@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { PlayerGrid } from '@/components/game/PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
-import { submitVote, submitTroublemakerSelection } from '@/lib/firebase-actions';
+import { submitTroublemakerSelection } from '@/lib/firebase-actions';
+import { submitVote } from '@/lib/ai-callable-actions';
 import { Loader2, Zap, Scale, BrainCircuit } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { HeartCrack, SunIcon, Users } from 'lucide-react';

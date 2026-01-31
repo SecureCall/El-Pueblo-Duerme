@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -7,7 +8,7 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Send, Ghost } from 'lucide-react';
-import { sendGhostChatMessage } from '../../lib/firebase-actions';
+import { sendGhostChatMessage } from '../../lib/ai-callable-actions';
 import { useToast } from '../../hooks/use-toast';
 import { cn } from '../../lib/utils';
 import { formatDistanceToNow } from 'date-fns';
