@@ -35,7 +35,7 @@ import { RoleManual } from "@/components/game/RoleManual";
 import { useToast } from "@/hooks/use-toast";
 
 export function GameBoard({ gameId }: { gameId: string }) {
-    const { updateStats, userId } = useGameSession();
+    const { updateStats, userId, addGameEventToHistory, stats } = useGameSession();
     const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, loading, error } = useGameState(gameId);
     const { toast } = useToast();
 
@@ -174,6 +174,32 @@ export function GameBoard({ gameId }: { gameId: string }) {
         setDeathCause(getCauseOfDeath(currentPlayer.userId));
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId, getCauseOfDeath]);
 
+    useEffect(() => {
+        if (!game || !currentPlayer || !stats) return;
+
+        const lastHistoryTimestamp = stats.history?.[0]?.timestamp || 0;
+
+        const newNotableEvents = events.filter(e =>
+            e.type === 'special' &&
+            e.data?.notablePlayerId === currentPlayer.userId &&
+            getMillis(e.createdAt) > lastHistoryTimestamp
+        );
+
+        if (newNotableEvents.length > 0) {
+            newNotableEvents.forEach(event => {
+                if (event.data?.notablePlay) {
+                    addGameEventToHistory({
+                        type: 'notable_play',
+                        title: event.data.notablePlay.title,
+                        description: event.data.notablePlay.description,
+                    });
+                }
+            });
+        }
+
+    }, [events, currentPlayer, addGameEventToHistory, stats]);
+
+
     const handleMasterActionClick = async (player: Player) => {
         if (!game || !masterActionState.active || !masterActionState.actionId) return;
 
@@ -288,7 +314,7 @@ interface SpectatorContentProps {
 function SpectatorContent({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, currentPlayer, getCauseOfDeath, timeLeft, masterActionState, setMasterActionState, onMasterActionClick }: SpectatorContentProps) {
     const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
     const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
-    const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
+    const voteEvent = events.find(e => e.type === 'vote_result' && e.round === (game.phase === 'night' ? game.currentRound - 1 : game.currentRound));
     const behaviorClueEvent = events.find(e => e.type === 'behavior_clue' && e.round === game.currentRound);
 
     const getPhaseTitle = () => {

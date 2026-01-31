@@ -1049,6 +1049,23 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
 
             let { updatedGame, updatedPlayers, triggeredHunterId: anotherHunterId } = await killPlayer(transaction, gameRef, game, fullPlayers, targetId, 'hunter_shot', `En su último aliento, el Cazador dispara y se lleva consigo a ${game.players.find(p=>p.userId === targetId)?.displayName}.`);
             
+            // Add notable play event for the hunter
+            updatedGame.events.push({
+                id: `evt_notable_hunter_${Date.now()}`,
+                gameId: game.id,
+                round: updatedGame.currentRound,
+                type: 'special',
+                message: 'El cazador se venga.', // Internal message
+                createdAt: new Date(),
+                data: {
+                  notablePlayerId: hunterId,
+                  notablePlay: {
+                      title: '¡Última Bala!',
+                      description: `Caíste, pero te llevaste a ${game.players.find(p=>p.userId === targetId)?.displayName} contigo.`,
+                  },
+                },
+            });
+
             if(anotherHunterId) {
                 updatedGame.pendingHunterShot = anotherHunterId;
                 transaction.update(gameRef, toPlainObject(updatedGame));

@@ -205,6 +205,22 @@ export async function killPlayer(transaction: Transaction, gameRef: DocumentRefe
                 createdAt: new Date(),
                 data: { lynchedPlayerId: null, final: true, revealedPlayerId: playerIdToKill },
             });
+            // Add notable play event for the prince
+            updatedGame.events.push({
+                id: `evt_notable_prince_${Date.now()}`,
+                gameId: gameData.id,
+                round: gameData.currentRound,
+                type: 'special',
+                message: 'El príncipe se revela.', // This message is internal
+                createdAt: new Date(),
+                data: {
+                  notablePlayerId: playerIdToKill,
+                  notablePlay: {
+                      title: '¡Sangre Real!',
+                      description: `Te revelaste como Príncipe y sobreviviste al linchamiento.`,
+                  },
+                },
+            });
             return { updatedGame, updatedPlayers, triggeredHunterId: null };
         }
     }
@@ -300,7 +316,7 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
   const context = {
       protections: new Map<string, Set<'guard' | 'bless'>>(),
       deathMarks: new Map<string, GameEvent['type']>(),
-      savedByHealPotion: new Set<string>(),
+      savedByHealPotion: new Map<string, string>(), // TargetId -> SaviorId
       bites: new Map<string, number>(),
       gameUpdates: {} as Partial<Game>,
       playerUpdates: new Map<string, Partial<PlayerPrivateData>>(),
@@ -499,9 +515,7 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
                   break;
 
                case 'hechicera_save':
-                    if (context.deathMarks.has(targetId)) {
-                        context.savedByHealPotion.add(targetId);
-                    }
+                    context.savedByHealPotion.set(targetId, actor.userId);
                     const updates = context.playerUpdates.get(actor.userId) || {};
                     context.playerUpdates.set(actor.userId, {...updates, potions: {...actor.potions, save: game.currentRound}});
                     break;
@@ -645,9 +659,38 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
 
   let triggeredHunterId: string | null = null;
   const killedPlayerIdsThisNight: string[] = [];
+  const successfulSaves: Record<string, string> = {}; // savedPlayerId -> saviorId
 
   for (const [targetId, cause] of context.deathMarks.entries()) {
-      if(context.savedByHealPotion.has(targetId)) continue;
+      let isSaved = false;
+      let saviorId: string | undefined;
+
+      if (context.savedByHealPotion.has(targetId)) {
+          saviorId = context.savedByHealPotion.get(targetId)!;
+          isSaved = true;
+      }
+
+      const targetProtections = context.protections.get(targetId);
+      if (!isSaved && cause === 'werewolf_kill' && targetProtections) {
+          if (targetProtections.has('guard')) {
+              const guardAction = actions.find(a => (a.actionType === 'doctor_heal' || a.actionType === 'guardian_protect') && a.targetId === targetId);
+              if (guardAction) {
+                  saviorId = guardAction.playerId;
+              }
+              isSaved = true;
+          } else if (targetProtections.has('bless')) {
+              const blessAction = actions.find(a => a.actionType === 'priest_bless' && a.targetId === targetId);
+              if (blessAction) {
+                  saviorId = blessAction.playerId;
+              }
+              isSaved = true;
+          }
+      }
+      
+      if(isSaved && saviorId) {
+        successfulSaves[targetId] = saviorId;
+        continue;
+      }
 
       const { updatedGame, updatedPlayers, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, mutableGame, mutableFullPlayers, targetId, cause, `Anoche, el pueblo perdió a ${mutableFullPlayers.find((p:Player)=>p.userId === targetId)?.displayName}.`);
       mutableGame = updatedGame;
@@ -679,6 +722,31 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
       mutableGame.events.push(clueEvent);
   }
 
+    // Add notable play events for successful saves
+  for (const [savedId, saviorId] of Object.entries(successfulSaves)) {
+      const savedPlayer = initialPlayers.find(p => p.userId === savedId);
+      const saviorPlayer = initialPlayers.find(p => p.userId === saviorId);
+      if (savedPlayer && saviorPlayer) {
+          const notablePlayEvent: GameEvent = {
+              id: `evt_notable_save_${Date.now()}_${saviorId}`,
+              gameId: mutableGame.id,
+              round: mutableGame.currentRound,
+              type: 'special',
+              message: `¡Jugada destacada! ${saviorPlayer.displayName} salvó a ${savedPlayer.displayName}.`,
+              createdAt: new Date(),
+              data: {
+                  notablePlayerId: saviorId,
+                  notablePlay: {
+                      title: '¡Salvador!',
+                      description: `Salvaste a ${savedPlayer.displayName} de una muerte segura.`,
+                  },
+              },
+          };
+          mutableGame.events.push(notablePlayEvent);
+      }
+  }
+
+
   let gameOverInfo = await checkGameOver(mutableGame, mutableFullPlayers);
   if (gameOverInfo.isGameOver) {
       mutableGame.status = "finished";
@@ -701,14 +769,24 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
   if (killedPlayerIdsThisNight.length > 0) {
       const killedNames = killedPlayerIdsThisNight.map(id => initialPlayers.find((p:any) => p.userId === id)?.displayName).join(', ');
       nightMessage = `Anoche, el pueblo perdió a ${killedNames}.`;
-  } else if (context.deathMarks.size > 0 && (context.savedByHealPotion.size > 0 || context.protections.size > 0)) {
+  } else if (context.deathMarks.size > 0 && Object.keys(successfulSaves).length > 0) {
       nightMessage = "La noche fue tensa. Los lobos atacaron, pero alguien fue salvado por una fuerza protectora.";
   } else {
       nightMessage = "La noche transcurre en un inquietante silencio. Nadie ha muerto.";
   }
   
-  const savedIds = new Set([...context.savedByHealPotion, ...Array.from(context.protections.keys())]);
-  const nightEvent: GameEvent = { id: `evt_night_${mutableGame.currentRound}`, gameId: mutableGame.id, round: mutableGame.currentRound, type: 'night_result', message: nightMessage, data: { killedPlayerIds: killedPlayerIdsThisNight, savedPlayerIds: Array.from(savedIds) }, createdAt: new Date() };
+  const nightEvent: GameEvent = { 
+      id: `evt_night_${mutableGame.currentRound}`, 
+      gameId: mutableGame.id, 
+      round: mutableGame.currentRound, 
+      type: 'night_result', 
+      message: nightMessage, 
+      data: { 
+          killedPlayerIds: killedPlayerIdsThisNight, 
+          successfulSaves: successfulSaves,
+        }, 
+      createdAt: new Date() 
+    };
   mutableGame.events.push(nightEvent);
 
   for (const p of mutableFullPlayers) {
@@ -1091,6 +1169,7 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
     
 
     
+
 
 
 

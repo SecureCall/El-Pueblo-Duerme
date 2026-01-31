@@ -53,9 +53,13 @@ const allObjectives: SecretObjectiveWithLogic[] = [
         id: 'successful_save',
         name: 'El Ángel Guardián',
         description: 'Como rol protector, salva con éxito a un jugador que iba a ser atacado por los lobos.',
-        appliesTo: ['doctor', 'guardian', 'priest'],
+        appliesTo: ['doctor', 'guardian', 'priest', 'hechicera'],
         checkCompletion: (player, game) => {
-             return game.events.some(e => e.type === 'night_result' && e.data?.savedPlayerIds?.includes(player.userId) && e.data.savedBy === player.userId);
+             return game.events.some(e => 
+                e.type === 'night_result' && 
+                e.data?.successfulSaves &&
+                Object.values(e.data.successfulSaves).includes(player.userId)
+            );
         }
     },
 
