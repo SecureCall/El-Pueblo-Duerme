@@ -1,10 +1,10 @@
 
 'use server';
 
-import { getAI } from '@/ai/genkit';
 import { z } from 'genkit';
-import type { AIChatPerspective, GenerateAIChatMessageOutput, NightAction, PlayerRole } from '@/types';
+import type { AIChatPerspective, GenerateAIChatMessageOutput } from '@/types';
 import { AIChatPerspectiveSchema, GenerateAIChatMessageOutputSchema } from '@/types/zod';
+import type { Flow } from 'genkit';
 
 // Helper function to sanitize any object and replace undefined with null recursively.
 const sanitizeObject = (obj: any): any => {
@@ -29,15 +29,20 @@ const sanitizeObject = (obj: any): any => {
     return newObj;
 };
 
-let prompt: any = null;
-let generateAiChatMessageFlow: any = null;
+let generateAiChatMessageFlow: Flow<typeof AIChatPerspectiveSchema, typeof GenerateAIChatMessageOutputSchema> | null = null;
 
 async function initializeFlow() {
-    if (prompt && generateAiChatMessageFlow) {
+    if (generateAiChatMessageFlow) {
         return;
     }
-    const ai = await getAI();
-    prompt = ai.definePrompt({
+    const { genkit } = await import('genkit');
+    const { googleAI } = await import('@genkit-ai/google-genai');
+    
+    const ai = genkit({
+      plugins: [googleAI()],
+    });
+
+    const prompt = ai.definePrompt({
         name: 'generateAIChatMessagePrompt',
         input: { schema: AIChatPerspectiveSchema },
         output: { schema: GenerateAIChatMessageOutputSchema },
@@ -131,7 +136,7 @@ export async function generateAIChatMessage(
         // Deep sanitize the entire input object to remove any 'undefined' values recursively.
         const sanitizedPerspective = sanitizeObject(perspective);
 
-        const result = await generateAiChatMessageFlow(sanitizedPerspective);
+        const result = await generateAiChatMessageFlow!(sanitizedPerspective);
         return result;
     } catch (error) {
         console.error("Critical Error in generateAIChatMessage flow:", error);

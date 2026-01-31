@@ -1,10 +1,10 @@
 
 'use server';
 
-import { getAI } from '@/ai/genkit';
 import { z } from 'zod';
 import { AIVotePerspectiveSchema, AIVoteOutputSchema } from '@/types/zod';
 import type { AIVotePerspective, AIVoteOutput } from '@/types';
+import type { Flow } from 'genkit';
 
 const sanitizeObject = (obj: any): any => {
     if (obj === undefined) return null;
@@ -19,15 +19,20 @@ const sanitizeObject = (obj: any): any => {
     return newObj;
 };
 
-let prompt: any = null;
-let generateAiVoteFlow: any = null;
+let generateAiVoteFlow: Flow<typeof AIVotePerspectiveSchema, typeof AIVoteOutputSchema> | null = null;
 
 async function initializeFlow() {
-    if (prompt && generateAiVoteFlow) {
+    if (generateAiVoteFlow) {
         return;
     }
-    const ai = await getAI();
-    prompt = ai.definePrompt({
+    const { genkit } = await import('genkit');
+    const { googleAI } = await import('@genkit-ai/google-genai');
+    
+    const ai = genkit({
+      plugins: [googleAI()],
+    });
+    
+    const prompt = ai.definePrompt({
         name: 'generateAIVotePrompt',
         input: { schema: AIVotePerspectiveSchema },
         output: { schema: AIVoteOutputSchema },
@@ -128,7 +133,7 @@ export async function generateAIVote(
     try {
         await initializeFlow();
         const sanitizedPerspective = sanitizeObject(perspective);
-        const result = await generateAiVoteFlow(sanitizedPerspective);
+        const result = await generateAiVoteFlow!(sanitizedPerspective);
         return result;
     } catch (error) {
         console.error("Critical Error in generateAIVote flow:", error);

@@ -1,10 +1,10 @@
 
 'use server';
 
-import { getAI } from '@/ai/genkit';
 import { z } from 'zod';
 import type { AIActionPerspective, AIActionOutput } from '@/types';
 import { AIActionPerspectiveSchema, AIActionOutputSchema } from '@/types/zod';
+import type { Flow } from 'genkit';
 
 // Helper to remove undefined values, which Zod doesn't like.
 const sanitizeObject = (obj: any): any => {
@@ -26,15 +26,24 @@ const sanitizeObject = (obj: any): any => {
     return newObj;
 };
 
-let prompt: any = null;
-let generateAiActionFlow: any = null;
+// Module-level variable to cache the initialized flow
+let generateAiActionFlow: Flow<typeof AIActionPerspectiveSchema, typeof AIActionOutputSchema> | null = null;
+
 
 async function initializeFlow() {
-    if (prompt && generateAiActionFlow) {
+    if (generateAiActionFlow) {
         return;
     }
-    const ai = await getAI();
-    prompt = ai.definePrompt({
+    // Dynamic imports to ensure nothing is loaded until this function is called
+    const { genkit } = await import('genkit');
+    const { googleAI } = await import('@genkit-ai/google-genai');
+    
+    // Initialize Genkit inside the function
+    const ai = genkit({
+      plugins: [googleAI()],
+    });
+
+    const prompt = ai.definePrompt({
         name: 'generateAIActionPrompt',
         input: { schema: AIActionPerspectiveSchema },
         output: { schema: AIActionOutputSchema },
@@ -150,7 +159,7 @@ export async function generateAIAction(
     try {
         await initializeFlow();
         const sanitizedPerspective = sanitizeObject(perspective);
-        const result = await generateAiActionFlow(sanitizedPerspective);
+        const result = await generateAiActionFlow!(sanitizedPerspective);
         return result;
     } catch (error) {
         console.error("Critical Error in generateAIAction flow:", error);
