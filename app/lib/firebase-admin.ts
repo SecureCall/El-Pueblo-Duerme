@@ -1,4 +1,6 @@
 
+'use server';
+
 // IMPORTANT: This file is server-only and should not be imported on the client.
 import 'server-only';
 import { initializeApp, getApps, type App } from 'firebase-admin/app';
@@ -7,6 +9,8 @@ import { getAuth, type Auth } from 'firebase-admin/auth';
 
 let app: App;
 
+// This is the standard, robust way to initialize on the server.
+// It relies on Application Default Credentials in the production environment.
 if (getApps().length === 0) {
   app = initializeApp();
 } else {
@@ -17,7 +21,7 @@ const db: Firestore = getFirestore(app);
 const auth: Auth = getAuth(app);
 
 
-// Export functions that ensure initialization before returning the service.
+// Export simple getter functions.
 export function getAdminDb(): Firestore {
   return db;
 }
@@ -25,3 +29,4 @@ export function getAdminDb(): Firestore {
 export function getAdminAuth(): Auth {
   return auth;
 }
+

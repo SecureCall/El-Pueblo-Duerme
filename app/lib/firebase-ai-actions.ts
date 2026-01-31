@@ -5,9 +5,9 @@ import { getAdminDb } from './firebase-admin';
 import { runTransaction, FieldValue } from 'firebase-admin/firestore';
 import { toPlainObject, getMillis } from './utils';
 import type { Game, Player, GameEvent, PlayerPrivateData, NightActionType, ChatMessage } from '@/types';
-import { generateAIAction } from '@/ai/flows/generate-ai-action-flow';
-import { generateAIChatMessage } from '@/ai/flows/generate-ai-chat-flow';
-import { generateAIVote } from '@/ai/flows/generate-ai-vote-flow';
+// AI Flow imports are now removed from the top level.
+
+// These are server-side actions that can be safely called by the AI.
 import { 
     submitNightAction, 
     submitVote, 
@@ -17,6 +17,9 @@ import {
 
 
 export async function runNightAIActions(gameId: string) {
+    // Dynamic import: The AI flow is only loaded when this function is called.
+    const { generateAIAction } = await import('@/ai/flows/generate-ai-action-flow');
+    
     const adminDb = getAdminDb();
     const gameRef = adminDb.collection('games').doc(gameId);
     
@@ -99,6 +102,7 @@ export async function runNightAIActions(gameId: string) {
 }
 
 export async function runAIJuryVotes(gameId: string) {
+    const { generateAIVote } = await import('@/ai/flows/generate-ai-vote-flow');
     const adminDb = getAdminDb();
     const gameRef = adminDb.collection('games').doc(gameId);
 
@@ -183,6 +187,7 @@ export async function runAIJuryVotes(gameId: string) {
 }
 
 export async function runAIVotes(gameId: string) {
+    const { generateAIVote } = await import('@/ai/flows/generate-ai-vote-flow');
     const adminDb = getAdminDb();
     const gameRef = adminDb.collection('games').doc(gameId);
 
@@ -273,6 +278,7 @@ export async function runAIVotes(gameId: string) {
 
 
 export async function triggerAIChat(gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
+    const { generateAIChatMessage } = await import('@/ai/flows/generate-ai-chat-flow');
     const adminDb = getAdminDb();
     try {
         const gameDoc = await adminDb.collection('games').doc(gameId).get();
@@ -319,6 +325,7 @@ export async function triggerAIChat(gameId: string, triggerMessage: string, chat
 }
 
 export async function triggerAIReactionToGameEvent(gameId: string, event: GameEvent) {
+    const { generateAIChatMessage } = await import('@/ai/flows/generate-ai-chat-flow');
     const adminDb = getAdminDb();
     try {
         const gameDoc = await adminDb.collection('games').doc(gameId).get();
