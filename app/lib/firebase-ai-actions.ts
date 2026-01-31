@@ -14,7 +14,6 @@ import {
     sendChatMessageForAI, 
     submitJuryVote 
 } from './ai-callable-actions';
-import { sendChatMessage } from './firebase-actions';
 
 
 export async function runNightAIActions(gameId: string) {
@@ -307,7 +306,7 @@ export async function triggerAIChat(gameId: string, triggerMessage: string, chat
                     const { message, shouldSend } = await generateAIChatMessage(perspective);
                     if (shouldSend && message) {
                         await new Promise(resolve => setTimeout(resolve, Math.random() * 4000 + 1000));
-                        await sendChatMessage(gameId, aiPlayer.userId, aiPlayer.displayName, message, true);
+                        await sendChatMessageForAI(gameId, aiPlayer.userId, aiPlayer.displayName, message);
                     }
                 } catch (aiError) {
                     console.error(`Error generating AI chat for ${aiPlayer.displayName}:`, aiError);
@@ -355,7 +354,7 @@ export async function triggerAIReactionToGameEvent(gameId: string, event: GameEv
                     const { message, shouldSend } = await generateAIChatMessage(perspective);
                     if (shouldSend && message) {
                         await new Promise(resolve => setTimeout(resolve, Math.random() * 5000 + 1000));
-                        await sendChatMessage(gameId, aiPlayer.userId, aiPlayer.displayName, message, true);
+                        await sendChatMessageForAI(gameId, aiPlayer.userId, aiPlayer.displayName, message);
                     }
                 } catch (aiError) {
                     console.error(`Error generating AI event reaction for ${aiPlayer.displayName}:`, aiError);
