@@ -1,6 +1,3 @@
-
-'use server';
-
 // IMPORTANT: This file is server-only and should not be imported on the client.
 import 'server-only';
 import { initializeApp, getApps, type App } from 'firebase-admin/app';
@@ -29,4 +26,3 @@ export function getAdminDb(): Firestore {
 export function getAdminAuth(): Auth {
   return auth;
 }
-
