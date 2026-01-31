@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/button';
 import { PlayerGrid } from '@/components/game/PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
 import { submitVote, submitTroublemakerAction } from '@/lib/firebase-actions';
-import { Loader2, Zap, Scale } from 'lucide-react';
+import { Loader2, Zap, Scale, BrainCircuit } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { HeartCrack, SunIcon, Users, BrainCircuit } from 'lucide-react';
+import { HeartCrack, SunIcon, Users } from 'lucide-react';
 import type { MasterActionState } from '@/components/game/MasterActionBar';
 
 interface DayPhaseProps {

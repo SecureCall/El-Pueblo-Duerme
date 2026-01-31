@@ -288,8 +288,8 @@ interface SpectatorContentProps {
 function SpectatorContent({ game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, currentPlayer, getCauseOfDeath, timeLeft, masterActionState, setMasterActionState, onMasterActionClick }: SpectatorContentProps) {
     const nightEvent = events.find(e => e.type === 'night_result' && e.round === game.currentRound);
     const loverDeathEvents = events.filter(e => e.type === 'lover_death' && e.round === game.currentRound);
-    const voteEvent = events.find(e => e.type === 'vote_result' && e.round === (game.phase === 'day' || game.phase === 'jury_voting' ? game.currentRound : game.currentRound - 1));
-    const behaviorClueEvent = events.find(e => e.type === 'behavior_clue' && e.round === game.currentRound - 1);
+    const voteEvent = events.find(e => e.type === 'vote_result' && e.round === game.currentRound - 1);
+    const behaviorClueEvent = events.find(e => e.type === 'behavior_clue' && e.round === game.currentRound);
 
     const getPhaseTitle = () => {
         const roundNumber = game.currentRound || 0;

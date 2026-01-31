@@ -12,6 +12,7 @@ import {
   type Game, 
   type Player, 
   type GameEvent, type PlayerRole, type PlayerPublicData, type PlayerPrivateData,
+  type NightAction,
   type NightActionType,
 } from "@/types";
 import { toPlainObject, getMillis, splitPlayerData, PHASE_DURATION_SECONDS } from "@/lib/utils";
@@ -213,6 +214,66 @@ export async function killPlayer(transaction: Transaction, gameRef: DocumentRefe
 
 export async function killPlayerUnstoppable(transaction: Transaction, gameRef: DocumentReference, gameData: Game, players: Player[], playerIdToKill: string, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; updatedPlayers: Player[]; triggeredHunterId: string | null; }> {
     return performKill(transaction, gameRef, gameData, players, playerIdToKill, cause, customMessage);
+}
+
+function generateBehavioralClue(game: Game, players: Player[], nightActions: NightAction[], nightContext: any): string | null {
+    const clues: string[] = [];
+
+    // Clue 1: Two people visit the same house
+    const visits = new Map<string, string[]>(); // targetId -> [visitorId, visitorId...]
+    const visitorActions: NightActionType[] = ['seer_check', 'doctor_heal', 'guardian_protect', 'priest_bless', 'werewolf_kill', 'hechicera_poison', 'vampire_bite', 'witch_hunt'];
+    for (const action of nightActions) {
+        if (visitorActions.includes(action.actionType)) {
+            const visitors = visits.get(action.targetId) || [];
+            if (!visitors.includes(action.playerId)) { // Don't count the same player twice (e.g. multi-kill)
+                visitors.push(action.playerId);
+            }
+            visits.set(action.targetId, visitors);
+        }
+    }
+
+    for (const [targetId, visitorIds] of visits.entries()) {
+        if (visitorIds.length > 1) {
+            const target = players.find(p => p.userId === targetId);
+            if (target && target.isAlive) { // Only report on alive targets
+                clues.push(`Anoche se escucharon ruidos de pasos cerca de la casa de ${target.displayName}, como si varias personas la hubieran visitado.`);
+            }
+        }
+    }
+
+    // Clue 2: A protected player was targeted by wolves
+    const wolfAction = nightActions.find(a => a.actionType === 'werewolf_kill');
+    if (wolfAction) {
+        const targetId = wolfAction.targetId;
+        const targetProtections = nightContext.protections.get(targetId);
+        if (targetProtections && (targetProtections.has('guard') || targetProtections.has('bless'))) {
+             clues.push("Se escuchó un aullido en la distancia, seguido por el sonido metálico de algo siendo bloqueado, como un escudo.");
+        }
+    }
+    
+    // Clue 3: The Leprosa blocked the wolves
+    if (game.leprosaBlockedRound === game.currentRound && nightActions.some(a => a.actionType === 'werewolf_kill')) {
+         clues.push("Los lobos parecieron desorientados anoche, como si una extraña enfermedad les impidiera cazar.");
+    }
+
+
+    // Clue 4: Generic flavor text if no other clue is generated
+    if (clues.length === 0) {
+        const flavorClues = [
+            "El panadero se queja de que el pan no ha subido bien esta noche.",
+            "Un viento gélido barrió las calles del pueblo, haciendo que todos los perros ladraran.",
+            "La campana de la iglesia sonó una vez a medianoche, aunque nadie sabe por qué.",
+            "Se vio una luz parpadeante en la ventana del viejo molino abandonado."
+        ];
+        if (Math.random() < 0.4) { // Only add flavor text sometimes
+             clues.push(flavorClues[Math.floor(Math.random() * flavorClues.length)]);
+        }
+    }
+
+    if (clues.length === 0) return null;
+
+    // Pick one of the generated clues at random
+    return clues[Math.floor(Math.random() * clues.length)];
 }
 
 export async function processNightEngine(transaction: Transaction, gameRef: DocumentReference, game: Game, fullPlayers: Player[]) {
@@ -604,6 +665,19 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
         }
     }
 
+  const clue = generateBehavioralClue(game, initialPlayers, actions, context);
+  if (clue) {
+      const clueEvent: GameEvent = {
+          id: `evt_clue_${mutableGame.currentRound}`,
+          gameId: mutableGame.id,
+          round: mutableGame.currentRound,
+          type: 'behavior_clue',
+          message: clue,
+          createdAt: new Date(),
+          data: {},
+      };
+      mutableGame.events.push(clueEvent);
+  }
 
   let gameOverInfo = await checkGameOver(mutableGame, mutableFullPlayers);
   if (gameOverInfo.isGameOver) {
@@ -1017,6 +1091,7 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
     
 
     
+
 
 
 
