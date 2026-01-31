@@ -19,7 +19,7 @@ export function SeerResult({ targetName, isWerewolf }: SeerResultProps) {
                 {isWerewolf ? (
                     <>
                         <div className="relative h-24 w-24 mx-auto">
-                            <Image src="/roles/werewolf.png" alt="Hombre Lobo" fill className="object-contain" unoptimized/>
+                            <Image src="/roles/Hombre Lobo.png" alt="Hombre Lobo" fill className="object-contain" unoptimized/>
                         </div>
                         <p className="text-lg font-bold text-destructive">¡Es un Hombre Lobo!</p>
                         <p className="text-muted-foreground">La oscuridad y la malicia residen en su corazón. Debes alertar al pueblo.</p>
