@@ -1,27 +1,35 @@
 // IMPORTANT: This file is server-only and should not be imported on the client.
 import 'server-only';
-import { initializeApp, getApps, type App } from 'firebase-admin/app';
+import { initializeApp, getApps, type App, type AppOptions } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getAuth, type Auth } from 'firebase-admin/auth';
 
 let app: App | undefined;
 
 function initializeAdmin() {
-  if (getApps().length === 0) {
-    try {
-      // In a managed environment like Firebase App Hosting,
-      // the Admin SDK is automatically configured via Application Default Credentials.
-      // We should initialize without any arguments.
-      app = initializeApp();
-      console.log("Firebase Admin SDK initialized successfully via implicit credentials.");
-
-    } catch (e: any) {
-        console.error("CRITICAL: Failed to initialize Firebase Admin SDK.", e.message);
-        // For this context, we throw an error to make the failure obvious.
-        throw new Error(`Could not initialize Firebase Admin SDK. Error: ${e.message}`);
-    }
-  } else {
+  if (getApps().length > 0) {
     app = getApps()[0];
+    return;
+  }
+  
+  const options: AppOptions = {};
+  // When running in a Google Cloud environment, the project ID is available in an env var.
+  // Explicitly setting it can resolve authentication issues in some cases.
+  if (process.env.GCLOUD_PROJECT) {
+      options.projectId = process.env.GCLOUD_PROJECT;
+  }
+
+  try {
+    app = initializeApp(options);
+    if(options.projectId) {
+        console.log(`Firebase Admin SDK initialized successfully for project: ${options.projectId}`);
+    } else {
+        console.log("Firebase Admin SDK initialized successfully with implicit credentials.");
+    }
+  } catch (e: any) {
+      console.error("CRITICAL: Failed to initialize Firebase Admin SDK.", e.message);
+      // For this context, we throw an error to make the failure obvious.
+      throw new Error(`Could not initialize Firebase Admin SDK. Error: ${e.message}`);
   }
 }
 
