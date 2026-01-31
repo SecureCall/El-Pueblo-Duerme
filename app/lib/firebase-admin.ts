@@ -4,25 +4,31 @@ import { initializeApp, getApps, type App } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getAuth, type Auth } from 'firebase-admin/auth';
 
-let app: App;
+let app: App | undefined;
+let db: Firestore | undefined;
+let auth: Auth | undefined;
 
-// This is the standard, robust way to initialize on the server.
-// It relies on Application Default Credentials in the production environment.
-if (getApps().length === 0) {
-  app = initializeApp();
-} else {
-  app = getApps()[0];
+function ensureAdminInitialized() {
+  if (!app) { // Only initialize if the app instance doesn't exist
+    if (getApps().length === 0) {
+      app = initializeApp();
+    } else {
+      app = getApps()[0];
+    }
+    db = getFirestore(app);
+    auth = getAuth(app);
+  }
 }
 
-const db: Firestore = getFirestore(app);
-const auth: Auth = getAuth(app);
-
-
-// Export simple getter functions.
+// Export functions that ensure initialization before returning the service.
+// This "lazy loading" pattern is crucial to prevent race conditions
+// with other Google Cloud libraries (like Genkit) during server startup.
 export function getAdminDb(): Firestore {
-  return db;
+  ensureAdminInitialized();
+  return db!;
 }
 
 export function getAdminAuth(): Auth {
-  return auth;
+  ensureAdminInitialized();
+  return auth!;
 }

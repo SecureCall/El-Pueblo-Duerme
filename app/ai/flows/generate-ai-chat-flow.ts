@@ -3,7 +3,9 @@
 
 import type { AIChatPerspective, GenerateAIChatMessageOutput } from '@/types';
 import { AIChatPerspectiveSchema, GenerateAIChatMessageOutputSchema } from '@/types/zod';
-import { ai } from '@/ai/genkit';
+import { getAi } from '@/ai/genkit';
+
+const ai = getAi();
 
 // Helper function to sanitize any object and replace undefined with null recursively.
 const sanitizeObject = (obj: any): any => {
