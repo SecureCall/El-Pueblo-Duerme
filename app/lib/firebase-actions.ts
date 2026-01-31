@@ -21,9 +21,6 @@ import { toPlainObject, splitPlayerData, getMillis } from "./utils";
 import { masterActions } from "./master-actions";
 import { secretObjectives } from "./objectives";
 import { processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotesEngine, processNightEngine, generateRoles } from './game-engine';
-import { generateAIChatMessage } from "@/ai/flows/generate-ai-chat-flow";
-import { generateAIAction } from "@/ai/flows/generate-ai-action-flow";
-import { generateAIVote } from "@/ai/flows/generate-ai-vote-flow";
 
 const AI_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Jessie", "Jamie", "Kai", "Rowan"];
 const MINIMUM_PLAYERS = 3;
@@ -395,6 +392,7 @@ async function runNightAIActions(gameId: string) {
                 await new Promise(resolve => setTimeout(resolve, Math.random() * 5000 + 2000));
                 
                 try {
+                    const { generateAIAction } = await import('@/ai/flows/generate-ai-action-flow');
                     const action = await generateAIAction(perspective);
                     if (action && action.actionType && action.targetIds.length > 0) {
                         const currentPrivateSnap = await adminDb.collection('games').doc(gameId).collection('playerData').doc(aiPlayer.userId).get();
@@ -481,6 +479,7 @@ async function runAIJuryVotes(gameId: string) {
             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
             
             try {
+                const { generateAIVote } = await import('@/ai/flows/generate-ai-vote-flow');
                 const vote = await generateAIVote(perspective);
                 const targetId = vote.targetId;
 
@@ -565,6 +564,7 @@ async function runAIVotes(gameId: string) {
             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
             
             try {
+                const { generateAIVote } = await import('@/ai/flows/generate-ai-vote-flow');
                 const vote = await generateAIVote(perspective);
                 const targetId = vote.targetId;
 
@@ -621,13 +621,17 @@ async function triggerAIChat(gameId: string, triggerMessage: string, chatType: '
                     chatType,
                     seerChecks: (privateDataSnap.data() as PlayerPrivateData)?.seerChecks,
                 };
-
-                generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
+                
+                try {
+                    const { generateAIChatMessage } = await import('@/ai/flows/generate-ai-chat-flow');
+                    const { message, shouldSend } = await generateAIChatMessage(perspective);
                     if (shouldSend && message) {
                         await new Promise(resolve => setTimeout(resolve, Math.random() * 4000 + 1000));
                         await sendChatMessage(gameId, aiPlayer.userId, aiPlayer.displayName, message, true);
                     }
-                }).catch(aiError => console.error(`Error generating AI chat for ${aiPlayer.displayName}:`, aiError));
+                } catch (aiError) {
+                    console.error(`Error generating AI chat for ${aiPlayer.displayName}:`, aiError);
+                }
             }
         }
     } catch (e) {
@@ -666,13 +670,17 @@ async function triggerAIReactionToGameEvent(gameId: string, event: GameEvent) {
                     chatType: 'public' as const,
                     seerChecks: (privateDataSnap.data() as PlayerPrivateData)?.seerChecks,
                 };
-                
-                generateAIChatMessage(perspective).then(async ({ message, shouldSend }) => {
+
+                try {
+                    const { generateAIChatMessage } = await import('@/ai/flows/generate-ai-chat-flow');
+                    const { message, shouldSend } = await generateAIChatMessage(perspective);
                     if (shouldSend && message) {
                         await new Promise(resolve => setTimeout(resolve, Math.random() * 5000 + 1000));
                         await sendChatMessage(gameId, aiPlayer.userId, aiPlayer.displayName, message, true);
                     }
-                }).catch(aiError => console.error(`Error generating AI event reaction for ${aiPlayer.displayName}:`, aiError));
+                } catch (aiError) {
+                    console.error(`Error generating AI event reaction for ${aiPlayer.displayName}:`, aiError);
+                }
             }
         }
     } catch (e) {
