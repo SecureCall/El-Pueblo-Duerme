@@ -23,12 +23,13 @@ import { useGameSession } from "@/hooks/use-game-session";
 import { createGame } from "@/lib/firebase-actions";
 import { Slider } from "@/components/ui/slider";
 import { roleDetails } from "@/lib/roles";
-import type { GameSettings } from "@/types";
+import type { Game, GameSettings } from "@/types";
 import { Checkbox } from "../ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { Label } from "../ui/label";
+import { Switch } from "../ui/switch";
 
 const roleKeys = [
   'seer', 'doctor', 'hunter', 
@@ -46,6 +47,9 @@ const schemaObject = {
   gameName: z.string().min(3, "El nombre debe tener al menos 3 caracteres.").max(30, "El nombre no puede tener más de 30 caracteres."),
   displayName: z.string().min(2, "El nombre debe tener al menos 2 caracteres.").max(20, "El nombre no puede tener más de 20 caracteres."),
   maxPlayers: z.number().min(3).max(32),
+  isPublic: z.boolean(),
+  fillWithAI: z.boolean(),
+  juryVoting: z.boolean(),
   ...roleKeys.reduce((acc, key) => {
     acc[key] = z.boolean();
     return acc;
@@ -58,6 +62,9 @@ const defaultValues: z.infer<typeof CreateGameSchema> = {
     gameName: "Partida de Pueblo Duerme",
     displayName: "",
     maxPlayers: 8,
+    isPublic: false,
+    fillWithAI: false,
+    juryVoting: true,
     seer: true,
     doctor: true,
     hunter: true,
@@ -110,9 +117,9 @@ export function CreateGameForm() {
 
     setIsSubmitting(true);
     
-    const { gameName, displayName: playerDisplayName, maxPlayers: formMaxPlayers, ...rest } = data;
+    const { gameName, displayName: playerDisplayName, maxPlayers: formMaxPlayers, isPublic, fillWithAI, juryVoting, ...roles } = data;
     
-    const gameSettings: Partial<GameSettings> = { ...rest };
+    const gameSettings: Partial<GameSettings> = { ...roles };
 
     const allRoleKeys: (keyof GameSettings)[] = [
       'seer', 'doctor', 'hunter', 'cupid', 'guardian', 'priest', 'prince', 'lycanthrope', 'twin', 'hechicera',
@@ -133,7 +140,7 @@ export function CreateGameForm() {
       avatarUrl,
       gameName,
       maxPlayers: formMaxPlayers,
-      settings: { ...gameSettings, werewolves, fillWithAI: false, isPublic: false, juryVoting: true } as Game['settings'],
+      settings: { ...gameSettings, werewolves, fillWithAI, isPublic, juryVoting } as Game['settings'],
     });
     
     if (result.gameId) {
@@ -206,6 +213,72 @@ export function CreateGameForm() {
                 )}
             />
             
+            <div className="space-y-4 rounded-lg border p-4 bg-background/30">
+              <h3 className="text-lg font-medium">Ajustes de la Partida</h3>
+              <div className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="isPublic"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background/50">
+                      <div className="space-y-0.5">
+                        <FormLabel>Partida Pública</FormLabel>
+                        <FormDescription>
+                          Permite que tu partida aparezca en la lista de salas públicas.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="fillWithAI"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background/50">
+                      <div className="space-y-0.5">
+                        <FormLabel>Rellenar con IA</FormLabel>
+                        <FormDescription>
+                          Completa los puestos vacíos con jugadores IA al empezar.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="juryVoting"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background/50">
+                      <div className="space-y-0.5">
+                        <FormLabel>Voto del Jurado</FormLabel>
+                        <FormDescription>
+                          Permite a los jugadores muertos votar para desempatar.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
             <div className="space-y-4">
               <div>
                 <Label>Roles Especiales</Label>

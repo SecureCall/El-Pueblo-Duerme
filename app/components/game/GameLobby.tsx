@@ -75,19 +75,20 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
         <Card className="text-center bg-card/80">
           <CardHeader>
             <div className="flex justify-between items-center">
-                <Button variant="ghost" size="icon" asChild>
-                    <Link href="/profile">
-                        <User />
-                        <span className="sr-only">Ver Perfil</span>
-                    </Link>
-                </Button>
+                <div className="w-32 text-left">
+                    <Button asChild variant="outline">
+                        <Link href="/profile">
+                            <User className="mr-2 h-4 w-4" /> Mi Perfil
+                        </Link>
+                    </Button>
+                </div>
                 <div className="flex-1">
                     <CardTitle className="font-headline text-4xl">{game.name}</CardTitle>
                     <CardDescription className="text-lg">
                     Esperando jugadores... ({players.length}/{game.maxPlayers})
                     </CardDescription>
                 </div>
-                <div className="w-10"></div>
+                <div className="w-32"></div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
