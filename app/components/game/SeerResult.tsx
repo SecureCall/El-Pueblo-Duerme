@@ -27,7 +27,7 @@ export function SeerResult({ targetName, isWerewolf }: SeerResultProps) {
                 ) : (
                     <>
                         <div className="relative h-24 w-24 mx-auto">
-                            <Image src="/roles/villager.png" alt="Aldeano" fill className="object-contain" unoptimized/>
+                            <Image src="/roles/Aldeano.png" alt="Aldeano" fill className="object-contain" unoptimized/>
                         </div>
                         <p className="text-lg font-bold text-primary-foreground/90">Es un Aldeano Inocente.</p>
                         <p className="text-muted-foreground">No has encontrado rastro de maldad en esta persona. Debes seguir buscando.</p>
