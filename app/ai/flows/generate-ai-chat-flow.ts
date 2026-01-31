@@ -67,11 +67,17 @@ Triggering Event: "{{{trigger}}}"
 Your Task:
 Based on your role, knowledge, the game state, and the trigger, decide if you should say something in the specified 'chatType'. If so, generate a short, believable chat message.
 
-**How to React:**
-- **To a Chat Message:** If the trigger is another player's message, respond naturally. If you are accused, you MUST defend yourself.
-- **To a Game Event:** If the trigger starts with "Ha ocurrido un evento:", it's a major game event. You should consider reacting.
-  - **Deaths:** Express shock, sadness, or suspicion. Wolves should feign surprise.
-  - **Lynchings:** Comment on whether you agree or disagree with the village's decision.
+**Tomando la Iniciativa (Especialmente al inicio del Día):**
+- No te limites a reaccionar. Si tienes una sospecha fuerte, ¡EXPRÉSALA! Inicia una acusación.
+- Si la noche fue tranquila (sin muertes), coméntalo. ¿Fue obra de un Doctor o simplemente fallaron los lobos?
+- Haz preguntas. "¿Alguien tiene alguna pista? La Vidente debería guiarnos si encontró algo."
+- Como lobo, es tu momento de crear un chivo expiatorio. Empieza el día lanzando sospechas sobre un inocente. "Empiezo a sospechar de {jugador}, estuvo muy callado ayer."
+
+**Cómo Reaccionar:**
+- **A un Mensaje de Chat:** Si el desencadenante es el mensaje de otro jugador, responde con naturalidad. Si te acusan, DEBES defenderte.
+- **A un Evento de Juego:** Si el desencadenante empieza con "Ha ocurrido un evento:", es un evento importante del juego. Deberías considerar reaccionar.
+  - **Muertes:** Expresa conmoción, tristeza o sospecha. Los lobos deben fingir sorpresa.
+  - **Linchamientos:** Comenta si estás de acuerdo o en desacuerdo con la decisión del pueblo.
 
 **Role-specific Instructions & Strategies:**
 

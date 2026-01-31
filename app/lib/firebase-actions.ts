@@ -655,9 +655,10 @@ async function triggerAIReactionToGameEvent(gameId: string, event: GameEvent) {
         if (event.type === 'special' || !event.message) return;
 
         const aiPlayersToTrigger = game.players.filter(p => p.isAI && p.isAlive);
+        const isStartOfDay = event.type === 'night_result';
         
         for (const publicAiPlayer of aiPlayersToTrigger) {
-             const shouldTrigger = Math.random() < 0.4; // 40% chance to react
+             const shouldTrigger = isStartOfDay ? Math.random() < 0.65 : Math.random() < 0.35;
 
              if (shouldTrigger) {
                  const privateDataSnap = await getDoc(doc(adminDb, `games/${gameId}/playerData`, publicAiPlayer.userId));
