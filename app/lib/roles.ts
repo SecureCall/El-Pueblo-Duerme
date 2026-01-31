@@ -154,7 +154,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         name: "Alborotadora",
         description: "Una vez por partida, durante el día, puedes elegir a dos jugadores para que luchen entre sí. Ambos morirán instantáneamente al final de la fase de votación.",
         atmosphere: "Siembras el caos y la discordia.",
-        image: "/roles/alborotadora.png",
+        image: "/roles/Alborotadora.png",
         color: "text-amber-500",
         bgImageId: "role-bg-villager",
         team: "Aldeanos",
@@ -334,5 +334,3 @@ export const defaultRoleDetail: RoleDetail = {
     bgImageId: "role-bg-villager",
     team: "Aldeanos",
 };
-
-    
