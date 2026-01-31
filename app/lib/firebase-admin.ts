@@ -1,6 +1,6 @@
 // IMPORTANT: This file is server-only and should not be imported on the client.
 import 'server-only';
-import { initializeApp, getApps, type App, type AppOptions } from 'firebase-admin/app';
+import { initializeApp, getApps, type App } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getAuth, type Auth } from 'firebase-admin/auth';
 
@@ -12,20 +12,12 @@ function initializeAdmin() {
     return;
   }
   
-  const options: AppOptions = {};
-  // When running in a Google Cloud environment, the project ID is available in an env var.
-  // Explicitly setting it can resolve authentication issues in some cases.
-  if (process.env.GCLOUD_PROJECT) {
-      options.projectId = process.env.GCLOUD_PROJECT;
-  }
-
+  // In a managed environment like App Hosting, initializeApp() with no arguments
+  // should automatically discover credentials. This prevents conflicts with other
+  // libraries (like Genkit) that also rely on Application Default Credentials.
   try {
-    app = initializeApp(options);
-    if(options.projectId) {
-        console.log(`Firebase Admin SDK initialized successfully for project: ${options.projectId}`);
-    } else {
-        console.log("Firebase Admin SDK initialized successfully with implicit credentials.");
-    }
+    app = initializeApp();
+    console.log("Firebase Admin SDK initialized successfully with implicit credentials.");
   } catch (e: any) {
       console.error("CRITICAL: Failed to initialize Firebase Admin SDK.", e.message);
       // For this context, we throw an error to make the failure obvious.
