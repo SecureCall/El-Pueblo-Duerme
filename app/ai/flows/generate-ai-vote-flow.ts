@@ -6,8 +6,6 @@ import { z } from 'zod';
 import { AIVotePerspectiveSchema, AIVoteOutputSchema } from '@/types/zod';
 import type { AIVotePerspective, AIVoteOutput } from '@/types';
 
-const ai = getAI();
-
 const sanitizeObject = (obj: any): any => {
     if (obj === undefined) return null;
     if (obj === null || typeof obj !== 'object') return obj;
@@ -21,11 +19,19 @@ const sanitizeObject = (obj: any): any => {
     return newObj;
 };
 
-const prompt = ai.definePrompt({
-    name: 'generateAIVotePrompt',
-    input: { schema: AIVotePerspectiveSchema },
-    output: { schema: AIVoteOutputSchema },
-    prompt: `You are an AI player in a social deduction game called "El Pueblo Duerme". It's the day phase, and time to vote to lynch someone. Based on your role, the game state, and the chat, you must decide who to vote for.
+let prompt: any = null;
+let generateAiVoteFlow: any = null;
+
+function initializeFlow() {
+    if (prompt && generateAiVoteFlow) {
+        return;
+    }
+    const ai = getAI();
+    prompt = ai.definePrompt({
+        name: 'generateAIVotePrompt',
+        input: { schema: AIVotePerspectiveSchema },
+        output: { schema: AIVoteOutputSchema },
+        prompt: `You are an AI player in a social deduction game called "El Pueblo Duerme". It's the day phase, and time to vote to lynch someone. Based on your role, the game state, and the chat, you must decide who to vote for.
 
 Your response MUST be a JSON object matching the output schema.
 
@@ -101,26 +107,26 @@ Use the chat and vote history to identify suspicious players. Players voting in 
 
 Now, based on all this, generate your JSON response.
 `
-});
+    });
 
-
-const generateAiVoteFlow = ai.defineFlow(
-    {
-        name: 'generateAiVoteFlow',
-        inputSchema: AIVotePerspectiveSchema,
-        outputSchema: AIVoteOutputSchema,
-    },
-    async (perspective) => {
-        const { output } = await prompt(perspective);
-        return output || { targetId: null, reasoning: "Error generating vote." };
-    }
-);
-
+    generateAiVoteFlow = ai.defineFlow(
+        {
+            name: 'generateAiVoteFlow',
+            inputSchema: AIVotePerspectiveSchema,
+            outputSchema: AIVoteOutputSchema,
+        },
+        async (perspective) => {
+            const { output } = await prompt(perspective);
+            return output || { targetId: null, reasoning: "Error generating vote." };
+        }
+    );
+}
 
 export async function generateAIVote(
     perspective: AIVotePerspective
 ): Promise<AIVoteOutput> {
     try {
+        initializeFlow();
         const sanitizedPerspective = sanitizeObject(perspective);
         const result = await generateAiVoteFlow(sanitizedPerspective);
         return result;

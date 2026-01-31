@@ -6,8 +6,6 @@ import { z } from 'genkit';
 import type { AIChatPerspective, GenerateAIChatMessageOutput, NightAction, PlayerRole } from '@/types';
 import { AIChatPerspectiveSchema, GenerateAIChatMessageOutputSchema } from '@/types/zod';
 
-const ai = getAI();
-
 // Helper function to sanitize any object and replace undefined with null recursively.
 const sanitizeObject = (obj: any): any => {
     if (obj === undefined) {
@@ -31,12 +29,19 @@ const sanitizeObject = (obj: any): any => {
     return newObj;
 };
 
+let prompt: any = null;
+let generateAiChatMessageFlow: any = null;
 
-const prompt = ai.definePrompt({
-    name: 'generateAIChatMessagePrompt',
-    input: { schema: AIChatPerspectiveSchema },
-    output: { schema: GenerateAIChatMessageOutputSchema },
-    prompt: `You are an AI player in a social deduction game called "El Pueblo Duerme", similar to Werewolf/Mafia.
+function initializeFlow() {
+    if (prompt && generateAiChatMessageFlow) {
+        return;
+    }
+    const ai = getAI();
+    prompt = ai.definePrompt({
+        name: 'generateAIChatMessagePrompt',
+        input: { schema: AIChatPerspectiveSchema },
+        output: { schema: GenerateAIChatMessageOutputSchema },
+        prompt: `You are an AI player in a social deduction game called "El Pueblo Duerme", similar to Werewolf/Mafia.
 You must stay in character. Your response will be a JSON object with a 'message' (in Spanish) and a 'shouldSend' boolean.
 Only set shouldSend to true if you have a compelling, in-character reason to speak. Do not respond to every single event. Be more selective and human.
 
@@ -102,26 +107,27 @@ Based on your role, knowledge, the game state, and the trigger, decide if you sh
 
 Now, generate your response for the current situation.
 `,
-});
+    });
 
-const generateAiChatMessageFlow = ai.defineFlow(
-    {
-        name: 'generateAiChatMessageFlow',
-        inputSchema: AIChatPerspectiveSchema,
-        outputSchema: GenerateAIChatMessageOutputSchema,
-    },
-    async (perspective) => {
-        // The input is now expected to be fully sanitized by the wrapper function.
-        const { output } = await prompt(perspective);
-        return output || { message: '', shouldSend: false };
-    }
-);
-
+    generateAiChatMessageFlow = ai.defineFlow(
+        {
+            name: 'generateAiChatMessageFlow',
+            inputSchema: AIChatPerspectiveSchema,
+            outputSchema: GenerateAIChatMessageOutputSchema,
+        },
+        async (perspective) => {
+            // The input is now expected to be fully sanitized by the wrapper function.
+            const { output } = await prompt(perspective);
+            return output || { message: '', shouldSend: false };
+        }
+    );
+}
 
 export async function generateAIChatMessage(
     perspective: AIChatPerspective
 ): Promise<GenerateAIChatMessageOutput> {
     try {
+        initializeFlow();
         // Deep sanitize the entire input object to remove any 'undefined' values recursively.
         const sanitizedPerspective = sanitizeObject(perspective);
 

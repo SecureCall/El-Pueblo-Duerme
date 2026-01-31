@@ -6,8 +6,6 @@ import { z } from 'zod';
 import type { AIActionPerspective, AIActionOutput } from '@/types';
 import { AIActionPerspectiveSchema, AIActionOutputSchema } from '@/types/zod';
 
-const ai = getAI();
-
 // Helper to remove undefined values, which Zod doesn't like.
 const sanitizeObject = (obj: any): any => {
     if (obj === undefined) {
@@ -28,11 +26,19 @@ const sanitizeObject = (obj: any): any => {
     return newObj;
 };
 
-const prompt = ai.definePrompt({
-    name: 'generateAIActionPrompt',
-    input: { schema: AIActionPerspectiveSchema },
-    output: { schema: AIActionOutputSchema },
-    prompt: `You are an AI player in a social deduction game called "El Pueblo Duerme". It's the night phase. Based on your role, the game state, and your knowledge, you must decide what night action to take.
+let prompt: any = null;
+let generateAiActionFlow: any = null;
+
+function initializeFlow() {
+    if (prompt && generateAiActionFlow) {
+        return;
+    }
+    const ai = getAI();
+    prompt = ai.definePrompt({
+        name: 'generateAIActionPrompt',
+        input: { schema: AIActionPerspectiveSchema },
+        output: { schema: AIActionOutputSchema },
+        prompt: `You are an AI player in a social deduction game called "El Pueblo Duerme". It's the night phase. Based on your role, the game state, and your knowledge, you must decide what night action to take.
 
 Your response MUST be a JSON object matching the output schema.
 
@@ -123,28 +129,27 @@ Decide your action and target(s). Provide a brief, in-character reasoning.
 
 Now, based on all this, generate your JSON response.
 `
-});
+    });
 
-
-const generateAiActionFlow = ai.defineFlow(
-    {
-        name: 'generateAiActionFlow',
-        inputSchema: AIActionPerspectiveSchema,
-        outputSchema: AIActionOutputSchema,
-    },
-    async (perspective) => {
-        const { output } = await prompt(perspective);
-        return output || { actionType: null, targetIds: [], reasoning: "Error generating action." };
-    }
-);
-
+    generateAiActionFlow = ai.defineFlow(
+        {
+            name: 'generateAiActionFlow',
+            inputSchema: AIActionPerspectiveSchema,
+            outputSchema: AIActionOutputSchema,
+        },
+        async (perspective) => {
+            const { output } = await prompt(perspective);
+            return output || { actionType: null, targetIds: [], reasoning: "Error generating action." };
+        }
+    );
+}
 
 export async function generateAIAction(
     perspective: AIActionPerspective
 ): Promise<AIActionOutput> {
     try {
+        initializeFlow();
         const sanitizedPerspective = sanitizeObject(perspective);
-
         const result = await generateAiActionFlow(sanitizedPerspective);
         return result;
     } catch (error) {
