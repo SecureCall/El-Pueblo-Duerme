@@ -8,11 +8,10 @@ import { genkit, type Genkit } from 'genkit';
 
 let aiInstance: Genkit | null = null;
 
-export function getAI(): Genkit {
+export async function getAI(): Promise<Genkit> {
   if (!aiInstance) {
-    // Dynamically require the plugin ONLY when getAI is first called.
-    // This prevents the plugin from initializing on server startup for non-AI actions.
-    const { googleAI } = require('@genkit-ai/google-genai');
+    // Dynamically import the plugin ONLY when getAI is first called.
+    const { googleAI } = await import('@genkit-ai/google-genai');
     aiInstance = genkit({
       plugins: [googleAI()],
     });

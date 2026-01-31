@@ -32,11 +32,11 @@ const sanitizeObject = (obj: any): any => {
 let prompt: any = null;
 let generateAiChatMessageFlow: any = null;
 
-function initializeFlow() {
+async function initializeFlow() {
     if (prompt && generateAiChatMessageFlow) {
         return;
     }
-    const ai = getAI();
+    const ai = await getAI();
     prompt = ai.definePrompt({
         name: 'generateAIChatMessagePrompt',
         input: { schema: AIChatPerspectiveSchema },
@@ -127,7 +127,7 @@ export async function generateAIChatMessage(
     perspective: AIChatPerspective
 ): Promise<GenerateAIChatMessageOutput> {
     try {
-        initializeFlow();
+        await initializeFlow();
         // Deep sanitize the entire input object to remove any 'undefined' values recursively.
         const sanitizedPerspective = sanitizeObject(perspective);
 

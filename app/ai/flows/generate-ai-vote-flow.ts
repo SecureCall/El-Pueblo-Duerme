@@ -22,11 +22,11 @@ const sanitizeObject = (obj: any): any => {
 let prompt: any = null;
 let generateAiVoteFlow: any = null;
 
-function initializeFlow() {
+async function initializeFlow() {
     if (prompt && generateAiVoteFlow) {
         return;
     }
-    const ai = getAI();
+    const ai = await getAI();
     prompt = ai.definePrompt({
         name: 'generateAIVotePrompt',
         input: { schema: AIVotePerspectiveSchema },
@@ -126,7 +126,7 @@ export async function generateAIVote(
     perspective: AIVotePerspective
 ): Promise<AIVoteOutput> {
     try {
-        initializeFlow();
+        await initializeFlow();
         const sanitizedPerspective = sanitizeObject(perspective);
         const result = await generateAiVoteFlow(sanitizedPerspective);
         return result;
