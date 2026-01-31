@@ -157,7 +157,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         team: "Aldeanos",
     },
     silencer: {
-        name: "Silenciador",
+        name: "Silenciadora",
         description: "Cada noche, eliges a un jugador. Esa persona no podrá hablar (enviar mensajes en el chat) durante todo el día siguiente.",
         atmosphere: "El silencio es tu arma más poderosa.",
         image: "/roles/Silencer.png",
