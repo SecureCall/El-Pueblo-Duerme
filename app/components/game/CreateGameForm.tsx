@@ -65,10 +65,10 @@ const defaultValues: z.infer<typeof CreateGameSchema> = {
     isPublic: false,
     fillWithAI: false,
     juryVoting: true,
-    seer: true,
-    doctor: true,
-    hunter: true,
-    cupid: true,
+    seer: false,
+    doctor: false,
+    hunter: false,
+    cupid: false,
     guardian: false,
     priest: false,
     prince: false,
@@ -342,3 +342,5 @@ export function CreateGameForm() {
     </Card>
   );
 }
+
+    
