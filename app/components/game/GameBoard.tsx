@@ -47,6 +47,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
     const prevGameStatusRef = useRef<Game['status']>();
     const prevPhaseRef = useRef<Game['phase']>();
     const nightSoundsPlayedForRound = useRef<number>(0);
+    const shownEventToasts = useRef(new Set<string>());
 
     const handleAcknowledgeRole = useCallback(async () => {
         setShowRole(false);
@@ -175,18 +176,19 @@ export function GameBoard({ gameId }: { gameId: string }) {
     }, [currentPlayer?.isAlive, events, currentPlayer?.userId, getCauseOfDeath]);
 
     useEffect(() => {
-        if (!game || !currentPlayer || !stats) return;
+        if (!game || !currentPlayer || !stats || !events.length) return;
 
+        // --- Handle Notable Play History ---
         const lastHistoryTimestamp = stats.history?.[0]?.timestamp || 0;
-
-        const newNotableEvents = events.filter(e =>
+        const newNotablePlayEvents = events.filter(e =>
             e.type === 'special' &&
             e.data?.notablePlayerId === currentPlayer.userId &&
+            e.data?.notablePlay &&
             getMillis(e.createdAt) > lastHistoryTimestamp
         );
 
-        if (newNotableEvents.length > 0) {
-            newNotableEvents.forEach(event => {
+        if (newNotablePlayEvents.length > 0) {
+            newNotablePlayEvents.forEach(event => {
                 if (event.data?.notablePlay) {
                     addGameEventToHistory({
                         type: 'notable_play',
@@ -196,8 +198,27 @@ export function GameBoard({ gameId }: { gameId: string }) {
                 }
             });
         }
+        
+        // --- Handle Special Message Toasts (e.g., Ghost) ---
+        const newSpecialMessageEvents = events.filter(e =>
+            e.type === 'special' &&
+            e.data?.targetId === currentPlayer.userId && // Message is FOR me
+            !e.data?.notablePlay && // It's not a notable play event
+            !shownEventToasts.current.has(e.id)
+        );
 
-    }, [events, currentPlayer, addGameEventToHistory, stats]);
+        if (newSpecialMessageEvents.length > 0) {
+            newSpecialMessageEvents.forEach(event => {
+                toast({
+                    title: "Mensaje del Más Allá",
+                    description: event.message,
+                    duration: 10000,
+                });
+                shownEventToasts.current.add(event.id);
+            });
+        }
+
+    }, [events, currentPlayer, addGameEventToHistory, stats, game, toast]);
 
 
     const handleMasterActionClick = async (player: Player) => {

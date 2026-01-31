@@ -875,48 +875,68 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
     let lynchedPlayerId: string | null = mostVotedPlayerIds[0] || null;
     let triggeredHunterId: string | null = null;
     let mutableFullPlayers = [...fullPlayers];
+    let mutableGame = {...game};
 
     if (lynchedPlayerId) {
-        const { updatedGame, updatedPlayers, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, game, mutableFullPlayers, lynchedPlayerId, 'vote_result', `El pueblo ha hablado. ${game.players.find(p => p.userId === lynchedPlayerId)?.displayName} ha sido linchado.`);
-        game = updatedGame;
+        const { updatedGame, updatedPlayers, triggeredHunterId: newHunterId } = await killPlayer(transaction, gameRef, mutableGame, mutableFullPlayers, lynchedPlayerId, 'vote_result', `El pueblo ha hablado. ${game.players.find(p => p.userId === lynchedPlayerId)?.displayName} ha sido linchado.`);
+        mutableGame = updatedGame;
         mutableFullPlayers = updatedPlayers;
         triggeredHunterId = newHunterId;
     } else {
         const message = isTiebreaker ? 'Tras un segundo empate, el pueblo decide perdonar una vida hoy.' : 'El pueblo no pudo llegar a un acuerdo. Nadie fue linchado.';
-        game.events.push({ id: `evt_vote_result_${game.currentRound}`, gameId: game.id, round: game.currentRound, type: 'vote_result', message, data: { lynchedPlayerId: null, final: true }, createdAt: new Date() });
+        mutableGame.events.push({ id: `evt_vote_result_${mutableGame.currentRound}`, gameId: mutableGame.id, round: mutableGame.currentRound, type: 'vote_result', message, data: { lynchedPlayerId: null, final: true }, createdAt: new Date() });
+    }
+
+    if (mutableGame.pendingTroublemakerDuel) {
+        const { target1Id, target2Id } = mutableGame.pendingTroublemakerDuel;
+        const target1 = mutableFullPlayers.find(p => p.userId === target1Id);
+        const target2 = mutableFullPlayers.find(p => p.userId === target2Id);
+        if (target1 && target2) {
+            const duelMessage = `Al final del día, una pelea estalla. ${target1.displayName} y ${target2.displayName} se han matado mutuamente, víctimas de la Alborotadora.`;
+            const result1 = await killPlayer(transaction, gameRef, mutableGame, mutableFullPlayers, target1Id, 'troublemaker_duel', duelMessage);
+            mutableGame = result1.updatedGame;
+            mutableFullPlayers = result1.updatedPlayers;
+            if (result1.triggeredHunterId && !triggeredHunterId) triggeredHunterId = result1.triggeredHunterId;
+
+            const result2 = await killPlayer(transaction, gameRef, mutableGame, mutableFullPlayers, target2Id, 'troublemaker_duel', duelMessage);
+            mutableGame = result2.updatedGame;
+            mutableFullPlayers = result2.updatedPlayers;
+            if (result2.triggeredHunterId && !triggeredHunterId) triggeredHunterId = result2.triggeredHunterId;
+        }
+        mutableGame.pendingTroublemakerDuel = null;
     }
 
     let lynchedPlayerObject = fullPlayers.find(p => p.userId === lynchedPlayerId) || null;
-    let gameOverInfo = await checkGameOver(game, mutableFullPlayers, lynchedPlayerObject);
+    let gameOverInfo = await checkGameOver(mutableGame, mutableFullPlayers, lynchedPlayerObject);
     if (gameOverInfo.isGameOver) {
-        game.status = "finished";
-        game.phase = "finished";
-        game.events.push({ id: `evt_gameover_${Date.now()}`, gameId: game.id, type: 'game_over', round: game.currentRound, message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: new Date() });
-        transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', events: game.events }));
-        return { voteEvent: game.events[game.events.length - 1] };
+        mutableGame.status = "finished";
+        mutableGame.phase = "finished";
+        mutableGame.events.push({ id: `evt_gameover_${Date.now()}`, gameId: mutableGame.id, type: 'game_over', round: mutableGame.currentRound, message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: new Date() });
+        transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', events: mutableGame.events, players: splitFullPlayerList(mutableFullPlayers).publicPlayersData }));
+        return { voteEvent: mutableGame.events[mutableGame.events.length - 1] };
     }
 
     if (triggeredHunterId) {
-        game.pendingHunterShot = triggeredHunterId;
-        transaction.update(gameRef, toPlainObject({ events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot }));
-        return { voteEvent: game.events[game.events.length - 1] };
+        mutableGame.pendingHunterShot = triggeredHunterId;
+        transaction.update(gameRef, toPlainObject({ events: mutableGame.events, phase: 'hunter_shot', pendingHunterShot: mutableGame.pendingHunterShot, players: splitFullPlayerList(mutableFullPlayers).publicPlayersData }));
+        return { voteEvent: mutableGame.events[mutableGame.events.length - 1] };
     }
 
     const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
-    const nextRound = game.currentRound + 1;
+    const nextRound = mutableGame.currentRound + 1;
 
     for (const p of fullPlayers) {
-        const playerPrivateRef = adminDb.collection('games').doc(game.id).collection('playerData').doc(p.userId);
+        const playerPrivateRef = adminDb.collection('games').doc(mutableGame.id).collection('playerData').doc(p.userId);
         transaction.update(playerPrivateRef, { usedNightAbility: false });
     }
     
     transaction.update(gameRef, toPlainObject({
-        ...game,
+        ...mutableGame,
         phase: 'night',
         currentRound: nextRound,
         phaseEndsAt
     }));
-     return { voteEvent: game.events[game.events.length-1] };
+     return { voteEvent: mutableGame.events[mutableGame.events.length-1] };
 }
 export async function processJuryVotesEngine(transaction: Transaction, gameRef: DocumentReference, game: Game, fullPlayers: Player[]) {
     const adminDb = getAdminDb();
@@ -1104,14 +1124,13 @@ export async function checkGameOver(gameData: Game, fullPlayers: Player[], lynch
     });
 
     const totalThreats = aliveWolvesCount + neutralThreats.length;
-    const nonThreats = alivePlayers.length - totalThreats;
-    
-    if (aliveWolvesCount > 0 && aliveWolvesCount >= (alivePlayers.length - aliveWolvesCount)) {
-        return { isGameOver: true, winnerCode: 'wolves', message: "¡Los hombres lobo han ganado! Superan en número al pueblo.", winners: fullPlayers.filter(p => p.role && wolfRoles.includes(p.role)) };
-    }
     
     if (totalThreats === 0 && alivePlayers.length > 0) {
         return { isGameOver: true, winnerCode: 'villagers', message: "¡El pueblo ha ganado! Todas las amenazas han sido eliminadas.", winners: alivePlayers };
+    }
+    
+    if (aliveWolvesCount > 0 && aliveWolvesCount >= (alivePlayers.length - aliveWolvesCount)) {
+        return { isGameOver: true, winnerCode: 'wolves', message: "¡Los hombres lobo han ganado! Superan en número al pueblo.", winners: fullPlayers.filter(p => p.role && wolfRoles.includes(p.role)) };
     }
     
     if (alivePlayers.length === 0) {
@@ -1183,6 +1202,7 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
     
 
     
+
 
 
 

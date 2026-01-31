@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { PlayerGrid } from '@/components/game/PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
-import { submitVote, submitTroublemakerAction } from '@/lib/firebase-actions';
+import { submitVote, submitTroublemakerSelection } from '@/lib/firebase-actions';
 import { Loader2, Zap, Scale, BrainCircuit } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { HeartCrack, SunIcon, Users } from 'lucide-react';
@@ -50,9 +50,9 @@ function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, curre
         }
 
         setIsSubmitting(true);
-        const result = await submitTroublemakerAction(game.id, currentPlayer.userId, selectedPlayerIds[0], selectedPlayerIds[1]);
+        const result = await submitTroublemakerSelection(game.id, currentPlayer.userId, selectedPlayerIds[0], selectedPlayerIds[1]);
         if (result.success) {
-            toast({ title: '¡Caos desatado!', description: 'Has provocado una pelea mortal.' });
+            toast({ title: '¡Pelea preparada!', description: 'El caos se desatará al final de la fase de voto.' });
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
             setIsSubmitting(false);
@@ -61,6 +61,8 @@ function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, curre
     
     const target1 = players.find(p => p.userId === selectedPlayerIds[0]);
     const target2 = players.find(p => p.userId === selectedPlayerIds[1]);
+    const hasUsedAbility = game.troublemakerUsed || !!game.pendingTroublemakerDuel;
+
 
     return (
         <Card className="bg-amber-900/30 border-amber-500/50 mt-4">
@@ -69,32 +71,38 @@ function TroublemakerPanel({ game, currentPlayer, players }: { game: Game, curre
                     <Zap /> Acción de Alborotadora
                 </CardTitle>
                 <CardDescription>
-                    Una vez por partida, puedes provocar una pelea mortal entre dos jugadores. Ambos serán eliminados.
+                    Una vez por partida, puedes provocar una pelea mortal entre dos jugadores. Ambos serán eliminados al final del día.
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <p className="text-center mb-4 text-muted-foreground">Selecciona a dos jugadores para que se peleen.</p>
-                <PlayerGrid 
-                    game={game}
-                    players={players.filter(p => p.isAlive && p.userId !== currentPlayer.userId)}
-                    currentPlayer={currentPlayer}
-                    onPlayerClick={handlePlayerSelect}
-                    clickable={true}
-                    selectedPlayerIds={selectedPlayerIds}
-                    masterActionState={masterActionState} 
-                    setMasterActionState={setMasterActionState}
-                />
-                <Button 
-                    className="w-full mt-6 text-lg" 
-                    onClick={handleSubmit} 
-                    disabled={selectedPlayerIds.length !== 2 || isSubmitting}
-                    variant="destructive"
-                >
-                    {isSubmitting 
-                        ? <Loader2 className="animate-spin" /> 
-                        : `Provocar Pelea entre ${target1?.displayName || '...'} y ${target2?.displayName || '...'}`
-                    }
-                </Button>
+                {hasUsedAbility ? (
+                    <p className="text-center text-lg text-amber-300 py-8">Ya has usado tu habilidad en esta partida.</p>
+                ) : (
+                    <>
+                        <p className="text-center mb-4 text-muted-foreground">Selecciona a dos jugadores para que se peleen.</p>
+                        <PlayerGrid 
+                            game={game}
+                            players={players.filter(p => p.isAlive && p.userId !== currentPlayer.userId)}
+                            currentPlayer={currentPlayer}
+                            onPlayerClick={handlePlayerSelect}
+                            clickable={true}
+                            selectedPlayerIds={selectedPlayerIds}
+                            masterActionState={masterActionState} 
+                            setMasterActionState={setMasterActionState}
+                        />
+                        <Button 
+                            className="w-full mt-6 text-lg" 
+                            onClick={handleSubmit} 
+                            disabled={selectedPlayerIds.length !== 2 || isSubmitting}
+                            variant="destructive"
+                        >
+                            {isSubmitting 
+                                ? <Loader2 className="animate-spin" /> 
+                                : `Provocar Pelea entre ${target1?.displayName || '...'} y ${target2?.displayName || '...'}`
+                            }
+                        </Button>
+                    </>
+                )}
             </CardContent>
         </Card>
     );
@@ -113,7 +121,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
 
     const canPlayerVote = !isCharmed || (isCharmed && isSirenAlive && hasSirenVoted);
     const hasVoted = !!currentPlayer.votedFor;
-    const isTroublemaker = currentPlayer.role === 'troublemaker' && currentPlayer.isAlive && !game.troublemakerUsed;
+    const isTroublemaker = currentPlayer.role === 'troublemaker' && currentPlayer.isAlive && !game.troublemakerUsed && !game.pendingTroublemakerDuel;
 
     const tieData = voteEvent?.data?.tiedPlayerIds;
     const isTiebreaker = Array.isArray(tieData) && tieData.length > 0 && !voteEvent.data?.final;

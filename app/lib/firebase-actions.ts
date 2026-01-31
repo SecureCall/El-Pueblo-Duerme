@@ -123,6 +123,7 @@ export async function createGame(
       settings,
       phaseEndsAt: new Date(),
       pendingHunterShot: null,
+      pendingTroublemakerDuel: null,
       twins: null,
       lovers: null,
       wolfCubRevengeRound: 0,
@@ -328,6 +329,7 @@ export async function resetGame(gameId: string) {
                 events: [], chatMessages: [], wolfChatMessages: [], fairyChatMessages: [],
                 twinChatMessages: [], loversChatMessages: [], ghostChatMessages: [], nightActions: [],
                 twins: null, lovers: null, phaseEndsAt: new Date(), pendingHunterShot: null,
+                pendingTroublemakerDuel: null,
                 wolfCubRevengeRound: 0, players: resetHumanPlayersPublic, vampireKills: 0, boat: [],
                 leprosaBlockedRound: 0, witchFoundSeer: false, seerDied: false,
                 silencedPlayerId: null, exiledPlayerId: null, troublemakerUsed: false,
@@ -878,7 +880,7 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
     }
 }
 
-export async function submitTroublemakerAction(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
+export async function submitTroublemakerSelection(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
     const adminDb = getAdminDb();
     const gameRef = doc(adminDb, 'games', gameId);
     try {
@@ -893,14 +895,10 @@ export async function submitTroublemakerAction(gameId: string, troublemakerId: s
 
             if (!playerPrivate || playerPrivate.role !== 'troublemaker' || game.troublemakerUsed) throw new Error("No puedes realizar esta acción.");
             
-            const target1 = game.players.find(p => p.userId === target1Id);
-            const target2 = game.players.find(p => p.userId === target2Id);
-            const message = `${target1?.displayName} y ${target2?.displayName} han muerto en una pelea mortal provocada por la Alborotadora.`;
-            
-            let result1 = await killPlayer(transaction, gameRef, game, [target1, target2], target1Id, 'troublemaker_duel', message);
-            let result2 = await killPlayer(transaction, gameRef, result1.updatedGame, result1.updatedPlayers, target2Id, 'troublemaker_duel', message);
-            
-            transaction.update(gameRef, { troublemakerUsed: true });
+            transaction.update(gameRef, toPlainObject({
+                troublemakerUsed: true,
+                pendingTroublemakerDuel: { target1Id, target2Id }
+            }));
         });
         return { success: true };
     } catch (error: any) {

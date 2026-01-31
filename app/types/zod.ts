@@ -164,6 +164,7 @@ export const GameSchema = z.object({
   twins: z.tuple([z.string(), z.string()]).nullable(),
   lovers: z.tuple([z.string(), z.string()]).nullable(),
   pendingHunterShot: z.string().nullable(),
+  pendingTroublemakerDuel: z.object({ target1Id: z.string(), target2Id: z.string() }).nullable(),
   wolfCubRevengeRound: z.number(),
   nightActions: z.array(NightActionSchema).optional(),
   vampireKills: z.number(),
