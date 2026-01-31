@@ -25,8 +25,14 @@ async function initializeFlow() {
     if (generateAiVoteFlow) {
         return;
     }
-    const { genkit } = await import('genkit');
-    const { googleAI } = await import('@genkit-ai/google-genai');
+
+    // Use variables for package names to hide them from static analysis,
+    // ensuring they are only loaded when this function is actually called.
+    const genkitPackage = 'genkit';
+    const googleAIPackage = '@genkit-ai/google-genai';
+
+    const { genkit } = await import(genkitPackage);
+    const { googleAI } = await import(googleAIPackage);
     
     const ai = genkit({
       plugins: [googleAI()],
@@ -133,7 +139,10 @@ export async function generateAIVote(
     try {
         await initializeFlow();
         const sanitizedPerspective = sanitizeObject(perspective);
-        const result = await generateAiVoteFlow!(sanitizedPerspective);
+        if (!generateAiVoteFlow) {
+          throw new Error("AI flow not initialized.");
+        }
+        const result = await generateAiVoteFlow(sanitizedPerspective);
         return result;
     } catch (error) {
         console.error("Critical Error in generateAIVote flow:", error);

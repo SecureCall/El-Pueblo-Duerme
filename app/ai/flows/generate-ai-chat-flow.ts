@@ -35,8 +35,14 @@ async function initializeFlow() {
     if (generateAiChatMessageFlow) {
         return;
     }
-    const { genkit } = await import('genkit');
-    const { googleAI } = await import('@genkit-ai/google-genai');
+    
+    // Use variables for package names to hide them from static analysis,
+    // ensuring they are only loaded when this function is actually called.
+    const genkitPackage = 'genkit';
+    const googleAIPackage = '@genkit-ai/google-genai';
+
+    const { genkit } = await import(genkitPackage);
+    const { googleAI } = await import(googleAIPackage);
     
     const ai = genkit({
       plugins: [googleAI()],
@@ -135,8 +141,12 @@ export async function generateAIChatMessage(
         await initializeFlow();
         // Deep sanitize the entire input object to remove any 'undefined' values recursively.
         const sanitizedPerspective = sanitizeObject(perspective);
+        
+        if (!generateAiChatMessageFlow) {
+          throw new Error("AI flow not initialized.");
+        }
 
-        const result = await generateAiChatMessageFlow!(sanitizedPerspective);
+        const result = await generateAiChatMessageFlow(sanitizedPerspective);
         return result;
     } catch (error) {
         console.error("Critical Error in generateAIChatMessage flow:", error);
