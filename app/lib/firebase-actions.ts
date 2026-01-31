@@ -72,9 +72,10 @@ export async function processNight(gameId: string) {
         if (updatedGameDoc.exists()) {
             const game = updatedGameDoc.data() as Game;
             
+            const aiActions = await import('./firebase-ai-actions');
+            
             if (game.phase === 'night') {
-                 const { runNightAIActions } = await import('./firebase-ai-actions');
-                 await runNightAIActions(gameId);
+                 await aiActions.runNightAIActions(gameId);
             }
             
             if(game.phase === 'day') {
@@ -83,8 +84,7 @@ export async function processNight(gameId: string) {
                     .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))[0];
                 
                 if (latestNightResult) {
-                    const { triggerAIReactionToGameEvent } = await import('./firebase-ai-actions');
-                    await triggerAIReactionToGameEvent(gameId, latestNightResult);
+                    await aiActions.triggerAIReactionToGameEvent(gameId, latestNightResult);
                 }
             }
         }
@@ -116,14 +116,14 @@ export async function processVotes(gameId: string) {
                 .filter(e => e.type === 'vote_result' && e.round === (game.phase === 'night' ? game.currentRound -1 : game.currentRound))
                 .sort((a,b) => getMillis(b.createdAt) - getMillis(a.createdAt))[0];
 
+            const aiActions = await import('./firebase-ai-actions');
+            
             if (voteEvent) {
-                const { triggerAIReactionToGameEvent } = await import('./firebase-ai-actions');
-                await triggerAIReactionToGameEvent(gameId, voteEvent);
+                await aiActions.triggerAIReactionToGameEvent(gameId, voteEvent);
             }
 
             if (game.phase === 'night') {
-                const { runNightAIActions } = await import('./firebase-ai-actions');
-                await runNightAIActions(gameId);
+                await aiActions.runNightAIActions(gameId);
             }
         }
     } catch (e) { console.error("Failed to process votes", e); }
@@ -191,8 +191,8 @@ export async function processJuryVotes(gameId: string) {
     const adminDb = getAdminDb();
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
-        const { runAIJuryVotes } = await import('./firebase-ai-actions');
-        await runAIJuryVotes(gameId);
+        const aiActions = await import('./firebase-ai-actions');
+        await aiActions.runAIJuryVotes(gameId);
 
         await runTransaction(adminDb, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
