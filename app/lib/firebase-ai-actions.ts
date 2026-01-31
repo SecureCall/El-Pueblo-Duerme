@@ -5,9 +5,7 @@ import { getAdminDb } from './firebase-admin';
 import { runTransaction, FieldValue } from 'firebase-admin/firestore';
 import { toPlainObject, getMillis } from './utils';
 import type { Game, Player, GameEvent, PlayerPrivateData, NightActionType, ChatMessage } from '@/types';
-import { generateAIAction } from '@/ai/flows/generate-ai-action-flow';
-import { generateAIChatMessage } from '@/ai/flows/generate-ai-chat-flow';
-import { generateAIVote } from '@/ai/flows/generate-ai-vote-flow';
+// AI flow imports are now dynamic within each function to prevent premature initialization
 import { 
     submitNightAction, 
     submitVote, 
@@ -75,6 +73,7 @@ export async function runNightAIActions(gameId: string) {
                 await new Promise(resolve => setTimeout(resolve, Math.random() * 5000 + 2000));
                 
                 try {
+                    const { generateAIAction } = await import('@/ai/flows/generate-ai-action-flow');
                     const action = await generateAIAction(perspective);
                     if (action && action.actionType && action.targetIds.length > 0) {
                         const currentPrivateSnap = await adminDb.collection('games').doc(gameId).collection('playerData').doc(aiPlayer.userId).get();
@@ -161,6 +160,7 @@ export async function runAIJuryVotes(gameId: string) {
             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
             
             try {
+                const { generateAIVote } = await import('@/ai/flows/generate-ai-vote-flow');
                 const vote = await generateAIVote(perspective);
                 const targetId = vote.targetId;
 
@@ -245,6 +245,7 @@ export async function runAIVotes(gameId: string) {
             await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 500));
             
             try {
+                const { generateAIVote } = await import('@/ai/flows/generate-ai-vote-flow');
                 const vote = await generateAIVote(perspective);
                 const targetId = vote.targetId;
 
@@ -303,6 +304,7 @@ export async function triggerAIChat(gameId: string, triggerMessage: string, chat
                 };
                 
                 try {
+                    const { generateAIChatMessage } = await import('@/ai/flows/generate-ai-chat-flow');
                     const { message, shouldSend } = await generateAIChatMessage(perspective);
                     if (shouldSend && message) {
                         await new Promise(resolve => setTimeout(resolve, Math.random() * 4000 + 1000));
@@ -351,6 +353,7 @@ export async function triggerAIReactionToGameEvent(gameId: string, event: GameEv
                 };
 
                 try {
+                    const { generateAIChatMessage } = await import('@/ai/flows/generate-ai-chat-flow');
                     const { message, shouldSend } = await generateAIChatMessage(perspective);
                     if (shouldSend && message) {
                         await new Promise(resolve => setTimeout(resolve, Math.random() * 5000 + 1000));
