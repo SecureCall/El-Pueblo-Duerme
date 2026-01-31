@@ -3,6 +3,7 @@ import 'server-only';
 import { initializeApp, getApps, type App, getApp } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getAuth, type Auth } from 'firebase-admin/auth';
+import { firebaseConfig } from './firebase-config';
 
 let app: App | undefined;
 
@@ -18,11 +19,11 @@ function ensureAdminInitialized(): App {
   }
 
   try {
-    // In a managed environment like App Hosting, initializeApp() with no arguments
-    // should automatically discover credentials. This prevents conflicts with other
-    // libraries (like Genkit) that also rely on Application Default Credentials.
-    app = initializeApp();
-    console.log("Firebase Admin SDK initialized on-demand with implicit credentials.");
+    // Explicitly providing the projectId to avoid auto-detection conflicts.
+    app = initializeApp({
+      projectId: firebaseConfig.projectId,
+    });
+    console.log("Firebase Admin SDK initialized on-demand with explicit projectId.");
     return app;
   } catch (e: any) {
       console.error("CRITICAL: Failed to initialize Firebase Admin SDK.", e.message);

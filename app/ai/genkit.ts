@@ -13,10 +13,13 @@ export async function getAI(): Promise<Genkit> {
   if (!aiInstance) {
     // Dynamically import the plugin ONLY when getAI is first called.
     const { googleAI } = await import('@genkit-ai/google-genai');
-    // In a managed environment, the plugin will automatically discover credentials
-    // and the project ID. Providing it explicitly can cause conflicts.
+    
+    // Explicitly providing the projectId to avoid auto-detection conflicts,
+    // which can cause issues in some server environments.
     aiInstance = genkit({
-      plugins: [googleAI()],
+      plugins: [googleAI({
+        projectId: firebaseConfig.projectId,
+      })],
     });
   }
   return aiInstance;
