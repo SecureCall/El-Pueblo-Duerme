@@ -1,23 +1,2 @@
-
-import 'server-only';
-import { genkit, type Genkit } from 'genkit';
-import { googleAI } from '@genkit-ai/google-genai';
-
-let aiInstance: Genkit | undefined;
-
-function ensureAiInitialized() {
-  if (!aiInstance) {
-    aiInstance = genkit({
-      plugins: [
-        googleAI(),
-      ],
-    });
-  }
-}
-
-// Export a function that ensures initialization before returning the service.
-// This "lazy loading" pattern is crucial to prevent race conditions.
-export function getAi(): Genkit {
-  ensureAiInitialized();
-  return aiInstance!;
-}
+// Este archivo se ha dejado vacío intencionadamente para evitar conflictos de inicialización.
+// La lógica de Genkit ahora reside directamente en los flujos de IA que la utilizan.

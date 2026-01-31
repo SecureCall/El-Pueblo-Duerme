@@ -4,9 +4,14 @@
 import { z } from 'zod';
 import { AIVotePerspectiveSchema, AIVoteOutputSchema } from '@/types/zod';
 import type { AIVotePerspective, AIVoteOutput } from '@/types';
-import { getAi } from '@/ai/genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 
-const ai = getAi();
+const ai = genkit({
+  plugins: [
+    googleAI(),
+  ],
+});
 
 const sanitizeObject = (obj: any): any => {
     if (obj === undefined) return null;

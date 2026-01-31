@@ -3,9 +3,14 @@
 
 import type { AIChatPerspective, GenerateAIChatMessageOutput } from '@/types';
 import { AIChatPerspectiveSchema, GenerateAIChatMessageOutputSchema } from '@/types/zod';
-import { getAi } from '@/ai/genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 
-const ai = getAi();
+const ai = genkit({
+  plugins: [
+    googleAI(),
+  ],
+});
 
 // Helper function to sanitize any object and replace undefined with null recursively.
 const sanitizeObject = (obj: any): any => {

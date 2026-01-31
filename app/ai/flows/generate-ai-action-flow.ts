@@ -4,9 +4,14 @@
 import { z } from 'zod';
 import type { AIActionPerspective, AIActionOutput } from '@/types';
 import { AIActionPerspectiveSchema, AIActionOutputSchema } from '@/types/zod';
-import { getAi } from '@/ai/genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 
-const ai = getAi();
+const ai = genkit({
+  plugins: [
+    googleAI(),
+  ],
+});
 
 // Helper to remove undefined values, which Zod doesn't like.
 const sanitizeObject = (obj: any): any => {
