@@ -5,7 +5,7 @@ service cloud.firestore {
     match /games/{gameId} {
       // Allow authenticated users to get individual games (get) and query the collection (list).
       // The 'read' permission combines both 'get' and 'list'.
-      allow read: if request.auth != null;
+      allow read: if request.auth.uid != null;
 
       // Direct client writes are forbidden. All mutations must go through server actions.
       allow write: if false;
