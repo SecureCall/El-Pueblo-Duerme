@@ -1,8 +1,8 @@
 
 'use server';
 import { 
-  getAdminDb,
-} from "./firebase-admin";
+  adminDb,
+} from "./server-init";
 import { 
   runTransaction,
   FieldValue,
@@ -15,7 +15,6 @@ import { toPlainObject } from "./utils";
 // by the AI flows, not by the client-side components.
 
 export async function sendChatMessageForAI(gameId: string, senderId: string, senderName: string, text: string) {
-    const adminDb = getAdminDb();
     if (!text?.trim()) return { success: false, error: 'El mensaje no puede estar vacío.' };
     const gameRef = adminDb.collection('games').doc(gameId);
 

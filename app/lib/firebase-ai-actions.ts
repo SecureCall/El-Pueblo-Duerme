@@ -1,7 +1,7 @@
 
 'use server';
 
-import { getAdminDb } from './firebase-admin';
+import { adminDb } from './server-init';
 import { toPlainObject, getMillis } from './utils';
 import type { Game, Player, GameEvent, PlayerPrivateData } from '@/types';
 // AI Flow imports will be dynamic
@@ -20,7 +20,6 @@ import {
 export async function runNightAIActions(gameId: string) {
     const { generateAIAction } = await import('@/ai/flows/generate-ai-action-flow');
     
-    const adminDb = getAdminDb();
     const gameRef = adminDb.collection('games').doc(gameId);
     
     try {
@@ -103,7 +102,6 @@ export async function runNightAIActions(gameId: string) {
 
 export async function runAIJuryVotes(gameId: string) {
     const { generateAIVote } = await import('@/ai/flows/generate-ai-vote-flow');
-    const adminDb = getAdminDb();
     const gameRef = adminDb.collection('games').doc(gameId);
 
     try {
@@ -188,7 +186,6 @@ export async function runAIJuryVotes(gameId: string) {
 
 export async function runAIVotes(gameId: string) {
     const { generateAIVote } = await import('@/ai/flows/generate-ai-vote-flow');
-    const adminDb = getAdminDb();
     const gameRef = adminDb.collection('games').doc(gameId);
 
     try {
@@ -259,7 +256,7 @@ export async function runAIVotes(gameId: string) {
 
                     if (vote.reasoning && Math.random() < 0.4) { // 40% chance
                         await new Promise(resolve => setTimeout(resolve, Math.random() * 3000 + 1000));
-                        await sendChatMessageForAI(gameId, aiPlayer.userId, aiPlayer.displayName, message);
+                        await sendChatMessageForAI(gameId, aiPlayer.userId, aiPlayer.displayName, vote.reasoning);
                     }
                 } else {
                     const randomTarget = votablePlayers[Math.floor(Math.random() * votablePlayers.length)];
@@ -279,7 +276,6 @@ export async function runAIVotes(gameId: string) {
 
 export async function triggerAIChat(gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
     const { generateAIChatMessage } = await import('@/ai/flows/generate-ai-chat-flow');
-    const adminDb = getAdminDb();
     try {
         const gameDoc = await adminDb.collection('games').doc(gameId).get();
         if (!gameDoc.exists()) return;
@@ -326,7 +322,6 @@ export async function triggerAIChat(gameId: string, triggerMessage: string, chat
 
 export async function triggerAIReactionToGameEvent(gameId: string, event: GameEvent) {
     const { generateAIChatMessage } = await import('@/ai/flows/generate-ai-chat-flow');
-    const adminDb = getAdminDb();
     try {
         const gameDoc = await adminDb.collection('games').doc(gameId).get();
         if (!gameDoc.exists()) return;

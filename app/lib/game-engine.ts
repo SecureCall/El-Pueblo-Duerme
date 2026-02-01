@@ -17,7 +17,7 @@ import {
 } from "@/types";
 import { toPlainObject, getMillis, splitPlayerData, PHASE_DURATION_SECONDS } from "@/lib/utils";
 import { roleDetails } from "./roles";
-import { getAdminDb } from "./firebase-admin";
+import { adminDb } from "./server-init";
 
 export const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
     let roles: PlayerRole[] = [];
@@ -55,7 +55,6 @@ export const generateRoles = (playerCount: number, settings: Game['settings']): 
 
 
 async function performKill(transaction: Transaction, gameRef: DocumentReference, gameData: Game, players: Player[], playerIdToKill: string | null, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; updatedPlayers: Player[]; triggeredHunterId: string | null; }> {
-    const adminDb = getAdminDb();
     let newGameData = { ...gameData };
     let newPlayers = [...players];
     let triggeredHunterId: string | null = null;
@@ -181,7 +180,6 @@ async function performKill(transaction: Transaction, gameRef: DocumentReference,
 
 
 export async function killPlayer(transaction: Transaction, gameRef: DocumentReference, gameData: Game, players: Player[], playerIdToKill: string, cause: GameEvent['type'], customMessage?: string): Promise<{ updatedGame: Game; updatedPlayers: Player[]; triggeredHunterId: string | null; }> {
-    const adminDb = getAdminDb();
     const playerToKill = players.find(p => p.userId === playerIdToKill);
     if (!playerToKill || !playerToKill.isAlive) return { updatedGame: gameData, updatedPlayers: players, triggeredHunterId: null };
 
@@ -293,7 +291,6 @@ function generateBehavioralClue(game: Game, players: Player[], nightActions: Nig
 }
 
 export async function processNightEngine(transaction: Transaction, gameRef: DocumentReference, game: Game, fullPlayers: Player[]) {
-  const adminDb = getAdminDb();
   if (game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now()) {
       console.warn("processNight called before phase end. Ignoring.");
       return { nightEvent: undefined };
@@ -808,7 +805,6 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
   return { nightEvent };
 }
 export async function processVotesEngine(transaction: Transaction, gameRef: DocumentReference, game: Game, fullPlayers: Player[]) {
-    const adminDb = getAdminDb();
     if (game.phase !== 'day') return { voteEvent: undefined };
     if (game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now()) return { voteEvent: undefined };
 
@@ -939,7 +935,6 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
      return { voteEvent: mutableGame.events[mutableGame.events.length-1] };
 }
 export async function processJuryVotesEngine(transaction: Transaction, gameRef: DocumentReference, game: Game, fullPlayers: Player[]) {
-    const adminDb = getAdminDb();
     if (game.phase !== 'jury_voting' || (game.phaseEndsAt && getMillis(game.phaseEndsAt) > Date.now())) return;
 
     const juryVotes = game.juryVotes || {};
@@ -1200,6 +1195,7 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
     
 
     
+
 
 
 
