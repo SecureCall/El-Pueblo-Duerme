@@ -3,9 +3,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /games/{gameId} {
-      // Explicitly allow authenticated users to get single documents and list the collection.
-      allow get: if request.auth != null;
-      allow list: if request.auth != null;
+      // Allow authenticated users to get individual games (get) and query the collection (list).
+      // The 'read' permission combines both 'get' and 'list'.
+      allow read: if request.auth != null;
 
       // Direct client writes are forbidden. All mutations must go through server actions.
       allow write: if false;
