@@ -55,7 +55,7 @@ function GameCard({ game }: { game: Game }) {
 
 export default function PublicGamesPage() {
     const { firestore } = useFirebase();
-    const { displayName, setDisplayName } = useGameSession();
+    const { displayName, setDisplayName, isSessionLoaded } = useGameSession();
     const { toast } = useToast();
     const [isNameModalOpen, setIsNameModalOpen] = useState(false);
 
@@ -67,7 +67,7 @@ export default function PublicGamesPage() {
 
 
     const gamesQuery = useMemo(() => {
-        if (!firestore) return null;
+        if (!firestore || !isSessionLoaded) return null;
         const fiveMinutesAgo = Timestamp.fromMillis(Date.now() - 5 * 60 * 1000);
         return query(
             collection(firestore, 'games'),
@@ -76,7 +76,7 @@ export default function PublicGamesPage() {
             where('lastActiveAt', '>', fiveMinutesAgo),
             orderBy('lastActiveAt', 'desc')
         );
-    }, [firestore]);
+    }, [firestore, isSessionLoaded]);
 
     const { data: publicGames, isLoading } = useCollection<Game>(gamesQuery);
 
