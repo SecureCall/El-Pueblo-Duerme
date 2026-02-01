@@ -11,7 +11,7 @@ import {
   type PlayerPrivateData,
   type PlayerRole, 
 } from "@/types";
-import { adminDb } from "./server-init";
+import { adminDb } from "./firebase-admin";
 import { toPlainObject, splitPlayerData } from "./utils";
 import { secretObjectives } from "./objectives";
 import { generateRoles } from './game-engine';

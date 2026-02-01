@@ -17,7 +17,7 @@ import {
 } from "@/types";
 import { toPlainObject, getMillis, splitPlayerData, PHASE_DURATION_SECONDS } from "@/lib/utils";
 import { roleDetails } from "./roles";
-import { adminDb } from "./server-init";
+import { adminDb } from "./firebase-admin";
 
 export const generateRoles = (playerCount: number, settings: Game['settings']): (PlayerRole)[] => {
     let roles: PlayerRole[] = [];
@@ -1195,6 +1195,7 @@ const splitFullPlayerList = (fullPlayers: Player[]): { publicPlayersData: Player
     
 
     
+
 
 
 
