@@ -2,19 +2,32 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // This rule applies to the games collection itself and all documents within it
-    match /games/{document=**} {
-      allow read: if request.auth.uid != null;
-      allow write: if false;
+    
+    // This rule is specifically for LISTING the 'games' collection.
+    // It allows any authenticated user to perform queries on the collection.
+    match /games {
+      allow list: if request.auth.uid != null;
+
+      // Explicitly deny other operations at the collection level.
+      allow get, create, update, delete: if false;
     }
 
-    // A more specific rule for the playerData subcollection. This overrides the parent.
-    match /games/{gameId}/playerData/{userId} {
-      // A user can only read their own private player data.
-      allow read: if request.auth.uid != null && request.auth.uid == userId;
-
-      // Client-side writes are forbidden.
+    // This rule applies to individual documents within the 'games' collection.
+    match /games/{gameId} {
+      // Allow any authenticated user to read a single game document.
+      allow get: if request.auth.uid != null;
+      
+      // Deny client-side writes to game documents.
       allow write: if false;
+
+      // Rules for the 'playerData' subcollection within each game.
+      match /playerData/{userId} {
+        // A user can only read their own private player data.
+        allow read: if request.auth.uid != null && request.auth.uid == userId;
+
+        // Client-side writes are forbidden.
+        allow write: if false;
+      }
     }
   }
 }
