@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { PlayerGrid } from '@/components/game/PlayerGrid';
 import { useToast } from '@/hooks/use-toast';
-import { submitJuryVote } from '@/lib/ai-callable-actions';
+import { submitJuryVote } from '@/lib/firebase-actions';
 import { Loader2, Scale } from 'lucide-react';
 import type { MasterActionState } from './MasterActionBar';
 

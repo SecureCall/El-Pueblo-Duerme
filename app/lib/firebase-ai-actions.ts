@@ -2,22 +2,22 @@
 'use server';
 
 import { getAdminDb } from './firebase-admin';
-import { runTransaction, FieldValue } from 'firebase-admin/firestore';
 import { toPlainObject, getMillis } from './utils';
-import type { Game, Player, GameEvent, PlayerPrivateData, NightActionType, ChatMessage } from '@/types';
-// AI Flow imports are now removed from the top level.
+import type { Game, Player, GameEvent, PlayerPrivateData } from '@/types';
+// AI Flow imports will be dynamic
 
 // These are server-side actions that can be safely called by the AI.
 import { 
     submitNightAction, 
     submitVote, 
-    sendChatMessageForAI, 
     submitJuryVote 
+} from './firebase-actions';
+import {
+    sendChatMessageForAI,
 } from './ai-callable-actions';
 
 
 export async function runNightAIActions(gameId: string) {
-    // Dynamic import: The AI flow is only loaded when this function is called.
     const { generateAIAction } = await import('@/ai/flows/generate-ai-action-flow');
     
     const adminDb = getAdminDb();
@@ -259,7 +259,7 @@ export async function runAIVotes(gameId: string) {
 
                     if (vote.reasoning && Math.random() < 0.4) { // 40% chance
                         await new Promise(resolve => setTimeout(resolve, Math.random() * 3000 + 1000));
-                        await sendChatMessageForAI(gameId, aiPlayer.userId, aiPlayer.displayName, vote.reasoning);
+                        await sendChatMessageForAI(gameId, aiPlayer.userId, aiPlayer.displayName, message);
                     }
                 } else {
                     const randomTarget = votablePlayers[Math.floor(Math.random() * votablePlayers.length)];

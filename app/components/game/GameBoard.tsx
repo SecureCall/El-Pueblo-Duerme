@@ -58,14 +58,12 @@ export function GameBoard({ gameId }: { gameId: string }) {
         if (game.status === 'finished') return;
 
         // Any player can attempt to end the phase. The server will validate if it's time.
-        if (game.creator === userId) {
-            if (game.phase === 'day') {
-                await processVotes(game.id);
-            } else if (game.phase === 'night' || game.phase === 'role_reveal') {
-                await processNight(game.id);
-            } else if (game.phase === 'jury_voting') {
-                await processJuryVotes(game.id);
-            }
+        if (game.phase === 'day') {
+            await processVotes(game.id);
+        } else if (game.phase === 'night' || game.phase === 'role_reveal') {
+            await processNight(game.id);
+        } else if (game.phase === 'jury_voting') {
+            await processJuryVotes(game.id);
         }
     }, [game, userId]);
 
@@ -214,7 +212,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
                     description: event.message,
                     duration: 10000,
                 });
-                shownEventToasts.current.add(event.id);
+                shownEventToasts.current.add(e.id);
             });
         }
 
@@ -514,10 +512,3 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
         </div>
     );
 }
-
-
-    
-
-    
-
-    
