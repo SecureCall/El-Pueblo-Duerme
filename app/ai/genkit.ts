@@ -1,16 +1,20 @@
-
 'use server';
 import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 
+let aiInstance: ReturnType<typeof genkit> | null = null;
+
 /**
- * Initializes and exports the Genkit AI instance.
- * This centralized instance is configured to use the Google AI plugin.
- * It automatically uses the 'GEMINI_API_KEY' environment variable for authentication,
- * which is the recommended secure practice.
+ * Returns a memoized, singleton instance of the Genkit AI object.
+ * Initialization is lazy and only occurs on the first call.
  */
-export const ai = genkit({
-  plugins: [
-    googleAI(),
-  ],
-});
+export function getInitializedAI() {
+  if (!aiInstance) {
+    aiInstance = genkit({
+      plugins: [
+        googleAI(),
+      ],
+    });
+  }
+  return aiInstance;
+}
