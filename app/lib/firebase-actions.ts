@@ -26,36 +26,37 @@ export async function sendChatMessage(gameId: string, senderId: string, senderNa
     
     const gameRef = adminDb.collection('games').doc(gameId);
     const playersRef = gameRef.collection('players');
-    const senderRef = playersRef.doc(senderId);
     const chatCollectionRef = gameRef.collection('publicChat');
 
     try {
-        const [gameSnap, senderSnap] = await Promise.all([
-            gameRef.get(),
-            senderRef.get()
-        ]);
+        await runTransaction(adminDb, async (transaction) => {
+            const senderRef = playersRef.doc(senderId);
+            const [gameSnap, senderSnap] = await transaction.getAll(gameRef, senderRef);
 
-        if (!gameSnap.exists()) throw new Error('Game not found');
-        const game = gameSnap.data() as Game;
+            if (!gameSnap.exists()) throw new Error('Game not found');
+            const game = gameSnap.data() as Game;
 
-        if (!senderSnap.exists()) throw new Error("Player not found.");
-        const senderData = senderSnap.data() as PlayerPublicData;
-        
-        if (!senderData.isAlive) {
-            throw new Error("Los muertos no hablan.");
-        }
-        
-        if (game.silencedPlayerId === senderId) throw new Error("No puedes hablar, has sido silenciado esta ronda.");
-        
-        const allPlayersSnap = await playersRef.get();
-        const allPlayers = allPlayersSnap.docs.map(doc => doc.data() as PlayerPublicData);
+            if (!senderSnap.exists()) throw new Error("Player not found.");
+            const senderData = senderSnap.data() as PlayerPublicData;
+            
+            if (!senderData.isAlive) {
+                throw new Error("Los muertos no hablan.");
+            }
+            
+            if (game.silencedPlayerId === senderId) throw new Error("No puedes hablar, has sido silenciado esta ronda.");
+            
+            const allPlayersSnap = await transaction.get(playersRef);
+            const allPlayers = allPlayersSnap.docs.map(doc => doc.data() as PlayerPublicData);
 
-        const mentionedPlayerIds = allPlayers
-            .filter(p => p.isAlive && text.toLowerCase().includes(p.displayName.toLowerCase()))
-            .map(p => p.userId);
-        
-        const messageData: Omit<ChatMessage, 'id'> = { senderId, senderName, text: text.trim(), round: game.currentRound, createdAt: new Date(), mentionedPlayerIds};
-        await chatCollectionRef.add(toPlainObject(messageData));
+            const mentionedPlayerIds = allPlayers
+                .filter(p => p.isAlive && text.toLowerCase().includes(p.displayName.toLowerCase()))
+                .map(p => p.userId);
+            
+            const messageData: Omit<ChatMessage, 'id'> = { senderId, senderName, text: text.trim(), round: game.currentRound, createdAt: new Date(), mentionedPlayerIds};
+            
+            const newMessageRef = chatCollectionRef.doc();
+            transaction.set(newMessageRef, toPlainObject(messageData));
+        });
 
         if (!isFromAI) {
             const { triggerAIChat } = await import('./firebase-ai-actions');
@@ -73,55 +74,58 @@ async function sendSpecialChatMessage(gameId: string, senderId: string, senderNa
     if (!text?.trim()) return { success: false, error: 'El mensaje no puede estar vacío.' };
 
     const gameRef = adminDb.collection('games').doc(gameId);
-    const privateRef = gameRef.collection('playerData').doc(senderId);
     
     try {
-        const [gameSnap, privateSnap] = await Promise.all([gameRef.get(), privateRef.get()]);
+        await runTransaction(adminDb, async (transaction) => {
+            const privateRef = gameRef.collection('playerData').doc(senderId);
+            const [gameSnap, privateSnap] = await transaction.getAll(gameRef, privateRef);
 
-        if (!gameSnap.exists()) throw new Error('Game not found');
-        const game = gameSnap.data() as Game;
+            if (!gameSnap.exists()) throw new Error('Game not found');
+            const game = gameSnap.data() as Game;
 
-        if (!privateSnap.exists()) throw new Error('Player not found');
-        const privateData = privateSnap.data() as PlayerPrivateData;
+            if (!privateSnap.exists()) throw new Error('Player not found');
+            const privateData = privateSnap.data() as PlayerPrivateData;
 
-        let canSend = false;
-        let chatCollectionName: string | null = null;
-        
-        switch (chatType) {
-            case 'wolf':
-                if (['werewolf', 'wolf_cub'].includes(privateData.role || '')) {
-                    canSend = true; chatCollectionName = 'wolfChat';
-                }
-                break;
-            case 'fairy':
-                if (game.fairiesFound && ['seeker_fairy', 'sleeping_fairy'].includes(privateData.role || '')) {
-                    canSend = true; chatCollectionName = 'fairyChat';
-                }
-                break;
-            case 'twin':
-                 if (game.twins?.includes(senderId)) {
-                    canSend = true; chatCollectionName = 'twinChat';
-                 }
-                break;
-            case 'lovers':
-                if (privateData.isLover) {
-                    canSend = true; chatCollectionName = 'loversChat';
-                }
-                break;
-            case 'ghost':
-                const playersSnap = await gameRef.collection('players').doc(senderId).get();
-                const publicPlayer = playersSnap.data();
-                if (publicPlayer && !publicPlayer.isAlive) {
-                     canSend = true; chatCollectionName = 'ghostChat';
-                }
-                break;
-        }
+            let canSend = false;
+            let chatCollectionName: string | null = null;
+            
+            switch (chatType) {
+                case 'wolf':
+                    if (['werewolf', 'wolf_cub'].includes(privateData.role || '')) {
+                        canSend = true; chatCollectionName = 'wolfChat';
+                    }
+                    break;
+                case 'fairy':
+                    if (game.fairiesFound && ['seeker_fairy', 'sleeping_fairy'].includes(privateData.role || '')) {
+                        canSend = true; chatCollectionName = 'fairyChat';
+                    }
+                    break;
+                case 'twin':
+                     if (game.twins?.includes(senderId)) {
+                        canSend = true; chatCollectionName = 'twinChat';
+                     }
+                    break;
+                case 'lovers':
+                    if (privateData.isLover) {
+                        canSend = true; chatCollectionName = 'loversChat';
+                    }
+                    break;
+                case 'ghost':
+                    const publicPlayerSnap = await transaction.get(gameRef.collection('players').doc(senderId));
+                    if (publicPlayerSnap.exists() && !publicPlayerSnap.data()!.isAlive) {
+                         canSend = true; chatCollectionName = 'ghostChat';
+                    }
+                    break;
+            }
 
-        if (!canSend || !chatCollectionName) throw new Error("No tienes permiso para enviar mensajes en este chat.");
+            if (!canSend || !chatCollectionName) throw new Error("No tienes permiso para enviar mensajes en este chat.");
 
-        const chatCollectionRef = gameRef.collection(chatCollectionName);
-        const messageData: Omit<ChatMessage, 'id'> = { senderId, senderName, text: text.trim(), round: game.currentRound, createdAt: new Date() };
-        await chatCollectionRef.add(toPlainObject(messageData));
+            const chatCollectionRef = gameRef.collection(chatCollectionName);
+            const messageData: Omit<ChatMessage, 'id'> = { senderId, senderName, text: text.trim(), round: game.currentRound, createdAt: new Date() };
+            
+            const newMessageRef = chatCollectionRef.doc();
+            transaction.set(newMessageRef, toPlainObject(messageData));
+        });
         
         return { success: true };
     } catch (error: any) {
@@ -535,5 +539,7 @@ export const sendFairyChatMessage = (gameId: string, senderId: string, senderNam
 export const sendTwinChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'twin');
 export const sendLoversChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'lovers');
 export const sendGhostChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'ghost');
+
+    
 
     
