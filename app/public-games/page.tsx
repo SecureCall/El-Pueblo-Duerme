@@ -4,10 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { collection, query, where, Timestamp, orderBy } from 'firebase/firestore';
+import { collection, query, Timestamp, orderBy } from 'firebase/firestore';
 import { useCollection } from '../firebase/firestore/use-collection';
 import { useFirebase } from '../firebase/provider';
-import type { Game } from '../types';
 import { GameMusic } from '../components/game/GameMusic';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -17,7 +16,15 @@ import { useGameSession } from '../hooks/use-game-session';
 import { useToast } from '../hooks/use-toast';
 import { getMillis } from '../lib/utils';
 
-function GameCard({ game }: { game: Game }) {
+interface PublicGameListing {
+    id: string;
+    name: string;
+    creatorName: string;
+    playerCount: number;
+    maxPlayers: number;
+}
+
+function GameCard({ game }: { game: PublicGameListing }) {
     const { displayName, userId } = useGameSession();
     const router = useRouter();
     const [isJoining, setIsJoining] = useState(false);
@@ -30,21 +37,19 @@ function GameCard({ game }: { game: Game }) {
         // Directly navigate to the game room, the join logic is handled there.
         router.push(`/game/${game.id}`);
     }
-    
-    const creator = game.players.find(p => p.userId === game.creator);
 
     return (
         <Card className="bg-card/80 border-border/50 transition-all hover:shadow-lg hover:border-primary">
             <CardHeader>
                 <CardTitle className="truncate font-headline text-2xl">{game.name}</CardTitle>
-                <CardDescription>Creada por {creator?.displayName || 'alguien'}</CardDescription>
+                <CardDescription>Creada por {game.creatorName || 'alguien'}</CardDescription>
             </CardHeader>
             <CardContent className="flex justify-between items-center">
                 <div className="flex items-center gap-2 text-muted-foreground">
                     <Users className="h-5 w-5" />
-                    <span className="font-bold">{game.players.length} / {game.maxPlayers}</span>
+                    <span className="font-bold">{game.playerCount} / {game.maxPlayers}</span>
                 </div>
-                <Button onClick={handleJoin} disabled={isJoining || !displayName || game.players.length >= game.maxPlayers}>
+                <Button onClick={handleJoin} disabled={isJoining || !displayName || game.playerCount >= game.maxPlayers}>
                      {isJoining ? <Loader2 className="animate-spin" /> : "Unirse"}
                 </Button>
             </CardContent>
@@ -60,29 +65,27 @@ export default function PublicGamesPage() {
     const [isNameModalOpen, setIsNameModalOpen] = useState(false);
 
     useEffect(() => {
-        if (!displayName) {
+        if (isSessionLoaded && !displayName) {
             setIsNameModalOpen(true);
         }
-    }, [displayName]);
+    }, [displayName, isSessionLoaded]);
 
 
     const gamesQuery = useMemo(() => {
         if (!firestore || !isSessionLoaded) return null;
         const fiveMinutesAgo = Timestamp.fromMillis(Date.now() - 5 * 60 * 1000);
         return query(
-            collection(firestore, 'games'),
-            where('settings.isPublic', '==', true),
-            where('status', '==', 'waiting'),
+            collection(firestore, 'publicGames'),
             where('lastActiveAt', '>', fiveMinutesAgo),
             orderBy('lastActiveAt', 'desc')
         );
     }, [firestore, isSessionLoaded]);
 
-    const { data: publicGames, isLoading } = useCollection<Game>(gamesQuery);
+    const { data: publicGames, isLoading } = useCollection<PublicGameListing>(gamesQuery);
 
     const sortedGames = useMemo(() => {
         if (!publicGames) return [];
-        return [...publicGames].sort((a, b) => getMillis(b.lastActiveAt) - getMillis(a.lastActiveAt));
+        return [...publicGames].sort((a, b) => getMillis((b as any).lastActiveAt) - getMillis((a as any).lastActiveAt));
     }, [publicGames]);
 
 
@@ -100,7 +103,7 @@ export default function PublicGamesPage() {
     }
 
     const renderContent = () => {
-        if (isLoading) {
+        if (isLoading || !isSessionLoaded) {
             return (
                 <div className="flex flex-col items-center gap-4 text-white">
                     <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -170,3 +173,5 @@ export default function PublicGamesPage() {
         </>
     );
 }
+
+    

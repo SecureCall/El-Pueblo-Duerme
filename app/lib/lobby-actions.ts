@@ -129,6 +129,19 @@ export async function createGame(
     await gameRef.set(toPlainObject(gameData));
     const privateDataRef = adminDb.collection('games').doc(gameId).collection('playerData').doc(userId);
     await privateDataRef.set(toPlainObject(creatorPrivateData));
+
+    if (settings.isPublic) {
+      const publicGameRef = adminDb.collection("publicGames").doc(gameId);
+      await publicGameRef.set({
+        name: gameName.trim(),
+        creatorId: userId,
+        creatorName: displayName,
+        playerCount: 1,
+        maxPlayers: maxPlayers,
+        lastActiveAt: new Date(),
+      });
+    }
+
     return { gameId };
   } catch (error: any) {
     console.error("--- CATASTROPHIC ERROR IN createGame ---", error);
@@ -171,10 +184,21 @@ export async function joinGame(
       const { publicData, privateData } = splitPlayerData(newPlayer);
       
       transaction.set(privateDataRef, toPlainObject(privateData));
-      transaction.update(gameRef, {
+      
+      const updateData: any = {
         players: FieldValue.arrayUnion(toPlainObject(publicData)),
         lastActiveAt: new Date(),
-      });
+      };
+      
+      transaction.update(gameRef, updateData);
+
+      if (game.settings.isPublic) {
+        const publicGameRef = adminDb.collection("publicGames").doc(gameId);
+        transaction.update(publicGameRef, {
+          playerCount: FieldValue.increment(1),
+          lastActiveAt: new Date(),
+        });
+      }
     });
 
     return { success: true };
@@ -273,6 +297,11 @@ export async function startGame(gameId: string, creatorId: string) {
                 phase: 'role_reveal',
                 phaseEndsAt: new Date(Date.now() + 15000), // 15s for role reveal
             }));
+
+            if (game.settings.isPublic) {
+              const publicGameRef = adminDb.collection("publicGames").doc(gameId);
+              transaction.delete(publicGameRef);
+            }
         });
         
         return { success: true };
@@ -304,6 +333,18 @@ export async function resetGame(gameId: string) {
                 transaction.set(adminDb.collection('games').doc(gameId).collection('playerData').doc(player.userId), toPlainObject(privateData));
             }
 
+            if (game.settings.isPublic) {
+              const publicGameRef = adminDb.collection("publicGames").doc(gameId);
+              transaction.set(publicGameRef, {
+                name: game.name,
+                creatorId: game.creator,
+                creatorName: humanPlayers.find(p => p.userId === game.creator)?.displayName || 'Desconocido',
+                playerCount: humanPlayers.length,
+                maxPlayers: game.maxPlayers,
+                lastActiveAt: new Date(),
+              });
+            }
+
             transaction.update(gameRef, toPlainObject({
                 status: 'waiting', phase: 'waiting', currentRound: 0,
                 events: [], chatMessages: [], wolfChatMessages: [], fairyChatMessages: [],
@@ -322,3 +363,5 @@ export async function resetGame(gameId: string) {
         return { error: e.message || 'No se pudo reiniciar la partida.' };
     }
 }
+
+    
