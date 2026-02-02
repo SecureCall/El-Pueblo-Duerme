@@ -30,6 +30,7 @@ export default function HomePage() {
                 src="/logo.png"
                 alt="El Pueblo Duerme Logo"
                 fill
+                sizes="192px"
                 className="object-contain"
                 priority
               />
