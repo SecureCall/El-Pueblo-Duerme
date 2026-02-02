@@ -38,7 +38,11 @@ const roleKeys = [
   'hechicera', 'wolf_cub', 'cursed',
   'cult_leader', 'fisherman', 'vampire',
   'ghost', 'virginia_woolf', 'leprosa',
-  'river_siren', 'lookout', 'troublemaker'
+  'river_siren', 'lookout', 'troublemaker',
+  'silencer', 'seer_apprentice', 'elder_leader',
+  'resurrector_angel', 'witch', 'seeker_fairy',
+  'shapeshifter', 'drunk_man', 'banshee',
+  'executioner', 'sleeping_fairy'
 ] as const;
 
 type RoleKey = typeof roleKeys[number];
@@ -86,6 +90,17 @@ const defaultValues: z.infer<typeof CreateGameSchema> = {
     river_siren: false,
     lookout: false,
     troublemaker: false,
+    silencer: false,
+    seer_apprentice: false,
+    elder_leader: false,
+    resurrector_angel: false,
+    witch: false,
+    seeker_fairy: false,
+    shapeshifter: false,
+    drunk_man: false,
+    banshee: false,
+    executioner: false,
+    sleeping_fairy: false,
 };
 
 export function CreateGameForm() {
@@ -342,5 +357,3 @@ export function CreateGameForm() {
     </Card>
   );
 }
-
-    
