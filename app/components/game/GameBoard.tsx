@@ -33,11 +33,26 @@ import { playNarration, playSoundEffect } from '@/lib/sounds';
 import { useGameState } from "@/hooks/use-game-state";
 import { RoleManual } from "@/components/game/RoleManual";
 import { useToast } from "@/hooks/use-toast";
+import { useCollection } from '@/firebase/firestore/use-collection';
+import { useFirebase } from '@/firebase/provider';
+import { collection, query, orderBy } from 'firebase/firestore';
 
 export function GameBoard({ gameId }: { gameId: string }) {
     const { updateStats, userId, addGameEventToHistory, stats } = useGameSession();
-    const { game, players, currentPlayer, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, loading, error } = useGameState(gameId);
-    const { toast } = useToast();
+    const { firestore } = useFirebase();
+
+    const { game, players, currentPlayer, events, loading, error } = useGameState(gameId);
+
+    // --- CHAT DATA FETCHING ---
+    const createSortedChatQuery = (collectionName: string) => useMemo(() => 
+        firestore ? query(collection(firestore, `games/${gameId}/${collectionName}`), orderBy('createdAt', 'asc')) : null, [firestore, gameId]);
+
+    const { data: messages } = useCollection<ChatMessage>(createSortedChatQuery('publicChat'));
+    const { data: wolfMessages } = useCollection<ChatMessage>(createSortedChatQuery('wolfChat'));
+    const { data: fairyMessages } = useCollection<ChatMessage>(createSortedChatQuery('fairyChat'));
+    const { data: twinMessages } = useCollection<ChatMessage>(createSortedChatQuery('twinChat'));
+    const { data: loversMessages } = useCollection<ChatMessage>(createSortedChatQuery('loversChat'));
+    const { data: ghostMessages } = useCollection<ChatMessage>(createSortedChatQuery('ghostChat'));
 
     const [showRole, setShowRole] = useState(true);
     const [deathCause, setDeathCause] = useState<GameEvent['type'] | 'other' | null>(null);
@@ -282,7 +297,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
         );
     }
     
-    const spectatorProps = { game, players, events, messages, wolfMessages, fairyMessages, twinMessages, loversMessages, ghostMessages, currentPlayer, getCauseOfDeath, timeLeft, masterActionState, setMasterActionState, onMasterActionClick };
+    const spectatorProps = { game, players, events, messages: messages || [], wolfMessages: wolfMessages || [], fairyMessages: fairyMessages || [], twinMessages: twinMessages || [], loversMessages: loversMessages || [], ghostMessages: ghostMessages || [], currentPlayer, getCauseOfDeath, timeLeft, masterActionState, setMasterActionState, onMasterActionClick: handleMasterActionClick };
 
     if (!currentPlayer.isAlive) {
          const isAngelInPlay = !!(game.settings.resurrector_angel && players.some(p => p.role === 'resurrector_angel' && p.isAlive && !p.resurrectorAngelUsed));

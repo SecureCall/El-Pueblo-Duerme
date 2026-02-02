@@ -91,7 +91,7 @@ export const GameEventSchema = z.object({
 });
 
 export const ChatMessageSchema = z.object({
-    id: z.string().optional(),
+    id: z.string(),
     senderId: z.string(),
     senderName: z.string(),
     text: z.string(),
@@ -147,12 +147,6 @@ export const GameSchema = z.object({
   creator: z.string(),
   players: z.array(PlayerPublicDataSchema),
   events: z.array(GameEventSchema),
-  chatMessages: z.array(ChatMessageSchema),
-  wolfChatMessages: z.array(ChatMessageSchema),
-  fairyChatMessages: z.array(ChatMessageSchema),
-  twinChatMessages: z.array(ChatMessageSchema),
-  loversChatMessages: z.array(ChatMessageSchema),
-  ghostChatMessages: z.array(ChatMessageSchema),
   maxPlayers: z.number(),
   createdAt: z.union([TimestampSchema, z.string()]).refine((val): val is { seconds: number; nanoseconds: number } | Date | string => val !== null, {
     message: "createdAt cannot be null",

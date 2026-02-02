@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -23,12 +24,44 @@ service cloud.firestore {
       match /playerData/{userId} {
         // A user can only read their own private player data.
         allow read: if request.auth.uid != null && request.auth.uid == userId;
+        allow write: if false;
+      }
+      
+      // PUBLIC CHAT
+      match /publicChat/{messageId} {
+        allow read: if request.auth.uid != null && exists(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid));
+        allow write: if false;
+      }
 
-        // Client-side writes are forbidden.
+      // GHOST CHAT (any player in game can read, alive or dead)
+      match /ghostChat/{messageId} {
+        allow read: if request.auth.uid != null && exists(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid));
+        allow write: if false;
+      }
+
+      // WOLF CHAT
+      match /wolfChat/{messageId} {
+        allow read: if request.auth.uid != null && get(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid)).data.role in ['werewolf', 'wolf_cub'];
+        allow write: if false;
+      }
+
+      // TWIN CHAT
+      match /twinChat/{messageId} {
+        allow read: if request.auth.uid != null && get(/databases/$(database)/documents/games/$(gameId)).data.twins[0] == request.auth.uid || get(/databases/$(database)/documents/games/$(gameId)).data.twins[1] == request.auth.uid;
+        allow write: if false;
+      }
+
+      // LOVERS CHAT
+      match /loversChat/{messageId} {
+        allow read: if request.auth.uid != null && get(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid)).data.isLover == true;
+        allow write: if false;
+      }
+
+      // FAIRY CHAT
+      match /fairyChat/{messageId} {
+        allow read: if request.auth.uid != null && get(/databases/$(database)/documents/games/$(gameId)).data.fairiesFound == true && get(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid)).data.role in ['seeker_fairy', 'sleeping_fairy'];
         allow write: if false;
       }
     }
   }
 }
-
-    

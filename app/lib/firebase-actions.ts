@@ -23,24 +23,23 @@ import { processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOve
 
 export async function sendChatMessage(gameId: string, senderId: string, senderName: string, text: string, isFromAI: boolean = false) {
     if (!text?.trim()) return { success: false, error: 'El mensaje no puede estar vacío.' };
+    
     const gameRef = adminDb.collection('games').doc(gameId);
+    const chatCollectionRef = gameRef.collection('publicChat');
 
     try {
-        let latestGame: Game | null = null;
-        await runTransaction(adminDb, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error('Game not found');
-            const game = gameDoc.data() as Game;
-            latestGame = game;
+        const game = (await gameRef.get()).data() as Game;
+        if (!game) throw new Error('Game not found');
 
-            if (game.silencedPlayerId === senderId) throw new Error("No puedes hablar, has sido silenciado esta ronda.");
-            
-            const mentionedPlayerIds = game.players.filter(p => p.isAlive && text.toLowerCase().includes(p.displayName.toLowerCase())).map(p => p.userId);
-            const messageData: ChatMessage = {id: `${Date.now()}_${senderId}`, senderId, senderName, text: text.trim(), round: game.currentRound, createdAt: new Date(), mentionedPlayerIds};
-            transaction.update(gameRef, { chatMessages: FieldValue.arrayUnion(toPlainObject(messageData)) });
-        });
+        if (game.silencedPlayerId === senderId) throw new Error("No puedes hablar, has sido silenciado esta ronda.");
+        
+        const mentionedPlayerIds = game.players.filter(p => p.isAlive && text.toLowerCase().includes(p.displayName.toLowerCase())).map(p => p.userId);
+        
+        const messageData: Omit<ChatMessage, 'id'> = { senderId, senderName, text: text.trim(), round: game.currentRound, createdAt: new Date(), mentionedPlayerIds};
+        await chatCollectionRef.add(toPlainObject(messageData));
 
-        if (!isFromAI && latestGame) {
+
+        if (!isFromAI) {
             const { triggerAIChat } = await import('./firebase-ai-actions');
             await triggerAIChat(gameId, `${senderName} dijo: "${text.trim()}"`, 'public');
         }
@@ -54,55 +53,57 @@ export async function sendChatMessage(gameId: string, senderId: string, senderNa
 
 async function sendSpecialChatMessage(gameId: string, senderId: string, senderName: string, text: string, chatType: 'wolf' | 'fairy' | 'twin' | 'lovers' | 'ghost' ) {
     if (!text?.trim()) return { success: false, error: 'El mensaje no puede estar vacío.' };
+
     const gameRef = adminDb.collection('games').doc(gameId);
-
+    const privateRef = gameRef.collection('playerData').doc(senderId);
+    
     try {
-        await runTransaction(adminDb, async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error('Game not found');
-            const game = gameDoc.data() as Game;
+        const [gameSnap, privateSnap] = await Promise.all([gameRef.get(), privateRef.get()]);
 
-            const privateRef = adminDb.collection('games').doc(gameId).collection('playerData').doc(senderId);
-            const privateSnap = await transaction.get(privateRef);
-            const privateData = privateSnap.data();
-            
-            let canSend = false;
-            let chatField: keyof Game = 'chatMessages';
+        if (!gameSnap.exists()) throw new Error('Game not found');
+        const game = gameSnap.data() as Game;
 
-            switch (chatType) {
-                case 'wolf':
-                    if (privateData?.role && ['werewolf', 'wolf_cub'].includes(privateData.role)) {
-                        canSend = true; chatField = 'wolfChatMessages';
-                    }
-                    break;
-                case 'fairy':
-                    if (game.fairiesFound && privateData?.role && ['seeker_fairy', 'sleeping_fairy'].includes(privateData.role)) {
-                        canSend = true; chatField = 'fairyChatMessages';
-                    }
-                    break;
-                case 'twin':
-                     if (game.twins?.includes(senderId)) {
-                        canSend = true; chatField = 'twinChatMessages';
-                     }
-                    break;
-                case 'lovers':
-                    if (privateData?.isLover) {
-                        canSend = true; chatField = 'loversChatMessages';
-                    }
-                    break;
-                case 'ghost':
-                    const publicPlayer = game.players.find(p => p.userId === senderId);
-                    if (publicPlayer && !publicPlayer.isAlive) {
-                         canSend = true; chatField = 'ghostChatMessages';
-                    }
-                    break;
-            }
+        if (!privateSnap.exists()) throw new Error('Player not found');
+        const privateData = privateSnap.data() as PlayerPrivateData;
 
-            if (!canSend) throw new Error("No tienes permiso para enviar mensajes en este chat.");
-            
-            const messageData: ChatMessage = {id: `${Date.now()}_${senderId}`, senderId, senderName, text: text.trim(), round: game.currentRound, createdAt: new Date() };
-            transaction.update(gameRef, { [chatField]: FieldValue.arrayUnion(toPlainObject(messageData)) });
-        });
+        let canSend = false;
+        let chatCollectionName: string | null = null;
+        
+        switch (chatType) {
+            case 'wolf':
+                if (['werewolf', 'wolf_cub'].includes(privateData.role || '')) {
+                    canSend = true; chatCollectionName = 'wolfChat';
+                }
+                break;
+            case 'fairy':
+                if (game.fairiesFound && ['seeker_fairy', 'sleeping_fairy'].includes(privateData.role || '')) {
+                    canSend = true; chatCollectionName = 'fairyChat';
+                }
+                break;
+            case 'twin':
+                 if (game.twins?.includes(senderId)) {
+                    canSend = true; chatCollectionName = 'twinChat';
+                 }
+                break;
+            case 'lovers':
+                if (privateData.isLover) {
+                    canSend = true; chatCollectionName = 'loversChat';
+                }
+                break;
+            case 'ghost':
+                const publicPlayer = game.players.find(p => p.userId === senderId);
+                if (publicPlayer && !publicPlayer.isAlive) {
+                     canSend = true; chatCollectionName = 'ghostChat';
+                }
+                break;
+        }
+
+        if (!canSend || !chatCollectionName) throw new Error("No tienes permiso para enviar mensajes en este chat.");
+
+        const chatCollectionRef = gameRef.collection(chatCollectionName);
+        const messageData: Omit<ChatMessage, 'id'> = { senderId, senderName, text: text.trim(), round: game.currentRound, createdAt: new Date() };
+        await chatCollectionRef.add(toPlainObject(messageData));
+        
         return { success: true };
     } catch (error: any) {
         return { success: false, error: (error as Error).message };

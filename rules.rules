@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -23,12 +24,8 @@ service cloud.firestore {
       match /playerData/{userId} {
         // A user can only read their own private player data.
         allow read: if request.auth.uid != null && request.auth.uid == userId;
-
-        // Client-side writes are forbidden.
         allow write: if false;
       }
     }
   }
 }
-
-    

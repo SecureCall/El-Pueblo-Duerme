@@ -93,12 +93,6 @@ export async function createGame(
       creator: userId,
       players: [creatorPublicData],
       events: [],
-      chatMessages: [],
-      wolfChatMessages: [],
-      fairyChatMessages: [],
-      twinChatMessages: [],
-      loversChatMessages: [],
-      ghostChatMessages: [],
       maxPlayers: maxPlayers,
       createdAt: new Date(),
       lastActiveAt: new Date(),
@@ -347,8 +341,7 @@ export async function resetGame(gameId: string) {
 
             transaction.update(gameRef, toPlainObject({
                 status: 'waiting', phase: 'waiting', currentRound: 0,
-                events: [], chatMessages: [], wolfChatMessages: [], fairyChatMessages: [],
-                twinChatMessages: [], loversChatMessages: [], ghostChatMessages: [], nightActions: [],
+                events: [], nightActions: [],
                 twins: null, lovers: null, phaseEndsAt: new Date(), pendingHunterShot: null,
                 pendingTroublemakerDuel: null,
                 wolfCubRevengeRound: 0, players: resetHumanPlayersPublic, vampireKills: 0, boat: [],

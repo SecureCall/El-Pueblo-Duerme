@@ -3,7 +3,7 @@
 
 import { useEffect, useReducer, useMemo } from 'react';
 import { doc, onSnapshot, getDoc, FirestoreError } from 'firebase/firestore';
-import type { Game, Player, GameEvent, ChatMessage, PlayerPublicData, PlayerPrivateData } from '../types';
+import type { Game, Player, GameEvent, PlayerPrivateData } from '../types';
 import { useFirebase } from '../firebase/provider';
 import { useGameSession } from './use-game-session';
 import { getMillis } from '../lib/utils';
@@ -17,12 +17,6 @@ interface CombinedGameState {
     players: Player[];
     currentPlayer: Player | null;
     events: GameEvent[];
-    messages: ChatMessage[];
-    wolfMessages: ChatMessage[];
-    fairyMessages: ChatMessage[];
-    twinMessages: ChatMessage[];
-    loversMessages: ChatMessage[];
-    ghostMessages: ChatMessage[];
     loading: boolean;
     error: string | null;
 }
@@ -38,12 +32,6 @@ const initialState: CombinedGameState = {
     players: [],
     currentPlayer: null,
     events: [],
-    messages: [],
-    wolfMessages: [],
-    fairyMessages: [],
-    twinMessages: [],
-    loversMessages: [],
-    ghostMessages: [],
     loading: true,
     error: null,
 };
@@ -58,12 +46,6 @@ function gameReducer(state: CombinedGameState, action: GameAction): CombinedGame
                 players,
                 currentPlayer,
                 events: [...(game.events || [])].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)),
-                messages: (game.chatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
-                wolfMessages: (game.wolfChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
-                fairyMessages: (game.fairyChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
-                twinMessages: (game.twinChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
-                loversMessages: (game.loversChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
-                ghostMessages: (game.ghostChatMessages || []).sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt)),
                 loading: false,
                 error: null,
             };
