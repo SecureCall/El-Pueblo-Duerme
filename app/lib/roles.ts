@@ -1,4 +1,3 @@
-
 import type { PlayerRole } from "@/types";
 
 export type RoleDetail = {
@@ -297,7 +296,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
         name: "Banshee",
         description: "Cada noche, predices la muerte de un jugador. Si ese jugador muere esa misma noche (por cualquier causa), ganas un punto. Ganas la partida si acumulas 2 puntos.",
         atmosphere: "Tu lamento no es de tristeza, es de victoria.",
-        image: "/roles/banshee.png",
+        image: "/roles/Banshee.png",
         color: "text-indigo-400",
         bgImageId: "role-bg-seer",
         team: "Neutral",
@@ -331,9 +330,4 @@ export const defaultRoleDetail: RoleDetail = {
     bgImageId: "role-bg-villager",
     team: "Aldeanos",
 };
-
-    
-
-    
-
     
