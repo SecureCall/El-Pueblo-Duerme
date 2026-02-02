@@ -145,7 +145,6 @@ export const GameSchema = z.object({
   status: z.enum(["waiting", "in_progress", "finished"]),
   phase: z.enum(["waiting", "role_reveal", "night", "day", "voting", "hunter_shot", "jury_voting", "finished"]),
   creator: z.string(),
-  // players array is removed from here
   events: z.array(GameEventSchema),
   maxPlayers: z.number(),
   createdAt: z.union([TimestampSchema, z.string()]).refine((val): val is { seconds: number; nanoseconds: number } | Date | string => val !== null, {
@@ -173,7 +172,7 @@ export const GameSchema = z.object({
   fairyKillUsed: z.boolean(),
   juryVotes: z.record(z.string()).optional(),
   masterKillUsed: z.boolean().optional(),
-  playerCount: z.number().optional(), // To track number of players without reading the whole subcollection
+  playerCount: z.number().optional(),
 });
 
 
@@ -188,7 +187,7 @@ export const AIChatPerspectiveSchema = z.object({
   game: GameSchema,
   aiPlayer: PlayerSchema,
   trigger: z.string(),
-  players: z.array(PlayerSchema),
+  players: z.array(PlayerPublicDataSchema),
   chatType: z.enum(['public', 'wolf', 'twin', 'lovers', 'ghost']),
   seerChecks: z.array(z.object({
         targetName: z.string(),
@@ -204,7 +203,7 @@ export const GenerateAIChatMessageOutputSchema = z.object({
 export const AIActionPerspectiveSchema = z.object({
   game: GameSchema,
   aiPlayer: PlayerSchema,
-  possibleTargets: z.array(PlayerSchema),
+  possibleTargets: z.array(PlayerPublicDataSchema),
   voteHistory: z.array(z.object({ voterName: z.string(), targetName: z.string() })).describe("A record of who voted for whom in the previous day phase to detect voting blocs or players targeting you."),
 });
 
@@ -217,7 +216,7 @@ export const AIActionOutputSchema = z.object({
 export const AIVotePerspectiveSchema = z.object({
   game: GameSchema,
   aiPlayer: PlayerSchema,
-  votablePlayers: z.array(PlayerSchema),
+  votablePlayers: z.array(PlayerPublicDataSchema),
   chatHistory: z.array(z.string()).describe("A summary of recent chat messages to gauge sentiment."),
   voteHistory: z.array(z.object({ voterName: z.string(), targetName: z.string() })).describe("A record of who voted for whom in the previous day phase to detect voting blocs or players targeting you."),
   seerChecks: z.array(z.object({ targetName: z.string(), isWerewolf: z.boolean() })).optional().describe("A seer's knowledge of other players' identities."),
@@ -231,3 +230,5 @@ export const AIVoteOutputSchema = z.object({
   reasoning: z.string().describe("A brief, in-character thought process for the vote, phrased as if speaking to the village."),
 });
 export type AIVoteOutput = z.infer<typeof AIVoteOutputSchema>;
+
+    

@@ -3,7 +3,7 @@
 
 import { adminDb } from './server-init';
 import { toPlainObject, getMillis } from './utils';
-import type { Game, Player, GameEvent, PlayerPrivateData } from '@/types';
+import type { Game, Player, GameEvent, PlayerPrivateData, PlayerPublicData } from '@/types';
 // AI Flow imports will be dynamic
 
 // These are server-side actions that can be safely called by the AI.
@@ -31,6 +31,9 @@ export async function runNightAIActions(gameId: string) {
             return;
         }
 
+        const publicPlayersSnap = await gameRef.collection('players').get();
+        const publicPlayers = publicPlayersSnap.docs.map(doc => doc.data() as PlayerPublicData);
+
         const privateDataCol = adminDb.collection('games').doc(gameId).collection('playerData');
         const privateDataSnap = await privateDataCol.get();
         const allPrivateData: Record<string, PlayerPrivateData> = {};
@@ -38,7 +41,7 @@ export async function runNightAIActions(gameId: string) {
             allPrivateData[doc.id] = doc.data() as PlayerPrivateData;
         });
 
-        const fullPlayers = game.players.map(p => ({
+        const fullPlayers = publicPlayers.map(p => ({
             ...p,
             ...(allPrivateData[p.userId] || {})
         })) as Player[];
@@ -117,6 +120,9 @@ export async function runAIJuryVotes(gameId: string) {
         const tiedPlayerIds = lastVoteEvent?.data?.tiedPlayerIds;
         if (!tiedPlayerIds || tiedPlayerIds.length === 0) return;
 
+        const publicPlayersSnap = await gameRef.collection('players').get();
+        const publicPlayers = publicPlayersSnap.docs.map(doc => doc.data() as PlayerPublicData);
+
         const privateDataCol = adminDb.collection('games').doc(gameId).collection('playerData');
         const privateDataSnap = await privateDataCol.get();
         const allPrivateData: Record<string, PlayerPrivateData> = {};
@@ -124,7 +130,7 @@ export async function runAIJuryVotes(gameId: string) {
             allPrivateData[doc.id] = doc.data() as PlayerPrivateData;
         });
 
-        const fullPlayers = game.players.map(p => ({
+        const fullPlayers = publicPlayers.map(p => ({
             ...p,
             ...(allPrivateData[p.userId] || {})
         })) as Player[];
@@ -145,9 +151,10 @@ export async function runAIJuryVotes(gameId: string) {
             const votablePlayers = fullPlayers.filter(p => tiedPlayerIds.includes(p.userId));
             if (votablePlayers.length === 0) continue;
 
-            const chatSummary = game.chatMessages
+            const chatSummary = game.events
+                .filter(e => e.type === 'special' && e.data?.isChatMessage)
                 .slice(-10)
-                .map(m => `${m.senderName}: ${m.text}`);
+                .map(m => m.message);
             
             const perspective = {
                 game: toPlainObject(game),
@@ -197,6 +204,9 @@ export async function runAIVotes(gameId: string) {
             return;
         }
 
+        const publicPlayersSnap = await gameRef.collection('players').get();
+        const publicPlayers = publicPlayersSnap.docs.map(doc => doc.data() as PlayerPublicData);
+
         const privateDataCol = adminDb.collection('games').doc(gameId).collection('playerData');
         const privateDataSnap = await privateDataCol.get();
         const allPrivateData: Record<string, PlayerPrivateData> = {};
@@ -204,7 +214,7 @@ export async function runAIVotes(gameId: string) {
             allPrivateData[doc.id] = doc.data() as PlayerPrivateData;
         });
 
-        const fullPlayers = game.players.map(p => ({
+        const fullPlayers = publicPlayers.map(p => ({
             ...p,
             ...(allPrivateData[p.userId] || {})
         })) as Player[];
@@ -225,9 +235,11 @@ export async function runAIVotes(gameId: string) {
             const votablePlayers = fullPlayers.filter(p => p.isAlive && p.userId !== aiPlayer.userId);
             if (votablePlayers.length === 0) continue;
 
-            const chatSummary = game.chatMessages
-                .slice(-10)
-                .map(m => `${m.senderName}: ${m.text}`);
+             const chatSnaps = await gameRef.collection('publicChat').orderBy('createdAt', 'desc').limit(10).get();
+             const chatSummary = chatSnaps.docs.map(doc => {
+                const msg = doc.data() as ChatMessage;
+                return `${msg.senderName}: ${msg.text}`
+             }).reverse();
             
             const loverId = game.lovers?.find(id => id !== aiPlayer.userId) && aiPlayer.isLover ? game.lovers.find(id => id !== aiPlayer.userId) : undefined;
             const loverName = loverId ? fullPlayers.find(p => p.userId === loverId)?.displayName : undefined;
@@ -277,13 +289,18 @@ export async function runAIVotes(gameId: string) {
 export async function triggerAIChat(gameId: string, triggerMessage: string, chatType: 'public' | 'wolf' | 'twin' | 'lovers' | 'ghost') {
     const { generateAIChatMessage } = await import('@/ai/flows/generate-ai-chat-flow');
     try {
-        const gameDoc = await adminDb.collection('games').doc(gameId).get();
-        if (!gameDoc.exists()) return;
+        const gameRef = adminDb.collection('games').doc(gameId);
+        const playersRef = gameRef.collection('players');
 
-        let game = gameDoc.data() as Game;
+        const [gameDoc, playersSnap] = await Promise.all([gameRef.get(), playersRef.get()]);
+        
+        if (!gameDoc.exists()) return;
+        const game = gameDoc.data() as Game;
+
         if (game.status === 'finished') return;
 
-        const aiPlayersToTrigger = game.players.filter(p => p.isAI && p.isAlive);
+        const allPublicPlayers = playersSnap.docs.map(doc => doc.data() as PlayerPublicData);
+        const aiPlayersToTrigger = allPublicPlayers.filter(p => p.isAI && p.isAlive);
         
         for (const publicAiPlayer of aiPlayersToTrigger) {
              const isAccused = triggerMessage.toLowerCase().includes(publicAiPlayer.displayName.toLowerCase());
@@ -299,7 +316,7 @@ export async function triggerAIChat(gameId: string, triggerMessage: string, chat
                     game: toPlainObject(game),
                     aiPlayer: toPlainObject(aiPlayer),
                     trigger: triggerMessage,
-                    players: toPlainObject(game.players),
+                    players: toPlainObject(allPublicPlayers),
                     chatType,
                     seerChecks: (privateDataSnap.data() as PlayerPrivateData)?.seerChecks,
                 };
@@ -323,15 +340,19 @@ export async function triggerAIChat(gameId: string, triggerMessage: string, chat
 export async function triggerAIReactionToGameEvent(gameId: string, event: GameEvent) {
     const { generateAIChatMessage } = await import('@/ai/flows/generate-ai-chat-flow');
     try {
-        const gameDoc = await adminDb.collection('games').doc(gameId).get();
-        if (!gameDoc.exists()) return;
+        const gameRef = adminDb.collection('games').doc(gameId);
+        const playersRef = gameRef.collection('players');
 
-        let game = gameDoc.data() as Game;
+        const [gameDoc, playersSnap] = await Promise.all([gameRef.get(), playersRef.get()]);
+        if (!gameDoc.exists()) return;
+        const game = gameDoc.data() as Game;
+
         if (game.status === 'finished') return;
         
         if (event.type === 'special' || !event.message) return;
 
-        const aiPlayersToTrigger = game.players.filter(p => p.isAI && p.isAlive);
+        const allPublicPlayers = playersSnap.docs.map(doc => doc.data() as PlayerPublicData);
+        const aiPlayersToTrigger = allPublicPlayers.filter(p => p.isAI && p.isAlive);
         const isStartOfDay = event.type === 'night_result';
         
         for (const publicAiPlayer of aiPlayersToTrigger) {
@@ -347,7 +368,7 @@ export async function triggerAIReactionToGameEvent(gameId: string, event: GameEv
                     game: toPlainObject(game),
                     aiPlayer: toPlainObject(aiPlayer),
                     trigger: `Ha ocurrido un evento: "${event.message}"`,
-                    players: toPlainObject(game.players),
+                    players: toPlainObject(allPublicPlayers),
                     chatType: 'public' as const,
                     seerChecks: (privateDataSnap.data() as PlayerPrivateData)?.seerChecks,
                 };
@@ -367,3 +388,5 @@ export async function triggerAIReactionToGameEvent(gameId: string, event: GameEv
         console.error("Error in triggerAIReactionToGameEvent:", e);
     }
 }
+
+    

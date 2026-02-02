@@ -25,19 +25,38 @@ export async function sendChatMessage(gameId: string, senderId: string, senderNa
     if (!text?.trim()) return { success: false, error: 'El mensaje no puede estar vacío.' };
     
     const gameRef = adminDb.collection('games').doc(gameId);
+    const playersRef = gameRef.collection('players');
+    const senderRef = playersRef.doc(senderId);
     const chatCollectionRef = gameRef.collection('publicChat');
 
     try {
-        const game = (await gameRef.get()).data() as Game;
-        if (!game) throw new Error('Game not found');
+        const [gameSnap, senderSnap] = await Promise.all([
+            gameRef.get(),
+            senderRef.get()
+        ]);
 
+        if (!gameSnap.exists()) throw new Error('Game not found');
+        const game = gameSnap.data() as Game;
+
+        if (!senderSnap.exists()) throw new Error("Player not found.");
+        const senderData = senderSnap.data() as PlayerPublicData;
+        
+        // VULNERABILITY FIX: Check if player is alive on the server
+        if (!senderData.isAlive) {
+            throw new Error("Los muertos no hablan.");
+        }
+        
         if (game.silencedPlayerId === senderId) throw new Error("No puedes hablar, has sido silenciado esta ronda.");
         
-        const mentionedPlayerIds = game.players.filter(p => p.isAlive && text.toLowerCase().includes(p.displayName.toLowerCase())).map(p => p.userId);
+        const allPlayersSnap = await playersRef.get();
+        const allPlayers = allPlayersSnap.docs.map(doc => doc.data() as PlayerPublicData);
+
+        const mentionedPlayerIds = allPlayers
+            .filter(p => p.isAlive && text.toLowerCase().includes(p.displayName.toLowerCase()))
+            .map(p => p.userId);
         
         const messageData: Omit<ChatMessage, 'id'> = { senderId, senderName, text: text.trim(), round: game.currentRound, createdAt: new Date(), mentionedPlayerIds};
         await chatCollectionRef.add(toPlainObject(messageData));
-
 
         if (!isFromAI) {
             const { triggerAIChat } = await import('./firebase-ai-actions');
@@ -91,7 +110,8 @@ async function sendSpecialChatMessage(gameId: string, senderId: string, senderNa
                 }
                 break;
             case 'ghost':
-                const publicPlayer = game.players.find(p => p.userId === senderId);
+                const playersSnap = await gameRef.collection('players').doc(senderId).get();
+                const publicPlayer = playersSnap.data();
                 if (publicPlayer && !publicPlayer.isAlive) {
                      canSend = true; chatCollectionName = 'ghostChat';
                 }
@@ -143,6 +163,7 @@ export async function submitNightAction(data: {gameId: string, round: number, pl
 
 export async function submitVote(gameId: string, voterId: string, targetId: string) {
     const gameRef = adminDb.collection('games').doc(gameId);
+    const playerRef = gameRef.collection('players').doc(voterId);
     try {
         await runTransaction(adminDb, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
@@ -150,15 +171,16 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
             const game = gameSnap.data() as Game;
             if (game.phase !== 'day' || game.status === 'finished') return;
 
-            const playerIndex = game.players.findIndex(p => p.userId === voterId && p.isAlive);
-            if (playerIndex === -1) throw new Error("Player not found or is not alive");
+            const playerSnap = await transaction.get(playerRef);
+            const playerData = playerSnap.data();
+
+            if (!playerData || !playerData.isAlive) throw new Error("Player not found or is not alive");
             
-            if (game.players[playerIndex].votedFor) return; // Already voted
+            if (playerData.votedFor) return; // Already voted
 
             // Client-side handles most of the siren logic UI.
             // The authoritative decision is made in processVotesEngine to ensure server-side enforcement.
-            game.players[playerIndex].votedFor = targetId;
-            transaction.update(gameRef, { players: toPlainObject(game.players) });
+            transaction.update(playerRef, { votedFor: targetId });
         });
         return { success: true };
     } catch (error: any) {
@@ -192,7 +214,10 @@ export async function sendGhostMessage(gameId: string, ghostId: string, recipien
                 throw new Error("No tienes permiso para realizar esta acción.");
             }
             
-            const subjectName = subjectId ? game.players.find(p => p.userId === subjectId)?.displayName : 'alguien';
+            const playersSnap = await transaction.get(gameRef.collection('players'));
+            const players = playersSnap.docs.map(doc => doc.data());
+            
+            const subjectName = subjectId ? players.find(p => p.userId === subjectId)?.displayName : 'alguien';
             const finalMessage = template.replace('{player}', subjectName || 'alguien');
 
             const ghostEvent: GameEvent = {
@@ -220,9 +245,12 @@ export async function processNight(gameId: string) {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error("Game not found");
             const game = gameDoc.data() as Game;
+            
+            const publicPlayersSnap = await transaction.get(gameRef.collection('players'));
+            const publicPlayers = publicPlayersSnap.docs.map(d => d.data());
 
-            const privateDataSnapshots = await transaction.getAll(...game.players.map(p => adminDb.collection('games').doc(gameId).collection('playerData').doc(p.userId)));
-            const fullPlayers = game.players.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() }));
+            const privateDataSnapshots = await transaction.getAll(...publicPlayers.map(p => adminDb.collection('games').doc(gameId).collection('playerData').doc(p.userId)));
+            const fullPlayers = publicPlayers.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() }));
 
             await processNightEngine(transaction, gameRef, game, fullPlayers as Player[]);
         });
@@ -238,9 +266,9 @@ export async function processNight(gameId: string) {
             }
             
             if(game.phase === 'day') {
-                const latestNightResult = game.events
+                const latestNightResult = [...game.events]
                     .filter(e => e.type === 'night_result' && e.round === game.currentRound)
-                    .sort((a, b) => getMillis(a.createdAt) - getMillis(b.createdAt))[0];
+                    .sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt))[0];
                 
                 if (latestNightResult) {
                     await aiActions.triggerAIReactionToGameEvent(gameId, latestNightResult);
@@ -261,8 +289,11 @@ export async function processVotes(gameId: string) {
             if (!gameDoc.exists()) throw new Error("Game not found");
             const game = gameDoc.data() as Game;
 
-            const privateDataSnapshots = await transaction.getAll(...game.players.map(p => adminDb.collection('games').doc(gameId).collection('playerData').doc(p.userId)));
-            const fullPlayers = game.players.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() }));
+            const publicPlayersSnap = await transaction.get(gameRef.collection('players'));
+            const publicPlayers = publicPlayersSnap.docs.map(d => d.data());
+
+            const privateDataSnapshots = await transaction.getAll(...publicPlayers.map(p => adminDb.collection('games').doc(gameId).collection('playerData').doc(p.userId)));
+            const fullPlayers = publicPlayers.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() }));
             
             await processVotesEngine(transaction, gameRef, game, fullPlayers as Player[]);
         });
@@ -270,7 +301,7 @@ export async function processVotes(gameId: string) {
         const updatedGameSnap = await gameRef.get();
         if (updatedGameSnap.exists()) {
             const game = updatedGameSnap.data() as Game;
-            const voteEvent = game.events
+            const voteEvent = [...game.events]
                 .filter(e => e.type === 'vote_result' && e.round === (game.phase === 'night' ? game.currentRound - 1 : game.currentRound))
                 .sort((a,b) => getMillis(b.createdAt) - getMillis(a.createdAt))[0];
 
@@ -290,16 +321,18 @@ export async function processVotes(gameId: string) {
 export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
     const privateSeerRef = adminDb.collection('games').doc(gameId).collection('playerData').doc(seerId);
     const privateTargetRef = adminDb.collection('games').doc(gameId).collection('playerData').doc(targetId);
+    const targetPublicRef = adminDb.collection('games').doc(gameId).collection('players').doc(targetId);
+
     const gameSnap = await adminDb.collection('games').doc(gameId).get();
     if (!gameSnap.exists()) throw new Error("Game not found");
     const game = gameSnap.data() as Game;
-    const targetPublicData = game.players.find(p => p.userId === targetId)!;
-
+    
     try {
-        const [seerSnap, targetSnap] = await Promise.all([privateSeerRef.get(), privateTargetRef.get()]);
-        if (!seerSnap.exists() || !targetSnap.exists()) throw new Error("Data not found");
+        const [seerSnap, targetSnap, targetPublicSnap] = await Promise.all([privateSeerRef.get(), privateTargetRef.get(), targetPublicRef.get()]);
+        if (!seerSnap.exists() || !targetSnap.exists() || !targetPublicSnap.exists()) throw new Error("Data not found");
         const seerData = seerSnap.data() as PlayerPrivateData;
         const targetData = targetSnap.data() as PlayerPrivateData;
+        const targetPublicData = targetPublicSnap.data() as PlayerPublicData;
 
         const isSeerOrApprentice = seerData.role === 'seer' || (seerData.role === 'seer_apprentice' && game.seerDied);
         if (!isSeerOrApprentice) throw new Error("No tienes el don de la videncia.");
@@ -353,9 +386,12 @@ export async function processJuryVotes(gameId: string) {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error("Game not found");
             const game = gameDoc.data() as Game;
+            
+            const publicPlayersSnap = await transaction.get(gameRef.collection('players'));
+            const publicPlayers = publicPlayersSnap.docs.map(d => d.data());
 
-            const privateDataSnapshots = await transaction.getAll(...game.players.map(p => adminDb.collection('games').doc(gameId).collection('playerData').doc(p.userId)));
-            const fullPlayers = game.players.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() }));
+            const privateDataSnapshots = await transaction.getAll(...publicPlayers.map(p => adminDb.collection('games').doc(gameId).collection('playerData').doc(p.userId)));
+            const fullPlayers = publicPlayers.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() }));
 
             await processJuryVotesEngine(transaction, gameRef, game, fullPlayers as Player[]);
         });
@@ -375,10 +411,14 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
 
             if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId) return;
 
-            const privateDataSnapshots = await transaction.getAll(...game.players.map(p => adminDb.collection('games').doc(gameId).collection('playerData').doc(p.userId)));
-            const fullPlayers = game.players.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() as PlayerPrivateData }));
+            const publicPlayersSnap = await transaction.get(gameRef.collection('players'));
+            const publicPlayers = publicPlayersSnap.docs.map(d => d.data());
+            const targetPlayer = publicPlayers.find(p=>p.userId === targetId);
+            
+            const privateDataSnapshots = await transaction.getAll(...publicPlayers.map(p => adminDb.collection('games').doc(gameId).collection('playerData').doc(p.userId)));
+            const fullPlayers = publicPlayers.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() as PlayerPrivateData }));
 
-            let { updatedGame, updatedPlayers, triggeredHunterId: anotherHunterId } = await killPlayer(transaction, gameRef, game, fullPlayers as Player[], targetId, 'hunter_shot', `En su último aliento, el Cazador dispara y se lleva consigo a ${game.players.find(p=>p.userId === targetId)?.displayName}.`);
+            let { updatedGame, updatedPlayers, triggeredHunterId: anotherHunterId } = await killPlayer(transaction, gameRef, game, fullPlayers as Player[], targetId, 'hunter_shot', `En su último aliento, el Cazador dispara y se lleva consigo a ${targetPlayer?.displayName}.`);
             
             // Add notable play event for the hunter
             updatedGame.events.push({
@@ -392,7 +432,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
                   notablePlayerId: hunterId,
                   notablePlay: {
                       title: '¡Última Bala!',
-                      description: `Caíste, pero te llevaste a ${game.players.find(p=>p.userId === targetId)?.displayName} contigo.`,
+                      description: `Caíste, pero te llevaste a ${targetPlayer?.displayName} contigo.`,
                   },
                 },
             });
@@ -427,13 +467,18 @@ export async function executeMasterAction(gameId: string, actionId: MasterAction
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error("Game not found");
             let game = gameDoc.data() as Game;
-            const privateDataSnapshots = await transaction.getAll(...game.players.map(p => adminDb.collection('games').doc(gameId).collection('playerData').doc(p.userId)));
-            const fullPlayers = game.players.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() as PlayerPrivateData }));
+
+            const publicPlayersSnap = await transaction.get(gameRef.collection('players'));
+            const publicPlayers = publicPlayersSnap.docs.map(p => p.data());
+            const targetPlayer = publicPlayers.find(p=>p.userId === targetId);
+            
+            const privateDataSnapshots = await transaction.getAll(...publicPlayers.map(p => adminDb.collection('games').doc(gameId).collection('playerData').doc(p.userId)));
+            const fullPlayers = publicPlayers.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() as PlayerPrivateData }));
 
 
             if (actionId === 'master_kill') {
                  if (game.masterKillUsed) throw new Error("El Zarpazo del Destino ya ha sido utilizado.");
-                 const { updatedGame } = await killPlayerUnstoppable(transaction, gameRef, game, fullPlayers, targetId, 'special', `Por intervención divina, ${game.players.find(p=>p.userId === targetId)?.displayName} ha sido eliminado.`);
+                 const { updatedGame } = await killPlayerUnstoppable(transaction, gameRef, game, fullPlayers, targetId, 'special', `Por intervención divina, ${targetPlayer?.displayName} ha sido eliminado.`);
                  game = updatedGame;
                  game.masterKillUsed = true;
             } else {
@@ -457,3 +502,5 @@ export const sendFairyChatMessage = (gameId: string, senderId: string, senderNam
 export const sendTwinChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'twin');
 export const sendLoversChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'lovers');
 export const sendGhostChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'ghost');
+
+    
