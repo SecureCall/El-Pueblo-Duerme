@@ -1,7 +1,7 @@
 
 'use server';
 
-import { adminDb } from './firebase-admin';
+import { adminDb } from './server-init';
 import { toPlainObject, getMillis } from './utils';
 import type { Game, Player, GameEvent, PlayerPrivateData } from '@/types';
 // AI Flow imports will be dynamic

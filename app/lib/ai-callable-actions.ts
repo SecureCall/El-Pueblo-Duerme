@@ -1,6 +1,6 @@
 
 'use server';
-import { adminDb } from "./firebase-admin";
+import { adminDb } from "./server-init";
 import { 
   runTransaction,
   FieldValue,
