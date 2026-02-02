@@ -191,10 +191,26 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
 export async function submitJuryVote(gameId: string, voterId: string, targetId: string) {
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
-        await gameRef.update({ [`juryVotes.${voterId}`]: targetId });
+        await runTransaction(adminDb, async (transaction) => {
+            const gameSnap = await transaction.get(gameRef);
+            if (!gameSnap.exists()) {
+                throw new Error("Game not found.");
+            }
+            const game = gameSnap.data() as Game;
+
+            if (game.phase !== 'jury_voting') {
+                throw new Error("No es la fase de voto del jurado.");
+            }
+            if (game.juryVotes && game.juryVotes[voterId]) {
+                return;
+            }
+
+            transaction.update(gameRef, { [`juryVotes.${voterId}`]: targetId });
+        });
         return { success: true };
     } catch (error: any) {
-        return { success: false, error: (error as Error).message };
+        console.error("Error submitting jury vote: ", error);
+        return { success: false, error: (error as Error).message || "No se pudo registrar tu voto del jurado." };
     }
 }
 
@@ -321,31 +337,49 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
     const privateSeerRef = adminDb.collection('games').doc(gameId).collection('playerData').doc(seerId);
     const privateTargetRef = adminDb.collection('games').doc(gameId).collection('playerData').doc(targetId);
     const targetPublicRef = adminDb.collection('games').doc(gameId).collection('players').doc(targetId);
-
-    const gameSnap = await adminDb.collection('games').doc(gameId).get();
-    if (!gameSnap.exists()) throw new Error("Game not found");
-    const game = gameSnap.data() as Game;
+    const gameRef = adminDb.collection('games').doc(gameId);
     
     try {
-        const [seerSnap, targetSnap, targetPublicSnap] = await Promise.all([privateSeerRef.get(), privateTargetRef.get(), targetPublicRef.get()]);
-        if (!seerSnap.exists() || !targetSnap.exists() || !targetPublicSnap.exists()) throw new Error("Data not found");
-        const seerData = seerSnap.data() as PlayerPrivateData;
-        const targetData = targetSnap.data() as PlayerPrivateData;
-        const targetPublicData = targetPublicSnap.data() as PlayerPublicData;
+        const result = await runTransaction(adminDb, async (transaction) => {
+            const [gameSnap, seerSnap, targetSnap, targetPublicSnap] = await transaction.getAll(
+                gameRef,
+                privateSeerRef,
+                privateTargetRef,
+                targetPublicRef
+            );
 
-        const isSeerOrApprentice = seerData.role === 'seer' || (seerData.role === 'seer_apprentice' && game.seerDied);
-        if (!isSeerOrApprentice) throw new Error("No tienes el don de la videncia.");
+            if (!gameSnap.exists()) throw new Error("Game not found");
+            const game = gameSnap.data() as Game;
 
-        const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'lycanthrope'];
-        const isWerewolf = !!(targetData.role && wolfRoles.includes(targetData.role));
+            if (!seerSnap.exists() || !targetSnap.exists() || !targetPublicSnap.exists()) throw new Error("Data not found");
 
-        const newCheck = { targetName: targetPublicData.displayName, isWerewolf };
-        const updatedChecks = [...(seerData.seerChecks || []), newCheck];
+            const seerData = seerSnap.data() as PlayerPrivateData;
+            const targetData = targetSnap.data() as PlayerPrivateData;
+            const targetPublicData = targetPublicSnap.data() as PlayerPublicData;
 
-        await privateSeerRef.update({ seerChecks: updatedChecks });
+            const isSeerOrApprentice = seerData.role === 'seer' || (seerData.role === 'seer_apprentice' && game.seerDied);
+            if (!isSeerOrApprentice) throw new Error("No tienes el don de la videncia.");
 
-        return { success: true, isWerewolf, targetName: targetPublicData.displayName };
+            // Check if this check has already been performed in this transaction/state
+            const existingCheck = seerData.seerChecks?.find(c => c.targetName === targetPublicData.displayName);
+            if (existingCheck) {
+                return { isWerewolf: existingCheck.isWerewolf, targetName: targetPublicData.displayName };
+            }
+
+            const wolfRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'lycanthrope'];
+            const isWerewolf = !!(targetData.role && wolfRoles.includes(targetData.role));
+
+            const newCheck = { targetName: targetPublicData.displayName, isWerewolf };
+            const updatedChecks = [...(seerData.seerChecks || []), newCheck];
+
+            transaction.update(privateSeerRef, { seerChecks: updatedChecks });
+
+            return { isWerewolf, targetName: targetPublicData.displayName };
+        });
+        
+        return { success: true, ...result };
     } catch(e: any) {
+        console.error("Error in getSeerResult:", e);
         return { success: false, error: e.message };
     }
 }
@@ -501,3 +535,5 @@ export const sendFairyChatMessage = (gameId: string, senderId: string, senderNam
 export const sendTwinChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'twin');
 export const sendLoversChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'lovers');
 export const sendGhostChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'ghost');
+
+    
