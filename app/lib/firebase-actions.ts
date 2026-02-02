@@ -16,7 +16,7 @@ import {
   type NightActionType, 
   type ChatMessage,
 } from "@/types";
-import { adminDb } from "./firebase-admin";
+import { adminDb } from "./server-init";
 import { toPlainObject, splitPlayerData, getMillis, PHASE_DURATION_SECONDS } from "./utils";
 import { masterActions } from "./master-actions";
 import { processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotesEngine, processNightEngine, generateRoles } from './game-engine';
