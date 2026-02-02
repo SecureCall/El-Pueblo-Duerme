@@ -41,7 +41,6 @@ export async function sendChatMessage(gameId: string, senderId: string, senderNa
         if (!senderSnap.exists()) throw new Error("Player not found.");
         const senderData = senderSnap.data() as PlayerPublicData;
         
-        // VULNERABILITY FIX: Check if player is alive on the server
         if (!senderData.isAlive) {
             throw new Error("Los muertos no hablan.");
         }
@@ -502,5 +501,3 @@ export const sendFairyChatMessage = (gameId: string, senderId: string, senderNam
 export const sendTwinChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'twin');
 export const sendLoversChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'lovers');
 export const sendGhostChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'ghost');
-
-    

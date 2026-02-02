@@ -1,87 +1,60 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if the requesting user is a player in the specified game.
     function isPlayerInGame(gameId) {
-      // Check the public players subcollection
       return exists(/databases/$(database)/documents/games/$(gameId)/players/$(request.auth.uid));
     }
 
-    // Public games list can be read by any authenticated user.
-    // Writes are only done by the server.
     match /publicGames/{gameId} {
       allow read: if request.auth.uid != null;
       allow write: if false;
     }
 
-    // Main game document and its subcollections.
     match /games/{gameId} {
-      // A player can only read the main document of a game they are in.
       allow get: if isPlayerInGame(gameId);
-      // Deny listing all games for security.
       allow list: if false;
-      // Deny all client-side writes to the main game document. Only server actions can modify it.
       allow write: if false;
 
-      // Subcollection for public player data.
       match /players/{playerId} {
-        // Any player in the game can get the public data of any other player, and list all players.
         allow get, list: if isPlayerInGame(gameId);
-        // Deny all client writes. Player creation, updates, etc., are handled by server actions.
         allow write: if false;
       }
 
-      // Subcollection for private player data (roles, etc.).
       match /playerData/{userId} {
-        // A user can ONLY read their own private data document.
         allow read: if request.auth.uid != null && request.auth.uid == userId;
-        // Deny all client writes. Role assignment is handled by the server.
         allow write: if false;
       }
       
-      // CHAT SUBCOLLECTIONS
-      // All chat writes are denied from the client. They must go through server actions which perform
-      // validation (e.g., checking if a player is alive).
-
-      // Public chat for all players in the game.
       match /publicChat/{messageId} {
         allow read: if isPlayerInGame(gameId);
         allow write: if false;
       }
 
-      // Chat for dead players (spectators).
       match /ghostChat/{messageId} {
         allow read: if isPlayerInGame(gameId);
         allow write: if false;
       }
 
-      // Private chat for wolves.
       match /wolfChat/{messageId} {
-        // A get() call is needed here to check the user's role from their private data.
         allow read: if get(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid)).data.role in ['werewolf', 'wolf_cub', 'witch'];
         allow write: if false;
       }
 
-      // Private chat for twins.
       match /twinChat/{messageId} {
-        // The game document contains a 'twins' array which we can check.
-        allow read: if resource.parent.data.twins != null && request.auth.uid in resource.parent.data.twins;
+        allow read: if get(/databases/$(database)/documents/games/$(gameId)).data.twins != null && request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.twins;
         allow write: if false;
       }
 
-      // Private chat for lovers.
       match /loversChat/{messageId} {
-        // A get() call is needed here to check the user's 'isLover' status.
         allow read: if get(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid)).data.isLover == true;
         allow write: if false;
       }
 
-      // Private chat for fairies.
       match /fairyChat/{messageId} {
-        // Only allow if the fairies have found each other and the user has a fairy role.
-        allow read: if resource.parent.data.fairiesFound == true && 
+        allow read: if get(/databases/$(database)/documents/games/$(gameId)).data.fairiesFound == true && 
                      get(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid)).data.role in ['seeker_fairy', 'sleeping_fairy'];
         allow write: if false;
       }
