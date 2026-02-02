@@ -141,7 +141,7 @@ export const roleDetails: Partial<Record<NonNullable<PlayerRole>, RoleDetail>> =
     },
     lookout: {
         name: "Vigía",
-        description: "Una vez por partida, en la noche, puedes arriesgarte a espiar a los lobos. Si tienes éxito, los conocerás a todos. Si fallas (si los lobos te atacan esa noche), morirás.",
+        description: "Una vez por partida, en la noche, puedes arriesgarte a espiar a los lobos. Si tienes éxito, los conocerás. Si fallas (si los lobos te atacan esa noche), morirás.",
         atmosphere: "El conocimiento exige un gran riesgo.",
         image: "/roles/watcher.png",
         color: "text-gray-400",
@@ -331,5 +331,7 @@ export const defaultRoleDetail: RoleDetail = {
     bgImageId: "role-bg-villager",
     team: "Aldeanos",
 };
+
+    
 
     
