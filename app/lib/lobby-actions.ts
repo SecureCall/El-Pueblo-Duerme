@@ -231,8 +231,6 @@ export async function startGame(gameId: string, creatorId: string) {
             let finalPlayers: PlayerPublicData[] = playersSnap.docs.map(doc => doc.data() as PlayerPublicData);
             let allPrivateData: Record<string, PlayerPrivateData> = {};
 
-            const batch = adminDb.batch();
-
             if (game.settings.fillWithAI && finalPlayers.length < game.maxPlayers) {
                 const aiPlayerCount = game.maxPlayers - finalPlayers.length;
                 const availableAINames = AI_NAMES.filter(name => !finalPlayers.some(p => p.displayName === name));
@@ -247,7 +245,7 @@ export async function startGame(gameId: string, creatorId: string) {
                     allPrivateData[aiUserId] = privateData;
                     
                     const newPlayerRef = gameRef.collection('players').doc(aiUserId);
-                    batch.set(newPlayerRef, toPlainObject(publicData));
+                    transaction.set(newPlayerRef, toPlainObject(publicData));
                 }
             }
             
@@ -298,10 +296,8 @@ export async function startGame(gameId: string, creatorId: string) {
 
             for (const [userId, privateData] of Object.entries(allPrivateData)) {
                 const privateRef = gameRef.collection('playerData').doc(userId);
-                batch.set(privateRef, toPlainObject(privateData));
+                transaction.set(privateRef, toPlainObject(privateData));
             }
-            
-            await batch.commit();
             
             transaction.update(gameRef, toPlainObject({
                 twins: twinUserIds.length === 2 ? [twinUserIds[0], twinUserIds[1]] : null,
@@ -339,12 +335,10 @@ export async function resetGame(gameId: string) {
 
             const humanPlayers = currentPlayers.filter(p => !p.isAI);
 
-            const batch = adminDb.batch();
-
             // Delete all current players (both public and private)
             for (const player of currentPlayers) {
-                batch.delete(gameRef.collection('players').doc(player.userId));
-                batch.delete(gameRef.collection('playerData').doc(player.userId));
+                transaction.delete(gameRef.collection('players').doc(player.userId));
+                transaction.delete(gameRef.collection('playerData').doc(player.userId));
             }
 
             // Re-add human players with reset state
@@ -353,11 +347,9 @@ export async function resetGame(gameId: string) {
                 newPlayer.joinedAt = player.joinedAt;
                 const { publicData, privateData } = splitPlayerData(newPlayer);
                 
-                batch.set(gameRef.collection('players').doc(player.userId), toPlainObject(publicData));
-                batch.set(gameRef.collection('playerData').doc(player.userId), toPlainObject(privateData));
+                transaction.set(gameRef.collection('players').doc(player.userId), toPlainObject(publicData));
+                transaction.set(gameRef.collection('playerData').doc(player.userId), toPlainObject(privateData));
             }
-            
-            await batch.commit();
 
             if (game.settings.isPublic) {
               const publicGameRef = adminDb.collection("publicGames").doc(gameId);
