@@ -4,62 +4,67 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Rule for the public games listing. Anyone can read, only server can write.
+    function isPlayerInGame(gameId) {
+      return exists(/databases/$(database)/documents/games/$(gameId)/players/$(request.auth.uid));
+    }
+
     match /publicGames/{gameId} {
       allow read: if request.auth.uid != null;
       allow write: if false;
     }
 
-    // Rules for the main game data.
     match /games/{gameId} {
-      // Allow a user to read a game document IF they are a player in that game.
-      // This is checked by seeing if a corresponding private data document exists for them.
-      allow read: if request.auth.uid != null &&
-                   exists(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid));
+      allow get: if isPlayerInGame(gameId);
+      allow list: if false; // Deny listing all games
+      allow write: if false; // Deny all client writes to the main game doc
 
-      // Deny all client-side writes. All game logic is handled by server actions.
-      allow write: if false;
+      match /players/{playerId} {
+        // Allow any player in the game to get the public data of any other player, and to list all players.
+        allow get, list: if isPlayerInGame(gameId);
+        // Deny client writes to public player data.
+        allow write: if false;
+      }
 
-      // Rules for the 'playerData' subcollection within each game.
       match /playerData/{userId} {
-        // A user can only read their own private player data.
+        // Only allow a user to read their own private data.
         allow read: if request.auth.uid != null && request.auth.uid == userId;
         allow write: if false;
       }
       
       // PUBLIC CHAT
       match /publicChat/{messageId} {
-        allow read: if request.auth.uid != null && exists(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid));
+        allow read: if isPlayerInGame(gameId);
         allow write: if false;
       }
 
       // GHOST CHAT (any player in game can read, alive or dead)
       match /ghostChat/{messageId} {
-        allow read: if request.auth.uid != null && exists(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid));
+        allow read: if isPlayerInGame(gameId);
         allow write: if false;
       }
 
       // WOLF CHAT
       match /wolfChat/{messageId} {
-        allow read: if request.auth.uid != null && get(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid)).data.role in ['werewolf', 'wolf_cub'];
+        allow read: if get(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid)).data.role in ['werewolf', 'wolf_cub'];
         allow write: if false;
       }
 
       // TWIN CHAT
       match /twinChat/{messageId} {
-        allow read: if request.auth.uid != null && get(/databases/$(database)/documents/games/$(gameId)).data.twins[0] == request.auth.uid || get(/databases/$(database)/documents/games/$(gameId)).data.twins[1] == request.auth.uid;
+        // Ensure twins array exists and is not null before checking
+        allow read: if resource.parent.data.twins != null && (resource.parent.data.twins[0] == request.auth.uid || resource.parent.data.twins[1] == request.auth.uid);
         allow write: if false;
       }
 
       // LOVERS CHAT
       match /loversChat/{messageId} {
-        allow read: if request.auth.uid != null && get(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid)).data.isLover == true;
+        allow read: if get(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid)).data.isLover == true;
         allow write: if false;
       }
 
       // FAIRY CHAT
       match /fairyChat/{messageId} {
-        allow read: if request.auth.uid != null && get(/databases/$(database)/documents/games/$(gameId)).data.fairiesFound == true && get(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid)).data.role in ['seeker_fairy', 'sleeping_fairy'];
+        allow read: if resource.parent.data.fairiesFound == true && get(/databases/$(database)/documents/games/$(gameId)/playerData/$(request.auth.uid)).data.role in ['seeker_fairy', 'sleeping_fairy'];
         allow write: if false;
       }
     }

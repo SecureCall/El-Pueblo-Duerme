@@ -145,7 +145,7 @@ export const GameSchema = z.object({
   status: z.enum(["waiting", "in_progress", "finished"]),
   phase: z.enum(["waiting", "role_reveal", "night", "day", "voting", "hunter_shot", "jury_voting", "finished"]),
   creator: z.string(),
-  players: z.array(PlayerPublicDataSchema),
+  // players array is removed from here
   events: z.array(GameEventSchema),
   maxPlayers: z.number(),
   createdAt: z.union([TimestampSchema, z.string()]).refine((val): val is { seconds: number; nanoseconds: number } | Date | string => val !== null, {
@@ -173,6 +173,7 @@ export const GameSchema = z.object({
   fairyKillUsed: z.boolean(),
   juryVotes: z.record(z.string()).optional(),
   masterKillUsed: z.boolean().optional(),
+  playerCount: z.number().optional(), // To track number of players without reading the whole subcollection
 });
 
 

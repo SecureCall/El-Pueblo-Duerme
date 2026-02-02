@@ -33,7 +33,8 @@ export function GameRoom({ gameId }: { gameId: string }) {
   const handleJoinGame = useCallback(async () => {
     if (!displayName || !avatarUrl || !userId || !game) return;
     
-    const isPlayerInGame = game.players.some(p => p.userId === userId);
+    // Check if player is already in the game from the loaded players list
+    const isPlayerInGame = players.some(p => p.userId === userId);
     if (isPlayerInGame) return;
 
     setIsJoining(true);
@@ -48,13 +49,18 @@ export function GameRoom({ gameId }: { gameId: string }) {
       }
     }
     setIsJoining(false);
-  }, [gameId, userId, displayName, avatarUrl, game, setDisplayName]);
+  }, [gameId, userId, displayName, avatarUrl, game, players, setDisplayName]);
 
   useEffect(() => {
-    if (isSessionLoaded && game && displayName && !currentPlayer && game.status === 'waiting' && !isJoining) {
+    // Prevent joining if game data isn't loaded yet
+    if (!game || !isSessionLoaded) return;
+    
+    // Check if user has a display name and is not yet in the game
+    if (displayName && !currentPlayer && game.status === 'waiting' && !isJoining) {
       handleJoinGame();
     }
   }, [isSessionLoaded, game, displayName, currentPlayer, isJoining, handleJoinGame]);
+
 
   const getMusicSrc = () => {
     if (!game) return '/audio/lobby-theme.mp3';
@@ -111,7 +117,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
         );
     }
     
-    if (!currentPlayer && game.status === 'waiting' && game.players.length >= game.maxPlayers) {
+    if (!currentPlayer && game.status === 'waiting' && (game.playerCount || 0) >= game.maxPlayers) {
          return (
              <div className='text-center text-white space-y-4'>
                 <p className="text-destructive text-2xl font-bold">Esta partida está llena.</p>

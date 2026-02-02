@@ -91,7 +91,6 @@ export async function createGame(
       status: "waiting",
       phase: "waiting", 
       creator: userId,
-      players: [creatorPublicData],
       events: [],
       maxPlayers: maxPlayers,
       createdAt: new Date(),
@@ -117,16 +116,23 @@ export async function createGame(
       fairyKillUsed: false,
       juryVotes: {},
       masterKillUsed: false,
+      playerCount: 1,
   };
     
   try {
-    await gameRef.set(toPlainObject(gameData));
+    const batch = adminDb.batch();
+    
+    batch.set(gameRef, toPlainObject(gameData));
+    
     const privateDataRef = adminDb.collection('games').doc(gameId).collection('playerData').doc(userId);
-    await privateDataRef.set(toPlainObject(creatorPrivateData));
+    batch.set(privateDataRef, toPlainObject(creatorPrivateData));
+    
+    const publicPlayerRef = adminDb.collection('games').doc(gameId).collection('players').doc(userId);
+    batch.set(publicPlayerRef, toPlainObject(creatorPublicData));
 
     if (settings.isPublic) {
       const publicGameRef = adminDb.collection("publicGames").doc(gameId);
-      await publicGameRef.set({
+      batch.set(publicGameRef, {
         name: gameName.trim(),
         creatorId: userId,
         creatorName: displayName,
@@ -135,6 +141,8 @@ export async function createGame(
         lastActiveAt: new Date(),
       });
     }
+    
+    await batch.commit();
 
     return { gameId };
   } catch (error: any) {
@@ -153,7 +161,8 @@ export async function joinGame(
 ) {
   const { gameId, userId, displayName, avatarUrl } = options;
   const gameRef = adminDb.collection("games").doc(gameId);
-  const privateDataRef = adminDb.collection('games').doc(gameId).collection('playerData').doc(userId);
+  const playerPublicRef = gameRef.collection('players').doc(userId);
+  const privateDataRef = gameRef.collection('playerData').doc(userId);
 
   try {
     await runTransaction(adminDb, async (transaction) => {
@@ -162,25 +171,27 @@ export async function joinGame(
 
       const game = gameSnap.data() as Game;
 
-      if (game.status !== "waiting" && !game.players.some(p => p.userId === userId)) {
+      if (game.status !== "waiting" && !(await transaction.get(playerPublicRef)).exists) {
         throw new Error("Esta partida ya ha comenzado.");
       }
       
-      const playerExists = game.players.some(p => p.userId === userId);
-      if (playerExists) return;
+      const playerSnap = await transaction.get(playerPublicRef);
+      if (playerSnap.exists) return; // Player already in game
       
-      const nameExists = game.players.some(p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase());
+      const playersInGameSnap = await transaction.get(gameRef.collection('players'));
+      const nameExists = playersInGameSnap.docs.some(doc => doc.data().displayName.trim().toLowerCase() === displayName.trim().toLowerCase());
       if (nameExists) throw new Error("Ese nombre ya está en uso en esta partida.");
 
-      if (game.players.length >= game.maxPlayers) throw new Error("Esta partida está llena.");
+      if (playersInGameSnap.size >= game.maxPlayers) throw new Error("Esta partida está llena.");
       
       const newPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
       const { publicData, privateData } = splitPlayerData(newPlayer);
       
       transaction.set(privateDataRef, toPlainObject(privateData));
+      transaction.set(playerPublicRef, toPlainObject(publicData));
       
       const updateData: any = {
-        players: FieldValue.arrayUnion(toPlainObject(publicData)),
+        playerCount: FieldValue.increment(1),
         lastActiveAt: new Date(),
       };
       
@@ -210,15 +221,17 @@ export async function startGame(gameId: string, creatorId: string) {
     try {
         await runTransaction(adminDb, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-
             if (!gameSnap.exists()) throw new Error('Partida no encontrada.');
             let game = gameSnap.data() as Game;
 
             if (game.creator !== creatorId) throw new Error('Solo el creador puede iniciar la partida.');
             if (game.status !== 'waiting') throw new Error('La partida ya ha comenzado.');
             
-            let finalPlayers: PlayerPublicData[] = [...game.players];
+            const playersSnap = await transaction.get(gameRef.collection('players'));
+            let finalPlayers: PlayerPublicData[] = playersSnap.docs.map(doc => doc.data() as PlayerPublicData);
             let allPrivateData: Record<string, PlayerPrivateData> = {};
+
+            const batch = adminDb.batch();
 
             if (game.settings.fillWithAI && finalPlayers.length < game.maxPlayers) {
                 const aiPlayerCount = game.maxPlayers - finalPlayers.length;
@@ -232,6 +245,9 @@ export async function startGame(gameId: string, creatorId: string) {
                     const { publicData, privateData } = splitPlayerData(aiPlayer);
                     finalPlayers.push(publicData);
                     allPrivateData[aiUserId] = privateData;
+                    
+                    const newPlayerRef = gameRef.collection('players').doc(aiUserId);
+                    batch.set(newPlayerRef, toPlainObject(publicData));
                 }
             }
             
@@ -240,10 +256,10 @@ export async function startGame(gameId: string, creatorId: string) {
             const newRoles = generateRoles(finalPlayers.length, game.settings);
             
             const humanPlayerIds = finalPlayers.filter(p => !p.isAI).map(p => p.userId);
-            const humanPlayersPrivateSnap = await transaction.getAll(...humanPlayerIds.map(id => adminDb.collection('games').doc(gameId).collection('playerData').doc(id)));
+            const humanPlayersPrivateSnap = await transaction.getAll(...humanPlayerIds.map(id => gameRef.collection('playerData').doc(id)));
             
             humanPlayersPrivateSnap.forEach(snap => {
-                if (snap.exists()) {
+                if (snap.exists) {
                     allPrivateData[snap.id] = snap.data() as PlayerPrivateData;
                 }
             });
@@ -281,15 +297,18 @@ export async function startGame(gameId: string, creatorId: string) {
             const twinUserIds = Object.entries(allPrivateData).filter(([, data]) => data.role === 'twin').map(([id]) => id);
 
             for (const [userId, privateData] of Object.entries(allPrivateData)) {
-                transaction.set(adminDb.collection('games').doc(gameId).collection('playerData').doc(userId), toPlainObject(privateData));
+                const privateRef = gameRef.collection('playerData').doc(userId);
+                batch.set(privateRef, toPlainObject(privateData));
             }
             
+            await batch.commit();
+            
             transaction.update(gameRef, toPlainObject({
-                players: finalPlayers,
                 twins: twinUserIds.length === 2 ? [twinUserIds[0], twinUserIds[1]] : null,
                 status: 'in_progress',
                 phase: 'role_reveal',
                 phaseEndsAt: new Date(Date.now() + 15000), // 15s for role reveal
+                playerCount: finalPlayers.length,
             }));
 
             if (game.settings.isPublic) {
@@ -315,17 +334,30 @@ export async function resetGame(gameId: string) {
             if (!gameSnap.exists()) throw new Error("Partida no encontrada.");
             const game = gameSnap.data() as Game;
 
-            const humanPlayers = game.players.filter(p => !p.isAI);
+            const playersSnap = await transaction.get(gameRef.collection('players'));
+            const currentPlayers = playersSnap.docs.map(d => d.data() as PlayerPublicData);
 
-            const resetHumanPlayersPublic: PlayerPublicData[] = [];
-            
+            const humanPlayers = currentPlayers.filter(p => !p.isAI);
+
+            const batch = adminDb.batch();
+
+            // Delete all current players (both public and private)
+            for (const player of currentPlayers) {
+                batch.delete(gameRef.collection('players').doc(player.userId));
+                batch.delete(gameRef.collection('playerData').doc(player.userId));
+            }
+
+            // Re-add human players with reset state
             for (const player of humanPlayers) {
                 const newPlayer = createPlayerObject(player.userId, game.id, player.displayName, player.avatarUrl, player.isAI);
                 newPlayer.joinedAt = player.joinedAt;
                 const { publicData, privateData } = splitPlayerData(newPlayer);
-                resetHumanPlayersPublic.push(publicData);
-                transaction.set(adminDb.collection('games').doc(gameId).collection('playerData').doc(player.userId), toPlainObject(privateData));
+                
+                batch.set(gameRef.collection('players').doc(player.userId), toPlainObject(publicData));
+                batch.set(gameRef.collection('playerData').doc(player.userId), toPlainObject(privateData));
             }
+            
+            await batch.commit();
 
             if (game.settings.isPublic) {
               const publicGameRef = adminDb.collection("publicGames").doc(gameId);
@@ -344,7 +376,9 @@ export async function resetGame(gameId: string) {
                 events: [], nightActions: [],
                 twins: null, lovers: null, phaseEndsAt: new Date(), pendingHunterShot: null,
                 pendingTroublemakerDuel: null,
-                wolfCubRevengeRound: 0, players: resetHumanPlayersPublic, vampireKills: 0, boat: [],
+                wolfCubRevengeRound: 0,
+                playerCount: humanPlayers.length,
+                vampireKills: 0, boat: [],
                 leprosaBlockedRound: 0, witchFoundSeer: false, seerDied: false,
                 silencedPlayerId: null, exiledPlayerId: null, troublemakerUsed: false,
                 fairiesFound: false, fairyKillUsed: false, juryVotes: {}, masterKillUsed: false
@@ -356,5 +390,3 @@ export async function resetGame(gameId: string) {
         return { error: e.message || 'No se pudo reiniciar la partida.' };
     }
 }
-
-    

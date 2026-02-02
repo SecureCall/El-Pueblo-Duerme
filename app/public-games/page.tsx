@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { collection, query, Timestamp, orderBy } from 'firebase/firestore';
+import { collection, query, where, Timestamp, orderBy } from 'firebase/firestore';
 import { useCollection } from '../firebase/firestore/use-collection';
 import { useFirebase } from '../firebase/provider';
 import { GameMusic } from '../components/game/GameMusic';
@@ -85,7 +85,7 @@ export default function PublicGamesPage() {
 
     const sortedGames = useMemo(() => {
         if (!publicGames) return [];
-        return [...publicGames].sort((a, b) => getMillis((b as any).lastActiveAt) - getMillis((a as any).lastActiveAt));
+        return [...publicGames].sort((a, b) => getMillis((a as any).lastActiveAt) - getMillis((b as any).lastActiveAt));
     }, [publicGames]);
 
 
@@ -173,5 +173,3 @@ export default function PublicGamesPage() {
         </>
     );
 }
-
-    

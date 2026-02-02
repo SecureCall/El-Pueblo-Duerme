@@ -117,7 +117,7 @@ export function DayPhase({ game, players, currentPlayer, nightEvent, loverDeathE
 
     const siren = players.find(p => p.role === 'river_siren');
     const isCharmed = siren?.riverSirenTargetId === currentPlayer.userId;
-    const hasSirenVoted = !!siren?.votedFor;
+    const hasSirenVoted = !!(players.find(p => p.userId === siren?.userId)?.votedFor);
     const isSirenAlive = !!siren?.isAlive;
 
     const canPlayerVote = !isCharmed || (isCharmed && isSirenAlive && hasSirenVoted);

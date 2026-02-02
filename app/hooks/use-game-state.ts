@@ -2,14 +2,14 @@
 'use client';
 
 import { useEffect, useReducer, useMemo } from 'react';
-import { doc, onSnapshot, getDoc, FirestoreError } from 'firebase/firestore';
-import type { Game, Player, GameEvent, PlayerPrivateData } from '../types';
+import { doc, onSnapshot, getDoc, FirestoreError, collection } from 'firebase/firestore';
+import type { Game, Player, GameEvent, PlayerPrivateData, PlayerPublicData } from '../types';
 import { useFirebase } from '../firebase/provider';
 import { useGameSession } from './use-game-session';
 import { getMillis } from '../lib/utils';
 import { errorEmitter } from '../firebase/error-emitter';
 import { FirestorePermissionError } from '../firebase/errors';
-
+import { useCollection } from '../firebase/firestore/use-collection';
 
 // Combined state for the hook's return value
 interface CombinedGameState {
@@ -22,9 +22,11 @@ interface CombinedGameState {
 }
 
 type GameAction =
-  | { type: 'SET_GAME_DATA'; payload: { game: Game; players: Player[]; currentPlayer: Player | null } }
+  | { type: 'SET_GAME_DATA'; payload: { game: Game } }
+  | { type: 'SET_PLAYERS_DATA'; payload: { players: Player[]; currentPlayer: Player | null } }
   | { type: 'SET_LOADING'; payload: boolean }
-  | { type: 'SET_ERROR'; payload: string | null };
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'RESET_STATE' };
 
 
 const initialState: CombinedGameState = {
@@ -38,14 +40,22 @@ const initialState: CombinedGameState = {
 
 function gameReducer(state: CombinedGameState, action: GameAction): CombinedGameState {
     switch (action.type) {
+        case 'RESET_STATE':
+            return initialState;
         case 'SET_GAME_DATA': {
-            const { game, players, currentPlayer } = action.payload;
+            const { game } = action.payload;
             return {
                 ...state,
                 game,
+                events: [...(game.events || [])].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)),
+            };
+        }
+        case 'SET_PLAYERS_DATA': {
+            const { players, currentPlayer } = action.payload;
+            return {
+                ...state,
                 players,
                 currentPlayer,
-                events: [...(game.events || [])].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)),
                 loading: false,
                 error: null,
             };
@@ -71,67 +81,73 @@ export const useGameState = (gameId: string): CombinedGameState => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
 
   const gameRef = useMemo(() => firestore && gameId ? doc(firestore, 'games', gameId) : null, [firestore, gameId]);
+  const playersRef = useMemo(() => firestore && gameId ? collection(firestore, `games/${gameId}/players`) : null, [firestore, gameId]);
   
   useEffect(() => {
-    if (!gameRef || !userId || !isSessionLoaded) {
+    dispatch({ type: 'RESET_STATE' });
+  }, [gameId]);
+  
+  useEffect(() => {
+    if (!gameRef || !isSessionLoaded) {
       dispatch({ type: 'SET_LOADING', payload: true });
       return;
     }
-
-    const unsubscribe = onSnapshot(gameRef, async (gameSnap) => {
+    
+    const unsubscribeGame = onSnapshot(gameRef, (gameSnap) => {
       if (!gameSnap.exists()) {
         dispatch({ type: 'SET_ERROR', payload: "Partida no encontrada." });
         return;
       }
-      
       const gameData = gameSnap.data() as Game;
+      dispatch({ type: 'SET_GAME_DATA', payload: { game: gameData } });
+    }, (error) => {
+        const contextualError = new FirestorePermissionError({ operation: 'get', path: gameRef.path });
+        dispatch({ type: 'SET_ERROR', payload: `Error al cargar la partida: ${error.message}` });
+        errorEmitter.emit('permission-error', contextualError);
+    });
 
-      try {
-        // Attempt to fetch the current user's private data.
-        const privateDataRef = doc(firestore, `games/${gameId}/playerData`, userId);
-        const privateSnap = await getDoc(privateDataRef);
+    return () => unsubscribeGame();
+  }, [gameRef, isSessionLoaded]);
 
-        // Merge public and private data for the current player.
-        // Other players will only have their public data visible.
-        const fullPlayers: Player[] = gameData.players.map(publicData => {
-          if (publicData.userId === userId && privateSnap.exists()) {
-            return { ...publicData, ...(privateSnap.data() as PlayerPrivateData) };
+  const { data: publicPlayers, error: playersError } = useCollection<PlayerPublicData>(playersRef);
+  
+  useEffect(() => {
+    if (playersError) {
+        dispatch({ type: 'SET_ERROR', payload: `Error al cargar jugadores: ${playersError.message}` });
+        return;
+    }
+
+    if (!userId || !isSessionLoaded || !publicPlayers) return;
+    
+    const privateDataRef = doc(firestore, `games/${gameId}/playerData`, userId);
+    const privateDataUnsubscribe = onSnapshot(privateDataRef, privateSnap => {
+        const privateData = privateSnap.exists() ? privateSnap.data() as PlayerPrivateData : null;
+        
+        const fullPlayers: Player[] = publicPlayers.map(publicData => {
+          if (publicData.userId === userId && privateData) {
+            return { ...publicData, ...privateData };
           }
-          // For other players, we return the public data cast as Player,
-          // acknowledging that private fields will be undefined.
           return publicData as Player;
         }).sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
         
         const currentPlayer = fullPlayers.find(p => p.userId === userId) || null;
         
-        dispatch({ type: 'SET_GAME_DATA', payload: { game: gameData, players: fullPlayers, currentPlayer } });
+        dispatch({ type: 'SET_PLAYERS_DATA', payload: { players: fullPlayers, currentPlayer } });
 
-      } catch (e) {
-          const err = e as FirestoreError;
-          if (err.code === 'permission-denied') {
-              const permissionError = new FirestorePermissionError({
-                  path: `games/${gameId}/playerData/${userId}`,
-                  operation: 'get',
-              });
-              errorEmitter.emit('permission-error', permissionError);
-              dispatch({ type: 'SET_ERROR', payload: `Error de permisos al cargar tus datos.` });
-          } else {
-              console.error("Error fetching private player data:", err);
-              dispatch({ type: 'SET_ERROR', payload: `Error al cargar datos del jugador: ${err.message}` });
-          }
-      }
-    }, (error) => {
-        const contextualError = new FirestorePermissionError({
-          operation: 'get',
-          path: gameRef.path,
-        });
-        dispatch({ type: 'SET_ERROR', payload: `Error al cargar la partida: ${error.message}` });
-        errorEmitter.emit('permission-error', contextualError);
+    }, e => {
+        const err = e as FirestoreError;
+        if (err.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({ path: `games/${gameId}/playerData/${userId}`, operation: 'get' });
+            errorEmitter.emit('permission-error', permissionError);
+            dispatch({ type: 'SET_ERROR', payload: `Error de permisos al cargar tus datos.` });
+        } else {
+            console.error("Error fetching private player data:", err);
+            dispatch({ type: 'SET_ERROR', payload: `Error al cargar datos del jugador: ${err.message}` });
+        }
     });
 
-    return () => unsubscribe();
-
-  }, [gameRef, gameId, firestore, userId, isSessionLoaded]);
+    return () => privateDataUnsubscribe();
+  }, [publicPlayers, playersError, userId, isSessionLoaded, gameId, firestore]);
 
   return state;
 };
