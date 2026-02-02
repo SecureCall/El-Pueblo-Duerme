@@ -14,9 +14,14 @@ const db = getFirestore(app);
 
 // Initialize App Check
 if (typeof window !== 'undefined') {
+  // Pass your reCAPTCHA v3 site key (public key) to activate(). Make sure this
+  // key is a secret in your environment variables.
   initializeAppCheck(app, {
     provider: new ReCaptchaV3Provider('6LcBdPUpAAAAAGTxQZqzvC8bXzUZ8e6Q8GmzR7XH'),
-    isTokenAutoRefreshEnabled: true,
+
+    // Optional argument. If true, the SDK automatically refreshes App Check
+    // tokens as needed.
+    isTokenAutoRefreshEnabled: true
   });
 }
 

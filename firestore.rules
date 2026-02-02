@@ -31,7 +31,8 @@ service cloud.firestore {
 
     function isPlayerInTwins(gameId, userId) {
       // Verifica si un jugador es un gemelo.
-       return get(/databases/$(database)/documents/games/$(gameId)).data.twins != null && userId in get(/databases/$(database)/documents/games/$(gameId)).data.twins;
+       let gameData = get(/databases/$(database)/documents/games/$(gameId)).data;
+       return gameData.twins != null && userId in gameData.twins;
     }
 
     // ===== PUBLIC GAMES (Lobby Listing) =====
@@ -100,16 +101,15 @@ service cloud.firestore {
 
       // Chat de Gemelos
       match /twinChat/{messageId} {
-        allow read: if isPlayerInTwins(gameId, request.auth.uid);
-        allow create: if isPlayerInTwins(gameId, request.auth.uid) 
-                      && request.resource.data.senderId == request.auth.uid;
+        allow read: if isPlayerInGame(gameId) && isPlayerInTwins(gameId, request.auth.uid);
+        allow create: if isPlayerInGame(gameId) && isPlayerInTwins(gameId, request.auth.uid) && request.resource.data.senderId == request.auth.uid;
         allow update, delete: if false;
       }
 
       // Chat de Enamorados
       match /loversChat/{messageId} {
-        allow read: if isPlayerLover(gameId, request.auth.uid);
-        allow create: if isPlayerLover(gameId, request.auth.uid) 
+        allow read: if isPlayerInGame(gameId) && isPlayerLover(gameId, request.auth.uid);
+        allow create: if isPlayerInGame(gameId) && isPlayerLover(gameId, request.auth.uid) 
                       && request.resource.data.senderId == request.auth.uid;
         allow update, delete: if false;
       }

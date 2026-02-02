@@ -6,7 +6,17 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "playerCount", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "games",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "phase", "order": "ASCENDING" },
+        { "fieldPath": "lastActiveAt", "order": "DESCENDING" }
       ]
     },
     {
@@ -14,8 +24,8 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "gameId", "order": "ASCENDING" },
-        { "fieldPath": "alive", "order": "ASCENDING" },
-        { "fieldPath": "role", "order": "ASCENDING" }
+        { "fieldPath": "isAlive", "order": "ASCENDING" },
+        { "fieldPath": "userId", "order": "ASCENDING" }
       ]
     }
   ],
