@@ -17,13 +17,16 @@ import {
   type ChatMessage,
 } from "@/types";
 import { adminDb } from "./server-init";
-import { toPlainObject, splitPlayerData, getMillis, PHASE_DURATION_SECONDS } from "./utils";
+import { toPlainObject, splitPlayerData, getMillis, PHASE_DURATION_SECONDS, sanitizeHTML } from "./utils";
 import { masterActions } from "./master-actions";
 import { processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotesEngine, processNightEngine, generateRoles } from './game-engine';
 
 export async function sendChatMessage(gameId: string, senderId: string, senderName: string, text: string, isFromAI: boolean = false) {
     if (!text?.trim()) return { success: false, error: 'El mensaje no puede estar vacío.' };
     
+    const sanitizedText = sanitizeHTML(text.trim());
+    if (!sanitizedText) return { success: false, error: 'Mensaje inválido.' };
+
     const gameRef = adminDb.collection('games').doc(gameId);
     const playersRef = gameRef.collection('players');
     const chatCollectionRef = gameRef.collection('publicChat');
@@ -49,10 +52,10 @@ export async function sendChatMessage(gameId: string, senderId: string, senderNa
             const allPlayers = allPlayersSnap.docs.map(doc => doc.data() as PlayerPublicData);
 
             const mentionedPlayerIds = allPlayers
-                .filter(p => p.isAlive && text.toLowerCase().includes(p.displayName.toLowerCase()))
+                .filter(p => p.isAlive && sanitizedText.toLowerCase().includes(p.displayName.toLowerCase()))
                 .map(p => p.userId);
             
-            const messageData: Omit<ChatMessage, 'id'> = { senderId, senderName, text: text.trim(), round: game.currentRound, createdAt: new Date(), mentionedPlayerIds};
+            const messageData: Omit<ChatMessage, 'id'> = { senderId, senderName, text: sanitizedText, round: game.currentRound, createdAt: new Date(), mentionedPlayerIds};
             
             const newMessageRef = chatCollectionRef.doc();
             transaction.set(newMessageRef, toPlainObject(messageData));
@@ -60,7 +63,7 @@ export async function sendChatMessage(gameId: string, senderId: string, senderNa
 
         if (!isFromAI) {
             const { triggerAIChat } = await import('./firebase-ai-actions');
-            await triggerAIChat(gameId, `${senderName} dijo: "${text.trim()}"`, 'public');
+            await triggerAIChat(gameId, `${senderName} dijo: "${sanitizedText}"`, 'public');
         }
         return { success: true };
 
@@ -72,6 +75,9 @@ export async function sendChatMessage(gameId: string, senderId: string, senderNa
 
 async function sendSpecialChatMessage(gameId: string, senderId: string, senderName: string, text: string, chatType: 'wolf' | 'fairy' | 'twin' | 'lovers' | 'ghost' ) {
     if (!text?.trim()) return { success: false, error: 'El mensaje no puede estar vacío.' };
+
+    const sanitizedText = sanitizeHTML(text.trim());
+    if (!sanitizedText) return { success: false, error: 'Mensaje inválido.'};
 
     const gameRef = adminDb.collection('games').doc(gameId);
     
@@ -121,7 +127,7 @@ async function sendSpecialChatMessage(gameId: string, senderId: string, senderNa
             if (!canSend || !chatCollectionName) throw new Error("No tienes permiso para enviar mensajes en este chat.");
 
             const chatCollectionRef = gameRef.collection(chatCollectionName);
-            const messageData: Omit<ChatMessage, 'id'> = { senderId, senderName, text: text.trim(), round: game.currentRound, createdAt: new Date() };
+            const messageData: Omit<ChatMessage, 'id'> = { senderId, senderName, text: sanitizedText, round: game.currentRound, createdAt: new Date() };
             
             const newMessageRef = chatCollectionRef.doc();
             transaction.set(newMessageRef, toPlainObject(messageData));
