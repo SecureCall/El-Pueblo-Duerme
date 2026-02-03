@@ -1,5 +1,4 @@
 import type { Game, GameEvent } from "@/types";
-import { Timestamp } from "firebase/firestore";
 import { roleDetails } from "./roles";
 
 export type MasterActionId = 'reveal_role' | 'master_kill';
@@ -8,15 +7,15 @@ export interface MasterAction {
     id: MasterActionId;
     name: string;
     description: string;
-    execute: (game: Game, sourceId: string, targetId: string) => { updatedGame: Game };
+    execute: (game: Game, sourceId: string, targetId: string, fullPlayers: Player[]) => { updatedGame: Game };
 }
 
 const revealRoleAction: MasterAction = {
     id: 'reveal_role',
     name: "Revelar Rol",
     description: "Revela en secreto el rol de un jugador (Objetivo) a otro (Fuente).",
-    execute: (game, sourceId, targetId) => {
-        const targetPlayer = game.players.find(p => p.userId === targetId);
+    execute: (game, sourceId, targetId, fullPlayers) => {
+        const targetPlayer = fullPlayers.find(p => p.userId === targetId);
         if (!targetPlayer) {
             console.error("Master Action 'reveal_role': Target player not found.");
             return { updatedGame: game };

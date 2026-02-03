@@ -1,9 +1,5 @@
-
 'use server';
-import { 
-  FieldValue,
-  runTransaction
-} from "firebase-admin/firestore";
+import * as adminFirestore from "firebase-admin/firestore";
 import { 
   type Game, 
   type Player, 
@@ -165,7 +161,7 @@ export async function joinGame(
   const privateDataRef = gameRef.collection('playerData').doc(userId);
 
   try {
-    await runTransaction(adminDb, async (transaction) => {
+    await adminFirestore.runTransaction(adminDb, async (transaction) => {
       const gameSnap = await transaction.get(gameRef);
       if (!gameSnap.exists()) throw new Error("Partida no encontrada.");
 
@@ -191,7 +187,7 @@ export async function joinGame(
       transaction.set(playerPublicRef, toPlainObject(publicData));
       
       const updateData: any = {
-        playerCount: FieldValue.increment(1),
+        playerCount: adminFirestore.FieldValue.increment(1),
         lastActiveAt: new Date(),
       };
       
@@ -200,7 +196,7 @@ export async function joinGame(
       if (game.settings.isPublic) {
         const publicGameRef = adminDb.collection("publicGames").doc(gameId);
         transaction.update(publicGameRef, {
-          playerCount: FieldValue.increment(1),
+          playerCount: adminFirestore.FieldValue.increment(1),
           lastActiveAt: new Date(),
         });
       }
@@ -219,7 +215,7 @@ export async function startGame(gameId: string, creatorId: string) {
     const gameRef = adminDb.collection('games').doc(gameId);
     
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminFirestore.runTransaction(adminDb, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error('Partida no encontrada.');
             let game = gameSnap.data() as Game;
@@ -325,7 +321,7 @@ export async function resetGame(gameId: string) {
     const gameRef = adminDb.collection('games').doc(gameId);
 
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminFirestore.runTransaction(adminDb, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Partida no encontrada.");
             const game = gameSnap.data() as Game;

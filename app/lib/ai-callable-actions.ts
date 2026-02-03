@@ -1,10 +1,7 @@
 
 'use server';
 import { adminDb } from "./server-init";
-import { 
-  runTransaction,
-  FieldValue,
-} from "firebase-admin/firestore";
+import * as adminFirestore from "firebase-admin/firestore";
 import type { Game, ChatMessage } from "@/types";
 import { toPlainObject, sanitizeHTML } from "./utils";
 
@@ -21,14 +18,14 @@ export async function sendChatMessageForAI(gameId: string, senderId: string, sen
     const gameRef = adminDb.collection('games').doc(gameId);
 
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminFirestore.runTransaction(adminDb, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error('Game not found');
             const game = gameDoc.data() as Game;
             
             const mentionedPlayerIds = game.players.filter(p => p.isAlive && sanitizedText.toLowerCase().includes(p.displayName.toLowerCase())).map(p => p.userId);
             const messageData: ChatMessage = {id: `${Date.now()}_${senderId}`, senderId, senderName, text: sanitizedText, round: game.currentRound, createdAt: new Date(), mentionedPlayerIds};
-            transaction.update(gameRef, { chatMessages: FieldValue.arrayUnion(toPlainObject(messageData)) });
+            transaction.update(gameRef, { chatMessages: adminFirestore.FieldValue.arrayUnion(toPlainObject(messageData)) });
         });
         return { success: true };
     } catch (error: any) {

@@ -1,10 +1,6 @@
 
 'use server';
-import { 
-  Timestamp,
-  runTransaction,
-  FieldValue,
-} from "firebase-admin/firestore";
+import * as adminFirestore from "firebase-admin/firestore";
 import { 
   type Game, 
   type Player, 
@@ -32,7 +28,7 @@ export async function sendChatMessage(gameId: string, senderId: string, senderNa
     const chatCollectionRef = gameRef.collection('publicChat');
 
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminFirestore.runTransaction(adminDb, async (transaction) => {
             const senderRef = playersRef.doc(senderId);
             const [gameSnap, senderSnap] = await transaction.getAll(gameRef, senderRef);
 
@@ -82,7 +78,7 @@ async function sendSpecialChatMessage(gameId: string, senderId: string, senderNa
     const gameRef = adminDb.collection('games').doc(gameId);
     
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminFirestore.runTransaction(adminDb, async (transaction) => {
             const privateRef = gameRef.collection('playerData').doc(senderId);
             const [gameSnap, privateSnap] = await transaction.getAll(gameRef, privateRef);
 
@@ -146,7 +142,7 @@ export async function submitNightAction(data: {gameId: string, round: number, pl
     const privateRef = adminDb.collection('games').doc(gameId).collection('playerData').doc(playerId);
 
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminFirestore.runTransaction(adminDb, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             const privateSnap = await transaction.get(privateRef);
             if (!gameSnap.exists() || !privateSnap.exists()) throw new Error("Game or player data not found");
@@ -162,7 +158,7 @@ export async function submitNightAction(data: {gameId: string, round: number, pl
             transaction.update(privateRef, { usedNightAbility: true });
             
             const newAction: NightAction = { ...data, createdAt: new Date() };
-            transaction.update(gameRef, { nightActions: FieldValue.arrayUnion(toPlainObject(newAction)) });
+            transaction.update(gameRef, { nightActions: adminFirestore.FieldValue.arrayUnion(toPlainObject(newAction)) });
         });
         return { success: true };
     } catch (error: any) {
@@ -174,7 +170,7 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
     const gameRef = adminDb.collection('games').doc(gameId);
     const playerRef = gameRef.collection('players').doc(voterId);
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminFirestore.runTransaction(adminDb, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
             const game = gameSnap.data() as Game;
@@ -201,7 +197,7 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
 export async function submitJuryVote(gameId: string, voterId: string, targetId: string) {
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminFirestore.runTransaction(adminDb, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) {
                 throw new Error("Game not found.");
@@ -227,7 +223,7 @@ export async function submitJuryVote(gameId: string, voterId: string, targetId: 
 export async function sendGhostMessage(gameId: string, ghostId: string, recipientId: string, template: string, subjectId?: string) {
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminFirestore.runTransaction(adminDb, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error("Game not found");
             const game = gameDoc.data() as Game;
@@ -254,7 +250,7 @@ export async function sendGhostMessage(gameId: string, ghostId: string, recipien
             };
             
             transaction.update(ghostPrivateRef, { ghostMessageSent: true });
-            transaction.update(gameRef, { events: FieldValue.arrayUnion(toPlainObject(ghostEvent)) });
+            transaction.update(gameRef, { events: adminFirestore.FieldValue.arrayUnion(toPlainObject(ghostEvent)) });
         });
         return { success: true };
     } catch (error: any) {
@@ -266,7 +262,7 @@ export async function sendGhostMessage(gameId: string, ghostId: string, recipien
 export async function processNight(gameId: string) {
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminFirestore.runTransaction(adminDb, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error("Game not found");
             const game = gameDoc.data() as Game;
@@ -309,7 +305,7 @@ export async function processVotes(gameId: string) {
         const { runAIVotes } = await import('./firebase-ai-actions');
         await runAIVotes(gameId);
 
-        await runTransaction(adminDb, async (transaction) => {
+        await adminFirestore.runTransaction(adminDb, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error("Game not found");
             const game = gameDoc.data() as Game;
@@ -350,7 +346,7 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
     const gameRef = adminDb.collection('games').doc(gameId);
     
     try {
-        const result = await runTransaction(adminDb, async (transaction) => {
+        const result = await adminFirestore.runTransaction(adminDb, async (transaction) => {
             const [gameSnap, seerSnap, targetSnap, targetPublicSnap] = await transaction.getAll(
                 gameRef,
                 privateSeerRef,
@@ -397,7 +393,7 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
 export async function submitTroublemakerSelection(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminFirestore.runTransaction(adminDb, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Partida no encontrada");
             let game = gameSnap.data() as Game;
@@ -425,7 +421,7 @@ export async function processJuryVotes(gameId: string) {
         const aiActions = await import('./firebase-ai-actions');
         await aiActions.runAIJuryVotes(gameId);
 
-        await runTransaction(adminDb, async (transaction) => {
+        await adminFirestore.runTransaction(adminDb, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error("Game not found");
             const game = gameDoc.data() as Game;
@@ -447,7 +443,7 @@ export async function processJuryVotes(gameId: string) {
 export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminFirestore.runTransaction(adminDb, async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists()) throw new Error("Game not found");
             let game = gameSnap.data() as Game;
@@ -506,7 +502,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
 export async function executeMasterAction(gameId: string, actionId: MasterActionId, sourceId: string | null, targetId: string) {
     const gameRef = adminDb.collection('games').doc(gameId);
      try {
-        await runTransaction(adminDb, async (transaction) => {
+        await adminFirestore.runTransaction(adminDb, async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             if (!gameDoc.exists()) throw new Error("Game not found");
             let game = gameDoc.data() as Game;
@@ -549,3 +545,4 @@ export const sendGhostChatMessage = (gameId: string, senderId: string, senderNam
     
 
     
+
