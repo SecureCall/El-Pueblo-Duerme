@@ -12,8 +12,14 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Initialize App Check
-if (typeof window !== 'undefined') {
+let appCheckInitialized = false;
+
+// This function should be called from a client component's useEffect hook.
+export function initializeClientAppCheck() {
+    if (appCheckInitialized || typeof window === 'undefined') {
+        return;
+    }
+
     // For development, allow debug token.
     // Ensure you have `self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;` in your local dev environment.
     if (process.env.NODE_ENV === 'development') {
@@ -32,10 +38,12 @@ if (typeof window !== 'undefined') {
           provider: new ReCaptchaV3Provider(siteKey),
           isTokenAutoRefreshEnabled: true,
         });
+        appCheckInitialized = true;
         console.log('✅ Firebase App Check inicializado.');
     } catch (error) {
         console.error('❌ Error al inicializar Firebase App Check:', error);
     }
 }
+
 
 export { app, auth, db };

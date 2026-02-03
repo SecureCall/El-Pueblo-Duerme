@@ -7,7 +7,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { FirebaseProvider } from './firebase/provider';
 import { cn } from './lib/utils';
 import { useEffect } from 'react';
-import { app } from './lib/firebase/client'; // Assuming client.ts initializes everything
+import { initializeClientAppCheck } from './lib/firebase/client';
 
 const ptSans = PT_Sans({ 
   subsets: ['latin'], 
@@ -36,13 +36,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   useEffect(() => {
-    // The App Check initialization logic is in `app/lib/firebase/client.ts`
-    // and runs when the module is imported. By importing `app` from it,
-    // we ensure the logic is executed. This call is to satisfy the requirement
-    // of explicitly "activating" it within the component lifecycle.
-    if (app) {
-      console.log("Firebase App instance loaded, App Check is active.");
-    }
+    // Initialize App Check here to ensure it runs on the client after the DOM is ready.
+    initializeClientAppCheck();
   }, []);
 
   return (
