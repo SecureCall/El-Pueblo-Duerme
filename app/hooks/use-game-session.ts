@@ -2,8 +2,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "@/firebase/provider";
-import { signInAnonymously, onAuthStateChanged, type User } from "firebase/auth";
+import { useAuth, useUser } from "@/firebase/provider";
+import { signInAnonymously, type User } from "firebase/auth";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import type { Game, Player } from "@/types";
 import { getObjectiveLogic, secretObjectives } from "@/lib/objectives";
@@ -37,11 +37,13 @@ const defaultStats: PlayerStats = {
 
 export function useGameSession() {
   const auth = useAuth();
-  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const { user: firebaseUser, isUserLoading } = useUser();
+  
   const [displayName, setDisplayNameState] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrlState] = useState<string | null>(null);
   const [stats, setStats] = useState<PlayerStats>(defaultStats);
-  const [isSessionLoaded, setIsSessionLoaded] = useState(false);
+  
+  const isSessionLoaded = !isUserLoading;
 
   // Effect 1: Load from localStorage on initial mount
   useEffect(() => {
@@ -69,26 +71,16 @@ export function useGameSession() {
     }
   }, []);
 
-  // Effect 2: Listen for auth state changes to determine session status
+  // Effect 2: Trigger anonymous sign-in only if needed, AFTER the initial auth check
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setFirebaseUser(user);
-      setIsSessionLoaded(true); // Signal that the initial auth check is complete
-    });
-    return () => unsubscribe();
-  }, [auth]);
-
-  // Effect 3: Trigger anonymous sign-in only if needed, AFTER the initial auth check
-  useEffect(() => {
-    // Wait for the session to be loaded and ensure there's no user
-    if (isSessionLoaded && !firebaseUser) {
+    if (!isUserLoading && !firebaseUser) {
       signInAnonymously(auth).catch((error) => {
         console.error("Anonymous sign-in failed:", error);
       });
     }
-  }, [isSessionLoaded, firebaseUser, auth]);
+  }, [isUserLoading, firebaseUser, auth]);
   
-  // Effect 4: Generate a default avatar if one doesn't exist for the logged-in user
+  // Effect 3: Generate a default avatar if one doesn't exist for the logged-in user
   useEffect(() => {
     if (firebaseUser && !avatarUrl) {
       const defaultAvatarId = Math.floor(Math.random() * 20) + 1;
