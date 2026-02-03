@@ -1,4 +1,3 @@
-
 // This file is safe to be public on the client-side.
 // It does not contain any sensitive credentials.
 export const firebaseConfig = {
