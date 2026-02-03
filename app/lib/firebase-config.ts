@@ -1,7 +1,7 @@
 // This file is safe to be public on the client-side.
 // It does not contain any sensitive credentials.
 export const firebaseConfig = {
-  apiKey: "AIzaSyCl3guWzQNlp7KasDyzIAAu6RPCG03Mw-U",
+  apiKey: "AIzaSyCl3guWzQNLp7KasDyZIAu6RPCG0Mv-U",
   authDomain: "studio-9015007721-ac536.firebaseapp.com",
   projectId: "studio-9015007721-ac536",
   storageBucket: "studio-9015007721-ac536.firebasestorage.app",
