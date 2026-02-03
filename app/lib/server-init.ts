@@ -6,7 +6,10 @@ import { googleAI } from '@genkit-ai/google-genai';
 
 let app: App;
 if (getApps().length === 0) {
-  app = initializeApp();
+  // Explicitly providing the projectId to fix environment detection issues.
+  app = initializeApp({
+    projectId: "studio-9015007721-ac536",
+  });
 } else {
   app = getApps()[0]!;
 }
