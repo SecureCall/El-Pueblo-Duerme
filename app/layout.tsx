@@ -7,7 +7,6 @@ import { Toaster } from '@/components/ui/toaster';
 import { FirebaseProvider } from './firebase/provider';
 import { cn } from './lib/utils';
 import { useEffect } from 'react';
-import { initializeClientAppCheck } from './lib/firebase/client';
 
 const ptSans = PT_Sans({ 
   subsets: ['latin'], 
@@ -35,11 +34,7 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  useEffect(() => {
-    // Initialize App Check here to ensure it runs on the client after the DOM is ready.
-    initializeClientAppCheck();
-  }, []);
-
+  
   return (
     <html lang="es" className="dark">
       <body className={cn(ptSans.variable, playfair.variable, "font-sans")}>
