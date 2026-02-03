@@ -43,71 +43,64 @@ export function useGameSession() {
   const [stats, setStats] = useState<PlayerStats>(defaultStats);
   const [isSessionLoaded, setIsSessionLoaded] = useState(false);
 
+  // Effect 1: Load from localStorage on initial mount
   useEffect(() => {
     const storedDisplayName = localStorage.getItem("werewolf_displayName");
     const storedAvatarUrl = localStorage.getItem("werewolf_avatarUrl");
     const storedStatsRaw = localStorage.getItem("werewolf_stats");
 
-    if (storedDisplayName) {
-        setDisplayNameState(storedDisplayName);
-    }
-    
-    // Set the avatar right away if it exists
-    if (storedAvatarUrl) {
-      setAvatarUrlState(storedAvatarUrl);
-    }
-    
-    // Robust parsing of stats
+    if (storedDisplayName) setDisplayNameState(storedDisplayName);
+    if (storedAvatarUrl) setAvatarUrlState(storedAvatarUrl);
+
     if (storedStatsRaw) {
-        try {
-            const parsedStats = JSON.parse(storedStatsRaw);
-            // Basic validation to ensure it's a plausible stats object
-            if (typeof parsedStats === 'object' && parsedStats !== null && 'victories' in parsedStats) {
-                 if (!Array.isArray(parsedStats.history)) {
-                    parsedStats.history = []; // Ensure history array exists
-                }
-                setStats(parsedStats);
-            } else {
-                 // The stored data is not in the expected format
-                 throw new Error("Parsed stats object is invalid.");
-            }
-        } catch (e) {
-            console.error("Failed to parse stats from localStorage, resetting.", e);
-            localStorage.removeItem("werewolf_stats"); // Clear corrupted data
-            setStats(defaultStats);
+      try {
+        const parsedStats = JSON.parse(storedStatsRaw);
+        if (typeof parsedStats === 'object' && parsedStats !== null && 'victories' in parsedStats) {
+          if (!Array.isArray(parsedStats.history)) parsedStats.history = [];
+          setStats(parsedStats);
+        } else {
+          throw new Error("Parsed stats object is invalid.");
         }
-    } else {
-        // No stats found, use default
+      } catch (e) {
+        console.error("Failed to parse stats from localStorage, resetting.", e);
+        localStorage.removeItem("werewolf_stats");
         setStats(defaultStats);
+      }
     }
+  }, []);
 
-
+  // Effect 2: Listen for auth state changes to determine session status
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        signInAnonymously(auth).catch((error) => {
-          console.error("Anonymous sign-in failed:", error);
-        });
-        return;
-      }
-      
       setFirebaseUser(user);
-      
-      // Only generate a new avatar if one isn't already loaded or stored.
-      if (!avatarUrl && !localStorage.getItem("werewolf_avatarUrl")) {
-        const defaultAvatarId = Math.floor(Math.random() * 20) + 1;
-        const defaultAvatar = PlaceHolderImages.find(img => img.id === `avatar-${defaultAvatarId}`);
-        if(defaultAvatar) {
-            const newAvatarUrl = defaultAvatar.imageUrl;
-            localStorage.setItem("werewolf_avatarUrl", newAvatarUrl);
-            setAvatarUrlState(newAvatarUrl);
-        }
-      }
-      
-      setIsSessionLoaded(true);
+      setIsSessionLoaded(true); // Signal that the initial auth check is complete
     });
-
     return () => unsubscribe();
-  }, [auth, avatarUrl]); // Added avatarUrl to dependency array to prevent re-runs after it's set
+  }, [auth]);
+
+  // Effect 3: Trigger anonymous sign-in only if needed, AFTER the initial auth check
+  useEffect(() => {
+    // Wait for the session to be loaded and ensure there's no user
+    if (isSessionLoaded && !firebaseUser) {
+      signInAnonymously(auth).catch((error) => {
+        console.error("Anonymous sign-in failed:", error);
+      });
+    }
+  }, [isSessionLoaded, firebaseUser, auth]);
+  
+  // Effect 4: Generate a default avatar if one doesn't exist for the logged-in user
+  useEffect(() => {
+    if (firebaseUser && !avatarUrl) {
+      const defaultAvatarId = Math.floor(Math.random() * 20) + 1;
+      const defaultAvatar = PlaceHolderImages.find(img => img.id === `avatar-${defaultAvatarId}`);
+      if(defaultAvatar) {
+          const newAvatarUrl = defaultAvatar.imageUrl;
+          localStorage.setItem("werewolf_avatarUrl", newAvatarUrl);
+          setAvatarUrlState(newAvatarUrl);
+      }
+    }
+  }, [firebaseUser, avatarUrl]);
+
 
   const setDisplayName = useCallback((name: string | null) => {
     if (name === null) {
