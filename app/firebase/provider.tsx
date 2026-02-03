@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
@@ -72,7 +71,7 @@ export const FirebaseProvider: React.FC<{ children: ReactNode }> = ({
       }
     );
     return () => unsubscribe(); // Cleanup
-  }, []); // Depends on the auth instance
+  }, [auth]); // Depends on the auth instance
 
   // Memoize the context value
   const contextValue = useMemo((): FirebaseContextState => {
