@@ -1,6 +1,7 @@
+'use server';
 
 import { initializeApp, cert, getApps, App } from 'firebase-admin/app';
-import * as adminFirestore from 'firebase-admin/firestore';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth, type Auth } from 'firebase-admin/auth';
 import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
@@ -36,7 +37,7 @@ const getAdminConfig = () => {
 
 // Inicialización
 let adminApp: App;
-let adminDb: adminFirestore.Firestore;
+let adminDb: ReturnType<typeof getFirestore>;
 
 try {
   if (getApps().length === 0) {
@@ -46,7 +47,7 @@ try {
     adminApp = getApps()[0];
   }
   
-  adminDb = adminFirestore.getFirestore(adminApp);
+  adminDb = getFirestore(adminApp);
 } catch (error: any) {
   console.error('❌ Firebase Admin initialization failed:', error.message);
   
@@ -63,4 +64,4 @@ const ai = genkit({
   plugins: [googleAI()],
 });
 
-export { adminDb, adminAuth, ai, adminFirestore };
+export { adminDb, adminAuth, ai, FieldValue };
