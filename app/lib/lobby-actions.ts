@@ -7,7 +7,7 @@ import {
   type PlayerPrivateData,
   type PlayerRole, 
 } from "@/types";
-import { adminDb, FieldValue } from "./server-init";
+import { getFirebaseAdmin } from './firebase-admin';
 import { toPlainObject, splitPlayerData } from "./utils";
 import { secretObjectives } from "./objectives";
 import { generateRoles } from './game-engine';
@@ -66,6 +66,7 @@ export async function createGame(
     settings: Game['settings'];
   }
 ) {
+  const { adminDb } = getFirebaseAdmin();
   const { userId, displayName, avatarUrl, gameName, maxPlayers, settings } = options;
 
   if (!userId || !displayName.trim() || !gameName.trim()) {
@@ -155,6 +156,7 @@ export async function joinGame(
     avatarUrl: string,
   }
 ) {
+  const { adminDb, FieldValue } = getFirebaseAdmin();
   const { gameId, userId, displayName, avatarUrl } = options;
   const gameRef = adminDb.collection("games").doc(gameId);
   const playerPublicRef = gameRef.collection('players').doc(userId);
@@ -212,6 +214,7 @@ export async function joinGame(
 
 
 export async function startGame(gameId: string, creatorId: string) {
+    const { adminDb } = getFirebaseAdmin();
     const gameRef = adminDb.collection('games').doc(gameId);
     
     try {
@@ -318,6 +321,7 @@ export async function startGame(gameId: string, creatorId: string) {
 }
 
 export async function resetGame(gameId: string) {
+    const { adminDb } = getFirebaseAdmin();
     const gameRef = adminDb.collection('games').doc(gameId);
 
     try {

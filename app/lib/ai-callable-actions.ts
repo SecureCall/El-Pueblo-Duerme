@@ -1,6 +1,6 @@
 
 'use server';
-import { adminDb, FieldValue } from "./server-init";
+import { getFirebaseAdmin } from './firebase-admin';
 import type { Game, ChatMessage } from "@/types";
 import { toPlainObject, sanitizeHTML } from "./utils";
 
@@ -9,6 +9,7 @@ import { toPlainObject, sanitizeHTML } from "./utils";
 // by the AI flows, not by the client-side components.
 
 export async function sendChatMessageForAI(gameId: string, senderId: string, senderName: string, text: string) {
+    const { adminDb } = getFirebaseAdmin();
     if (!text?.trim()) return { success: false, error: 'El mensaje no puede estar vacío.' };
 
     const sanitizedText = sanitizeHTML(text.trim());

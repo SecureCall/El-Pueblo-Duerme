@@ -11,12 +11,13 @@ import {
   type NightActionType, 
   type ChatMessage,
 } from "@/types";
-import { adminDb, FieldValue } from "./server-init";
+import { getFirebaseAdmin } from './firebase-admin';
 import { toPlainObject, splitPlayerData, getMillis, PHASE_DURATION_SECONDS, sanitizeHTML } from "./utils";
 import { masterActions } from "./master-actions";
 import { processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotesEngine, processNightEngine, generateRoles } from './game-engine';
 
 export async function sendChatMessage(gameId: string, senderId: string, senderName: string, text: string, isFromAI: boolean = false) {
+    const { adminDb } = getFirebaseAdmin();
     if (!text?.trim()) return { success: false, error: 'El mensaje no puede estar vacío.' };
     
     const sanitizedText = sanitizeHTML(text.trim());
@@ -69,6 +70,7 @@ export async function sendChatMessage(gameId: string, senderId: string, senderNa
 }
 
 async function sendSpecialChatMessage(gameId: string, senderId: string, senderName: string, text: string, chatType: 'wolf' | 'fairy' | 'twin' | 'lovers' | 'ghost' ) {
+    const { adminDb } = getFirebaseAdmin();
     if (!text?.trim()) return { success: false, error: 'El mensaje no puede estar vacío.' };
 
     const sanitizedText = sanitizeHTML(text.trim());
@@ -136,6 +138,7 @@ async function sendSpecialChatMessage(gameId: string, senderId: string, senderNa
 
 
 export async function submitNightAction(data: {gameId: string, round: number, playerId: string, actionType: NightActionType, targetId: string}) {
+    const { adminDb, FieldValue } = getFirebaseAdmin();
     const { gameId, playerId, actionType, targetId } = data;
     const gameRef = adminDb.collection('games').doc(gameId);
     const privateRef = adminDb.collection('games').doc(gameId).collection('playerData').doc(playerId);
@@ -166,6 +169,7 @@ export async function submitNightAction(data: {gameId: string, round: number, pl
 }
 
 export async function submitVote(gameId: string, voterId: string, targetId: string) {
+    const { adminDb } = getFirebaseAdmin();
     const gameRef = adminDb.collection('games').doc(gameId);
     const playerRef = gameRef.collection('players').doc(voterId);
     try {
@@ -194,6 +198,7 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
 }
 
 export async function submitJuryVote(gameId: string, voterId: string, targetId: string) {
+    const { adminDb } = getFirebaseAdmin();
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
         await adminDb.runTransaction(async (transaction) => {
@@ -220,6 +225,7 @@ export async function submitJuryVote(gameId: string, voterId: string, targetId: 
 }
 
 export async function sendGhostMessage(gameId: string, ghostId: string, recipientId: string, template: string, subjectId?: string) {
+    const { adminDb, FieldValue } = getFirebaseAdmin();
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
         await adminDb.runTransaction(async (transaction) => {
@@ -259,6 +265,7 @@ export async function sendGhostMessage(gameId: string, ghostId: string, recipien
 
 
 export async function processNight(gameId: string) {
+    const { adminDb } = getFirebaseAdmin();
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
         await adminDb.runTransaction(async (transaction) => {
@@ -299,6 +306,7 @@ export async function processNight(gameId: string) {
 }
 
 export async function processVotes(gameId: string) {
+    const { adminDb } = getFirebaseAdmin();
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
         const { runAIVotes } = await import('./firebase-ai-actions');
@@ -339,6 +347,7 @@ export async function processVotes(gameId: string) {
 }
 
 export async function getSeerResult(gameId: string, seerId: string, targetId: string) {
+    const { adminDb } = getFirebaseAdmin();
     const privateSeerRef = adminDb.collection('games').doc(gameId).collection('playerData').doc(seerId);
     const privateTargetRef = adminDb.collection('games').doc(gameId).collection('playerData').doc(targetId);
     const targetPublicRef = adminDb.collection('games').doc(gameId).collection('players').doc(targetId);
@@ -390,6 +399,7 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
 }
 
 export async function submitTroublemakerSelection(gameId: string, troublemakerId: string, target1Id: string, target2Id: string) {
+    const { adminDb } = getFirebaseAdmin();
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
         await adminDb.runTransaction(async (transaction) => {
@@ -415,6 +425,7 @@ export async function submitTroublemakerSelection(gameId: string, troublemakerId
 }
 
 export async function processJuryVotes(gameId: string) {
+    const { adminDb } = getFirebaseAdmin();
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
         const aiActions = await import('./firebase-ai-actions');
@@ -429,7 +440,7 @@ export async function processJuryVotes(gameId: string) {
             const publicPlayers = publicPlayersSnap.docs.map(d => d.data());
 
             const privateDataSnapshots = await transaction.getAll(...publicPlayers.map(p => adminDb.collection('games').doc(gameId).collection('playerData').doc(p.userId)));
-            const fullPlayers = publicPlayers.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() }));
+            const fullPlayers = publicPlayers.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() as PlayerPrivateData }));
 
             await processJuryVotesEngine(transaction, gameRef, game, fullPlayers as Player[]);
         });
@@ -440,6 +451,7 @@ export async function processJuryVotes(gameId: string) {
 }
 
 export async function submitHunterShot(gameId: string, hunterId: string, targetId: string) {
+    const { adminDb } = getFirebaseAdmin();
     const gameRef = adminDb.collection('games').doc(gameId);
     try {
         await adminDb.runTransaction(async (transaction) => {
@@ -499,6 +511,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
     }
 }
 export async function executeMasterAction(gameId: string, actionId: MasterActionId, sourceId: string | null, targetId: string) {
+    const { adminDb } = getFirebaseAdmin();
     const gameRef = adminDb.collection('games').doc(gameId);
      try {
         await adminDb.runTransaction(async (transaction) => {
@@ -544,4 +557,3 @@ export const sendGhostChatMessage = (gameId: string, senderId: string, senderNam
     
 
     
-
