@@ -1,4 +1,4 @@
-import type { Game, GameEvent } from "@/types";
+import type { Game, GameEvent, Player } from "@/types";
 import { roleDetails } from "./roles";
 
 export type MasterActionId = 'reveal_role' | 'master_kill';
