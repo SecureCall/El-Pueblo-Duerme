@@ -1,11 +1,6 @@
+'use client';
 
-import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
-} from '@/components/ui/accordion';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '../components/ui/button';
@@ -14,49 +9,27 @@ import { cn } from '../lib/utils';
 import { roleDetails } from '../lib/roles';
 import type { PlayerRole } from '../types';
 import { GameMusic } from '../components/game/GameMusic';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 
-const RoleSection = ({ title, roleKeys, teamColor }: { title: string, roleKeys: PlayerRole[], teamColor: string }) => (
-    <Card className="bg-card/80">
-        <CardHeader>
-            <CardTitle className={cn("font-headline text-3xl", teamColor)}>{title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-            <Accordion type="single" collapsible className="w-full">
-                {roleKeys.sort((a, b) => roleDetails[a]!.name.localeCompare(roleDetails[b]!.name)).map((roleKey) => {
-                    const details = roleDetails[roleKey];
-                    if (!details) return null;
-                    return (
-                        <AccordionItem value={details.name} key={details.name}>
-                            <AccordionTrigger className={cn("text-xl font-bold hover:no-underline", details.color)}>
-                                <div className="flex items-center gap-4">
-                                    <div className="relative h-10 w-10">
-                                        <Image
-                                            src={details.image}
-                                            alt={details.name}
-                                            fill
-                                            className="object-contain"
-                                            unoptimized
-                                        />
-                                    </div>
-                                    <span>{details.name}</span>
-                                </div>
-                            </AccordionTrigger>
-                            <AccordionContent className="text-base text-muted-foreground pl-20">
-                                {details.description}
-                            </AccordionContent>
-                        </AccordionItem>
-                    );
-                })}
-            </Accordion>
-        </CardContent>
-    </Card>
-);
+const allRolesArray = (Object.keys(roleDetails) as (keyof typeof roleDetails)[])
+    .map(key => ({ id: key, ...roleDetails[key]! }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+type Team = 'all' | 'Aldeanos' | 'Lobos' | 'Neutral';
 
 export default function HowToPlayPage() {
-    const allRoleKeys = Object.keys(roleDetails) as PlayerRole[];
-    const villageTeam = allRoleKeys.filter(key => roleDetails[key]?.team === 'Aldeanos');
-    const wolfTeam = allRoleKeys.filter(key => roleDetails[key]?.team === 'Lobos');
-    const neutralTeam = allRoleKeys.filter(key => roleDetails[key]?.team === 'Neutral');
+    const [selectedTeam, setSelectedTeam] = useState<Team>('all');
+    
+    const filteredRoles = selectedTeam === 'all'
+        ? allRolesArray
+        : allRolesArray.filter(role => role.team === selectedTeam);
+
+    const teamConfig: Record<Team, { color: string; bg: string; border: string; text: string; }> = {
+        all: { color: 'bg-primary', bg: 'bg-primary/10', border: 'border-primary/30', text: 'text-primary' },
+        Aldeanos: { color: 'bg-blue-600', bg: 'bg-blue-900/20', border: 'border-blue-400/40', text: 'text-blue-300' },
+        Lobos: { color: 'bg-destructive', bg: 'bg-destructive/10', border: 'border-destructive/30', text: 'text-destructive' },
+        Neutral: { color: 'bg-purple-600', bg: 'bg-purple-900/20', border: 'border-purple-400/40', text: 'text-purple-300' },
+    };
 
     return (
         <>
@@ -72,69 +45,64 @@ export default function HowToPlayPage() {
                 />
                 <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
 
-                <main className="relative z-10 w-full max-w-4xl mx-auto space-y-8 text-white py-12">
+                <main className="relative z-10 w-full max-w-6xl mx-auto space-y-8 text-white py-12">
                     <div className="text-center space-y-2">
                         <h1 className="font-headline text-5xl md:text-6xl font-bold tracking-tight text-white">
-                            Cómo Jugar
+                            Manual de Roles
                         </h1>
                         <p className="text-lg text-white/80">
-                            Las reglas y secretos de Pueblo Duerme.
+                            Explora las habilidades y alianzas de los habitantes de Pueblo Duerme.
                         </p>
                     </div>
 
-                    <Card className="bg-card/80">
-                        <CardHeader>
-                            <CardTitle className="font-headline text-3xl">La Regla Cero</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4 text-base text-muted-foreground">
-                           <p>La única información válida es la que se genera a través de las mecánicas del juego. Toda la información debe permanecer dentro del 'círculo mágico' de la partida.</p>
-                           <ul className='list-disc list-inside space-y-2'>
-                               <li><strong>Tu carta es secreta:</strong> Nunca puedes mostrar tu carta de rol a nadie.</li>
-                               <li><strong>No a los pactos externos:</strong> Cualquier pacto, código o señal debe ser creado y comunicado durante el transcurso del juego, visible para todos.</li>
-                               <li><strong>Respeta la eliminación:</strong> Un jugador eliminado no puede hablar ni comunicarse con los jugadores vivos, excepto a través de la mecánica del Jurado Fantasma.</li>
-                               <li><strong>La palabra del Máster es ley:</strong> En caso de una situación no contemplada en las reglas, la decisión del Máster (o del motor del juego) es final.</li>
-                           </ul>
-                        </CardContent>
-                    </Card>
+                    {/* Filtros */}
+                    <div className="flex flex-wrap gap-2 mb-6 justify-center">
+                        {(Object.keys(teamConfig) as Team[]).map(team => (
+                        <Button
+                            key={team}
+                            variant={selectedTeam === team ? 'default' : 'secondary'}
+                            onClick={() => setSelectedTeam(team)}
+                            className={cn(selectedTeam === team && teamConfig[team].color)}
+                        >
+                            {team === 'all' ? 'Todos los Roles' : team}
+                        </Button>
+                        ))}
+                    </div>
+                    
+                    {/* Grid de roles */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {filteredRoles.map(role => (
+                        <Card 
+                            key={role.id}
+                            className={cn("bg-card/80 flex flex-col", teamConfig[role.team].border)}
+                        >
+                            <CardHeader>
+                                <div className="flex items-center gap-4">
+                                    <div className="relative h-16 w-16 flex-shrink-0">
+                                        <Image
+                                            src={role.image}
+                                            alt={role.name}
+                                            fill
+                                            className="object-contain"
+                                            unoptimized
+                                        />
+                                    </div>
+                                    <div>
+                                        <CardTitle className={cn("text-2xl", role.color)}>{role.name}</CardTitle>
+                                        <CardDescription className={cn("font-bold", teamConfig[role.team].text)}>
+                                            Equipo: {role.team}
+                                        </CardDescription>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="flex-grow">
+                                <p className="text-muted-foreground">{role.description}</p>
+                            </CardContent>
+                        </Card>
+                        ))}
+                    </div>
 
-                     <Card className="bg-card/80">
-                        <CardHeader>
-                            <CardTitle className="font-headline text-3xl">Fases del Juego</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4 text-base text-muted-foreground">
-                            <div>
-                                <h3 className="text-xl font-bold text-primary mb-2">1. Fase de Noche</h3>
-                                <p>Durante la noche, la mayoría de los jugadores duermen. Es el momento en que los Hombres Lobo y otros roles con habilidades nocturnas actúan en secreto. Los Hombres Lobo se comunican en un chat privado para decidir a quién eliminar.</p>
-                            </div>
-                            <div>
-                                <h3 className="text-xl font-bold text-primary mb-2">2. Fase de Día</h3>
-                                <p>El pueblo se despierta y descubre quién (si alguien) ha sido asesinado durante la noche. A partir de aquí, comienza el debate. Los jugadores discuten, acusan y se defienden en el chat público. El objetivo es identificar a los sospechosos.</p>
-                            </div>
-                             <div>
-                                <h3 className="text-xl font-bold text-primary mb-2">3. Fase de Votación</h3>
-                                <p>Al final del día, todos los jugadores vivos deben votar para linchar a un jugador que crean que es un Hombre Lobo. El jugador con más votos es eliminado de la partida y su rol es revelado. Si hay un empate, puede haber una segunda ronda de votación o, dependiendo de la configuración, nadie es eliminado.</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-card/80">
-                        <CardHeader>
-                            <CardTitle className="font-headline text-3xl">Condiciones de Victoria</CardTitle>
-                        </CardHeader>
-                         <CardContent className="space-y-4 text-base text-muted-foreground">
-                           <ul className='list-disc list-inside space-y-2'>
-                               <li><strong className='text-blue-400'>El Pueblo:</strong> Gana cuando todos los Hombres Lobo y amenazas neutrales han sido eliminados.</li>
-                               <li><strong className='text-destructive'>Los Lobos:</strong> Ganan cuando su número es igual o superior al de los aldeanos restantes.</li>
-                               <li><strong className='text-purple-400'>Roles Neutrales:</strong> Cada rol neutral tiene un objetivo de victoria único y egoísta que debe cumplir.</li>
-                           </ul>
-                        </CardContent>
-                    </Card>
-
-                    {villageTeam.length > 0 && <RoleSection title="El Pueblo" roleKeys={villageTeam} teamColor="text-blue-400" />}
-                    {wolfTeam.length > 0 && <RoleSection title="Los Lobos" roleKeys={wolfTeam} teamColor="text-destructive" />}
-                    {neutralTeam.length > 0 && <RoleSection title="Roles Neutrales" roleKeys={neutralTeam} teamColor="text-purple-400" />}
-
-                    <div className="text-center pt-4">
+                    <div className="text-center pt-8">
                         <Button asChild>
                             <Link href="/">
                                 <HomeIcon className="mr-2" />
