@@ -505,6 +505,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
                             game={game}
                             currentPlayer={currentPlayer}
                             messages={messages}
+                            players={players as Player[]}
                         />
                     </div>
                 </div>

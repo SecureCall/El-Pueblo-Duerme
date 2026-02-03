@@ -20,6 +20,7 @@ interface GameChatProps {
     game: Game;
     currentPlayer: Player;
     messages: ChatMessage[];
+    players: Player[];
 }
 
 const QUICK_MESSAGES = [
@@ -32,7 +33,7 @@ const QUICK_MESSAGES = [
     "Esto es un caos.",
 ];
 
-export function GameChat({ game, currentPlayer, messages }: GameChatProps) {
+export function GameChat({ game, currentPlayer, messages, players }: GameChatProps) {
     const [newMessage, setNewMessage] = useState('');
     const { toast } = useToast();
     const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -88,11 +89,13 @@ export function GameChat({ game, currentPlayer, messages }: GameChatProps) {
     
     const handleQuickMessage = (template: string) => {
         if (template.includes("{player}")) {
-            // This logic relies on `game.players` which is now gone. 
-            // The `players` prop on this component should be used instead.
-            // However, GameBoard doesn't pass it. This needs to be fixed.
-            // For now, I'll remove this feature to prevent a crash.
-            toast({ description: "Mencionar jugadores no está disponible temporalmente." });
+            const alivePlayers = players.filter(p => p.isAlive && p.userId !== currentPlayer.userId);
+            if (alivePlayers.length > 0) {
+                const randomPlayer = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
+                handleSendMessage(template.replace('{player}', randomPlayer.displayName));
+            } else {
+                toast({ description: "No hay nadie a quien mencionar." });
+            }
         } else {
             handleSendMessage(template);
         }
