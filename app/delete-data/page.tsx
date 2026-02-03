@@ -18,8 +18,8 @@ export default function DeleteDataPage() {
     setMessage('');
     
     try {
-      // En un caso real, aquí llamarías a tu backend (e.g., una Cloud Function)
-      // para registrar la solicitud de eliminación.
+      // In a real scenario, you would call your backend here (e.g., a Cloud Function)
+      // to register the deletion request.
       // await requestDataDeletion({ email });
       await new Promise(resolve => setTimeout(resolve, 1500));
       
@@ -33,24 +33,24 @@ export default function DeleteDataPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white py-12">
+    <div className="min-h-screen bg-background text-foreground py-12">
       <div className="max-w-2xl mx-auto px-4">
         <h1 className="text-4xl font-bold font-headline mb-8 text-center text-primary">Eliminar Mis Datos</h1>
         
         <div className="bg-card/80 rounded-lg shadow-lg p-8 space-y-6 border border-border/50">
           {step === 1 && (
             <>
-              <div className="bg-red-900/30 border border-red-700 rounded-lg p-4">
+              <div className="bg-destructive/20 border border-destructive/50 rounded-lg p-4">
                 <div className="flex items-start">
-                  <div className="flex-shrink-0 text-red-500 text-2xl">
+                  <div className="flex-shrink-0 text-destructive text-2xl">
                     ⚠️
                   </div>
                   <div className="ml-3">
-                    <h3 className="text-lg font-semibold text-red-400">Advertencia Importante</h3>
-                    <p className="mt-1 text-red-300">
+                    <h3 className="text-lg font-semibold text-destructive-foreground">Advertencia Importante</h3>
+                    <p className="mt-1 text-destructive-foreground/80">
                       La eliminación de datos es <strong>permanente e irreversible</strong>. Perderás:
                     </p>
-                    <ul className="list-disc pl-5 mt-2 text-red-300 space-y-1">
+                    <ul className="list-disc pl-5 mt-2 text-destructive-foreground/80 space-y-1">
                       <li>Todas tus partidas y estadísticas.</li>
                       <li>Tu historial de juego completo.</li>
                       <li>Tu cuenta y nombre de usuario.</li>
