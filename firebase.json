@@ -7,7 +7,9 @@
       "**/node_modules/**",
       "README.md",
       ".env*",
-      ".git"
+      ".git",
+      "app/src/**",
+      "app/package.json"
     ],
     "frameworksBackend": {
       "region": "us-central1"
