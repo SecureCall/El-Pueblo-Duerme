@@ -1,4 +1,4 @@
-'use server';
+
 import { initializeApp, cert, getApps, App } from 'firebase-admin/app';
 import * as adminFirestore from 'firebase-admin/firestore';
 import { getAuth, type Auth } from 'firebase-admin/auth';
