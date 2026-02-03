@@ -18,11 +18,12 @@ interface GameLobbyProps {
   game: Game;
   players: Player[];
   isCreator: boolean;
+  currentPlayer: Player | null;
 }
 
-export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
+export function GameLobby({ game, players, isCreator, currentPlayer }: GameLobbyProps) {
   const { toast } = useToast();
-  const { userId, setAvatarUrl, currentPlayer } = useGameSession();
+  const { setAvatarUrl } = useGameSession();
   const [canShare, setCanShare] = useState(false);
   const [masterActionState, setMasterActionState] = useState<MasterActionState>({ active: false, actionId: null, sourceId: null });
 
@@ -143,7 +144,3 @@ export function GameLobby({ game, players, isCreator }: GameLobbyProps) {
     </>
   );
 }
-
-    
-
-    

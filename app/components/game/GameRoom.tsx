@@ -151,7 +151,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
     
     switch (game.status) {
         case 'waiting':
-            return <GameLobby game={game} players={players} isCreator={game.creator === userId} />;
+            return <GameLobby game={game} players={players} isCreator={game.creator === userId} currentPlayer={currentPlayer} />;
         case 'in_progress':
         case 'finished':
             return <GameBoard gameId={gameId} />;
