@@ -1,6 +1,6 @@
 'use client';
 
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { firebaseConfig } from '@/lib/firebase-config';
@@ -14,15 +14,28 @@ const db = getFirestore(app);
 
 // Initialize App Check
 if (typeof window !== 'undefined') {
-  // Pass your reCAPTCHA v3 site key (public key) to activate(). Make sure this
-  // key is a secret in your environment variables.
-  initializeAppCheck(app, {
-    provider: new ReCaptchaV3Provider('6LcBdPUpAAAAAGTxQZqzvC8bXzUZ8e6Q8GmzR7XH'),
+    // For development, allow debug token.
+    // Ensure you have `self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;` in your local dev environment.
+    if (process.env.NODE_ENV === 'development') {
+      // @ts-ignore
+      self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+    }
+    
+    // Use a test key for development or if the production key isn't set.
+    // The key '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI' is a public test key provided by Google.
+    const siteKey = process.env.NODE_ENV === 'production' 
+      ? process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI'
+      : '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI';
 
-    // Optional argument. If true, the SDK automatically refreshes App Check
-    // tokens as needed.
-    isTokenAutoRefreshEnabled: true
-  });
+    try {
+        initializeAppCheck(app, {
+          provider: new ReCaptchaV3Provider(siteKey),
+          isTokenAutoRefreshEnabled: true,
+        });
+        console.log('✅ Firebase App Check inicializado.');
+    } catch (error) {
+        console.error('❌ Error al inicializar Firebase App Check:', error);
+    }
 }
 
 export { app, auth, db };

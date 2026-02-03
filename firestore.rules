@@ -3,125 +3,93 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ===== HELPER FUNCTIONS =====
-    function isPlayerInGame(gameId) {
-      // Un jugador es parte del juego si su UID existe en la subcolección 'players'.
-      return exists(/databases/$(database)/documents/games/$(gameId)/players/$(request.auth.uid));
+    function isPlayerInGame(gameId, userId) {
+      return exists(/databases/$(database)/documents/games/$(gameId)/players/$(userId));
     }
-    
-    function isPlayerAliveInGame(gameId, userId) {
-      // Verifica si un jugador está vivo en un juego específico.
-      return get(/databases/$(database)/documents/games/$(gameId)/players/$(userId)).data.isAlive == true;
+
+    function isPlayerAlive(gameId, userId) {
+        return get(/databases/$(database)/documents/games/$(gameId)/players/$(userId)).data.isAlive == true;
     }
 
     function getPlayerRole(gameId, userId) {
-      // Obtiene el rol de un jugador desde la subcolección privada.
-      return get(/databases/$(database)/documents/games/$(gameId)/playerData/$(userId)).data.role;
+        return get(/databases/$(database)/documents/games/$(gameId)/playerData/$(userId)).data.role;
+    }
+
+    function isLover(gameId, userId) {
+        return get(/databases/$(database)/documents/games/$(gameId)/playerData/$(userId)).data.isLover == true;
     }
     
-    function isPlayerLover(gameId, userId) {
-      // Verifica si un jugador es un amante.
-      return get(/databases/$(database)/documents/games/$(gameId)/playerData/$(userId)).data.isLover == true;
+    function isTwin(gameId, userId) {
+        let gameData = get(/databases/$(database)/documents/games/$(gameId)).data;
+        return gameData.twins != null && (gameData.twins[0] == userId || gameData.twins[1] == userId);
+    }
+    
+    function isFairy(gameId, userId) {
+        let role = getPlayerRole(gameId, userId);
+        return role == 'seeker_fairy' || role == 'sleeping_fairy';
     }
 
-    function areFairiesFound(gameId) {
-      // Verifica si las hadas se han encontrado.
-      return get(/databases/$(database)/documents/games/$(gameId)).data.fairiesFound == true;
-    }
-
-    function isPlayerInTwins(gameId, userId) {
-       let gameData = get(/databases/$(database)/documents/games/$(gameId)).data;
-       // Check for existence and then if the user ID is one of the twins.
-       return gameData.twins != null && (gameData.twins[0] == userId || gameData.twins[1] == userId);
-    }
-
-    // ===== PUBLIC GAMES (Lobby Listing) =====
-    // Esta colección solo contiene datos públicos para la lista de juegos.
     match /publicGames/{gameId} {
-      allow read: if request.auth.uid != null;
-      // Las escrituras son manejadas exclusivamente por el servidor.
-      allow write: if false; 
+      allow read: if request.auth != null;
+      allow write: if false; // Only server can write
+    }
+    
+    match /games/{gameId} {
+      // Allow reads if the user is a player in that game.
+      allow get: if isPlayerInGame(gameId, request.auth.uid);
+      // Deny listing all games to prevent data scraping.
+      allow list: if false;
+
+      // Writes should ONLY be handled by server-side logic (Cloud Functions).
+      allow write: if false;
     }
 
-    // ===== CORE GAME LOGIC =====
-    match /games/{gameId} {
-      // LECTURA: Un jugador solo puede leer el estado del juego si es miembro.
-      allow get: if isPlayerInGame(gameId);
-      // Denegar el listado de todos los juegos por seguridad.
-      allow list: if false; 
-      // ESCRITURA: Todas las escrituras al documento del juego deben ser desde el servidor.
-      // ¡ESTA ES LA REGLA DE SEGURIDAD MÁS CRÍTICA!
-      allow write: if false; 
+    match /games/{gameId}/players/{playerId} {
+      // Allow players in the game to read public data of other players.
+      allow read: if isPlayerInGame(gameId, request.auth.uid);
+      // Players cannot create, update, or delete other player documents.
+      allow write: if false;
+    }
 
-      // SUB-COLECCIÓN: Jugadores (Datos Públicos)
-      match /players/{playerId} {
-        // LECTURA: Los jugadores pueden leer la lista pública de jugadores en su partida.
-        allow get, list: if isPlayerInGame(gameId);
-        // ESCRITURA: Los datos públicos de los jugadores son gestionados por el servidor.
-        allow write: if false;
-      }
+    match /games/{gameId}/playerData/{userId} {
+      // A player can only read their own private data.
+      allow read: if request.auth.uid == userId;
+      // Players cannot write to their own private data.
+      allow write: if false;
+    }
 
-      // SUB-COLECCIÓN: Datos Privados del Jugador (Roles, etc.)
-      match /playerData/{userId} {
-        // LECTURA: Un jugador solo puede leer su PROPIA información privada.
-        allow read: if request.auth.uid != null && request.auth.uid == userId;
-        // ESCRITURA: La información privada es gestionada exclusivamente por el servidor.
-        allow write: if false; 
-      }
-      
-      // ===== CANALES DE CHAT SEGUROS =====
+    // Chat channels
+    match /games/{gameId}/publicChat/{messageId} {
+      allow read: if isPlayerInGame(gameId, request.auth.uid);
+      allow create: if isPlayerInGame(gameId, request.auth.uid) && isPlayerAlive(gameId, request.auth.uid) && request.auth.uid == request.resource.data.senderId;
+      allow update, delete: if false;
+    }
+    
+    match /games/{gameId}/ghostChat/{messageId} {
+      allow read: if isPlayerInGame(gameId, request.auth.uid);
+      allow create: if isPlayerInGame(gameId, request.auth.uid) && !isPlayerAlive(gameId, request.auth.uid) && request.auth.uid == request.resource.data.senderId;
+      allow update, delete: if false;
+    }
 
-      // Chat Público (Durante el día)
-      match /publicChat/{messageId} {
-        allow read: if isPlayerInGame(gameId);
-        // CREAR: Solo si el jugador está en la partida, está VIVO, y es el remitente.
-        allow create: if isPlayerInGame(gameId) 
-                      && isPlayerAliveInGame(gameId, request.auth.uid) 
-                      && request.resource.data.senderId == request.auth.uid;
-        allow update, delete: if false;
-      }
+    match /games/{gameId}/wolfChat/{messageId} {
+      allow read, create: if isPlayerInGame(gameId, request.auth.uid) && 
+                            (getPlayerRole(gameId, request.auth.uid) == 'werewolf' || getPlayerRole(gameId, request.auth.uid) == 'wolf_cub');
+      allow update, delete: if false;
+    }
 
-      // Chat de Fantasmas (Muertos)
-      match /ghostChat/{messageId} {
-        allow read: if isPlayerInGame(gameId);
-        // CREAR: Solo si el jugador está en la partida, está MUERTO, y es el remitente.
-        allow create: if isPlayerInGame(gameId) 
-                      && !isPlayerAliveInGame(gameId, request.auth.uid) 
-                      && request.resource.data.senderId == request.auth.uid;
-        allow update, delete: if false;
-      }
+    match /games/{gameId}/loversChat/{messageId} {
+      allow read, create: if isPlayerInGame(gameId, request.auth.uid) && isLover(gameId, request.auth.uid);
+      allow update, delete: if false;
+    }
 
-      // Chat de Lobos
-      match /wolfChat/{messageId} {
-        allow read: if getPlayerRole(gameId, request.auth.uid) in ['werewolf', 'wolf_cub', 'witch'];
-        allow create: if (getPlayerRole(gameId, request.auth.uid) in ['werewolf', 'wolf_cub', 'witch']) 
-                      && request.resource.data.senderId == request.auth.uid;
-        allow update, delete: if false;
-      }
-
-      // Chat de Gemelos
-      match /twinChat/{messageId} {
-        allow read: if isPlayerInGame(gameId) && isPlayerInTwins(gameId, request.auth.uid);
-        allow create: if isPlayerInGame(gameId) && isPlayerInTwins(gameId, request.auth.uid) && request.resource.data.senderId == request.auth.uid;
-        allow update, delete: if false;
-      }
-
-      // Chat de Enamorados
-      match /loversChat/{messageId} {
-        allow read: if isPlayerInGame(gameId) && isPlayerLover(gameId, request.auth.uid);
-        allow create: if isPlayerInGame(gameId) && isPlayerLover(gameId, request.auth.uid) 
-                      && request.resource.data.senderId == request.auth.uid;
-        allow update, delete: if false;
-      }
-
-      // Chat de Hadas
-      match /fairyChat/{messageId} {
-        allow read: if areFairiesFound(gameId) && getPlayerRole(gameId, request.auth.uid) in ['seeker_fairy', 'sleeping_fairy'];
-        allow create: if areFairiesFound(gameId) 
-                      && (getPlayerRole(gameId, request.auth.uid) in ['seeker_fairy', 'sleeping_fairy']) 
-                      && request.resource.data.senderId == request.auth.uid;
-        allow update, delete: if false;
-      }
+    match /games/{gameId}/twinChat/{messageId} {
+      allow read, create: if isPlayerInGame(gameId, request.auth.uid) && isTwin(gameId, request.auth.uid);
+      allow update, delete: if false;
+    }
+    
+    match /games/{gameId}/fairyChat/{messageId} {
+      allow read, create: if isPlayerInGame(gameId, request.auth.uid) && isFairy(gameId, request.auth.uid);
+      allow update, delete: if false;
     }
   }
 }
