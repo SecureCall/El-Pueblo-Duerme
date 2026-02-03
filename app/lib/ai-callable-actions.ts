@@ -1,7 +1,6 @@
 
 'use server';
-import { adminDb } from "./server-init";
-import * as adminFirestore from "firebase-admin/firestore";
+import { adminDb, adminFirestore } from "./server-init";
 import type { Game, ChatMessage } from "@/types";
 import { toPlainObject, sanitizeHTML } from "./utils";
 

@@ -63,4 +63,4 @@ const ai = genkit({
   plugins: [googleAI()],
 });
 
-export { adminDb, adminAuth, ai };
+export { adminDb, adminAuth, ai, adminFirestore };

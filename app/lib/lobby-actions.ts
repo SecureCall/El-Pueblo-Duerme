@@ -1,5 +1,5 @@
+
 'use server';
-import * as adminFirestore from "firebase-admin/firestore";
 import { 
   type Game, 
   type Player, 
@@ -7,7 +7,7 @@ import {
   type PlayerPrivateData,
   type PlayerRole, 
 } from "@/types";
-import { adminDb } from "./server-init";
+import { adminDb, adminFirestore } from "./server-init";
 import { toPlainObject, splitPlayerData } from "./utils";
 import { secretObjectives } from "./objectives";
 import { generateRoles } from './game-engine';

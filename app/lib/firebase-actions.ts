@@ -1,6 +1,5 @@
 
 'use server';
-import * as adminFirestore from "firebase-admin/firestore";
 import { 
   type Game, 
   type Player, 
@@ -12,7 +11,7 @@ import {
   type NightActionType, 
   type ChatMessage,
 } from "@/types";
-import { adminDb } from "./server-init";
+import { adminDb, adminFirestore } from "./server-init";
 import { toPlainObject, splitPlayerData, getMillis, PHASE_DURATION_SECONDS, sanitizeHTML } from "./utils";
 import { masterActions } from "./master-actions";
 import { processJuryVotesEngine, killPlayer, killPlayerUnstoppable, checkGameOver, processVotesEngine, processNightEngine, generateRoles } from './game-engine';
@@ -545,4 +544,3 @@ export const sendGhostChatMessage = (gameId: string, senderId: string, senderNam
     
 
     
-
