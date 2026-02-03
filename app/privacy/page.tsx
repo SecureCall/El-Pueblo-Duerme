@@ -7,8 +7,8 @@ export default function PrivacyPage() {
           <h2 className="text-xl font-semibold mb-2">1. Información que recopilamos</h2>
           <p>Recopilamos únicamente la información necesaria para el funcionamiento del juego:</p>
           <ul className="list-disc pl-6 mt-2">
-            <li>Identificador de usuario anónimo (para autenticación)</li>
-            <li>Nombre de usuario que elijas</li>
+            <li>Email (para autenticación)</li>
+            <li>Nombre de usuario</li>
             <li>Acciones dentro del juego</li>
             <li>Datos de partidas (roles, votos, resultados)</li>
           </ul>

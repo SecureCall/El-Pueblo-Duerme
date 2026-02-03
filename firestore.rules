@@ -30,9 +30,9 @@ service cloud.firestore {
     }
 
     function isPlayerInTwins(gameId, userId) {
-      // Verifica si un jugador es un gemelo.
        let gameData = get(/databases/$(database)/documents/games/$(gameId)).data;
-       return gameData.twins != null && userId in gameData.twins;
+       // Check for existence and then if the user ID is one of the twins.
+       return gameData.twins != null && (gameData.twins[0] == userId || gameData.twins[1] == userId);
     }
 
     // ===== PUBLIC GAMES (Lobby Listing) =====

@@ -10,12 +10,11 @@ export default function TermsPage() {
         
         <section>
           <h2 className="text-xl font-semibold mb-2">2. Conducta del usuario</h2>
-          <p>Se espera que todos los jugadores mantengan un ambiente de respeto. Está estrictamente prohibido:</p>
+          <p>Prohibido:</p>
           <ul className="list-disc pl-6 mt-2">
-            <li>Hacer trampas, usar exploits o manipular la lógica del juego.</li>
-            <li>Acosar, insultar o usar lenguaje ofensivo contra otros jugadores.</li>
-            <li>Crear múltiples cuentas para obtener una ventaja injusta.</li>
-            <li>Compartir información externa al juego que pueda afectar el resultado.</li>
+            <li>Hacer trampas o usar exploits</li>
+            <li>Acosar a otros jugadores</li>
+            <li>Crear múltiples cuentas para ventaja injusta</li>
           </ul>
         </section>
         
@@ -23,15 +22,10 @@ export default function TermsPage() {
           <h2 className="text-xl font-semibold mb-2">3. Limitación de responsabilidad</h2>
           <p>El juego se provee &quot;tal cual&quot;. No nos hacemos responsables por:</p>
           <ul className="list-disc pl-6 mt-2">
-            <li>Pérdida de datos o progreso en el juego.</li>
-            <li>Interrupciones del servicio o bugs.</li>
-            <li>Decisiones de moderación, incluyendo la suspensión de cuentas.</li>
+            <li>Pérdida de datos</li>
+            <li>Interrupciones del servicio</li>
+            <li>Decisiones de moderación</li>
           </ul>
-        </section>
-
-        <section>
-          <h2 className="text-xl font-semibold mb-2">4. Modificación de los Términos</h2>
-          <p>Nos reservamos el derecho de modificar estos términos en cualquier momento. Se notificará de los cambios importantes a través de la aplicación.</p>
         </section>
       </div>
     </div>

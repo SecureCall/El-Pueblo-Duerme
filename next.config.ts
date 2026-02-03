@@ -43,7 +43,7 @@ const nextConfig: NextConfig = {
                     },
                     {
                         key: 'Content-Security-Policy',
-                        value: "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; frame-src 'self' https://www.google.com;"
+                        value: "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.google.com https://www.gstatic.com; frame-src 'self' https://www.google.com;"
                     }
                 ],
             },
@@ -59,6 +59,11 @@ const nextConfig: NextConfig = {
       {
         source: '/terminos',
         destination: '/terms',
+        permanent: true
+      },
+      {
+        source: '/eliminar-datos',
+        destination: '/delete-data',
         permanent: true
       }
     ]
