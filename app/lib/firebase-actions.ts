@@ -1,4 +1,3 @@
-
 'use server';
 import { 
   type Game, 
@@ -32,10 +31,10 @@ export async function sendChatMessage(gameId: string, senderId: string, senderNa
             const senderRef = playersRef.doc(senderId);
             const [gameSnap, senderSnap] = await transaction.getAll(gameRef, senderRef);
 
-            if (!gameSnap.exists()) throw new Error('Game not found');
+            if (!gameSnap.exists) throw new Error('Game not found');
             const game = gameSnap.data() as Game;
 
-            if (!senderSnap.exists()) throw new Error("Player not found.");
+            if (!senderSnap.exists) throw new Error("Player not found.");
             const senderData = senderSnap.data() as PlayerPublicData;
             
             if (!senderData.isAlive) {
@@ -83,10 +82,10 @@ async function sendSpecialChatMessage(gameId: string, senderId: string, senderNa
             const privateRef = gameRef.collection('playerData').doc(senderId);
             const [gameSnap, privateSnap] = await transaction.getAll(gameRef, privateRef);
 
-            if (!gameSnap.exists()) throw new Error('Game not found');
+            if (!gameSnap.exists) throw new Error('Game not found');
             const game = gameSnap.data() as Game;
 
-            if (!privateSnap.exists()) throw new Error('Player not found');
+            if (!privateSnap.exists) throw new Error('Player not found');
             const privateData = privateSnap.data() as PlayerPrivateData;
 
             let canSend = false;
@@ -115,7 +114,7 @@ async function sendSpecialChatMessage(gameId: string, senderId: string, senderNa
                     break;
                 case 'ghost':
                     const publicPlayerSnap = await transaction.get(gameRef.collection('players').doc(senderId));
-                    if (publicPlayerSnap.exists() && !publicPlayerSnap.data()!.isAlive) {
+                    if (publicPlayerSnap.exists && !publicPlayerSnap.data()!.isAlive) {
                          canSend = true; chatCollectionName = 'ghostChat';
                     }
                     break;
@@ -147,7 +146,7 @@ export async function submitNightAction(data: {gameId: string, round: number, pl
         await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
             const privateSnap = await transaction.get(privateRef);
-            if (!gameSnap.exists() || !privateSnap.exists()) throw new Error("Game or player data not found");
+            if (!gameSnap.exists || !privateSnap.exists) throw new Error("Game or player data not found");
             
             let game = gameSnap.data() as Game;
             let privateData = privateSnap.data() as PlayerPrivateData;
@@ -175,7 +174,7 @@ export async function submitVote(gameId: string, voterId: string, targetId: stri
     try {
         await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found");
+            if (!gameSnap.exists) throw new Error("Game not found");
             const game = gameSnap.data() as Game;
             if (game.phase !== 'day' || game.status === 'finished') return;
 
@@ -203,7 +202,7 @@ export async function submitJuryVote(gameId: string, voterId: string, targetId: 
     try {
         await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) {
+            if (!gameSnap.exists) {
                 throw new Error("Game not found.");
             }
             const game = gameSnap.data() as Game;
@@ -230,7 +229,7 @@ export async function sendGhostMessage(gameId: string, ghostId: string, recipien
     try {
         await adminDb.runTransaction(async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error("Game not found");
+            if (!gameDoc.exists) throw new Error("Game not found");
             const game = gameDoc.data() as Game;
             const ghostPrivateRef = adminDb.collection('games').doc(gameId).collection('playerData').doc(ghostId);
             const ghostPrivateSnap = await transaction.get(ghostPrivateRef);
@@ -270,7 +269,7 @@ export async function processNight(gameId: string) {
     try {
         await adminDb.runTransaction(async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error("Game not found");
+            if (!gameDoc.exists) throw new Error("Game not found");
             const game = gameDoc.data() as Game;
             
             const publicPlayersSnap = await transaction.get(gameRef.collection('players'));
@@ -283,7 +282,7 @@ export async function processNight(gameId: string) {
         });
 
         const updatedGameDoc = await gameRef.get();
-        if (updatedGameDoc.exists()) {
+        if (updatedGameDoc.exists) {
             const game = updatedGameDoc.data() as Game;
             
             const aiActions = await import('./firebase-ai-actions');
@@ -314,7 +313,7 @@ export async function processVotes(gameId: string) {
 
         await adminDb.runTransaction(async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error("Game not found");
+            if (!gameDoc.exists) throw new Error("Game not found");
             const game = gameDoc.data() as Game;
 
             const publicPlayersSnap = await transaction.get(gameRef.collection('players'));
@@ -327,7 +326,7 @@ export async function processVotes(gameId: string) {
         });
 
         const updatedGameSnap = await gameRef.get();
-        if (updatedGameSnap.exists()) {
+        if (updatedGameSnap.exists) {
             const game = updatedGameSnap.data() as Game;
             const voteEvent = [...game.events]
                 .filter(e => e.type === 'vote_result' && e.round === (game.phase === 'night' ? game.currentRound - 1 : game.currentRound))
@@ -362,10 +361,10 @@ export async function getSeerResult(gameId: string, seerId: string, targetId: st
                 targetPublicRef
             );
 
-            if (!gameSnap.exists()) throw new Error("Game not found");
+            if (!gameSnap.exists) throw new Error("Game not found");
             const game = gameSnap.data() as Game;
 
-            if (!seerSnap.exists() || !targetSnap.exists() || !targetPublicSnap.exists()) throw new Error("Data not found");
+            if (!seerSnap.exists || !targetSnap.exists || !targetPublicSnap.exists) throw new Error("Data not found");
 
             const seerData = seerSnap.data() as PlayerPrivateData;
             const targetData = targetSnap.data() as PlayerPrivateData;
@@ -404,7 +403,7 @@ export async function submitTroublemakerSelection(gameId: string, troublemakerId
     try {
         await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Partida no encontrada");
+            if (!gameSnap.exists) throw new Error("Partida no encontrada");
             let game = gameSnap.data() as Game;
             
             const privateRef = adminDb.collection('games').doc(gameId).collection('playerData').doc(troublemakerId);
@@ -433,7 +432,7 @@ export async function processJuryVotes(gameId: string) {
 
         await adminDb.runTransaction(async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error("Game not found");
+            if (!gameDoc.exists) throw new Error("Game not found");
             const game = gameDoc.data() as Game;
             
             const publicPlayersSnap = await transaction.get(gameRef.collection('players'));
@@ -456,7 +455,7 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
     try {
         await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Game not found");
+            if (!gameSnap.exists) throw new Error("Game not found");
             let game = gameSnap.data() as Game;
 
             if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId) return;
@@ -516,7 +515,7 @@ export async function executeMasterAction(gameId: string, actionId: MasterAction
      try {
         await adminDb.runTransaction(async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) throw new Error("Game not found");
+            if (!gameDoc.exists) throw new Error("Game not found");
             let game = gameDoc.data() as Game;
 
             const publicPlayersSnap = await transaction.get(gameRef.collection('players'));
@@ -553,7 +552,3 @@ export const sendFairyChatMessage = (gameId: string, senderId: string, senderNam
 export const sendTwinChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'twin');
 export const sendLoversChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'lovers');
 export const sendGhostChatMessage = (gameId: string, senderId: string, senderName: string, text: string) => sendSpecialChatMessage(gameId, senderId, senderName, text, 'ghost');
-
-    
-
-    

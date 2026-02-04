@@ -1,4 +1,3 @@
-
 'use server';
 
 import { adminDb } from './server-init';
@@ -24,7 +23,7 @@ export async function runNightAIActions(gameId: string) {
     
     try {
         const gameSnap = await gameRef.get();
-        if (!gameSnap.exists()) return;
+        if (!gameSnap.exists) return;
         const game = gameSnap.data() as Game;
 
         if (game.status !== 'in_progress' || game.phase !== 'night') {
@@ -83,7 +82,7 @@ export async function runNightAIActions(gameId: string) {
                     const action = await generateAIAction(perspective);
                     if (action && action.actionType && action.targetIds.length > 0) {
                         const currentPrivateSnap = await adminDb.collection('games').doc(gameId).collection('playerData').doc(aiPlayer.userId).get();
-                        if(currentPrivateSnap.exists() && !currentPrivateSnap.data()?.usedNightAbility) {
+                        if(currentPrivateSnap.exists && !currentPrivateSnap.data()?.usedNightAbility) {
                             await submitNightAction({
                                 gameId,
                                 round: game.currentRound,
@@ -109,7 +108,7 @@ export async function runAIJuryVotes(gameId: string) {
 
     try {
         const gameSnap = await gameRef.get();
-        if (!gameSnap.exists()) return;
+        if (!gameSnap.exists) return;
         const game = gameSnap.data() as Game;
 
         if (game.status !== 'in_progress' || game.phase !== 'jury_voting') {
@@ -197,7 +196,7 @@ export async function runAIVotes(gameId: string) {
 
     try {
         const gameSnap = await gameRef.get();
-        if (!gameSnap.exists()) return;
+        if (!gameSnap.exists) return;
         const game = gameSnap.data() as Game;
 
         if (game.status !== 'in_progress' || game.phase !== 'day') {
@@ -294,7 +293,7 @@ export async function triggerAIChat(gameId: string, triggerMessage: string, chat
 
         const [gameDoc, playersSnap] = await Promise.all([gameRef.get(), playersRef.get()]);
         
-        if (!gameDoc.exists()) return;
+        if (!gameDoc.exists) return;
         const game = gameDoc.data() as Game;
 
         if (game.status === 'finished') return;
@@ -308,7 +307,7 @@ export async function triggerAIChat(gameId: string, triggerMessage: string, chat
 
              if (shouldTrigger) {
                  const privateDataSnap = await adminDb.collection('games').doc(gameId).collection('playerData').doc(publicAiPlayer.userId).get();
-                 if (!privateDataSnap.exists()) continue;
+                 if (!privateDataSnap.exists) continue;
                  
                  const aiPlayer: Player = { ...publicAiPlayer, ...(privateDataSnap.data() as PlayerPrivateData) };
 
@@ -344,7 +343,7 @@ export async function triggerAIReactionToGameEvent(gameId: string, event: GameEv
         const playersRef = gameRef.collection('players');
 
         const [gameDoc, playersSnap] = await Promise.all([gameRef.get(), playersRef.get()]);
-        if (!gameDoc.exists()) return;
+        if (!gameDoc.exists) return;
         const game = gameDoc.data() as Game;
 
         if (game.status === 'finished') return;
@@ -360,7 +359,7 @@ export async function triggerAIReactionToGameEvent(gameId: string, event: GameEv
 
              if (shouldTrigger) {
                  const privateDataSnap = await adminDb.collection('games').doc(gameId).collection('playerData').doc(publicAiPlayer.userId).get();
-                 if (!privateDataSnap.exists()) continue;
+                 if (!privateDataSnap.exists) continue;
                  
                  const aiPlayer: Player = { ...publicAiPlayer, ...(privateDataSnap.data() as PlayerPrivateData) };
                  
@@ -388,5 +387,3 @@ export async function triggerAIReactionToGameEvent(gameId: string, event: GameEv
         console.error("Error in triggerAIReactionToGameEvent:", e);
     }
 }
-
-    

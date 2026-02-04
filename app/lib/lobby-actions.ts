@@ -1,4 +1,3 @@
-
 'use server';
 import { 
   type Game, 
@@ -165,7 +164,7 @@ export async function joinGame(
   try {
     await adminDb.runTransaction(async (transaction) => {
       const gameSnap = await transaction.get(gameRef);
-      if (!gameSnap.exists()) throw new Error("Partida no encontrada.");
+      if (!gameSnap.exists) throw new Error("Partida no encontrada.");
 
       const game = gameSnap.data() as Game;
 
@@ -220,7 +219,7 @@ export async function startGame(gameId: string, creatorId: string) {
     try {
         await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error('Partida no encontrada.');
+            if (!gameSnap.exists) throw new Error('Partida no encontrada.');
             let game = gameSnap.data() as Game;
 
             if (game.creator !== creatorId) throw new Error('Solo el creador puede iniciar la partida.');
@@ -327,7 +326,7 @@ export async function resetGame(gameId: string) {
     try {
         await adminDb.runTransaction(async (transaction) => {
             const gameSnap = await transaction.get(gameRef);
-            if (!gameSnap.exists()) throw new Error("Partida no encontrada.");
+            if (!gameSnap.exists) throw new Error("Partida no encontrada.");
             const game = gameSnap.data() as Game;
 
             const playersSnap = await transaction.get(gameRef.collection('players'));
