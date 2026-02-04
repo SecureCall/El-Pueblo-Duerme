@@ -1,7 +1,7 @@
 
 'use server';
 
-import { ai } from '@/lib/server-init';
+import { ai } from '@/lib/firebase-admin';
 import {
     AIVotePerspectiveSchema,
     AIVoteOutputSchema,

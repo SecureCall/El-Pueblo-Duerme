@@ -1,8 +1,2 @@
-import { genkit } from 'genkit';
-import { googleAI } from '@genkit-ai/google-genai';
-
-const ai = genkit({
-  plugins: [googleAI()],
-});
-
-export { ai };
+// This file is obsolete and has been consolidated into app/lib/firebase-admin.ts
+// It is kept to avoid breaking file watching systems but should not be used.

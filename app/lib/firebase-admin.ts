@@ -1,15 +1,18 @@
+
+'use server';
+
 import { initializeApp, cert, getApps, App } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Firestore } from 'firebase-admin/firestore';
 import { getAuth, Auth } from 'firebase-admin/auth';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 
-let adminDb: Firestore | null = null;
-let adminAuth: Auth | null = null;
+let adminDb: Firestore;
+let adminAuth: Auth;
+let ai: any;
 
-function getAdminApp(): App {
-  if (getApps().length > 0) {
-    return getApps()[0];
-  }
-  
+// This pattern ensures that Firebase Admin is initialized only once.
+if (getApps().length === 0) {
   const validateEnv = () => {
     const missing: string[] = [];
     if (!process.env.FIREBASE_PROJECT_ID) missing.push('FIREBASE_PROJECT_ID');
@@ -35,7 +38,8 @@ function getAdminApp(): App {
   try {
     const app = initializeApp(getAdminConfig());
     console.log(`✅ Firebase Admin initialized for project: ${process.env.FIREBASE_PROJECT_ID}`);
-    return app;
+    adminDb = getFirestore(app);
+    adminAuth = getAuth(app);
   } catch (error: any) {
     console.error('❌ Firebase Admin initialization failed:', error.message);
     if (error.message.includes('private key')) {
@@ -43,13 +47,16 @@ function getAdminApp(): App {
     }
     throw error;
   }
+} else {
+  const app = getApps()[0];
+  adminDb = getFirestore(app);
+  adminAuth = getAuth(app);
 }
 
-export function getFirebaseAdmin() {
-  if (!adminDb || !adminAuth) {
-    const app = getAdminApp();
-    adminDb = getFirestore(app);
-    adminAuth = getAuth(app);
-  }
-  return { adminDb, adminAuth, FieldValue };
-}
+// Initialize Genkit
+ai = genkit({
+  plugins: [googleAI()],
+});
+
+
+export { adminDb, adminAuth, ai, FieldValue };
