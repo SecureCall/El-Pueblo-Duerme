@@ -40,6 +40,7 @@ import { collection, query, orderBy } from 'firebase/firestore';
 export function GameBoard({ gameId }: { gameId: string }) {
     const { updateStats, userId, addGameEventToHistory, stats } = useGameSession();
     const { firestore } = useFirebase();
+    const { toast } = useToast();
 
     const { game, players, currentPlayer, events, loading, error } = useGameState(gameId);
 
@@ -528,3 +529,5 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
         </div>
     );
 }
+
+    
