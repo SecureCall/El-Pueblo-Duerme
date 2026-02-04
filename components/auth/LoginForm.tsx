@@ -13,13 +13,10 @@ export function LoginForm() {
     e.preventDefault();
     setLoading(true);
     
-    // Simulación temporal - después conectaremos con Firebase
-    console.log('Login attempt:', { email, password });
+    console.log('Login:', { email, password });
     
-    // Simular delay
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Redirigir al juego (temporal)
     router.push('/game');
     setLoading(false);
   };
@@ -37,7 +34,7 @@ export function LoginForm() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="tu@email.com"
           required
-          className="w-full p-2 border rounded bg-background"
+          className="w-full p-2 border rounded"
           disabled={loading}
         />
       </div>
@@ -53,7 +50,7 @@ export function LoginForm() {
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"
           required
-          className="w-full p-2 border rounded bg-background"
+          className="w-full p-2 border rounded"
           disabled={loading}
         />
       </div>
@@ -61,14 +58,14 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full p-2 bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+        className="w-full p-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
       >
-        {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+        {loading ? 'Iniciando...' : 'Iniciar Sesión'}
       </button>
       
       <div className="text-center text-sm">
         <p>¿No tienes cuenta? 
-          <a href="/register" className="text-primary hover:underline ml-1">
+          <a href="/register" className="text-blue-600 hover:underline ml-1">
             Regístrate
           </a>
         </p>

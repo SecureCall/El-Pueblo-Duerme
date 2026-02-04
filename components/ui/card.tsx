@@ -7,7 +7,7 @@ interface CardProps {
 
 export function Card({ children, className = '' }: CardProps) {
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-lg border shadow-sm ${className}`}>
+    <div className={"bg-gray-900 border border-gray-700 rounded-xl shadow-lg " + className}>
       {children}
     </div>
   );
@@ -15,7 +15,7 @@ export function Card({ children, className = '' }: CardProps) {
 
 export function CardHeader({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`p-6 border-b ${className}`}>
+    <div className={"p-6 border-b border-gray-700 " + className}>
       {children}
     </div>
   );
@@ -23,7 +23,7 @@ export function CardHeader({ children, className = '' }: { children: ReactNode; 
 
 export function CardTitle({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <h3 className={`text-xl font-semibold ${className}`}>
+    <h3 className={"text-2xl font-bold text-white " + className}>
       {children}
     </h3>
   );
@@ -31,7 +31,7 @@ export function CardTitle({ children, className = '' }: { children: ReactNode; c
 
 export function CardDescription({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <p className={`text-gray-500 dark:text-gray-400 mt-2 ${className}`}>
+    <p className={"text-gray-400 mt-1 " + className}>
       {children}
     </p>
   );
@@ -39,7 +39,7 @@ export function CardDescription({ children, className = '' }: { children: ReactN
 
 export function CardContent({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`p-6 ${className}`}>
+    <div className={"p-6 " + className}>
       {children}
     </div>
   );

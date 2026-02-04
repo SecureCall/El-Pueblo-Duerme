@@ -20,12 +20,10 @@ export function RegisterForm() {
     
     setLoading(true);
     
-    // Simulación temporal
-    console.log('Register attempt:', { email, password });
+    console.log('Register:', { email, password });
     
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Redirigir al login
     router.push('/login');
     setLoading(false);
   };
@@ -43,7 +41,7 @@ export function RegisterForm() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="tu@email.com"
           required
-          className="w-full p-2 border rounded bg-background"
+          className="w-full p-2 border rounded"
           disabled={loading}
         />
       </div>
@@ -59,7 +57,7 @@ export function RegisterForm() {
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"
           required
-          className="w-full p-2 border rounded bg-background"
+          className="w-full p-2 border rounded"
           disabled={loading}
         />
       </div>
@@ -75,7 +73,7 @@ export function RegisterForm() {
           onChange={(e) => setConfirmPassword(e.target.value)}
           placeholder="••••••••"
           required
-          className="w-full p-2 border rounded bg-background"
+          className="w-full p-2 border rounded"
           disabled={loading}
         />
       </div>
@@ -83,14 +81,14 @@ export function RegisterForm() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full p-2 bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+        className="w-full p-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
       >
-        {loading ? 'Creando cuenta...' : 'Crear Cuenta'}
+        {loading ? 'Creando...' : 'Crear Cuenta'}
       </button>
       
       <div className="text-center text-sm">
         <p>¿Ya tienes cuenta? 
-          <a href="/login" className="text-primary hover:underline ml-1">
+          <a href="/login" className="text-blue-600 hover:underline ml-1">
             Inicia sesión
           </a>
         </p>
