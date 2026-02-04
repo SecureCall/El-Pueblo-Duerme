@@ -1,3 +1,4 @@
+
 'use server';
 import { 
   type Game, 
@@ -218,17 +219,33 @@ export async function startGame(gameId: string, creatorId: string) {
     
     try {
         await adminDb.runTransaction(async (transaction) => {
+            // ================== FASE DE LECTURA ==================
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists) throw new Error('Partida no encontrada.');
+
+            const playersSnap = await transaction.get(gameRef.collection('players'));
+            
+            const humanPlayerIds = playersSnap.docs.map(doc => doc.id);
+            const privateDataSnaps = humanPlayerIds.length > 0 
+                ? await transaction.getAll(...humanPlayerIds.map(id => gameRef.collection('playerData').doc(id))) 
+                : [];
+
+            // ================== FASE DE LÓGICA (EN MEMORIA) ==================
             let game = gameSnap.data() as Game;
 
             if (game.creator !== creatorId) throw new Error('Solo el creador puede iniciar la partida.');
             if (game.status !== 'waiting') throw new Error('La partida ya ha comenzado.');
-            
-            const playersSnap = await transaction.get(gameRef.collection('players'));
+
             let finalPlayers: PlayerPublicData[] = playersSnap.docs.map(doc => doc.data() as PlayerPublicData);
             let allPrivateData: Record<string, PlayerPrivateData> = {};
 
+            privateDataSnaps.forEach(snap => {
+                if (snap.exists) {
+                    allPrivateData[snap.id] = snap.data() as PlayerPrivateData;
+                }
+            });
+
+            const aiPlayersToCreate: { publicData: PlayerPublicData, privateData: PlayerPrivateData }[] = [];
             if (game.settings.fillWithAI && finalPlayers.length < game.maxPlayers) {
                 const aiPlayerCount = game.maxPlayers - finalPlayers.length;
                 const availableAINames = AI_NAMES.filter(name => !finalPlayers.some(p => p.displayName === name));
@@ -239,11 +256,10 @@ export async function startGame(gameId: string, creatorId: string) {
                     const aiAvatar = `/logo.png`;
                     const aiPlayer = createPlayerObject(aiUserId, gameId, aiName, aiAvatar, true);
                     const { publicData, privateData } = splitPlayerData(aiPlayer);
+                    
+                    aiPlayersToCreate.push({ publicData, privateData });
                     finalPlayers.push(publicData);
                     allPrivateData[aiUserId] = privateData;
-                    
-                    const newPlayerRef = gameRef.collection('players').doc(aiUserId);
-                    transaction.set(newPlayerRef, toPlainObject(publicData));
                 }
             }
             
@@ -251,17 +267,12 @@ export async function startGame(gameId: string, creatorId: string) {
             
             const newRoles = generateRoles(finalPlayers.length, game.settings);
             
-            const humanPlayerIds = finalPlayers.filter(p => !p.isAI).map(p => p.userId);
-            const humanPlayersPrivateSnap = await transaction.getAll(...humanPlayerIds.map(id => gameRef.collection('playerData').doc(id)));
-            
-            humanPlayersPrivateSnap.forEach(snap => {
-                if (snap.exists) {
-                    allPrivateData[snap.id] = snap.data() as PlayerPrivateData;
-                }
-            });
-
             finalPlayers.forEach((player, index) => {
                 const role = newRoles[index];
+                if (!allPrivateData[player.userId]) {
+                    const { privateData } = splitPlayerData(createPlayerObject(player.userId, gameId, player.displayName, player.avatarUrl, player.isAI));
+                    allPrivateData[player.userId] = privateData;
+                }
                 allPrivateData[player.userId].role = role;
                 if (role === 'cult_leader') allPrivateData[player.userId].isCultMember = true;
 
@@ -292,6 +303,12 @@ export async function startGame(gameId: string, creatorId: string) {
 
             const twinUserIds = Object.entries(allPrivateData).filter(([, data]) => data.role === 'twin').map(([id]) => id);
 
+            // ================== FASE DE ESCRITURA ==================
+            aiPlayersToCreate.forEach(ai => {
+                const aiPublicRef = gameRef.collection('players').doc(ai.publicData.userId);
+                transaction.set(aiPublicRef, toPlainObject(ai.publicData));
+            });
+
             for (const [userId, privateData] of Object.entries(allPrivateData)) {
                 const privateRef = gameRef.collection('playerData').doc(userId);
                 transaction.set(privateRef, toPlainObject(privateData));
@@ -301,7 +318,7 @@ export async function startGame(gameId: string, creatorId: string) {
                 twins: twinUserIds.length === 2 ? [twinUserIds[0], twinUserIds[1]] : null,
                 status: 'in_progress',
                 phase: 'role_reveal',
-                phaseEndsAt: new Date(Date.now() + 15000), // 15s for role reveal
+                phaseEndsAt: new Date(Date.now() + 15000),
                 playerCount: finalPlayers.length,
             }));
 
@@ -334,13 +351,11 @@ export async function resetGame(gameId: string) {
 
             const humanPlayers = currentPlayers.filter(p => !p.isAI);
 
-            // Delete all current players (both public and private)
             for (const player of currentPlayers) {
                 transaction.delete(gameRef.collection('players').doc(player.userId));
                 transaction.delete(gameRef.collection('playerData').doc(player.userId));
             }
 
-            // Re-add human players with reset state
             for (const player of humanPlayers) {
                 const newPlayer = createPlayerObject(player.userId, game.id, player.displayName, player.avatarUrl, player.isAI);
                 newPlayer.joinedAt = player.joinedAt;
