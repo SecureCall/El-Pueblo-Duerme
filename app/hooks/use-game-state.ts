@@ -144,17 +144,13 @@ export const useGameState = (gameId: string): CombinedGameState => {
       }).sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
       
       const currentPlayer = fullPlayers.find(p => p.userId === userId) as Player | null;
-
-      // The game is considered loading if the core game doc is loading, OR
-      // if the game is in progress but we haven't received the current player's role yet.
-      const isGameLoading = loading || (game.status === 'in_progress' && game.phase !== 'waiting' && !currentPlayer?.role);
-
+      
       return {
           game,
           players: fullPlayers,
           currentPlayer,
           events: [...(game.events || [])].sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt)),
-          loading: isGameLoading,
+          loading,
           error: null
       }
   }, [state, userId]);
