@@ -273,12 +273,20 @@ export async function processNight(gameId: string) {
             const game = gameDoc.data() as Game;
             
             const publicPlayersSnap = await transaction.get(gameRef.collection('players'));
-            const publicPlayers = publicPlayersSnap.docs.map(d => d.data());
+            const privatePlayersSnap = await transaction.get(gameRef.collection('playerData'));
+            
+            const privateDataMap = new Map<string, PlayerPrivateData>();
+            privatePlayersSnap.forEach(doc => {
+                privateDataMap.set(doc.id, doc.data() as PlayerPrivateData);
+            });
 
-            const privateDataSnapshots = await transaction.getAll(...publicPlayers.map(p => adminDb.collection('games').doc(gameId).collection('playerData').doc(p.userId)));
-            const fullPlayers = publicPlayers.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() }));
+            const fullPlayers = publicPlayersSnap.docs.map(doc => {
+                const publicData = doc.data() as PlayerPublicData;
+                const privateData = privateDataMap.get(publicData.userId) || {};
+                return { ...publicData, ...privateData };
+            }) as Player[];
 
-            await processNightEngine(transaction, gameRef, game, fullPlayers as Player[]);
+            await processNightEngine(transaction, gameRef, game, fullPlayers);
         });
 
         const updatedGameDoc = await gameRef.get();
@@ -317,12 +325,20 @@ export async function processVotes(gameId: string) {
             const game = gameDoc.data() as Game;
 
             const publicPlayersSnap = await transaction.get(gameRef.collection('players'));
-            const publicPlayers = publicPlayersSnap.docs.map(d => d.data());
-
-            const privateDataSnapshots = await transaction.getAll(...publicPlayers.map(p => adminDb.collection('games').doc(gameId).collection('playerData').doc(p.userId)));
-            const fullPlayers = publicPlayers.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() }));
+            const privatePlayersSnap = await transaction.get(gameRef.collection('playerData'));
             
-            await processVotesEngine(transaction, gameRef, game, fullPlayers as Player[]);
+            const privateDataMap = new Map<string, PlayerPrivateData>();
+            privatePlayersSnap.forEach(doc => {
+                privateDataMap.set(doc.id, doc.data() as PlayerPrivateData);
+            });
+
+            const fullPlayers = publicPlayersSnap.docs.map(doc => {
+                const publicData = doc.data() as PlayerPublicData;
+                const privateData = privateDataMap.get(publicData.userId) || {};
+                return { ...publicData, ...privateData };
+            }) as Player[];
+            
+            await processVotesEngine(transaction, gameRef, game, fullPlayers);
         });
 
         const updatedGameSnap = await gameRef.get();
@@ -436,12 +452,20 @@ export async function processJuryVotes(gameId: string) {
             const game = gameDoc.data() as Game;
             
             const publicPlayersSnap = await transaction.get(gameRef.collection('players'));
-            const publicPlayers = publicPlayersSnap.docs.map(d => d.data());
+            const privatePlayersSnap = await transaction.get(gameRef.collection('playerData'));
+            
+            const privateDataMap = new Map<string, PlayerPrivateData>();
+            privatePlayersSnap.forEach(doc => {
+                privateDataMap.set(doc.id, doc.data() as PlayerPrivateData);
+            });
 
-            const privateDataSnapshots = await transaction.getAll(...publicPlayers.map(p => adminDb.collection('games').doc(gameId).collection('playerData').doc(p.userId)));
-            const fullPlayers = publicPlayers.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() as PlayerPrivateData }));
+            const fullPlayers = publicPlayersSnap.docs.map(doc => {
+                const publicData = doc.data() as PlayerPublicData;
+                const privateData = privateDataMap.get(publicData.userId) || {};
+                return { ...publicData, ...privateData };
+            }) as Player[];
 
-            await processJuryVotesEngine(transaction, gameRef, game, fullPlayers as Player[]);
+            await processJuryVotesEngine(transaction, gameRef, game, fullPlayers);
         });
 
         const { runNightAIActions } = await import('./firebase-ai-actions');
@@ -461,13 +485,20 @@ export async function submitHunterShot(gameId: string, hunterId: string, targetI
             if (game.phase !== 'hunter_shot' || game.pendingHunterShot !== hunterId) return;
 
             const publicPlayersSnap = await transaction.get(gameRef.collection('players'));
-            const publicPlayers = publicPlayersSnap.docs.map(d => d.data());
-            const targetPlayer = publicPlayers.find(p=>p.userId === targetId);
+            const targetPlayer = publicPlayersSnap.docs.find(p=>p.id === targetId)?.data();
             
-            const privateDataSnapshots = await transaction.getAll(...publicPlayers.map(p => adminDb.collection('games').doc(gameId).collection('playerData').doc(p.userId)));
-            const fullPlayers = publicPlayers.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() as PlayerPrivateData }));
+            const privatePlayersSnap = await transaction.get(gameRef.collection('playerData'));
+            const privateDataMap = new Map<string, PlayerPrivateData>();
+            privatePlayersSnap.forEach(doc => {
+                privateDataMap.set(doc.id, doc.data() as PlayerPrivateData);
+            });
+            const fullPlayers = publicPlayersSnap.docs.map(doc => {
+                const publicData = doc.data() as PlayerPublicData;
+                const privateData = privateDataMap.get(publicData.userId) || {};
+                return { ...publicData, ...privateData };
+            }) as Player[];
 
-            let { updatedGame, updatedPlayers, triggeredHunterId: anotherHunterId } = await killPlayer(transaction, gameRef, game, fullPlayers as Player[], targetId, 'hunter_shot', `En su último aliento, el Cazador dispara y se lleva consigo a ${targetPlayer?.displayName}.`);
+            let { updatedGame, updatedPlayers, triggeredHunterId: anotherHunterId } = await killPlayer(transaction, gameRef, game, fullPlayers, targetId, 'hunter_shot', `En su último aliento, el Cazador dispara y se lleva consigo a ${targetPlayer?.displayName}.`);
             
             // Add notable play event for the hunter
             updatedGame.events.push({
@@ -519,11 +550,18 @@ export async function executeMasterAction(gameId: string, actionId: MasterAction
             let game = gameDoc.data() as Game;
 
             const publicPlayersSnap = await transaction.get(gameRef.collection('players'));
-            const publicPlayers = publicPlayersSnap.docs.map(p => p.data());
-            const targetPlayer = publicPlayers.find(p=>p.userId === targetId);
+            const targetPlayer = publicPlayersSnap.docs.find(p=>p.id === targetId)?.data();
             
-            const privateDataSnapshots = await transaction.getAll(...publicPlayers.map(p => adminDb.collection('games').doc(gameId).collection('playerData').doc(p.userId)));
-            const fullPlayers = publicPlayers.map((p, i) => ({ ...p, ...privateDataSnapshots[i].data() as PlayerPrivateData }));
+            const privatePlayersSnap = await transaction.get(gameRef.collection('playerData'));
+            const privateDataMap = new Map<string, PlayerPrivateData>();
+            privatePlayersSnap.forEach(doc => {
+                privateDataMap.set(doc.id, doc.data() as PlayerPrivateData);
+            });
+            const fullPlayers = publicPlayersSnap.docs.map(doc => {
+                const publicData = doc.data() as PlayerPublicData;
+                const privateData = privateDataMap.get(publicData.userId) || {};
+                return { ...publicData, ...privateData };
+            }) as Player[];
 
 
             if (actionId === 'master_kill') {

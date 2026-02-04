@@ -49,10 +49,12 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     ghostMessageSent: false,
     resurrectorAngelUsed: false,
     bansheeScreams: {},
+    bansheePoints: 0,
     lookoutUsed: false,
     executionerTargetId: null,
     secretObjectiveId: null,
     lastActiveAt: new Date(),
+    seerChecks: [],
 });
 
 
@@ -225,21 +227,20 @@ export async function startGame(gameId: string, creatorId: string) {
             
             const playersSnap = await transaction.get(gameRef.collection('players'));
             
-            // ================== 2. IN-MEMORY LOGIC ==================
+            // ================== 2. PREPARE IN-MEMORY ==================
             const game = gameSnap.data() as Game;
 
             if (game.creator !== creatorId) throw new Error('Solo el creador puede iniciar la partida.');
             if (game.status !== 'waiting') throw new Error('La partida ya ha comenzado.');
-
-            const existingPlayers = playersSnap.docs.map(doc => doc.data() as PlayerPublicData);
-            let finalPlayers: PlayerPublicData[] = [...existingPlayers];
             
+            const existingPlayers = playersSnap.docs.map(doc => doc.data() as PlayerPublicData);
+            let finalPlayerPublicData: PlayerPublicData[] = [...existingPlayers];
+            
+            // Generate AI players if needed
             const aiPlayersToCreate: { publicData: PlayerPublicData, privateData: PlayerPrivateData }[] = [];
-
-            // Create AI players if needed
-            if (game.settings.fillWithAI && finalPlayers.length < game.maxPlayers) {
-                const aiPlayerCount = game.maxPlayers - finalPlayers.length;
-                const availableAINames = AI_NAMES.filter(name => !finalPlayers.some(p => p.displayName === name));
+            if (game.settings.fillWithAI && finalPlayerPublicData.length < game.maxPlayers) {
+                const aiPlayerCount = game.maxPlayers - finalPlayerPublicData.length;
+                const availableAINames = AI_NAMES.filter(name => !finalPlayerPublicData.some(p => p.displayName === name));
 
                 for (let i = 0; i < aiPlayerCount; i++) {
                     const aiUserId = `ai_${Date.now()}_${i}`;
@@ -249,20 +250,21 @@ export async function startGame(gameId: string, creatorId: string) {
                     const { publicData, privateData } = splitPlayerData(aiPlayer);
                     
                     aiPlayersToCreate.push({ publicData, privateData });
-                    finalPlayers.push(publicData);
+                    finalPlayerPublicData.push(publicData);
                 }
             }
+
+            const finalPlayerCount = finalPlayerPublicData.length;
+            if (finalPlayerCount < MINIMUM_PLAYERS) {
+                throw new Error(`Se necesitan al menos ${MINIMUM_PLAYERS} jugadores para comenzar.`);
+            }
             
-            if (finalPlayers.length < MINIMUM_PLAYERS) throw new Error(`Se necesitan al menos ${MINIMUM_PLAYERS} jugadores para comenzar.`);
-            
-            // Generate and assign roles
-            const newRoles = generateRoles(finalPlayers.length, game.settings);
+            const newRoles = generateRoles(finalPlayerCount, game.settings);
             const allPrivateData: Record<string, PlayerPrivateData> = {};
 
             // Initialize private data for all players
-            finalPlayers.forEach((player, index) => {
+            finalPlayerPublicData.forEach((player, index) => {
                 const role = newRoles[index];
-                // It's safer to just recreate private data for everyone to ensure a clean start for the game logic.
                 const { privateData } = splitPlayerData(createPlayerObject(player.userId, gameId, player.displayName, player.avatarUrl, player.isAI));
                 privateData.role = role;
                 
@@ -278,13 +280,13 @@ export async function startGame(gameId: string, creatorId: string) {
                 }
                 allPrivateData[player.userId] = privateData;
             });
-
+            
             // Handle special interdependent roles (Executioner)
             const executionerEntry = Object.entries(allPrivateData).find(([, data]) => data.role === 'executioner');
             if (executionerEntry) {
                 const executionerId = executionerEntry[0];
                 const wolfTeamRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy', 'witch'];
-                const potentialTargets = finalPlayers.filter(p => {
+                const potentialTargets = finalPlayerPublicData.filter(p => {
                     const pRole = allPrivateData[p.userId].role;
                     return p.userId !== executionerId && pRole && !wolfTeamRoles.includes(pRole);
                 });
@@ -316,7 +318,7 @@ export async function startGame(gameId: string, creatorId: string) {
                 status: 'in_progress',
                 phase: 'role_reveal',
                 phaseEndsAt: new Date(Date.now() + 15000),
-                playerCount: finalPlayers.length,
+                playerCount: finalPlayerCount, // Use the real count
             }));
 
             // If the game was public, remove it from the public listing
@@ -349,18 +351,20 @@ export async function resetGame(gameId: string) {
 
             const humanPlayers = currentPlayers.filter(p => !p.isAI);
 
+            // Batch delete AI players and reset human players
             for (const player of currentPlayers) {
-                transaction.delete(gameRef.collection('players').doc(player.userId));
-                transaction.delete(gameRef.collection('playerData').doc(player.userId));
-            }
-
-            for (const player of humanPlayers) {
-                const newPlayer = createPlayerObject(player.userId, game.id, player.displayName, player.avatarUrl, player.isAI);
-                newPlayer.joinedAt = player.joinedAt;
-                const { publicData, privateData } = splitPlayerData(newPlayer);
-                
-                transaction.set(gameRef.collection('players').doc(player.userId), toPlainObject(publicData));
-                transaction.set(gameRef.collection('playerData').doc(player.userId), toPlainObject(privateData));
+                if (player.isAI) {
+                    // Delete AI player documents
+                    transaction.delete(gameRef.collection('players').doc(player.userId));
+                    transaction.delete(gameRef.collection('playerData').doc(player.userId));
+                } else {
+                    // Reset human player to default state, preserving key info
+                    const newPlayer = createPlayerObject(player.userId, game.id, player.displayName, player.avatarUrl, player.isAI);
+                    newPlayer.joinedAt = player.joinedAt; // Preserve original join time
+                    const { publicData, privateData } = splitPlayerData(newPlayer);
+                    transaction.set(gameRef.collection('players').doc(player.userId), toPlainObject(publicData));
+                    transaction.set(gameRef.collection('playerData').doc(player.userId), toPlainObject(privateData));
+                }
             }
 
             if (game.settings.isPublic) {
@@ -375,13 +379,14 @@ export async function resetGame(gameId: string) {
               });
             }
 
+            // Reset game document
             transaction.update(gameRef, toPlainObject({
                 status: 'waiting', phase: 'waiting', currentRound: 0,
                 events: [], nightActions: [],
                 twins: null, lovers: null, phaseEndsAt: new Date(), pendingHunterShot: null,
                 pendingTroublemakerDuel: null,
                 wolfCubRevengeRound: 0,
-                playerCount: humanPlayers.length,
+                playerCount: humanPlayers.length, // Correctly update playerCount
                 vampireKills: 0, boat: [],
                 leprosaBlockedRound: 0, witchFoundSeer: false, seerDied: false,
                 silencedPlayerId: null, exiledPlayerId: null, troublemakerUsed: false,
@@ -394,7 +399,3 @@ export async function resetGame(gameId: string) {
         return { error: e.message || 'No se pudo reiniciar la partida.' };
     }
 }
-
-    
-
-    
