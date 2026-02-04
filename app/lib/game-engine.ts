@@ -186,8 +186,8 @@ export async function killPlayer(transaction: Transaction, gameRef: DocumentRefe
         if (playerIndex > -1) {
             updatedPlayers[playerIndex].princeRevealed = true;
             
-            const playerPrivateRef = adminDb.collection('games').doc(gameData.id).collection('playerData').doc(playerIdToKill);
-            transaction.update(playerPrivateRef, { princeRevealed: true });
+            const playerPublicRef = adminDb.collection('games').doc(gameData.id).collection('players').doc(playerIdToKill);
+            transaction.update(playerPublicRef, { princeRevealed: true });
 
             updatedGame.events.push({
                 id: `evt_prince_reveal_${Date.now()}`,
@@ -309,6 +309,7 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
       protections: new Map<string, Set<'guard' | 'bless'>>(),
       deathMarks: new Map<string, GameEvent['type']>(),
       savedByHealPotion: new Map<string, string>(), // TargetId -> SaviorId
+      bites: new Map<string, number>(),
       gameUpdates: {} as Partial<Game>,
       playerUpdates: new Map<string, Partial<PlayerPrivateData>>(),
       newEvents: [] as GameEvent[],
@@ -496,7 +497,7 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
 
               case 'vampire_bite':
                   const newBiteCount = (target.biteCount || 0) + 1;
-                  context.bites.set(targetId, newBiteCount);
+                  context.playerUpdates.set(targetId, { ...context.playerUpdates.get(targetId), biteCount: newBiteCount });
                   if (newBiteCount >= 3) {
                       if (!context.protections.get(targetId)?.has('bless')) {
                         context.deathMarks.set(targetId, 'vampire_kill');
@@ -631,22 +632,14 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
   let mutableFullPlayers = JSON.parse(JSON.stringify(fullPlayers));
   Object.assign(mutableGame, context.gameUpdates);
 
-  if (context.newEvents.length > 0) {
-      mutableGame.events.push(...context.newEvents);
-  }
-
   context.playerUpdates.forEach((updates, userId) => {
       const playerIndex = mutableFullPlayers.findIndex((p:Player) => p.userId === userId);
       if (playerIndex !== -1) {
+          const privatePlayerRef = adminDb.collection('games').doc(game.id).collection('playerData').doc(userId);
+          transaction.update(privatePlayerRef, toPlainObject(updates));
           mutableFullPlayers[playerIndex] = { ...mutableFullPlayers[playerIndex], ...updates };
       }
   });
-   context.bites.forEach((count, userId) => {
-        const playerIndex = mutableFullPlayers.findIndex((p:Player) => p.userId === userId);
-        if (playerIndex !== -1) {
-            mutableFullPlayers[playerIndex].biteCount = count;
-        }
-    });
 
   let triggeredHunterId: string | null = null;
   const killedPlayerIdsThisNight: string[] = [];
@@ -699,6 +692,8 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
         }
     }
 
+  mutableGame.events.push(...context.newEvents);
+  
   const clue = generateBehavioralClue(game, initialPlayers, actions, context);
   if (clue) {
       const clueEvent: GameEvent = {
@@ -794,15 +789,10 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
   mutableGame.events.push(nightEvent);
 
   for (const p of mutableFullPlayers) {
-    const { publicData, privateData } = splitPlayerData(p);
-    publicData.votedFor = null;
-    
     const publicPlayerRef = adminDb.collection('games').doc(mutableGame.id).collection('players').doc(p.userId);
-    transaction.set(publicPlayerRef, toPlainObject(publicData), { merge: true });
-
+    transaction.update(publicPlayerRef, { votedFor: null });
     const privatePlayerRef = adminDb.collection('games').doc(mutableGame.id).collection('playerData').doc(p.userId);
-    privateData.usedNightAbility = false;
-    transaction.set(privatePlayerRef, toPlainObject(privateData), { merge: true });
+    transaction.update(privatePlayerRef, { usedNightAbility: false });
   }
   
   const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
@@ -861,11 +851,9 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
         const tieEvent: GameEvent = { id: `evt_vote_tie_${game.currentRound}`, gameId: game.id, round: game.currentRound, type: 'vote_result', message: `¡La votación resultó en un empate! Se requiere una segunda votación solo entre los siguientes jugadores: ${tiedPlayerNames}.`, data: { tiedPlayerIds: mostVotedPlayerIds, final: false }, createdAt: new Date() };
         game.events.push(tieEvent);
         
-        fullPlayers.forEach(p => p.votedFor = null);
         for (const player of fullPlayers) {
-            const { publicData } = splitPlayerData(player);
             const publicPlayerRef = adminDb.collection('games').doc(game.id).collection('players').doc(player.userId);
-            transaction.set(publicPlayerRef, toPlainObject(publicData), { merge: true });
+            transaction.update(publicPlayerRef, { votedFor: null });
         }
         
         const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
@@ -951,11 +939,10 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
     const nextRound = mutableGame.currentRound + 1;
     
     for (const p of mutableFullPlayers) {
-        const { publicData, privateData } = splitPlayerData(p);
-        publicData.votedFor = null;
-        privateData.usedNightAbility = false;
-        transaction.set(adminDb.collection('games').doc(game.id).collection('players').doc(p.userId), toPlainObject(publicData), { merge: true });
-        transaction.set(adminDb.collection('games').doc(game.id).collection('playerData').doc(p.userId), toPlainObject(privateData), { merge: true });
+        const publicPlayerRef = adminDb.collection('games').doc(game.id).collection('players').doc(p.userId);
+        transaction.update(publicPlayerRef, { votedFor: null });
+        const privatePlayerRef = adminDb.collection('games').doc(game.id).collection('playerData').doc(p.userId);
+        transaction.update(privatePlayerRef, { usedNightAbility: false });
     }
     
     transaction.update(gameRef, toPlainObject({
@@ -1036,11 +1023,10 @@ export async function processJuryVotesEngine(transaction: Transaction, gameRef: 
     const nextRound = game.currentRound + 1;
     
     for (const p of fullPlayers) {
-        const { publicData, privateData } = splitPlayerData(p);
-        publicData.votedFor = null;
-        privateData.usedNightAbility = false;
-        transaction.set(adminDb.collection('games').doc(game.id).collection('players').doc(p.userId), toPlainObject(publicData), { merge: true });
-        transaction.set(adminDb.collection('games').doc(game.id).collection('playerData').doc(p.userId), toPlainObject(privateData), { merge: true });
+        const publicPlayerRef = adminDb.collection('games').doc(game.id).collection('players').doc(p.userId);
+        transaction.update(publicPlayerRef, { votedFor: null });
+        const privatePlayerRef = adminDb.collection('games').doc(game.id).collection('playerData').doc(p.userId);
+        transaction.update(privatePlayerRef, { usedNightAbility: false });
     }
 
     transaction.update(gameRef, toPlainObject({
