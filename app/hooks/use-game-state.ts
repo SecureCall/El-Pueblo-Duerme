@@ -118,7 +118,7 @@ export const useGameState = (gameId: string): CombinedGameState => {
         return;
     }
 
-    if (!userId || !isSessionLoaded || !publicPlayers) return;
+    if (!userId || !isSessionLoaded || !publicPlayers || !state.game) return;
     
     const privateDataRef = doc(firestore, `games/${gameId}/playerData`, userId);
     const privateDataUnsubscribe = onSnapshot(privateDataRef, privateSnap => {
@@ -148,7 +148,7 @@ export const useGameState = (gameId: string): CombinedGameState => {
     });
 
     return () => privateDataUnsubscribe();
-  }, [publicPlayers, playersError, userId, isSessionLoaded, gameId, firestore]);
+  }, [publicPlayers, playersError, userId, isSessionLoaded, gameId, firestore, state.game?.status]);
 
   return state;
 };
