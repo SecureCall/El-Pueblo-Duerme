@@ -45,15 +45,27 @@ export function GameBoard({ gameId }: { gameId: string }) {
     const { game, players, currentPlayer, events, loading, error } = useGameState(gameId);
 
     // --- CHAT DATA FETCHING ---
-    const createSortedChatQuery = (collectionName: string) => useMemo(() => 
-        firestore ? query(collection(firestore, `games/${gameId}/${collectionName}`), orderBy('createdAt', 'asc')) : null, [firestore, gameId]);
+    const publicChatQuery = useMemo(() => firestore ? query(collection(firestore, `games/${gameId}/publicChat`), orderBy('createdAt', 'asc')) : null, [firestore, gameId]);
+    const { data: messages } = useCollection<ChatMessage>(publicChatQuery);
 
-    const { data: messages } = useCollection<ChatMessage>(createSortedChatQuery('publicChat'));
-    const { data: wolfMessages } = useCollection<ChatMessage>(createSortedChatQuery('wolfChat'));
-    const { data: fairyMessages } = useCollection<ChatMessage>(createSortedChatQuery('fairyChat'));
-    const { data: twinMessages } = useCollection<ChatMessage>(createSortedChatQuery('twinChat'));
-    const { data: loversMessages } = useCollection<ChatMessage>(createSortedChatQuery('loversChat'));
-    const { data: ghostMessages } = useCollection<ChatMessage>(createSortedChatQuery('ghostChat'));
+    const ghostChatQuery = useMemo(() => firestore ? query(collection(firestore, `games/${gameId}/ghostChat`), orderBy('createdAt', 'asc')) : null, [firestore, gameId]);
+    const { data: ghostMessages } = useCollection<ChatMessage>(ghostChatQuery);
+
+    const isWolf = !!(currentPlayer?.role && ['werewolf', 'wolf_cub'].includes(currentPlayer.role));
+    const wolfChatQuery = useMemo(() => (firestore && isWolf) ? query(collection(firestore, `games/${gameId}/wolfChat`), orderBy('createdAt', 'asc')) : null, [firestore, gameId, isWolf]);
+    const { data: wolfMessages } = useCollection<ChatMessage>(wolfChatQuery);
+
+    const isTwin = !!(game?.twins?.includes(currentPlayer?.userId || ''));
+    const twinChatQuery = useMemo(() => (firestore && isTwin) ? query(collection(firestore, `games/${gameId}/twinChat`), orderBy('createdAt', 'asc')) : null, [firestore, gameId, isTwin]);
+    const { data: twinMessages } = useCollection<ChatMessage>(twinChatQuery);
+
+    const isFairy = !!(game?.fairiesFound && currentPlayer?.role && ['seeker_fairy', 'sleeping_fairy'].includes(currentPlayer.role));
+    const fairyChatQuery = useMemo(() => (firestore && isFairy) ? query(collection(firestore, `games/${gameId}/fairyChat`), orderBy('createdAt', 'asc')) : null, [firestore, gameId, isFairy]);
+    const { data: fairyMessages } = useCollection<ChatMessage>(fairyChatQuery);
+
+    const isLover = !!currentPlayer?.isLover;
+    const loversChatQuery = useMemo(() => (firestore && isLover) ? query(collection(firestore, `games/${gameId}/loversChat`), orderBy('createdAt', 'asc')) : null, [firestore, gameId, isLover]);
+    const { data: loversMessages } = useCollection<ChatMessage>(loversChatQuery);
 
     const [showRole, setShowRole] = useState(true);
     const [deathCause, setDeathCause] = useState<GameEvent['type'] | 'other' | null>(null);
