@@ -45,7 +45,7 @@ const nextConfig: NextConfig = {
                     },
                     {
                         key: 'Content-Security-Policy',
-                        value: "default-src 'self'; media-src 'self'; script-src 'self' 'unsafe-inline' https://www.google.com https://www.gstatic.com; frame-src 'self' https://www.google.com; style-src 'self' 'unsafe-inline' 'unsafe-eval'; font-src 'self' data:;"
+                        value: "default-src 'self'; connect-src 'self'; media-src 'self'; script-src 'self' 'unsafe-inline' https://www.google.com https://www.gstatic.com; frame-src 'self' https://www.google.com; style-src 'self' 'unsafe-inline' 'unsafe-eval'; font-src 'self' data:;"
                     }
                 ],
             },
