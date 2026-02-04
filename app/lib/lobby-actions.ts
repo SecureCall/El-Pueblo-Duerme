@@ -2,13 +2,12 @@
 'use server';
 import { 
   type Game, 
-  type Player, 
   type PlayerPublicData,
   type PlayerPrivateData,
   type PlayerRole, 
 } from "@/types";
 import { adminDb, FieldValue } from './firebase-admin';
-import { toPlainObject, splitPlayerData } from "./utils";
+import { toPlainObject } from "./utils";
 import { secretObjectives } from "./objectives";
 import { generateRoles } from './game-engine';
 
@@ -24,24 +23,28 @@ function generateGameId(length = 5) {
   return result;
 }
 
-const createPlayerObject = (userId: string, gameId: string, displayName: string, avatarUrl: string, isAI: boolean = false): Player => ({
+const createPlayerPublicData = (userId: string, gameId: string, displayName: string, avatarUrl: string, isAI: boolean = false, joinedAt?: any): PlayerPublicData => ({
     userId,
     gameId,
     displayName: displayName.trim(),
     avatarUrl,
-    role: null,
     isAlive: true,
     votedFor: null,
-    joinedAt: new Date(),
+    joinedAt: joinedAt || new Date(),
     isAI,
-    lastHealedRound: 0,
+    princeRevealed: false,
+    lastActiveAt: new Date(),
+});
+
+const createPlayerPrivateData = (role: PlayerRole | null = null): PlayerPrivateData => ({
+    role,
+    isLover: false,
+    isCultMember: false,
+    biteCount: 0,
     potions: { poison: null, save: null },
     priestSelfHealUsed: false,
-    princeRevealed: false,
     guardianSelfProtects: 0,
-    biteCount: 0,
-    isCultMember: false,
-    isLover: false,
+    lastHealedRound: 0,
     usedNightAbility: false,
     shapeshifterTargetId: null,
     virginiaWoolfTargetId: null,
@@ -53,7 +56,6 @@ const createPlayerObject = (userId: string, gameId: string, displayName: string,
     lookoutUsed: false,
     executionerTargetId: null,
     secretObjectiveId: null,
-    lastActiveAt: new Date(),
     seerChecks: [],
 });
 
@@ -80,8 +82,8 @@ export async function createGame(
   const gameId = generateGameId();
   const gameRef = adminDb.collection("games").doc(gameId);
       
-  const creatorPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
-  const { publicData: creatorPublicData, privateData: creatorPrivateData } = splitPlayerData(creatorPlayer);
+  const creatorPublicData = createPlayerPublicData(userId, gameId, displayName, avatarUrl, false);
+  const creatorPrivateData = createPlayerPrivateData(null);
 
   const gameData: Game = {
       id: gameId,
@@ -182,8 +184,8 @@ export async function joinGame(
 
       if (playersInGameSnap.size >= game.maxPlayers) throw new Error("Esta partida está llena.");
       
-      const newPlayer = createPlayerObject(userId, gameId, displayName, avatarUrl, false);
-      const { publicData, privateData } = splitPlayerData(newPlayer);
+      const publicData = createPlayerPublicData(userId, gameId, displayName, avatarUrl, false);
+      const privateData = createPlayerPrivateData(null);
       
       transaction.set(privateDataRef, toPlainObject(privateData));
       transaction.set(playerPublicRef, toPlainObject(publicData));
@@ -218,13 +220,11 @@ export async function startGame(gameId: string, creatorId: string) {
     
     try {
         await adminDb.runTransaction(async (transaction) => {
-            // ================== 1. READ PHASE ==================
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists) throw new Error('Partida no encontrada.');
             
             const playersSnap = await transaction.get(gameRef.collection('players'));
             
-            // ================== 2. PREPARE IN-MEMORY ==================
             const game = gameSnap.data() as Game;
 
             if (game.creator !== creatorId) throw new Error('Solo el creador puede iniciar la partida.');
@@ -233,7 +233,6 @@ export async function startGame(gameId: string, creatorId: string) {
             const existingPlayers = playersSnap.docs.map(doc => doc.data() as PlayerPublicData);
             let finalPlayerPublicData: PlayerPublicData[] = [...existingPlayers];
             
-            // Generate AI players if needed
             const aiPlayersToCreate: { publicData: PlayerPublicData, privateData: PlayerPrivateData }[] = [];
             if (game.settings.fillWithAI && finalPlayerPublicData.length < game.maxPlayers) {
                 const aiPlayerCount = game.maxPlayers - finalPlayerPublicData.length;
@@ -243,8 +242,9 @@ export async function startGame(gameId: string, creatorId: string) {
                     const aiUserId = `ai_${Date.now()}_${i}`;
                     const aiName = availableAINames[i % availableAINames.length] || `Bot ${i + 1}`;
                     const aiAvatar = `/logo.png`;
-                    const aiPlayer = createPlayerObject(aiUserId, gameId, aiName, aiAvatar, true);
-                    const { publicData, privateData } = splitPlayerData(aiPlayer);
+                    
+                    const publicData = createPlayerPublicData(aiUserId, gameId, aiName, aiAvatar, true);
+                    const privateData = createPlayerPrivateData(null);
                     
                     aiPlayersToCreate.push({ publicData, privateData });
                     finalPlayerPublicData.push(publicData);
@@ -259,11 +259,9 @@ export async function startGame(gameId: string, creatorId: string) {
             const newRoles = generateRoles(finalPlayerCount, game.settings);
             const allPrivateData: Record<string, PlayerPrivateData> = {};
 
-            // Initialize private data for all players
             finalPlayerPublicData.forEach((player, index) => {
                 const role = newRoles[index];
-                const { privateData } = splitPlayerData(createPlayerObject(player.userId, gameId, player.displayName, player.avatarUrl, player.isAI));
-                privateData.role = role;
+                const privateData = createPlayerPrivateData(role);
                 
                 if (role === 'cult_leader') privateData.isCultMember = true;
 
@@ -278,7 +276,6 @@ export async function startGame(gameId: string, creatorId: string) {
                 allPrivateData[player.userId] = privateData;
             });
             
-            // Handle special interdependent roles (Executioner)
             const executionerEntry = Object.entries(allPrivateData).find(([, data]) => data.role === 'executioner');
             if (executionerEntry) {
                 const executionerId = executionerEntry[0];
@@ -296,29 +293,24 @@ export async function startGame(gameId: string, creatorId: string) {
 
             const twinUserIds = Object.entries(allPrivateData).filter(([, data]) => data.role === 'twin').map(([id]) => id);
 
-            // ================== 3. WRITE PHASE ==================
-            // Write AI public data
             aiPlayersToCreate.forEach(ai => {
                 const aiPublicRef = gameRef.collection('players').doc(ai.publicData.userId);
                 transaction.set(aiPublicRef, toPlainObject(ai.publicData));
             });
 
-            // Write all private data (for both humans and AI)
             for (const [userId, privateData] of Object.entries(allPrivateData)) {
                 const privateRef = gameRef.collection('playerData').doc(userId);
                 transaction.set(privateRef, toPlainObject(privateData));
             }
             
-            // Update the main game document
             transaction.update(gameRef, toPlainObject({
                 twins: twinUserIds.length === 2 ? [twinUserIds[0], twinUserIds[1]] : null,
                 status: 'in_progress',
                 phase: 'role_reveal',
                 phaseEndsAt: new Date(Date.now() + 15000),
-                playerCount: finalPlayerCount, // Use the real count
+                playerCount: finalPlayerCount,
             }));
 
-            // If the game was public, remove it from the public listing
             if (game.settings.isPublic) {
               const publicGameRef = adminDb.collection("publicGames").doc(gameId);
               transaction.delete(publicGameRef);
@@ -347,17 +339,13 @@ export async function resetGame(gameId: string) {
 
             const humanPlayers = currentPlayers.filter(p => !p.isAI);
 
-            // Batch delete AI players and reset human players
             for (const player of currentPlayers) {
                 if (player.isAI) {
-                    // Delete AI player documents
                     transaction.delete(gameRef.collection('players').doc(player.userId));
                     transaction.delete(gameRef.collection('playerData').doc(player.userId));
                 } else {
-                    // Reset human player to default state, preserving key info
-                    const newPlayer = createPlayerObject(player.userId, game.id, player.displayName, player.avatarUrl, player.isAI);
-                    newPlayer.joinedAt = player.joinedAt; // Preserve original join time
-                    const { publicData, privateData } = splitPlayerData(newPlayer);
+                    const publicData = createPlayerPublicData(player.userId, game.id, player.displayName, player.avatarUrl, player.isAI, player.joinedAt);
+                    const privateData = createPlayerPrivateData(null);
                     transaction.set(gameRef.collection('players').doc(player.userId), toPlainObject(publicData));
                     transaction.set(gameRef.collection('playerData').doc(player.userId), toPlainObject(privateData));
                 }
@@ -375,14 +363,13 @@ export async function resetGame(gameId: string) {
               });
             }
 
-            // Reset game document
             transaction.update(gameRef, toPlainObject({
                 status: 'waiting', phase: 'waiting', currentRound: 0,
                 events: [], nightActions: [],
                 twins: null, lovers: null, phaseEndsAt: new Date(), pendingHunterShot: null,
                 pendingTroublemakerDuel: null,
                 wolfCubRevengeRound: 0,
-                playerCount: humanPlayers.length, // Correctly update playerCount
+                playerCount: humanPlayers.length,
                 vampireKills: 0, boat: [],
                 leprosaBlockedRound: 0, witchFoundSeer: false, seerDied: false,
                 silencedPlayerId: null, exiledPlayerId: null, troublemakerUsed: false,
@@ -395,5 +382,3 @@ export async function resetGame(gameId: string) {
         return { error: e.message || 'No se pudo reiniciar la partida.' };
     }
 }
-
-    

@@ -230,5 +230,3 @@ export const AIVoteOutputSchema = z.object({
   reasoning: z.string().describe("A brief, in-character thought process for the vote, phrased as if speaking to the village."),
 });
 export type AIVoteOutput = z.infer<typeof AIVoteOutputSchema>;
-
-    
