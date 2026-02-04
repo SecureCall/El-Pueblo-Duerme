@@ -1,0 +1,14 @@
+
+> el-pueblo-duerme@0.1.0 dev
+> next dev --port 9003
+
+  ▲ Next.js 14.2.3
+  - Local:        http://localhost:9003
+  - Environments: .env
+
+ ✓ Starting...
+ ✓ Ready in 4.5s
+ ○ Compiling / ...
+ ✓ Compiled / in 7.5s (480 modules)
+ GET / 200 in 7839ms
+[?25h

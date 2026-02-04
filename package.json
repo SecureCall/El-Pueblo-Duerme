@@ -1,11 +1,10 @@
-
 {
   "name": "el-pueblo-duerme",
   "version": "0.1.0",
   "private": true,
   "description": "El Pueblo Duerme - A game of mystery and deception, built with Next.js and Firebase.",
   "scripts": {
-    "dev": "next dev --port 9003",
+    "dev": "next dev --port 9003 --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
