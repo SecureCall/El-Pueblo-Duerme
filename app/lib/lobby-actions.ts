@@ -219,33 +219,24 @@ export async function startGame(gameId: string, creatorId: string) {
     
     try {
         await adminDb.runTransaction(async (transaction) => {
-            // ================== FASE DE LECTURA ==================
+            // ================== 1. READ PHASE ==================
             const gameSnap = await transaction.get(gameRef);
             if (!gameSnap.exists) throw new Error('Partida no encontrada.');
-
+            
             const playersSnap = await transaction.get(gameRef.collection('players'));
             
-            const humanPlayerIds = playersSnap.docs.map(doc => doc.id);
-            const privateDataSnaps = humanPlayerIds.length > 0 
-                ? await transaction.getAll(...humanPlayerIds.map(id => gameRef.collection('playerData').doc(id))) 
-                : [];
-
-            // ================== FASE DE LÓGICA (EN MEMORIA) ==================
-            let game = gameSnap.data() as Game;
+            // ================== 2. IN-MEMORY LOGIC ==================
+            const game = gameSnap.data() as Game;
 
             if (game.creator !== creatorId) throw new Error('Solo el creador puede iniciar la partida.');
             if (game.status !== 'waiting') throw new Error('La partida ya ha comenzado.');
 
-            let finalPlayers: PlayerPublicData[] = playersSnap.docs.map(doc => doc.data() as PlayerPublicData);
-            let allPrivateData: Record<string, PlayerPrivateData> = {};
-
-            privateDataSnaps.forEach(snap => {
-                if (snap.exists) {
-                    allPrivateData[snap.id] = snap.data() as PlayerPrivateData;
-                }
-            });
-
+            const existingPlayers = playersSnap.docs.map(doc => doc.data() as PlayerPublicData);
+            let finalPlayers: PlayerPublicData[] = [...existingPlayers];
+            
             const aiPlayersToCreate: { publicData: PlayerPublicData, privateData: PlayerPrivateData }[] = [];
+
+            // Create AI players if needed
             if (game.settings.fillWithAI && finalPlayers.length < game.maxPlayers) {
                 const aiPlayerCount = game.maxPlayers - finalPlayers.length;
                 const availableAINames = AI_NAMES.filter(name => !finalPlayers.some(p => p.displayName === name));
@@ -259,61 +250,67 @@ export async function startGame(gameId: string, creatorId: string) {
                     
                     aiPlayersToCreate.push({ publicData, privateData });
                     finalPlayers.push(publicData);
-                    allPrivateData[aiUserId] = privateData;
                 }
             }
             
             if (finalPlayers.length < MINIMUM_PLAYERS) throw new Error(`Se necesitan al menos ${MINIMUM_PLAYERS} jugadores para comenzar.`);
             
+            // Generate and assign roles
             const newRoles = generateRoles(finalPlayers.length, game.settings);
-            
+            const allPrivateData: Record<string, PlayerPrivateData> = {};
+
+            // Initialize private data for all players
             finalPlayers.forEach((player, index) => {
                 const role = newRoles[index];
-                if (!allPrivateData[player.userId]) {
-                    const { privateData } = splitPlayerData(createPlayerObject(player.userId, gameId, player.displayName, player.avatarUrl, player.isAI));
-                    allPrivateData[player.userId] = privateData;
-                }
-                allPrivateData[player.userId].role = role;
-                if (role === 'cult_leader') allPrivateData[player.userId].isCultMember = true;
+                // It's safer to just recreate private data for everyone to ensure a clean start for the game logic.
+                const { privateData } = splitPlayerData(createPlayerObject(player.userId, gameId, player.displayName, player.avatarUrl, player.isAI));
+                privateData.role = role;
+                
+                if (role === 'cult_leader') privateData.isCultMember = true;
 
-                 if (!player.isAI) {
+                if (!player.isAI) {
                     const applicableObjectives = secretObjectives.filter(obj => 
                         obj.appliesTo.includes('any') || obj.appliesTo.includes(role!)
                     );
                     if (applicableObjectives.length > 0) {
-                        allPrivateData[player.userId].secretObjectiveId = applicableObjectives[Math.floor(Math.random() * applicableObjectives.length)].id;
+                        privateData.secretObjectiveId = applicableObjectives[Math.floor(Math.random() * applicableObjectives.length)].id;
                     }
                 }
+                allPrivateData[player.userId] = privateData;
             });
 
-            const executioner = Object.entries(allPrivateData).find(([, data]) => data.role === 'executioner');
-            if (executioner) {
+            // Handle special interdependent roles (Executioner)
+            const executionerEntry = Object.entries(allPrivateData).find(([, data]) => data.role === 'executioner');
+            if (executionerEntry) {
+                const executionerId = executionerEntry[0];
                 const wolfTeamRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy', 'witch'];
-                const nonWolfPlayers = finalPlayers.filter(p => {
+                const potentialTargets = finalPlayers.filter(p => {
                     const pRole = allPrivateData[p.userId].role;
-                    return pRole && !wolfTeamRoles.includes(pRole) && p.userId !== executioner[0];
+                    return p.userId !== executionerId && pRole && !wolfTeamRoles.includes(pRole);
                 });
-                if (nonWolfPlayers.length > 0) {
-                    const target = nonWolfPlayers[Math.floor(Math.random() * nonWolfPlayers.length)];
-                    if (target) {
-                        allPrivateData[executioner[0]].executionerTargetId = target.userId;
-                    }
+                
+                if (potentialTargets.length > 0) {
+                    const target = potentialTargets[Math.floor(Math.random() * potentialTargets.length)];
+                    allPrivateData[executionerId].executionerTargetId = target.userId;
                 }
             }
 
             const twinUserIds = Object.entries(allPrivateData).filter(([, data]) => data.role === 'twin').map(([id]) => id);
 
-            // ================== FASE DE ESCRITURA ==================
+            // ================== 3. WRITE PHASE ==================
+            // Write AI public data
             aiPlayersToCreate.forEach(ai => {
                 const aiPublicRef = gameRef.collection('players').doc(ai.publicData.userId);
                 transaction.set(aiPublicRef, toPlainObject(ai.publicData));
             });
 
+            // Write all private data (for both humans and AI)
             for (const [userId, privateData] of Object.entries(allPrivateData)) {
                 const privateRef = gameRef.collection('playerData').doc(userId);
                 transaction.set(privateRef, toPlainObject(privateData));
             }
             
+            // Update the main game document
             transaction.update(gameRef, toPlainObject({
                 twins: twinUserIds.length === 2 ? [twinUserIds[0], twinUserIds[1]] : null,
                 status: 'in_progress',
@@ -322,6 +319,7 @@ export async function startGame(gameId: string, creatorId: string) {
                 playerCount: finalPlayers.length,
             }));
 
+            // If the game was public, remove it from the public listing
             if (game.settings.isPublic) {
               const publicGameRef = adminDb.collection("publicGames").doc(gameId);
               transaction.delete(publicGameRef);
@@ -396,3 +394,7 @@ export async function resetGame(gameId: string) {
         return { error: e.message || 'No se pudo reiniciar la partida.' };
     }
 }
+
+    
+
+    

@@ -56,6 +56,7 @@ function gameReducer(state: CombinedGameState, action: GameAction): CombinedGame
                 ...state,
                 players,
                 currentPlayer,
+                events: state.events || [],
                 loading: false,
                 error: null,
             };
@@ -151,3 +152,5 @@ export const useGameState = (gameId: string): CombinedGameState => {
 
   return state;
 };
+
+    
