@@ -300,7 +300,7 @@ export async function startGame(gameId: string, creatorId: string) {
 
             for (const [userId, privateData] of Object.entries(allPrivateData)) {
                 const privateRef = gameRef.collection('playerData').doc(userId);
-                transaction.set(privateRef, toPlainObject(privateData));
+                transaction.set(privateRef, toPlainObject(privateData), { merge: true });
             }
             
             transaction.update(gameRef, toPlainObject({
@@ -346,8 +346,8 @@ export async function resetGame(gameId: string) {
                 } else {
                     const publicData = createPlayerPublicData(player.userId, game.id, player.displayName, player.avatarUrl, player.isAI, player.joinedAt);
                     const privateData = createPlayerPrivateData(null);
-                    transaction.set(gameRef.collection('players').doc(player.userId), toPlainObject(publicData));
-                    transaction.set(gameRef.collection('playerData').doc(player.userId), toPlainObject(privateData));
+                    transaction.set(gameRef.collection('players').doc(player.userId), toPlainObject(publicData), { merge: true });
+                    transaction.set(gameRef.collection('playerData').doc(player.userId), toPlainObject(privateData), { merge: true });
                 }
             }
 

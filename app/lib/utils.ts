@@ -77,7 +77,7 @@ export const sanitizeHTML = (text: string): string => {
 
 
 export function splitPlayerData(player: Player): { publicData: PlayerPublicData, privateData: PlayerPrivateData } {
-  // Public Data is everything in the PlayerPublicDataSchema
+  // Explicitly build the public data object to ensure schema compliance
   const publicData: PlayerPublicData = {
     userId: player.userId,
     gameId: player.gameId,
@@ -86,12 +86,12 @@ export function splitPlayerData(player: Player): { publicData: PlayerPublicData,
     isAlive: player.isAlive,
     isAI: player.isAI,
     princeRevealed: player.princeRevealed || false,
-    joinedAt: player.joinedAt || new Date(),
+    joinedAt: player.joinedAt, // Should exist on a full player object
     votedFor: player.votedFor || null,
     lastActiveAt: player.lastActiveAt || new Date(),
   };
 
-  // Private Data is everything else, ensuring we don't miss anything.
+  // Explicitly build the private data object
   const privateData: PlayerPrivateData = {
     role: player.role || null,
     isLover: player.isLover || false,
