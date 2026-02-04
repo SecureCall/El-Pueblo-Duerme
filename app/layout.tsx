@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { Playfair_Display, PT_Sans } from 'next/font/google';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
-import { FirebaseProvider } from './firebase/provider';
+import { AuthProvider } from './providers/AuthProvider';
 import { cn } from './lib/utils';
 
 const ptSans = PT_Sans({ 
@@ -27,14 +27,13 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  
   return (
     <html lang="es" className="dark">
       <body className={cn(ptSans.variable, playfair.variable, "font-sans")}>
-        <FirebaseProvider>
+        <AuthProvider>
           {children}
           <Toaster />
-        </FirebaseProvider>
+        </AuthProvider>
       </body>
     </html>
   );
