@@ -231,12 +231,11 @@ export async function startGame(gameId: string, creatorId: string) {
             if (game.status !== 'waiting') throw new Error('La partida ya ha comenzado.');
             
             const existingPlayers = playersSnap.docs.map(doc => doc.data() as PlayerPublicData);
-            let finalPlayerPublicData: PlayerPublicData[] = [...existingPlayers];
+            let finalPlayerList: PlayerPublicData[] = [...existingPlayers];
             
-            const aiPlayersToCreate: { publicData: PlayerPublicData, privateData: PlayerPrivateData }[] = [];
-            if (game.settings.fillWithAI && finalPlayerPublicData.length < game.maxPlayers) {
-                const aiPlayerCount = game.maxPlayers - finalPlayerPublicData.length;
-                const availableAINames = AI_NAMES.filter(name => !finalPlayerPublicData.some(p => p.displayName === name));
+            if (game.settings.fillWithAI && finalPlayerList.length < game.maxPlayers) {
+                const aiPlayerCount = game.maxPlayers - finalPlayerList.length;
+                const availableAINames = AI_NAMES.filter(name => !finalPlayerList.some(p => p.displayName === name));
 
                 for (let i = 0; i < aiPlayerCount; i++) {
                     const aiUserId = `ai_${Date.now()}_${i}`;
@@ -244,64 +243,69 @@ export async function startGame(gameId: string, creatorId: string) {
                     const aiAvatar = `/logo.png`;
                     
                     const publicData = createPlayerPublicData(aiUserId, gameId, aiName, aiAvatar, true);
-                    const privateData = createPlayerPrivateData(null);
-                    
-                    aiPlayersToCreate.push({ publicData, privateData });
-                    finalPlayerPublicData.push(publicData);
+                    finalPlayerList.push(publicData);
                 }
             }
 
-            const finalPlayerCount = finalPlayerPublicData.length;
+            const finalPlayerCount = finalPlayerList.length;
             if (finalPlayerCount < MINIMUM_PLAYERS) {
                 throw new Error(`Se necesitan al menos ${MINIMUM_PLAYERS} jugadores para comenzar.`);
             }
             
             const newRoles = generateRoles(finalPlayerCount, game.settings);
-            const allPrivateData: Record<string, PlayerPrivateData> = {};
+            const allPrivateDataMap: Map<string, PlayerPrivateData> = new Map();
 
-            finalPlayerPublicData.forEach((player, index) => {
-                const role = newRoles[index];
-                const privateData = createPlayerPrivateData(role);
+            finalPlayerList.forEach((player, index) => {
+                // For AI players that are new, write their public data doc
+                if (player.isAI && !existingPlayers.some(p => p.userId === player.userId)) {
+                    const aiPublicRef = gameRef.collection('players').doc(player.userId);
+                    transaction.set(aiPublicRef, toPlainObject(player));
+                }
+
+                const assignedRole = newRoles[index];
+                const privateData = createPlayerPrivateData(assignedRole);
                 
-                if (role === 'cult_leader') privateData.isCultMember = true;
+                if (assignedRole === 'cult_leader') {
+                    privateData.isCultMember = true;
+                }
 
                 if (!player.isAI) {
                     const applicableObjectives = secretObjectives.filter(obj => 
-                        obj.appliesTo.includes('any') || obj.appliesTo.includes(role!)
+                        obj.appliesTo.includes('any') || obj.appliesTo.includes(assignedRole!)
                     );
                     if (applicableObjectives.length > 0) {
                         privateData.secretObjectiveId = applicableObjectives[Math.floor(Math.random() * applicableObjectives.length)].id;
                     }
                 }
-                allPrivateData[player.userId] = privateData;
+                
+                allPrivateDataMap.set(player.userId, privateData);
+                
+                // Write private data in the same loop
+                const privateRef = gameRef.collection('playerData').doc(player.userId);
+                transaction.set(privateRef, toPlainObject(privateData), { merge: true });
             });
             
-            const executionerEntry = Object.entries(allPrivateData).find(([, data]) => data.role === 'executioner');
+            const executionerEntry = finalPlayerList.find((p, idx) => newRoles[idx] === 'executioner');
             if (executionerEntry) {
-                const executionerId = executionerEntry[0];
+                const executionerId = executionerEntry.userId;
                 const wolfTeamRoles: PlayerRole[] = ['werewolf', 'wolf_cub', 'cursed', 'seeker_fairy', 'witch'];
-                const potentialTargets = finalPlayerPublicData.filter(p => {
-                    const pRole = allPrivateData[p.userId].role;
+                const potentialTargets = finalPlayerList.filter((p, idx) => {
+                    const pRole = newRoles[idx];
                     return p.userId !== executionerId && pRole && !wolfTeamRoles.includes(pRole);
                 });
                 
                 if (potentialTargets.length > 0) {
                     const target = potentialTargets[Math.floor(Math.random() * potentialTargets.length)];
-                    allPrivateData[executionerId].executionerTargetId = target.userId;
+                    const execPrivateRef = gameRef.collection('playerData').doc(executionerId);
+                    transaction.update(execPrivateRef, { executionerTargetId: target.userId });
                 }
             }
 
-            const twinUserIds = Object.entries(allPrivateData).filter(([, data]) => data.role === 'twin').map(([id]) => id);
+            const twinUserIds = finalPlayerList
+                .map((p, i) => ({ userId: p.userId, role: newRoles[i] }))
+                .filter(p => p.role === 'twin')
+                .map(p => p.userId);
 
-            aiPlayersToCreate.forEach(ai => {
-                const aiPublicRef = gameRef.collection('players').doc(ai.publicData.userId);
-                transaction.set(aiPublicRef, toPlainObject(ai.publicData));
-            });
-
-            for (const [userId, privateData] of Object.entries(allPrivateData)) {
-                const privateRef = gameRef.collection('playerData').doc(userId);
-                transaction.set(privateRef, toPlainObject(privateData), { merge: true });
-            }
             
             transaction.update(gameRef, toPlainObject({
                 twins: twinUserIds.length === 2 ? [twinUserIds[0], twinUserIds[1]] : null,
@@ -360,7 +364,7 @@ export async function resetGame(gameId: string) {
                 playerCount: humanPlayers.length,
                 maxPlayers: game.maxPlayers,
                 lastActiveAt: new Date(),
-              });
+              }, { merge: true });
             }
 
             transaction.update(gameRef, toPlainObject({
@@ -382,3 +386,5 @@ export async function resetGame(gameId: string) {
         return { error: e.message || 'No se pudo reiniciar la partida.' };
     }
 }
+
+    

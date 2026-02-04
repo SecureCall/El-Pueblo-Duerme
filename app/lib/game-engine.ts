@@ -309,7 +309,6 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
       protections: new Map<string, Set<'guard' | 'bless'>>(),
       deathMarks: new Map<string, GameEvent['type']>(),
       savedByHealPotion: new Map<string, string>(), // TargetId -> SaviorId
-      bites: new Map<string, number>(),
       gameUpdates: {} as Partial<Game>,
       playerUpdates: new Map<string, Partial<PlayerPrivateData>>(),
       newEvents: [] as GameEvent[],
@@ -1208,8 +1207,5 @@ const getActionPriority = (actionType: NightActionType) => {
             return 99;
     }
 }
-
-
-
 
     
