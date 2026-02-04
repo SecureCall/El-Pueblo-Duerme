@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 
 export function GameRoom({ gameId }: { gameId: string }) {
   const { userId, displayName, setDisplayName, isSessionLoaded, avatarUrl } = useGameSession();
-  const { game, players, currentPlayer, loading, error: gameStateError } = useGameState(gameId);
+  const { game, players, currentPlayer, loading, error: gameStateError, events } = useGameState(gameId);
   const [isJoining, setIsJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
 
@@ -154,7 +154,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
             return <GameLobby game={game} players={players} isCreator={game.creator === userId} currentPlayer={currentPlayer} />;
         case 'in_progress':
         case 'finished':
-            return <GameBoard gameId={gameId} />;
+            return <GameBoard gameId={gameId} game={game} players={players} currentPlayer={currentPlayer} events={events} />;
         default:
             return <p>Estado de la partida desconocido.</p>;
     }
@@ -179,3 +179,5 @@ export function GameRoom({ gameId }: { gameId: string }) {
     </div>
   );
 }
+
+    

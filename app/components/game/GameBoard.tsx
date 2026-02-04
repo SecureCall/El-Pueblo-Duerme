@@ -30,19 +30,24 @@ import { JuryVote } from "@/components/game/JuryVote";
 import { MasterActionBar, type MasterActionState } from "@/components/game/MasterActionBar";
 import { useGameSession } from "@/hooks/use-game-session";
 import { playNarration, playSoundEffect } from '@/lib/sounds';
-import { useGameState } from "@/hooks/use-game-state";
-import { RoleManual } from "@/components/game/RoleManual";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useFirebase } from '@/firebase/provider';
 import { collection, query, orderBy } from 'firebase/firestore';
+import { RoleManual } from "@/components/game/RoleManual";
 
-export function GameBoard({ gameId }: { gameId: string }) {
+interface GameBoardProps {
+    gameId: string;
+    game: Game;
+    players: Player[];
+    currentPlayer: Player;
+    events: GameEvent[];
+}
+
+export function GameBoard({ gameId, game, players, currentPlayer, events }: GameBoardProps) {
     const { updateStats, userId, addGameEventToHistory, stats } = useGameSession();
     const { firestore } = useFirebase();
     const { toast } = useToast();
-
-    const { game, players, currentPlayer, events, loading, error } = useGameState(gameId);
 
     // --- CHAT DATA FETCHING ---
     const publicChatQuery = useMemo(() => firestore ? query(collection(firestore, `games/${gameId}/publicChat`), orderBy('createdAt', 'asc')) : null, [firestore, gameId]);
@@ -257,15 +262,6 @@ export function GameBoard({ gameId }: { gameId: string }) {
             }
         }
     };
-
-    if (loading || !game || !currentPlayer) {
-        return (
-            <div className="flex flex-col items-center justify-center h-screen w-screen">
-                <Loader2 className="h-16 w-16 animate-spin text-primary" />
-                <p className="text-xl text-primary-foreground/80 mt-4">{error || 'Cargando...'}</p>
-            </div>
-        );
-    }
 
     if (game.status === 'finished') {
         const gameOverEvent = events.find(e => e.type === 'game_over');
@@ -533,5 +529,7 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
         </div>
     );
 }
+
+    
 
     

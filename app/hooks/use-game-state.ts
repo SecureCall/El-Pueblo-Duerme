@@ -56,7 +56,7 @@ function gameReducer(state: CombinedGameState, action: GameAction): CombinedGame
                 ...state,
                 players,
                 currentPlayer,
-                events: state.events || [],
+                events: state.game?.events || [],
                 loading: false,
                 error: null,
             };
@@ -129,7 +129,7 @@ export const useGameState = (gameId: string): CombinedGameState => {
             return { ...publicData, ...privateData };
           }
           return publicData as Player;
-        }).sort((a, b) => getMillis(a.joinedAt) - getMillis(b.joinedAt));
+        }).sort((a, b) => getMillis(a.joinedAt) - getMillis(a.joinedAt));
         
         const currentPlayer = fullPlayers.find(p => p.userId === userId) || null;
         
@@ -140,10 +140,15 @@ export const useGameState = (gameId: string): CombinedGameState => {
         if (err.code === 'permission-denied') {
             const permissionError = new FirestorePermissionError({ path: `games/${gameId}/playerData/${userId}`, operation: 'get' });
             errorEmitter.emit('permission-error', permissionError);
-            dispatch({ type: 'SET_ERROR', payload: `Error de permisos al cargar tus datos.` });
+            // Don't set a blocking error if it's just private data for a spectator
+            if (state.game?.status === 'waiting') {
+                dispatch({ type: 'SET_ERROR', payload: `Error de permisos al cargar tus datos.` });
+            }
         } else {
             console.error("Error fetching private player data:", err);
-            dispatch({ type: 'SET_ERROR', payload: `Error al cargar datos del jugador: ${err.message}` });
+             if (state.game?.status === 'waiting') {
+                dispatch({ type: 'SET_ERROR', payload: `Error al cargar datos del jugador: ${err.message}` });
+            }
         }
     });
 
