@@ -748,9 +748,9 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
       for (const player of mutableFullPlayers) {
         const { publicData, privateData } = splitPlayerData(player);
         const publicPlayerRef = adminDb.collection('games').doc(mutableGame.id).collection('players').doc(player.userId);
-        transaction.set(publicPlayerRef, toPlainObject(publicData));
+        transaction.set(publicPlayerRef, toPlainObject(publicData), { merge: true });
         const privatePlayerRef = adminDb.collection('games').doc(mutableGame.id).collection('playerData').doc(player.userId);
-        transaction.set(privatePlayerRef, toPlainObject(privateData));
+        transaction.set(privatePlayerRef, toPlainObject(privateData), { merge: true });
       }
       transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', events: mutableGame.events }));
       return { nightEvent: undefined };
@@ -762,9 +762,9 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
       for (const player of mutableFullPlayers) {
         const { publicData, privateData } = splitPlayerData(player);
         const publicPlayerRef = adminDb.collection('games').doc(mutableGame.id).collection('players').doc(player.userId);
-        transaction.set(publicPlayerRef, toPlainObject(publicData));
+        transaction.set(publicPlayerRef, toPlainObject(publicData), { merge: true });
         const privatePlayerRef = adminDb.collection('games').doc(mutableGame.id).collection('playerData').doc(player.userId);
-        transaction.set(privatePlayerRef, toPlainObject(privateData));
+        transaction.set(privatePlayerRef, toPlainObject(privateData), { merge: true });
       }
       transaction.update(gameRef, toPlainObject({ events: mutableGame.events, phase: 'hunter_shot', pendingHunterShot: mutableGame.pendingHunterShot }));
       return { nightEvent: undefined };
@@ -799,11 +799,11 @@ export async function processNightEngine(transaction: Transaction, gameRef: Docu
     publicData.votedFor = null;
     
     const publicPlayerRef = adminDb.collection('games').doc(mutableGame.id).collection('players').doc(p.userId);
-    transaction.set(publicPlayerRef, toPlainObject(publicData));
+    transaction.set(publicPlayerRef, toPlainObject(publicData), { merge: true });
 
     const privatePlayerRef = adminDb.collection('games').doc(mutableGame.id).collection('playerData').doc(p.userId);
     privateData.usedNightAbility = false;
-    transaction.set(privatePlayerRef, toPlainObject(privateData));
+    transaction.set(privatePlayerRef, toPlainObject(privateData), { merge: true });
   }
   
   const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
@@ -866,7 +866,7 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
         for (const player of fullPlayers) {
             const { publicData } = splitPlayerData(player);
             const publicPlayerRef = adminDb.collection('games').doc(game.id).collection('players').doc(player.userId);
-            transaction.set(publicPlayerRef, toPlainObject(publicData));
+            transaction.set(publicPlayerRef, toPlainObject(publicData), { merge: true });
         }
         
         const phaseEndsAt = new Date(Date.now() + PHASE_DURATION_SECONDS * 1000);
@@ -930,8 +930,8 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
         mutableGame.events.push({ id: `evt_gameover_${Date.now()}`, gameId: mutableGame.id, type: 'game_over', round: mutableGame.currentRound, message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: new Date() });
         for (const player of mutableFullPlayers) {
             const { publicData, privateData } = splitPlayerData(player);
-            transaction.set(adminDb.collection('games').doc(game.id).collection('players').doc(player.userId), toPlainObject(publicData));
-            transaction.set(adminDb.collection('games').doc(game.id).collection('playerData').doc(player.userId), toPlainObject(privateData));
+            transaction.set(adminDb.collection('games').doc(game.id).collection('players').doc(player.userId), toPlainObject(publicData), { merge: true });
+            transaction.set(adminDb.collection('games').doc(game.id).collection('playerData').doc(player.userId), toPlainObject(privateData), { merge: true });
         }
         transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', events: mutableGame.events }));
         return { voteEvent: mutableGame.events[mutableGame.events.length - 1] };
@@ -941,8 +941,8 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
         mutableGame.pendingHunterShot = triggeredHunterId;
         for (const player of mutableFullPlayers) {
             const { publicData, privateData } = splitPlayerData(player);
-            transaction.set(adminDb.collection('games').doc(game.id).collection('players').doc(player.userId), toPlainObject(publicData));
-            transaction.set(adminDb.collection('games').doc(game.id).collection('playerData').doc(player.userId), toPlainObject(privateData));
+            transaction.set(adminDb.collection('games').doc(game.id).collection('players').doc(player.userId), toPlainObject(publicData), { merge: true });
+            transaction.set(adminDb.collection('games').doc(game.id).collection('playerData').doc(player.userId), toPlainObject(privateData), { merge: true });
         }
         transaction.update(gameRef, toPlainObject({ events: mutableGame.events, phase: 'hunter_shot', pendingHunterShot: mutableGame.pendingHunterShot }));
         return { voteEvent: mutableGame.events[mutableGame.events.length - 1] };
@@ -955,8 +955,8 @@ export async function processVotesEngine(transaction: Transaction, gameRef: Docu
         const { publicData, privateData } = splitPlayerData(p);
         publicData.votedFor = null;
         privateData.usedNightAbility = false;
-        transaction.set(adminDb.collection('games').doc(game.id).collection('players').doc(p.userId), toPlainObject(publicData));
-        transaction.set(adminDb.collection('games').doc(game.id).collection('playerData').doc(p.userId), toPlainObject(privateData));
+        transaction.set(adminDb.collection('games').doc(game.id).collection('players').doc(p.userId), toPlainObject(publicData), { merge: true });
+        transaction.set(adminDb.collection('games').doc(game.id).collection('playerData').doc(p.userId), toPlainObject(privateData), { merge: true });
     }
     
     transaction.update(gameRef, toPlainObject({
@@ -1015,8 +1015,8 @@ export async function processJuryVotesEngine(transaction: Transaction, gameRef: 
         game.events.push({ id: `evt_gameover_${Date.now()}`, gameId: game.id, type: 'game_over', round: game.currentRound, message: gameOverInfo.message, data: { winnerCode: gameOverInfo.winnerCode, winners: gameOverInfo.winners }, createdAt: new Date() });
         for (const player of fullPlayers) {
             const { publicData, privateData } = splitPlayerData(player);
-            transaction.set(adminDb.collection('games').doc(game.id).collection('players').doc(player.userId), toPlainObject(publicData));
-            transaction.set(adminDb.collection('games').doc(game.id).collection('playerData').doc(player.userId), toPlainObject(privateData));
+            transaction.set(adminDb.collection('games').doc(game.id).collection('players').doc(player.userId), toPlainObject(publicData), { merge: true });
+            transaction.set(adminDb.collection('games').doc(game.id).collection('playerData').doc(player.userId), toPlainObject(privateData), { merge: true });
         }
         transaction.update(gameRef, toPlainObject({ status: 'finished', phase: 'finished', events: game.events }));
         return;
@@ -1026,8 +1026,8 @@ export async function processJuryVotesEngine(transaction: Transaction, gameRef: 
         game.pendingHunterShot = triggeredHunterId;
          for (const player of fullPlayers) {
             const { publicData, privateData } = splitPlayerData(player);
-            transaction.set(adminDb.collection('games').doc(game.id).collection('players').doc(player.userId), toPlainObject(publicData));
-            transaction.set(adminDb.collection('games').doc(game.id).collection('playerData').doc(player.userId), toPlainObject(privateData));
+            transaction.set(adminDb.collection('games').doc(game.id).collection('players').doc(player.userId), toPlainObject(publicData), { merge: true });
+            transaction.set(adminDb.collection('games').doc(game.id).collection('playerData').doc(player.userId), toPlainObject(privateData), { merge: true });
         }
         transaction.update(gameRef, toPlainObject({ events: game.events, phase: 'hunter_shot', pendingHunterShot: game.pendingHunterShot }));
         return;
@@ -1040,8 +1040,8 @@ export async function processJuryVotesEngine(transaction: Transaction, gameRef: 
         const { publicData, privateData } = splitPlayerData(p);
         publicData.votedFor = null;
         privateData.usedNightAbility = false;
-        transaction.set(adminDb.collection('games').doc(game.id).collection('players').doc(p.userId), toPlainObject(publicData));
-        transaction.set(adminDb.collection('games').doc(game.id).collection('playerData').doc(p.userId), toPlainObject(privateData));
+        transaction.set(adminDb.collection('games').doc(game.id).collection('players').doc(p.userId), toPlainObject(publicData), { merge: true });
+        transaction.set(adminDb.collection('games').doc(game.id).collection('playerData').doc(p.userId), toPlainObject(privateData), { merge: true });
     }
 
     transaction.update(gameRef, toPlainObject({

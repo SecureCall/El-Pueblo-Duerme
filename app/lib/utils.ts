@@ -1,5 +1,4 @@
 
-
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { Timestamp } from "firebase/firestore";
@@ -78,47 +77,43 @@ export const sanitizeHTML = (text: string): string => {
 
 
 export function splitPlayerData(player: Player): { publicData: PlayerPublicData, privateData: PlayerPrivateData } {
-  const { 
-    userId, gameId, displayName, avatarUrl, isAlive, isAI, 
-    princeRevealed, joinedAt, votedFor, lastActiveAt,
-    ...privateData
-  } = player;
-
+  // Public Data is everything in the PlayerPublicDataSchema
   const publicData: PlayerPublicData = {
-    userId, gameId, displayName, avatarUrl, isAlive, isAI,
-    princeRevealed: princeRevealed || false,
-    joinedAt: joinedAt || new Date(),
-    votedFor: votedFor || null,
-    lastActiveAt: lastActiveAt || new Date(),
-  };
-  
-  // Ensure all fields of PlayerPrivateData are present, even if null
-  const fullPrivateData: PlayerPrivateData = {
-      role: null,
-      isLover: false,
-      isCultMember: false,
-      biteCount: 0,
-      potions: { poison: null, save: null },
-      guardianSelfProtects: 0,
-      priestSelfHealUsed: false,
-      lastHealedRound: 0,
-      usedNightAbility: false,
-      shapeshifterTargetId: null,
-      virginiaWoolfTargetId: null,
-      riverSirenTargetId: null,
-      ghostMessageSent: false,
-      resurrectorAngelUsed: false,
-      bansheeScreams: {},
-      bansheePoints: 0,
-      lookoutUsed: false,
-      executionerTargetId: null,
-      secretObjectiveId: null,
-      seerChecks: [],
-      ...privateData,
+    userId: player.userId,
+    gameId: player.gameId,
+    displayName: player.displayName,
+    avatarUrl: player.avatarUrl,
+    isAlive: player.isAlive,
+    isAI: player.isAI,
+    princeRevealed: player.princeRevealed || false,
+    joinedAt: player.joinedAt || new Date(),
+    votedFor: player.votedFor || null,
+    lastActiveAt: player.lastActiveAt || new Date(),
   };
 
+  // Private Data is everything else, ensuring we don't miss anything.
+  const privateData: PlayerPrivateData = {
+    role: player.role || null,
+    isLover: player.isLover || false,
+    isCultMember: player.isCultMember || false,
+    biteCount: player.biteCount || 0,
+    potions: player.potions || { poison: null, save: null },
+    guardianSelfProtects: player.guardianSelfProtects || 0,
+    priestSelfHealUsed: player.priestSelfHealUsed || false,
+    lastHealedRound: player.lastHealedRound || 0,
+    usedNightAbility: player.usedNightAbility || false,
+    shapeshifterTargetId: player.shapeshifterTargetId || null,
+    virginiaWoolfTargetId: player.virginiaWoolfTargetId || null,
+    riverSirenTargetId: player.riverSirenTargetId || null,
+    ghostMessageSent: player.ghostMessageSent || false,
+    resurrectorAngelUsed: player.resurrectorAngelUsed || false,
+    bansheeScreams: player.bansheeScreams || {},
+    bansheePoints: player.bansheePoints || 0,
+    lookoutUsed: player.lookoutUsed || false,
+    executionerTargetId: player.executionerTargetId || null,
+    secretObjectiveId: player.secretObjectiveId || null,
+    seerChecks: player.seerChecks || [],
+  };
 
-  return { publicData, privateData: fullPrivateData };
+  return { publicData, privateData };
 }
-
-    
