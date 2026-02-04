@@ -111,15 +111,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
     useEffect(() => {
         if (!game || !userId || game.status === 'finished') return;
 
-        const isCreator = game.creator === userId;
         const prevPhase = prevPhaseRef.current;
-
-        if (isCreator && game.phase === 'role_reveal' && prevPhase !== 'role_reveal') {
-            const timer = setTimeout(() => {
-                processNight(game.id);
-            }, 15000);
-            return () => clearTimeout(timer);
-        }
 
         if (prevPhase !== game.phase) {
             switch (game.phase) {
@@ -154,7 +146,7 @@ export function GameBoard({ gameId }: { gameId: string }) {
 
         prevPhaseRef.current = game.phase;
 
-    }, [game?.phase, game?.currentRound, game?.id, game?.creator, game?.status, userId, events]);
+    }, [game?.phase, game?.currentRound, game?.id, game?.status, userId, events]);
 
 
     useEffect(() => {
@@ -280,11 +272,11 @@ export function GameBoard({ gameId }: { gameId: string }) {
         return <GameOver game={game} event={gameOverEvent} players={players} currentPlayer={currentPlayer} />;
     }
 
-    if (currentPlayer.role && game.phase === 'role_reveal' && showRole) {
-        return <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />;
-    }
-    
     if (game.phase === 'role_reveal') {
+        if (currentPlayer.role && showRole) {
+            return <RoleReveal player={currentPlayer} onAcknowledge={handleAcknowledgeRole} />;
+        }
+        // If role is not yet available, or showRole is false, show the waiting message.
         return (
             <div className="flex flex-col items-center justify-center h-screen w-screen">
                 <Card className="text-center bg-card/80 animate-in fade-in zoom-in-95">
