@@ -122,18 +122,18 @@ export function GameBoard({ gameId, game, players, currentPlayer, events }: Game
             switch (game.phase) {
                 case 'night':
                     if (game.currentRound === 1 && prevPhase === 'role_reveal') {
-                        playNarration('intro epica.mp3');
-                        setTimeout(() => playNarration('noche pueblo duerme.mp3'), 4000);
+                        playNarration('intro-epica.mp3');
+                        setTimeout(() => playNarration('noche-pueblo-duerme.mp3'), 4000);
                     } else {
-                        playNarration('noche pueblo duerme.mp3');
+                        playNarration('noche-pueblo-duerme.mp3');
                     }
                     break;
                 case 'day':
                     playSoundEffect('/audio/effects/rooster-crowing-364473.mp3');
                     setTimeout(() => {
-                        playNarration('dia pueblo despierta.mp3');
+                        playNarration('dia-pueblo-despierta.mp3');
                         setTimeout(() => {
-                            playNarration('inicio debate.mp3');
+                            playNarration('inicio-debate.mp3');
                         }, 2000);
                     }, 1500);
                     break;
@@ -144,7 +144,7 @@ export function GameBoard({ gameId, game, players, currentPlayer, events }: Game
         if (nightEvent && nightSoundsPlayedForRound.current !== game.currentRound) {
             const hasDeaths = (nightEvent.data?.killedPlayerIds?.length || 0) > 0;
             setTimeout(() => {
-                if (hasDeaths) playNarration('descanse en paz.mp3');
+                if (hasDeaths) playNarration('descanse-en-paz.mp3');
             }, 3000);
             nightSoundsPlayedForRound.current = game.currentRound;
         }
@@ -529,7 +529,3 @@ function SpectatorContent({ game, players, events, messages, wolfMessages, fairy
         </div>
     );
 }
-
-    
-
-    

@@ -15,7 +15,7 @@ export function HunterKillOverlay({ angelInPlay }: HunterKillOverlayProps) {
 
     useEffect(() => {
         if (isVisible && !hasPlayedSound.current) {
-            playNarration('la ultima bala.mp3');
+            playNarration('la-ultima-bala.mp3');
             hasPlayedSound.current = true;
         }
     }, [isVisible]);

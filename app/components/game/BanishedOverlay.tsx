@@ -15,7 +15,7 @@ export function BanishedOverlay({ angelInPlay }: BanishedOverlayProps) {
 
     useEffect(() => {
         if (isVisible && !hasPlayedSound.current) {
-            playNarration('destarrado por el pueblo.mp3');
+            playNarration('destarrado-por-el-pueblo.mp3');
             hasPlayedSound.current = true;
         }
     }, [isVisible]);
