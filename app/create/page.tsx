@@ -14,10 +14,13 @@ export default function CreateGamePage() {
           &larr; Volver al Inicio
         </Link>
       </div>
-      <div className="relative z-10 w-full max-w-4xl">
-        <h1 className="text-center font-headline text-5xl font-bold text-white text-shadow-lg mb-8">
-          Configura tu Partida
+      <div className="relative z-10 w-full max-w-lg py-10">
+        <h1 className="text-center font-headline text-5xl font-bold text-white mb-2">
+          Crear Partida
         </h1>
+        <p className="text-center text-white/50 text-sm mb-8">
+          Configura las reglas de tu nueva partida y réune a tus amigos.
+        </p>
         <CreateGameForm />
       </div>
     </div>
