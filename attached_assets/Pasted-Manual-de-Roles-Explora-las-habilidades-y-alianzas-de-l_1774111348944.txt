@@ -1,0 +1,210 @@
+Manual de Roles
+Explora las habilidades y alianzas de los habitantes de Pueblo Duerme.
+
+Todos los Roles
+Aldeanos
+Lobos
+Neutral
+Alborotadora
+Alborotadora
+Equipo: Aldeanos
+
+Una vez por partida, durante el día, puedes elegir a dos jugadores para que luchen entre sí. Ambos morirán instantáneamente al final de la fase de votación.
+
+Aldeano
+Aldeano
+Equipo: Aldeanos
+
+No tienes poderes especiales. Tu única misión es observar, debatir y votar para linchar a los Hombres Lobo y salvar al pueblo.
+
+Anciana Líder
+Anciana Líder
+Equipo: Aldeanos
+
+Cada noche, eliges a un jugador para exiliarlo. Ese jugador no podrá usar ninguna habilidad nocturna durante esa noche.
+
+Ángel Resucitador
+Ángel Resucitador
+Equipo: Aldeanos
+
+Una vez por partida, durante la noche, puedes elegir a un jugador muerto para devolverlo a la vida. El jugador resucitado volverá al juego con su rol original.
+
+Aprendiz de Vidente
+Aprendiz de Vidente
+Equipo: Aldeanos
+
+Eres un aldeano normal, pero si la Vidente muere, heredas su poder y te conviertes en la nueva Vidente a partir de la noche siguiente.
+
+Banshee
+Banshee
+Equipo: Neutral
+
+Cada noche, predices la muerte de un jugador. Si ese jugador muere esa misma noche (por cualquier causa), ganas un punto. Ganas la partida si acumulas 2 puntos.
+
+Bruja
+Bruja
+Equipo: Lobos
+
+Eres aliada de los lobos. Cada noche, eliges a un jugador. Si eliges a la Vidente, la descubrirás y los lobos serán informados. Desde ese momento, los lobos no podrán matarte.
+
+Cambiaformas
+Cambiaformas
+Equipo: Neutral
+
+En la primera noche, eliges a un jugador. Si esa persona muere, adoptarás su rol y su equipo, transformándote completamente. Tu lealtad es incierta.
+
+Cazador
+Cazador
+Equipo: Aldeanos
+
+Si mueres, ya sea de noche o linchado de día, tendrás un último disparo. Deberás elegir a otro jugador para que muera contigo. Tu disparo es ineludible.
+
+Cría de Lobo
+Cría de Lobo
+Equipo: Lobos
+
+Eres un lobo joven. Si mueres, la manada se enfurecerá y podrá realizar dos asesinatos en la noche siguiente a tu muerte.
+
+Cupido
+Cupido
+Equipo: Neutral
+
+Solo en la primera noche, eliges a dos jugadores para que se enamoren. Si uno de ellos muere, el otro morirá también. Su objetivo es sobrevivir juntos, por encima de todo.
+
+Doctor
+Doctor
+Equipo: Aldeanos
+
+Cada noche, eliges a un jugador (o a ti mismo) para protegerlo del ataque de los lobos. No puedes proteger a la misma persona dos noches seguidas.
+
+Fantasma
+Fantasma
+Equipo: Aldeanos
+
+Si mueres, podrás enviar un único mensaje anónimo de 280 caracteres a un jugador vivo de tu elección para intentar guiar al pueblo desde el más allá.
+
+Gemela
+Gemela
+Equipo: Aldeanos
+
+En la primera noche, tú y tu gemelo/a os reconoceréis. A partir de entonces, podréis hablar en un chat privado. Si uno muere, el otro morirá de pena al instante.
+
+Guardián
+Guardián
+Equipo: Aldeanos
+
+Cada noche, eliges a un jugador para protegerlo del ataque de los lobos. No puedes proteger a la misma persona dos noches seguidas, y solo puedes protegerte a ti mismo una vez por partida.
+
+Hada Buscadora
+Hada Buscadora
+Equipo: Lobos
+
+Equipo de los Lobos. Cada noche, buscas al Hada Durmiente. Si la encuentras, ambas despertáis un poder de un solo uso para matar a un jugador.
+
+Hada Durmiente
+Hada Durmiente
+Equipo: Neutral
+
+Empiezas como Neutral. Si el Hada Buscadora (del equipo de los lobos) te encuentra, os unís. Vuestro objetivo es ser las últimas en pie.
+
+Hechicera
+Hechicera
+Equipo: Aldeanos
+
+Posees dos pociones de un solo uso: una de veneno para eliminar a un jugador durante la noche, y una de vida para salvar al objetivo de los lobos. No puedes salvarte a ti misma.
+
+Hombre Ebrio
+Hombre Ebrio
+Equipo: Neutral
+
+Ganas la partida en solitario si consigues que el pueblo te linche. No tienes acciones nocturnas; tu habilidad es la manipulación social.
+
+Hombre Lobo
+Hombre Lobo
+Equipo: Lobos
+
+Cada noche, te despiertas con tu manada para elegir a una víctima. Tu objetivo es eliminar a los aldeanos hasta que vuestro número sea igual o superior.
+
+Leprosa
+Leprosa
+Equipo: Aldeanos
+
+Si los lobos te matan durante la noche, tu enfermedad se propaga a la manada, impidiéndoles atacar en la noche siguiente.
+
+Licántropo
+Licántropo
+Equipo: Aldeanos
+
+Perteneces al equipo del pueblo, pero tienes sangre de lobo. Si la Vidente te investiga, te verá como si fueras un Hombre Lobo, sembrando la confusión.
+
+Líder del Culto
+Líder del Culto
+Equipo: Neutral
+
+Cada noche, conviertes a un jugador a tu culto. Ganas si todos los jugadores vivos se han unido a tu culto. Juegas solo contra todos.
+
+Maldito
+Maldito
+Equipo: Lobos
+
+Empiezas como un aldeano. Sin embargo, si eres atacado por los lobos, no mueres; en su lugar, te transformas en un Hombre Lobo y te unes a ellos.
+
+Pescador
+Pescador
+Equipo: Neutral
+
+Cada noche, subes a un jugador a tu barco. Ganas si logras tener a todos los aldeanos vivos en tu barco. Pero si pescas a un lobo, mueres.
+
+Príncipe
+Príncipe
+Equipo: Aldeanos
+
+Si el pueblo vota para lincharte, revelarás tu identidad y sobrevivirás, anulando la votación. Esta habilidad solo se puede usar una vez por partida.
+
+Sacerdote
+Sacerdote
+Equipo: Aldeanos
+
+Cada noche, otorgas una bendición a un jugador, protegiéndolo de cualquier ataque nocturno (lobos, venenos, etc.). Puedes bendecirte a ti mismo una sola vez por partida.
+
+Silenciadora
+Silenciadora
+Equipo: Aldeanos
+
+Cada noche, eliges a un jugador. Esa persona no podrá hablar (enviar mensajes en el chat) durante todo el día siguiente.
+
+Sirena del Río
+Sirena del Río
+Equipo: Aldeanos
+
+En la primera noche, hechizas a un jugador. A partir de entonces, esa persona está obligada a votar por el mismo objetivo que tú durante el día.
+
+Vampiro
+Vampiro
+Equipo: Neutral
+
+Juegas solo. Cada noche, muerdes a un jugador. Un jugador mordido 3 veces, muere. Si consigues 3 muertes por mordisco, ganas la partida.
+
+Verdugo
+Verdugo
+Equipo: Neutral
+
+Al inicio se te asigna un objetivo secreto. Tu única misión es convencer al pueblo para que lo linchen. Si lo consigues, ganas la partida en solitario.
+
+Vidente
+Vidente
+Equipo: Aldeanos
+
+Cada noche, eliges a un jugador para investigar. Se te revelará si es un Hombre Lobo o no. (Los Licántropos también son vistos como lobos).
+
+Vigía
+Vigía
+Equipo: Aldeanos
+
+Una vez por partida, en la noche, puedes arriesgarte a espiar a los lobos. Si tienes éxito, los conocerás. Si fallas (si los lobos te atacan esa noche), morirás.
+
+Virginia Woolf
+Virginia Woolf
+Equipo: Aldeanos
+
+En la primera noche, eliges a un jugador para vincular tu destino. Si tú mueres en cualquier momento de la partida, la persona que elegiste también morirá automáticamente contigo.

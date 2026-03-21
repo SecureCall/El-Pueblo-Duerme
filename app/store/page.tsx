@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { Coins, ShoppingBag, Palette, Gamepad2, Users, Gift } from 'lucide-react';
 import { VideoReward } from './components/VideoReward';
@@ -48,9 +47,8 @@ export default function StorePage() {
   const { coins, refresh } = useCoins();
 
   return (
-    <div className="relative min-h-screen w-full text-white">
-      <Image src="/noche.png" alt="Fondo" fill className="object-cover z-0 brightness-50" priority />
-      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
+    <div className="relative min-h-screen w-full text-white" style={{ backgroundImage: 'url(/noche.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <div className="absolute inset-0" style={{ backgroundColor: 'rgba(5, 10, 20, 0.85)' }} />
 
       <div className="relative z-10 max-w-6xl mx-auto px-4 py-8">
         {/* Header */}

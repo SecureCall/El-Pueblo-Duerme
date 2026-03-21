@@ -21,15 +21,16 @@ export default function HomePage() {
   };
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col items-center justify-center overflow-hidden">
-      <Image
-        src="/noche.png"
-        alt="Bosque oscuro y misterioso"
-        fill
-        className="object-cover z-0"
-        priority
-      />
-      <div className="absolute inset-0 bg-background/65 z-[1]" />
+    <div
+      className="relative min-h-screen w-full flex flex-col items-center justify-center overflow-hidden"
+      style={{
+        backgroundImage: 'url(/noche.png)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
+      <div className="absolute inset-0" style={{ backgroundColor: 'rgba(5, 10, 20, 0.65)' }} />
 
       {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-6 py-4">
@@ -63,7 +64,10 @@ export default function HomePage() {
         />
 
         {/* Title */}
-        <h1 className="font-headline text-7xl md:text-8xl lg:text-9xl font-bold text-white leading-none tracking-tight mb-6" style={{ textShadow: '0 4px 30px rgba(0,0,0,0.8)' }}>
+        <h1
+          className="font-headline text-7xl md:text-8xl lg:text-9xl font-bold text-white leading-none tracking-tight mb-6"
+          style={{ textShadow: '0 4px 30px rgba(0,0,0,0.8)' }}
+        >
           El Pueblo<br />Duerme
         </h1>
 
@@ -74,34 +78,19 @@ export default function HomePage() {
 
         {/* Navigation buttons */}
         <div className="flex flex-wrap items-center justify-center gap-2 md:gap-4">
-          <Link
-            href="/create"
-            className="bg-white text-black font-bold px-6 py-3 rounded-md hover:bg-white/90 transition-all text-sm md:text-base"
-          >
+          <Link href="/create" className="bg-white text-black font-bold px-6 py-3 rounded-md hover:bg-white/90 transition-all text-sm md:text-base">
             Crear Partida
           </Link>
-          <Link
-            href="/public-rooms"
-            className="text-white/90 hover:text-white font-medium px-6 py-3 transition-colors text-sm md:text-base"
-          >
+          <Link href="/public-rooms" className="text-white/90 hover:text-white font-medium px-6 py-3 transition-colors text-sm md:text-base">
             Salas Públicas
           </Link>
-          <Link
-            href="/how-to-play"
-            className="text-white/90 hover:text-white font-medium px-6 py-3 transition-colors text-sm md:text-base"
-          >
+          <Link href="/how-to-play" className="text-white/90 hover:text-white font-medium px-6 py-3 transition-colors text-sm md:text-base">
             Cómo Jugar
           </Link>
-          <Link
-            href={user ? '/profile' : '/login'}
-            className="text-white/90 hover:text-white font-medium px-6 py-3 transition-colors text-sm md:text-base"
-          >
+          <Link href={user ? '/profile' : '/login'} className="text-white/90 hover:text-white font-medium px-6 py-3 transition-colors text-sm md:text-base">
             Mi Perfil
           </Link>
-          <Link
-            href="/store"
-            className="text-yellow-400 hover:text-yellow-300 font-medium px-6 py-3 transition-colors text-sm md:text-base flex items-center gap-1"
-          >
+          <Link href="/store" className="text-yellow-400 hover:text-yellow-300 font-medium px-6 py-3 transition-colors text-sm md:text-base flex items-center gap-1">
             <ShoppingBag className="h-4 w-4" /> Tienda
           </Link>
         </div>

@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
@@ -39,9 +38,8 @@ export default function PublicRoomsPage() {
   }, []);
 
   return (
-    <div className="relative min-h-screen w-full text-white">
-      <Image src="/noche.png" alt="Fondo" fill className="object-cover z-0 brightness-40" priority />
-      <div className="absolute inset-0 bg-background/80 z-[1]" />
+    <div className="relative min-h-screen w-full text-white" style={{ backgroundImage: 'url(/noche.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <div className="absolute inset-0" style={{ backgroundColor: 'rgba(5, 10, 20, 0.85)' }} />
       <div className="relative z-10 max-w-4xl mx-auto px-4 py-12">
         <div className="mb-8 flex items-center justify-between">
           <Link href="/" className="text-white/50 hover:text-white text-sm transition-colors">← Volver al Inicio</Link>

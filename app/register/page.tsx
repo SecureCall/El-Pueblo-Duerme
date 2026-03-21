@@ -4,9 +4,15 @@ import Link from 'next/link';
 
 export default function RegisterPage() {
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center p-4">
-      <Image src="/noche.png" alt="Fondo" fill className="object-cover z-0 brightness-50" priority />
-      <div className="absolute inset-0 bg-background/70 z-[1]" />
+    <div
+      className="relative min-h-screen w-full flex items-center justify-center p-4"
+      style={{
+        backgroundImage: 'url(/noche.png)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      <div className="absolute inset-0" style={{ backgroundColor: 'rgba(5, 10, 20, 0.80)' }} />
       <div className="absolute top-4 left-4 z-10">
         <Link href="/" className="text-white/60 hover:text-white transition-colors text-sm">
           ← Volver al Inicio
@@ -15,7 +21,7 @@ export default function RegisterPage() {
       <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/">
-            <Image src="/logo.png" alt="Logo" width={80} height={80} className="mx-auto mb-4 drop-shadow-xl" />
+            <Image src="/logo.png" alt="Logo" width={80} height={80} className="mx-auto mb-4 drop-shadow-xl rounded-full" priority />
           </Link>
           <h1 className="font-headline text-3xl font-bold text-white">Únete al Pueblo</h1>
           <p className="text-white/50 mt-1">Crea tu cuenta gratis y empieza a jugar</p>

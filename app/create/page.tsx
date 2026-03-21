@@ -1,19 +1,14 @@
 
 import { CreateGameForm } from "@/components/game/CreateGameForm";
-import Image from "next/image";
 import Link from "next/link";
 
 export default function CreateGamePage() {
   return (
-    <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4">
-      <Image
-        src="/noche.png"
-        alt="A mysterious, dark, misty forest at night."
-        fill
-        className="object-cover z-0"
-        priority
-      />
-      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
+    <div
+      className="relative min-h-screen w-full flex flex-col items-center justify-center p-4"
+      style={{ backgroundImage: 'url(/noche.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}
+    >
+      <div className="absolute inset-0" style={{ backgroundColor: 'rgba(5, 10, 20, 0.82)' }} />
       <div className="absolute top-4 left-4 z-10">
         <Link href="/" className="text-white hover:text-primary transition-colors">
           &larr; Volver al Inicio
