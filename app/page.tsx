@@ -58,7 +58,7 @@ export default function HomePage() {
           alt="El Pueblo Duerme"
           width={160}
           height={160}
-          className="drop-shadow-2xl mb-6"
+          className="drop-shadow-2xl mb-6 rounded-full"
           priority
         />
 
