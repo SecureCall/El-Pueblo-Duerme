@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Users, LogIn } from 'lucide-react';
+import { Users, LogIn, ShoppingBag } from 'lucide-react';
 
 export default function HomePage() {
   return (
@@ -42,6 +42,12 @@ export default function HomePage() {
                  <Link href="/join">
                     <LogIn className="mr-2 h-6 w-6" />
                     Unirse a Partida
+                </Link>
+            </Button>
+            <Button asChild size="lg" variant="outline" className="text-lg font-bold px-8 py-6 border-yellow-500/60 text-yellow-300 hover:bg-yellow-500/10">
+                <Link href="/store">
+                    <ShoppingBag className="mr-2 h-6 w-6" />
+                    Tienda
                 </Link>
             </Button>
         </div>
