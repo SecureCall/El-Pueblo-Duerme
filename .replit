@@ -1,0 +1,12 @@
+modules = ["nodejs-20", "nix"]
+[agent]
+expertMode = true
+
+[nix]
+channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+FIREBASE_PROJECT_ID = "studio-9015007721-ac536"
+FIREBASE_CLIENT_EMAIL = "firebase-adminsdk-fbsvc@studio-9015007721-ac536.iam.gserviceaccount.com"
