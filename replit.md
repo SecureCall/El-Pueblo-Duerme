@@ -7,29 +7,28 @@ Un juego de deducción social multijugador en español, inspirado en Mafia/Werew
 - **Framework**: Next.js 14.2.30 (App Router)
 - **Estilos**: Tailwind CSS + shadcn/ui
 - **Base de datos**: Firebase Firestore (tiempo real)
-- **Auth**: Firebase Authentication
+- **Auth**: Firebase Authentication (email/password + Google + Facebook)
 - **IA**: Gemini API (generación de contenido)
 - **Puerto**: 5000
 
-## Estructura
+## Páginas
 
 ```
 app/
-  page.tsx          ← Página principal
-  layout.tsx        ← Layout global (Playfair Display + PT Sans)
-  globals.css       ← Tema oscuro
-  create/           ← Crear partida
-  join/             ← Unirse a partida
-  game/[gameId]/    ← Sala de juego
-  login/            ← Login
-  register/         ← Registro
-  store/            ← Tienda de monedas
-    page.tsx
-    components/
-      VideoReward.tsx   ← Ver vídeos para ganar monedas
-      StoreItem.tsx     ← Artículo de tienda
+  page.tsx              ← Página principal (diseño original Vercel)
+  layout.tsx            ← Layout global (Playfair Display + PT Sans)
+  globals.css           ← Tema oscuro
+  create/               ← Crear partida
+  join/                 ← Unirse a partida (modal)
+  game/[gameId]/        ← Sala de juego en tiempo real
+  login/                ← Login con Google + Facebook + email
+  register/             ← Registro con Google + Facebook + email
+  profile/              ← Perfil del usuario con monedas y estadísticas
+  public-rooms/         ← Lista de salas públicas en tiempo real
+  how-to-play/          ← Cómo jugar (roles y fases)
+  store/                ← Tienda de monedas (18 artículos, 4 categorías)
   providers/
-    AuthProvider.tsx
+    AuthProvider.tsx    ← Contexto de autenticación
   hooks/
     use-toast.ts
     use-coins.ts        ← Balance de monedas del usuario
@@ -38,38 +37,35 @@ lib/
   firebase/
     config.ts           ← Firebase client SDK
     coins.ts            ← Operaciones de monedas (ganar/gastar)
+    auth-social.ts      ← Login social (Google, Facebook)
 
 components/
+  auth/
+    LoginForm.tsx       ← Formulario login real con Firebase
+    RegisterForm.tsx    ← Formulario registro real con Firebase
+  JoinByCodeModal.tsx   ← Modal "únete con código"
   ui/
-    button.tsx
-    card.tsx
-    toast.tsx
-    toaster.tsx
+    button.tsx, card.tsx, form.tsx, input.tsx, label.tsx
+    toast.tsx, toaster.tsx
 ```
+
+## Autenticación Social
+
+Para activar Google y Facebook en Firebase Console:
+1. Firebase Console → Authentication → Sign-in method
+2. Activar "Google" (solo necesita activarse)
+3. Activar "Facebook" → requiere FB_APP_ID y FB_APP_SECRET de developers.facebook.com
 
 ## Sistema de Monedas
 
 - Los usuarios ganan **50 monedas** por ver un vídeo (máx. 5/día)
+- Nuevos usuarios empiezan con **100 monedas**
 - Las monedas se guardan en Firestore: `users/{uid}.coins`
-- Las compras se registran en `users/{uid}/purchases`
-- El historial de monedas en `users/{uid}/coinHistory`
+- Las compras en `users/{uid}/purchases`, historial en `users/{uid}/coinHistory`
 
-## Categorías de la Tienda
+## Variables de Entorno (Replit Secrets)
 
-1. **Cosméticos** — Avatares, marcos, temas, emotes
-2. **Ventajas de Juego** — Salas premium, roles exclusivos, destacar sala
-3. **Social** — Títulos, mensajes dorados, perfiles personalizados
-4. **Recompensas** — Pases de temporada, cofres misteriosos
-
-## Variables de Entorno
-
-Las claves de Firebase están configuradas en Replit Secrets:
 - `FIREBASE_PRIVATE_KEY`
 - `GOOGLE_APPLICATION_CREDENTIALS_JSON`
 - `GEMINI_API_KEY`
 - `NEXT_PUBLIC_FIREBASE_*` (6 variables públicas)
-
-## Imágenes
-
-- `/public/noche.png` — Fondo bosque oscuro
-- `/public/logo.png` — Logo del juego (lobo)
