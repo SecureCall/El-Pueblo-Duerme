@@ -3,6 +3,7 @@
 import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
+import { handleRedirectResult } from '@/lib/firebase/auth-social';
 
 interface AuthContextState {
   user: User | null;
@@ -20,6 +21,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   });
 
   useEffect(() => {
+    handleRedirectResult();
+
     const unsubscribe = onAuthStateChanged(
       auth,
       (user) => setAuthState({ user, isLoading: false, error: null }),
