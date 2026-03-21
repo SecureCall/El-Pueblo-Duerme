@@ -9,6 +9,7 @@ interface AuthContextState {
   user: User | null;
   isLoading: boolean;
   error: Error | null;
+  redirectError: string | null;
 }
 
 const AuthContext = createContext<AuthContextState | undefined>(undefined);
@@ -18,15 +19,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     user: null,
     isLoading: true,
     error: null,
+    redirectError: null,
   });
 
   useEffect(() => {
-    handleRedirectResult();
+    handleRedirectResult().then(({ error }) => {
+      if (error) {
+        setAuthState(prev => ({ ...prev, redirectError: error }));
+      }
+    });
 
     const unsubscribe = onAuthStateChanged(
       auth,
-      (user) => setAuthState({ user, isLoading: false, error: null }),
-      (error) => setAuthState({ user: null, isLoading: false, error })
+      (user) => setAuthState(prev => ({ ...prev, user, isLoading: false, error: null })),
+      (error) => setAuthState(prev => ({ ...prev, user: null, isLoading: false, error }))
     );
     return () => unsubscribe();
   }, []);

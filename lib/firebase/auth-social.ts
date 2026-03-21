@@ -36,15 +36,24 @@ export async function ensureUserDocument(cred: UserCredential) {
   }
 }
 
-export async function handleRedirectResult(): Promise<UserCredential | null> {
+export async function handleRedirectResult(): Promise<{ result: UserCredential | null; error: string | null }> {
   try {
     const result = await getRedirectResult(auth);
     if (result) {
       await ensureUserDocument(result);
     }
-    return result;
-  } catch {
-    return null;
+    return { result, error: null };
+  } catch (err: any) {
+    console.error('[Auth redirect error]', err?.code, err?.message);
+    const msgs: Record<string, string> = {
+      'auth/account-exists-with-different-credential': 'Ya existe una cuenta con ese correo. Usa otro método de acceso.',
+      'auth/popup-blocked': 'El navegador bloqueó el acceso. Permite las ventanas emergentes.',
+      'auth/cancelled-popup-request': '',
+      'auth/operation-not-allowed': 'Este método de acceso no está habilitado. Contacta al administrador.',
+      'auth/invalid-oauth-client-id': 'Error de configuración OAuth. Contacta al administrador.',
+    };
+    const msg = msgs[err?.code] ?? (err?.message ? `Error: ${err.message}` : 'Error al iniciar sesión. Inténtalo de nuevo.');
+    return { result: null, error: msg };
   }
 }
 

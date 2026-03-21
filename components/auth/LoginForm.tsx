@@ -10,17 +10,22 @@ import { useAuth } from '@/app/providers/AuthProvider';
 
 export function LoginForm() {
   const router = useRouter();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, redirectError } = useAuth();
 
   useEffect(() => {
     if (!isLoading && user) {
       router.push('/');
     }
   }, [user, isLoading, router]);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (redirectError) setError(redirectError);
+  }, [redirectError]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
