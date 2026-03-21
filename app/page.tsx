@@ -16,6 +16,14 @@ export default function HomePage() {
       <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
 
       <main className="relative z-10 flex flex-1 flex-col items-center justify-center text-center text-white space-y-8">
+        <Image
+          src="/logo.png"
+          alt="El Pueblo Duerme Logo"
+          width={180}
+          height={180}
+          className="drop-shadow-2xl"
+          priority
+        />
         <h1 className="font-headline text-6xl md:text-8xl font-bold tracking-tight text-shadow-lg shadow-black/50">
           El Pueblo Duerme
         </h1>
