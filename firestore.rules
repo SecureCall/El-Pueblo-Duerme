@@ -50,43 +50,43 @@ service cloud.firestore {
     // ── Chat channels ──────────────────────────────────────────────────────
     match /games/{gameId}/publicChat/{messageId} {
       allow read: if isAuth();
-      allow create: if isAuth() && request.auth.uid == request.resource.data.senderId;
+      allow create: if isAuth() && (request.auth.uid == request.resource.data.senderId || request.resource.data.senderId == 'system');
       allow update, delete: if false;
     }
 
     match /games/{gameId}/lobbyChat/{messageId} {
       allow read: if isAuth();
-      allow create: if isAuth() && request.auth.uid == request.resource.data.senderId;
+      allow create: if isAuth() && (request.auth.uid == request.resource.data.senderId || request.resource.data.senderId == 'system');
       allow update, delete: if false;
     }
 
     match /games/{gameId}/ghostChat/{messageId} {
       allow read: if isAuth();
-      allow create: if isAuth() && request.auth.uid == request.resource.data.senderId;
+      allow create: if isAuth() && (request.auth.uid == request.resource.data.senderId || request.resource.data.senderId == 'system');
       allow update, delete: if false;
     }
 
     match /games/{gameId}/wolfChat/{messageId} {
       allow read: if isAuth();
-      allow create: if isAuth() && request.auth.uid == request.resource.data.senderId;
+      allow create: if isAuth() && (request.auth.uid == request.resource.data.senderId || request.resource.data.senderId == 'system');
       allow update, delete: if false;
     }
 
     match /games/{gameId}/loversChat/{messageId} {
       allow read: if isAuth();
-      allow create: if isAuth() && request.auth.uid == request.resource.data.senderId;
+      allow create: if isAuth() && (request.auth.uid == request.resource.data.senderId || request.resource.data.senderId == 'system');
       allow update, delete: if false;
     }
 
     match /games/{gameId}/twinChat/{messageId} {
       allow read: if isAuth();
-      allow create: if isAuth() && request.auth.uid == request.resource.data.senderId;
+      allow create: if isAuth() && (request.auth.uid == request.resource.data.senderId || request.resource.data.senderId == 'system');
       allow update, delete: if false;
     }
 
     match /games/{gameId}/fairyChat/{messageId} {
       allow read: if isAuth();
-      allow create: if isAuth() && request.auth.uid == request.resource.data.senderId;
+      allow create: if isAuth() && (request.auth.uid == request.resource.data.senderId || request.resource.data.senderId == 'system');
       allow update, delete: if false;
     }
 

@@ -10,6 +10,8 @@ import {
 } from 'firebase/firestore';
 import { Copy, Crown, LogOut, Send, Users, Loader2 } from 'lucide-react';
 import { PageAudio } from '@/components/audio/PageAudio';
+import { startGame as engineStartGame } from '@/lib/game/engine';
+import { GameState } from '@/lib/game/types';
 
 interface Player {
   uid: string;
@@ -135,12 +137,9 @@ export function GameRoom({ gameId }: { gameId: string }) {
     if (!user || !game || game.hostUid !== user.uid) return;
     setStarting(true);
     try {
-      await updateDoc(doc(db, 'games', gameId), {
-        status: 'playing',
-        phase: 'night',
-        startedAt: serverTimestamp(),
-      });
-    } catch {
+      await engineStartGame(gameId, game as unknown as GameState);
+    } catch (e) {
+      console.error('Error starting game:', e);
       setStarting(false);
     }
   };
