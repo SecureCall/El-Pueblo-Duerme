@@ -1,4 +1,5 @@
 import {
+  signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
   GoogleAuthProvider,
@@ -16,10 +17,6 @@ const facebookProvider = new FacebookAuthProvider();
 facebookProvider.addScope('email');
 facebookProvider.addScope('public_profile');
 
-const instagramProvider = new FacebookAuthProvider();
-instagramProvider.addScope('email');
-instagramProvider.addScope('public_profile');
-
 export async function ensureUserDocument(cred: UserCredential) {
   const { user } = cred;
   const userRef = doc(db, 'users', user.uid);
@@ -36,6 +33,45 @@ export async function ensureUserDocument(cred: UserCredential) {
   }
 }
 
+const errorMessages: Record<string, string> = {
+  'auth/account-exists-with-different-credential': 'Ya existe una cuenta con ese correo. Usa otro método de acceso.',
+  'auth/popup-blocked': 'El navegador bloqueó la ventana emergente. Permite los pop-ups e inténtalo de nuevo.',
+  'auth/popup-closed-by-user': '',
+  'auth/cancelled-popup-request': '',
+  'auth/operation-not-allowed': 'Este método de acceso no está habilitado.',
+  'auth/user-cancelled': '',
+};
+
+async function signInWithProvider(provider: GoogleAuthProvider | FacebookAuthProvider): Promise<string | null> {
+  try {
+    const result = await signInWithPopup(auth, provider);
+    await ensureUserDocument(result);
+    return null;
+  } catch (err: any) {
+    console.error('[Auth popup error]', err?.code, err?.message);
+
+    if (
+      err?.code === 'auth/popup-blocked' ||
+      err?.code === 'auth/cancelled-popup-request' ||
+      err?.message?.includes('Cross-Origin-Opener-Policy')
+    ) {
+      try {
+        await signInWithRedirect(auth, provider);
+        return null;
+      } catch (redirectErr: any) {
+        console.error('[Auth redirect fallback error]', redirectErr?.code, redirectErr?.message);
+        return errorMessages[redirectErr?.code] ?? 'Error al iniciar sesión. Inténtalo de nuevo.';
+      }
+    }
+
+    const msg = errorMessages[err?.code];
+    if (msg === undefined) {
+      return err?.message ? `Error: ${err.message}` : 'Error al iniciar sesión. Inténtalo de nuevo.';
+    }
+    return msg || null;
+  }
+}
+
 export async function handleRedirectResult(): Promise<{ result: UserCredential | null; error: string | null }> {
   try {
     const result = await getRedirectResult(auth);
@@ -44,27 +80,20 @@ export async function handleRedirectResult(): Promise<{ result: UserCredential |
     }
     return { result, error: null };
   } catch (err: any) {
-    console.error('[Auth redirect error]', err?.code, err?.message);
-    const msgs: Record<string, string> = {
-      'auth/account-exists-with-different-credential': 'Ya existe una cuenta con ese correo. Usa otro método de acceso.',
-      'auth/popup-blocked': 'El navegador bloqueó el acceso. Permite las ventanas emergentes.',
-      'auth/cancelled-popup-request': '',
-      'auth/operation-not-allowed': 'Este método de acceso no está habilitado. Contacta al administrador.',
-      'auth/invalid-oauth-client-id': 'Error de configuración OAuth. Contacta al administrador.',
-    };
-    const msg = msgs[err?.code] ?? (err?.message ? `Error: ${err.message}` : 'Error al iniciar sesión. Inténtalo de nuevo.');
-    return { result: null, error: msg };
+    console.error('[Auth redirect result error]', err?.code, err?.message);
+    const msg = errorMessages[err?.code] ?? (err?.message ? `Error: ${err.message}` : 'Error al iniciar sesión. Inténtalo de nuevo.');
+    return { result: null, error: msg || null };
   }
 }
 
-export function signInWithGoogle(): Promise<void> {
-  return signInWithRedirect(auth, googleProvider);
+export async function signInWithGoogle(): Promise<string | null> {
+  return signInWithProvider(googleProvider);
 }
 
-export function signInWithFacebook(): Promise<void> {
-  return signInWithRedirect(auth, facebookProvider);
+export async function signInWithFacebook(): Promise<string | null> {
+  return signInWithProvider(facebookProvider);
 }
 
-export function signInWithInstagram(): Promise<void> {
-  return signInWithRedirect(auth, instagramProvider);
+export async function signInWithInstagram(): Promise<string | null> {
+  return signInWithProvider(facebookProvider);
 }
