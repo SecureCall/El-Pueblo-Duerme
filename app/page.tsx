@@ -9,6 +9,8 @@ import { auth } from '@/lib/firebase/config';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { JoinByCodeModal } from '@/components/JoinByCodeModal';
+import { PageAudio } from '@/components/audio/PageAudio';
+import { AudioControls } from '@/components/audio/AudioControls';
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -30,12 +32,14 @@ export default function HomePage() {
         backgroundRepeat: 'no-repeat',
       }}
     >
+      <PageAudio track="menu" />
       <div className="absolute inset-0" style={{ backgroundColor: 'rgba(5, 10, 20, 0.65)' }} />
 
       {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-6 py-4">
         <div />
         <div className="flex items-center gap-3">
+          <AudioControls />
           {user ? (
             <>
               <span className="text-white/60 text-sm hidden sm:block">{user.displayName || user.email}</span>

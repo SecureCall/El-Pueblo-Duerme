@@ -6,6 +6,7 @@ import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/f
 import { db } from '@/lib/firebase/config';
 import { Users, Lock, Globe, Loader2, Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { PageAudio } from '@/components/audio/PageAudio';
 
 interface Room {
   id: string;
@@ -39,6 +40,7 @@ export default function PublicRoomsPage() {
 
   return (
     <div className="relative min-h-screen w-full text-white" style={{ backgroundImage: 'url(/noche.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <PageAudio track="lobby" />
       <div className="absolute inset-0" style={{ backgroundColor: 'rgba(5, 10, 20, 0.85)' }} />
       <div className="relative z-10 max-w-4xl mx-auto px-4 py-12">
         <div className="mb-8 flex items-center justify-between">

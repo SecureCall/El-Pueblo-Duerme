@@ -3,6 +3,7 @@ import { Playfair_Display, PT_Sans } from 'next/font/google';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from './providers/AuthProvider';
+import { AudioProvider } from './providers/AudioProvider';
 import { cn } from './lib/utils';
 
 const ptSans = PT_Sans({ 
@@ -30,8 +31,10 @@ export default function RootLayout({
     <html lang="es" className="dark">
       <body className={cn(ptSans.variable, playfair.variable, "font-sans")}>
         <AuthProvider>
-          {children}
-          <Toaster />
+          <AudioProvider>
+            {children}
+            <Toaster />
+          </AudioProvider>
         </AuthProvider>
       </body>
     </html>
