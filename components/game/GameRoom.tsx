@@ -1,0 +1,300 @@
+'use client';
+
+import { useEffect, useState, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/app/providers/AuthProvider';
+import { db } from '@/lib/firebase/config';
+import {
+  doc, onSnapshot, updateDoc, arrayUnion, arrayRemove, serverTimestamp,
+  collection, addDoc, query, orderBy, limit, onSnapshot as onSnap,
+} from 'firebase/firestore';
+import { Copy, Crown, LogOut, Send, Users, Loader2 } from 'lucide-react';
+import { PageAudio } from '@/components/audio/PageAudio';
+
+interface Player {
+  uid: string;
+  name: string;
+  photoURL: string;
+  isHost: boolean;
+  isAlive: boolean;
+  role: string | null;
+}
+
+interface GameData {
+  name: string;
+  code: string;
+  hostUid: string;
+  hostName: string;
+  maxPlayers: number;
+  wolves: number;
+  isPublic: boolean;
+  fillWithAI: boolean;
+  juryVote: boolean;
+  specialRoles: string[];
+  playerCount: number;
+  status: string;
+  phase: string;
+  players: Player[];
+}
+
+interface ChatMsg {
+  id: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  createdAt: any;
+}
+
+export function GameRoom({ gameId }: { gameId: string }) {
+  const router = useRouter();
+  const { user } = useAuth();
+  const [game, setGame] = useState<GameData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [msgs, setMsgs] = useState<ChatMsg[]>([]);
+  const [msg, setMsg] = useState('');
+  const [sending, setSending] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const chatRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'games', gameId), snap => {
+      if (!snap.exists()) { setNotFound(true); setLoading(false); return; }
+      const data = snap.data() as GameData;
+      setGame(data);
+      setLoading(false);
+
+      if (data.status === 'playing') {
+        router.push(`/game/${gameId}/play`);
+      }
+    }, () => { setNotFound(true); setLoading(false); });
+
+    return () => unsub();
+  }, [gameId, router]);
+
+  useEffect(() => {
+    if (!game) return;
+    const q = query(
+      collection(db, 'games', gameId, 'lobbyChat'),
+      orderBy('createdAt', 'asc'),
+      limit(100)
+    );
+    const unsub = onSnap(q, snap => {
+      setMsgs(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMsg)));
+      setTimeout(() => chatRef.current?.scrollTo({ top: 9999, behavior: 'smooth' }), 50);
+    });
+    return () => unsub();
+  }, [game, gameId]);
+
+  useEffect(() => {
+    if (!user || !game) return;
+    const already = game.players?.some(p => p.uid === user.uid);
+    if (!already) {
+      const newPlayer: Player = {
+        uid: user.uid,
+        name: user.displayName ?? 'Jugador',
+        photoURL: user.photoURL ?? '',
+        isHost: false,
+        isAlive: true,
+        role: null,
+      };
+      updateDoc(doc(db, 'games', gameId), {
+        players: arrayUnion(newPlayer),
+        playerCount: (game.playerCount ?? 1) + 1,
+      }).catch(() => {});
+    }
+  }, [user, game, gameId]);
+
+  const sendMsg = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!msg.trim() || !user) return;
+    setSending(true);
+    await addDoc(collection(db, 'games', gameId, 'lobbyChat'), {
+      senderId: user.uid,
+      senderName: user.displayName ?? 'Jugador',
+      text: msg.trim(),
+      createdAt: serverTimestamp(),
+    });
+    setMsg('');
+    setSending(false);
+  };
+
+  const leaveGame = async () => {
+    if (!user || !game) return;
+    const me = game.players?.find(p => p.uid === user.uid);
+    if (me) {
+      await updateDoc(doc(db, 'games', gameId), {
+        players: arrayRemove(me),
+        playerCount: Math.max(0, (game.playerCount ?? 1) - 1),
+      }).catch(() => {});
+    }
+    router.push('/');
+  };
+
+  const startGame = async () => {
+    if (!user || !game || game.hostUid !== user.uid) return;
+    setStarting(true);
+    try {
+      await updateDoc(doc(db, 'games', gameId), {
+        status: 'playing',
+        phase: 'night',
+        startedAt: serverTimestamp(),
+      });
+    } catch {
+      setStarting(false);
+    }
+  };
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-[#05080f]">
+      <Loader2 className="h-10 w-10 animate-spin text-white/50" />
+    </div>
+  );
+
+  if (notFound) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#05080f] text-white gap-4">
+      <p className="text-xl font-headline">Sala no encontrada</p>
+      <button onClick={() => router.push('/')} className="text-white/50 hover:text-white text-sm underline">Volver al inicio</button>
+    </div>
+  );
+
+  if (!user) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#05080f] text-white gap-4">
+      <p>Debes iniciar sesión para unirte a la partida.</p>
+      <button onClick={() => router.push('/login')} className="underline text-white/70 hover:text-white">Iniciar sesión</button>
+    </div>
+  );
+
+  const isHost = user?.uid === game?.hostUid;
+  const players = game?.players ?? [];
+  const canStart = isHost && players.length >= 4;
+
+  return (
+    <div
+      className="min-h-screen w-full text-white flex flex-col"
+      style={{ backgroundImage: 'url(/noche.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}
+    >
+      <PageAudio track="lobby" />
+      <div className="absolute inset-0 bg-black/80" />
+
+      <div className="relative z-10 flex flex-col h-screen max-w-5xl mx-auto w-full p-4 gap-4">
+
+        {/* Header */}
+        <div className="flex items-center justify-between pt-2">
+          <div>
+            <h1 className="font-headline text-2xl font-bold">{game?.name}</h1>
+            <div className="flex items-center gap-3 mt-1">
+              <span className="text-white/40 text-xs">Código:</span>
+              <button
+                onClick={() => navigator.clipboard.writeText(game?.code ?? '')}
+                className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 px-2 py-0.5 rounded-md text-sm font-mono font-bold transition-colors"
+              >
+                {game?.code} <Copy className="h-3.5 w-3.5 text-white/60" />
+              </button>
+            </div>
+          </div>
+          <button onClick={leaveGame} className="flex items-center gap-1.5 text-white/40 hover:text-red-400 text-sm transition-colors">
+            <LogOut className="h-4 w-4" /> Salir
+          </button>
+        </div>
+
+        <div className="flex gap-4 flex-1 min-h-0">
+          {/* Players panel */}
+          <div className="w-56 flex-shrink-0 flex flex-col gap-3">
+            <div className="bg-black/40 border border-white/10 rounded-xl p-4 flex-1 flex flex-col">
+              <div className="flex items-center gap-2 mb-3">
+                <Users className="h-4 w-4 text-white/50" />
+                <span className="text-sm text-white/70 font-medium">
+                  Jugadores ({players.length}/{game?.maxPlayers})
+                </span>
+              </div>
+              <div className="flex-1 overflow-y-auto space-y-2">
+                {players.map(p => (
+                  <div key={p.uid} className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0 overflow-hidden">
+                      {p.photoURL
+                        ? <img src={p.photoURL} alt={p.name} className="w-full h-full object-cover" />
+                        : <span className="w-full h-full flex items-center justify-center text-xs font-bold">{p.name[0]}</span>
+                      }
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium truncate">{p.name}</p>
+                      {p.isHost && <span className="text-yellow-400 text-[10px] flex items-center gap-0.5"><Crown className="h-2.5 w-2.5" /> Anfitrión</span>}
+                    </div>
+                  </div>
+                ))}
+                {players.length < (game?.maxPlayers ?? 10) && Array.from({ length: Math.max(0, (game?.maxPlayers ?? 10) - players.length) }).map((_, i) => (
+                  <div key={`empty-${i}`} className="flex items-center gap-2 opacity-25">
+                    <div className="w-8 h-8 rounded-full border border-dashed border-white/30" />
+                    <span className="text-xs text-white/40">Esperando...</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-black/40 border border-white/10 rounded-xl p-3 text-xs text-white/50 space-y-1">
+              <p>🐺 {game?.wolves} Lobo{(game?.wolves ?? 1) > 1 ? 's' : ''}</p>
+              <p>{game?.isPublic ? '🌍 Pública' : '🔒 Privada'}</p>
+              {game?.juryVote && <p>⚖️ Voto del Jurado</p>}
+              {game?.fillWithAI && <p>🤖 Relleno con IA</p>}
+            </div>
+
+            {isHost && (
+              <button
+                onClick={startGame}
+                disabled={!canStart || starting}
+                className="w-full flex items-center justify-center gap-2 bg-white text-black font-bold py-3 rounded-xl hover:bg-white/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : '⚔️'}
+                {starting ? 'Iniciando...' : 'Comenzar Partida'}
+              </button>
+            )}
+            {isHost && !canStart && (
+              <p className="text-center text-white/30 text-xs">Mínimo 4 jugadores para empezar</p>
+            )}
+          </div>
+
+          {/* Chat */}
+          <div className="flex-1 flex flex-col bg-black/40 border border-white/10 rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-white/10">
+              <p className="text-sm font-medium text-white/70">Chat de sala</p>
+            </div>
+            <div ref={chatRef} className="flex-1 overflow-y-auto p-4 space-y-2">
+              {msgs.length === 0 && (
+                <p className="text-white/20 text-sm text-center mt-8">El pueblo guarda silencio...</p>
+              )}
+              {msgs.map(m => (
+                <div key={m.id} className={`flex gap-2 ${m.senderId === user?.uid ? 'flex-row-reverse' : ''}`}>
+                  <div className={`max-w-[75%] ${m.senderId === user?.uid ? 'items-end' : 'items-start'} flex flex-col`}>
+                    {m.senderId !== user?.uid && (
+                      <span className="text-[10px] text-white/40 mb-0.5">{m.senderName}</span>
+                    )}
+                    <div className={`px-3 py-1.5 rounded-xl text-sm ${m.senderId === user?.uid ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
+                      {m.text}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <form onSubmit={sendMsg} className="p-3 border-t border-white/10 flex gap-2">
+              <input
+                value={msg}
+                onChange={e => setMsg(e.target.value)}
+                placeholder="Escribe un mensaje..."
+                maxLength={200}
+                className="flex-1 bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-white/40 transition-colors"
+              />
+              <button
+                type="submit"
+                disabled={!msg.trim() || sending}
+                className="bg-white/10 hover:bg-white/20 border border-white/20 p-2 rounded-lg transition-colors disabled:opacity-40"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

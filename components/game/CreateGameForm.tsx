@@ -58,9 +58,9 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
     <button
       type="button"
       onClick={() => onChange(!checked)}
-      className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${checked ? 'bg-white' : 'bg-white/20'}`}
+      className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 border ${checked ? 'bg-white border-white' : 'bg-transparent border-white/40'}`}
     >
-      <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full transition-transform ${checked ? 'translate-x-5 bg-black' : 'translate-x-0 bg-white/60'}`} />
+      <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full transition-transform ${checked ? 'translate-x-6 bg-black' : 'translate-x-0 bg-white/50'}`} />
     </button>
   );
 }
@@ -100,7 +100,7 @@ export function CreateGameForm() {
     setError('');
     try {
       const code = generateCode();
-      await addDoc(collection(db, 'publicGames'), {
+      const docRef = await addDoc(collection(db, 'games'), {
         name: gameName,
         hostUid: user.uid,
         hostName: playerName || user.displayName || 'Jugador',
@@ -111,14 +111,23 @@ export function CreateGameForm() {
         fillWithAI,
         juryVote,
         specialRoles: Array.from(selectedRoles),
-        currentPlayers: 1,
-        status: 'waiting',
+        playerCount: 1,
+        status: 'lobby',
+        phase: 'lobby',
+        players: [{
+          uid: user.uid,
+          name: playerName || user.displayName || 'Jugador',
+          photoURL: user.photoURL ?? '',
+          isHost: true,
+          isAlive: true,
+          role: null,
+        }],
         createdAt: serverTimestamp(),
       });
-      setCreated({ code });
-    } catch {
+      router.push(`/game/${docRef.id}`);
+    } catch (err) {
+      console.error('Error creating game:', err);
       setError('Error al crear la partida. Inténtalo de nuevo.');
-    } finally {
       setLoading(false);
     }
   };
