@@ -1,0 +1,302 @@
+Cartas del Juego
+En esta sección te mostraré todas las cartas disponibles en Pueblo Duerme, junto con una explicación detallada de las acciones, habilidades y condiciones de victoria de cada una.
+
+Cada carta pertenece a un equipo y tiene un rol único que puede influir en el rumbo de la partida. Ya sea que formes parte del pueblo, de los lobos, o tengas un objetivo especial... ¡Conocer tu rol a fondo es clave para sobrevivir (o para ganar en las sombras)!
+
+
+
+
+ Guardián 
+Cada noche, te despiertas cuando el máster te lo indique y eliges a un jugador para proteger. Ese jugador no podrá ser asesinado por los lobos ni afectado por habilidades de otras criaturas del equipo rojo durante esa noche.
+
+🔹 Solo una vez por partida, puedes elegir protegerte a ti mismo.
+
+Tu misión es mantener con vida al pueblo, así que elige con sabiduría a quién defender.
+
+Aldeano 
+No tienes poderes ni habilidades especiales. Tu única misión es observar, razonar y participar en los juicios del día para intentar descubrir quiénes son los hombres lobo y proteger al pueblo.
+
+Aunque no actúas durante la noche, tu papel es clave en las votaciones. Escucha con atención, analiza las palabras y comportamientos de los demás jugadores… ¡y vota con cuidado!
+
+Fantasma 
+Si mueres, podrás enviar una carta escrita a un jugador de tu elección. Esta carta debe ser entregada por el máster y puede contener pistas, advertencias o cualquier mensaje que desees transmitir.
+
+Solo puedes enviar una carta por partida, y debe ser breve y clara. No puedes revelar directamente tu rol ni el de otros jugadores, pero puedes insinuar, sugerir o sembrar dudas.
+
+Tu objetivo sigue siendo ayudar al pueblo… incluso desde el más allá.
+
+
+
+
+Sacerdote
+Cada noche, te despiertas para otorgar una bendición a un jugador. La persona bendecida estará protegida contra cualquier tipo de ataque, incluyendo hechizos, venenos, habilidades especiales o ataques de los lobos.
+
+Puedes rezar por ti mismo una sola vez en toda la partida. Usa este poder con sabiduría: tus bendiciones pueden cambiar el destino del pueblo.
+
+Virginia Woolf 
+Solo te despiertas la primera noche para elegir a un jugador. Si mueres en cualquier momento de la partida —ya sea por un ataque de los lobos, envenenada, hechizada o juzgada por el pueblo—, la persona que elegiste también morirá automáticamente contigo.
+Leprosa
+No te despiertas por la noche ni tienes acciones especiales, pero tu presencia puede ser crucial para el pueblo.
+
+Si eres asesinada por los lobos durante la noche, tu enfermedad se extenderá, y como consecuencia, los lobos no podrán atacar a nadie en la noche siguiente.
+
+Tu carta actúa como una trampa silenciosa: si te eligen, pagarán el precio.
+
+
+
+
+Príncipe
+No te despiertas por la noche ni tienes habilidades especiales, pero tu rol otorga un poderoso beneficio.
+
+Si eres juzgado por el pueblo y sentenciado a la horca, revelarás tu carta al resto de los jugadores y permanecerás vivo. No puedes ser eliminado por votación.
+
+Este privilegio también tiene una desventaja: al demostrar públicamente tu inocencia, ganas la confianza del pueblo, pero te conviertes en un objetivo prioritario para los lobos.
+
+Licántropo
+
+Eres parte del pueblo, pero tu carta es confusa y puede jugarte en contra.
+
+No te despiertas por la noche ni tienes habilidades especiales. Sin embargo, si la Vidente te observa durante la noche, te verá como si fueras un lobo, aunque en realidad eres un aldeano.
+
+Este rol puede generar dudas entre los jugadores y ponerte en el centro de las sospechas. Jugar como Licántropo requiere astucia, sangre fría y una buena capacidad para convencer al resto de tu inocencia.
+
+Sirena del Río
+Una carta especial y muy útil si se juega con estrategia.
+
+La primera noche, eliges a un jugador para “cantarle”. Esta acción lo hechiza y, desde ese momento, será fiel a ti durante toda la partida.
+
+La segunda noche, tú y la persona hechizada os despertáis brevemente al mismo tiempo, para que pueda reconocerte y así saber a quién seguir en los juicios del día.
+
+¿Qué implica esto? Ese jugador deberá votar lo mismo que tú durante cada juicio, incluso si no está de acuerdo. Esta fidelidad solo se rompe si tú eres eliminada.
+
+Ten cuidado: si hechizas a un lobo por error, este intentará asesinarte cueste lo que cueste, ya que ser controlado por ti supone una gran desventaja para él.
+
+Usa tu canto con inteligencia… el poder de la sirena puede cambiarlo todo.
+
+
+
+
+Vigía
+Una carta silenciosa pero muy poderosa... si sabes usarla bien.
+
+No te despiertas por la noche, pero cuando el máster indique que los lobos se levanten, puedes intentar abrir los ojos disimuladamente para espiar. Si logras ver quiénes son sin que te descubran, podrás ayudar al pueblo en los juicios del día con información clave.
+
+Sin embargo, si los lobos te descubren espiando, podrán avisar al máster y serás eliminado inmediatamente.
+
+Solo puedes intentar espiar cuando se despierten los lobos, no durante el turno de otros personajes.
+
+Por equilibrio del juego, esta carta no puede estar en la misma partida que la Vidente.
+
+Alborotadora
+Una carta de lo más molesta para los demás jugadores, pero extremadamente beneficiosa si se usa en el momento adecuado.
+
+Te despiertas todas las noches hasta que decidas usar tu poder especial. Solo una vez por partida, puedes provocar una pelea entre dos jugadores, lo que causará que ambos sean eliminados inmediatamente, sin posibilidad de defensa ni juicio.
+
+Eres quien siembra el caos en el pueblo, de ahí tu nombre. Elige bien cuándo actuar, porque una decisión equivocada puede cambiar el rumbo del juego... para mal o para bien.
+
+Silenciadora
+Una carta especial con un poder que puede alterar totalmente el curso de las discusiones del día.
+
+Cada noche te despiertas y eliges a una persona para silenciar. Esa persona no podrá hablar durante el juicio del día siguiente. No podrá defenderse, acusar, ni dar su opinión; como mucho, podrá balbucear o usar gestos mínimos, pero sin revelar información clara.
+
+Usa este poder con astucia: silenciar al jugador correcto puede protegerte o exponer a un enemigo… pero también generar desconfianza si se usa mal.
+
+
+
+
+Gemelas
+No tienes acciones especiales ni te despiertas durante la noche, excepto la primera noche, cuando te despiertas junto a tu otra gemela para reconoceros.
+
+Es una carta útil, ya que te asegura tener alguien de confianza durante el resto de la partida. Saber quién es tu aliada desde el principio puede ayudarte a defenderte, planear votos y generar estrategias para proteger al pueblo.
+
+Vidente
+Una de las cartas más útiles y poderosas del juego.
+
+Cada noche te despiertas y eliges a un jugador para investigar. El máster te revelará si esa persona es un aldeano, un lobo, o ninguno de los dos (es decir, una carta verde o morada, perteneciente a roles especiales o neutrales).
+
+Tu información puede ser clave para guiar al pueblo, pero debes tener cuidado: si los lobos descubren quién eres, serás su próxima víctima.
+
+Gemelas
+No tienes acciones especiales ni te despiertas durante la noche, excepto la primera noche, cuando te despiertas junto a tu otra gemela para reconoceros.
+
+Es una carta útil, ya que te asegura tener alguien de confianza durante el resto de la partida. Saber quién es tu aliada desde el principio puede ayudarte a defenderte, planear votos y generar estrategias para proteger al pueblo.
+
+
+Cupido
+Solo te despiertas la primera noche.
+
+Esa noche eliges a dos jugadores para que se enamoren. Desde ese momento, si uno de ellos muere, el otro morirá también, inmediatamente y sin importar su rol o equipo.
+
+Puedes unir a aliados, enemigos… o incluso a un lobo y un aldeano. El amor no entiende de bandos, pero puede cambiarlo todo.
+
+
+Hechicera
+Te despiertas todas las noches hasta que hayas utilizado tus dos pociones:
+
+Una poción de veneno, que puedes usar para eliminar a un jugador esa misma noche.
+
+Una poción de protección, que evitará que el jugador elegido muera esa noche, sin importar qué lo ataque.
+
+Puedes usar la poción de protección en ti misma si lo deseas.
+Una vez hayas usado ambas pociones, ya no te despertarás más por las noches.
+
+Eres un rol muy especial y decisivo: puedes salvar o destruir con una sola elección.
+
+
+Cazador
+No te despiertas por las noches ni tienes acciones activas… hasta que te maten.
+
+Si un lobo, criatura o incluso el propio pueblo te elimina, podrás llevarte a alguien contigo a la tumba. Elige con cuidado en ese último instante: puede ser tu última venganza… o un gran error.
+
+Eres un rol silencioso pero letal.
+
+
+Aprendiz de Vidente
+Mientras la vidente siga con vida, no te despiertas ni tienes acciones especiales.
+
+Pero si la vidente muere, tomarás su lugar: comenzarás a despertarte cada noche para investigar a un jugador, y el máster te revelará si es un aldeano, un lobo o ninguno de los dos.
+
+Eres una carta paciente, pero clave cuando todo parece perdido.
+
+
+Anciana Líder
+Te despiertas todas las noches y eliges a un jugador.
+Esa persona será expulsada temporalmente de la aldea durante la siguiente noche:
+no podrá usar sus habilidades nocturnas, ni participar en eventos que ocurran durante la noche.
+
+Sin embargo, sí podrá ser juzgada y votada durante el día.
+
+Eres una figura de autoridad que puede alterar el curso de la partida sin matar a nadie.
+
+ALDEANOS 
+LOBOS
+
+
+
+Hombre Lobo
+Te despiertas todas las noches para elegir a una víctima.
+
+Tu objetivo es claro: devorar a alguien cada noche y acabar con el pueblo poco a poco, sin ser descubierto.
+
+Una carta directa, letal y temida.
+
+Cría de Lobo
+Te despiertas cada noche junto al Hombre Lobo para elegir a una víctima.
+
+Tu verdadero poder se activa si eres eliminado:
+la noche siguiente a tu muerte, el Hombre Lobo devorará a dos personas en lugar de una.
+
+Una carta de venganza silenciosa que castiga duramente al pueblo si no te descubren a tiempo.
+
+Hada Buscadora
+Te despiertas todas las noches para intentar encontrar a la otra hada.
+
+Si ambas os encontráis, la noche siguiente despertaréis juntas y podréis lanzar una maldición:
+el jugador elegido morirá, pero solo podréis hacerlo una única vez durante la partida.
+
+Aunque estás del lado de los lobos, puedes ser atacada como cualquier otro jugador.
+
+Un rol mágico y sigiloso que puede cambiar el destino con un solo hechizo.
+
+
+
+Maldito
+Eres un aldeano… al principio.
+No tienes acciones especiales ni te despiertas por las noches. Sin embargo, si un lobo te ataca, algo dentro de ti cambia:
+
+Te transformarás en un Hombre Lobo.
+Desde ese momento, pasas a formar parte del equipo de los lobos y te despertarás cada noche para devorar junto a ellos.
+
+Una carta traicionera, perfecta para sembrar la duda incluso entre los aliados.
+
+Hada Durmiente
+Eres parte del equipo de los aldeanos y, al principio, no tienes acciones especiales ni te despiertas por las noches.
+
+Sin embargo, si durante la partida eres descubierta por el Hada del equipo de los lobos, su hechizo comenzará a hacer efecto.
+A la siguiente noche de ser encontrada, despertarás junto a ella... pero ya no serás la misma.
+
+La locura y la magia oscura te habrán consumido:
+Cambiarás de bando y te unirás al equipo de los lobos.
+Desde entonces, tú y el Hada elegiréis a una víctima para maldecirla y hacerla morir esa noche.
+
+Una carta de transformación que puede dar un giro total a la partida.
+
+CARTAS ESPECIALES
+
+
+
+Cambiaformas
+Te despiertas solo la primera noche para elegir a una persona.
+
+A partir de ese momento, si esa persona muere en cualquier momento de la partida, tú adoptarás su rol y su equipo, transformándote completamente en ella:
+ya sea un aldeano, un lobo, un vidente, un hechicero... quien sea.
+
+No solo obtendrás su rol, sino también sus acciones (si las tuviera), y pasarás a actuar como ese jugador desde la noche siguiente a su muerte.
+
+Una carta extremadamente versátil que puede alterar por completo el rumbo de la partida.
+
+Hombre Ebrio
+No te despiertas por las noches ni tienes acciones especiales.
+
+Tu objetivo secreto es simple: morir.
+Debes lograr que el pueblo te vote en el juicio o que los lobos te asesinen por la noche.
+Pero cuidado: si actúas de forma demasiado obvia, los demás jugadores podrían sospechar que tienes un rol especial… y dejarte con vida.
+
+Ganas la partida si logras ser eliminado, independientemente de qué equipo gane al final.
+
+Un rol solitario, caótico y muy divertido que pone a prueba tu astucia.
+
+Líder del culto
+Te despiertas todas las noches para elegir a un jugador.
+
+Esa persona se unirá a tu culto. Aunque no recibirá poderes ni acciones especiales por tu parte, formará parte de tu grupo secreto.
+
+Tu objetivo es  convertir a todos los jugadores de la partida en miembros de tu culto.
+Si logras que todos formen parte de él, ganarás la partida automáticamente.
+
+Un rol estratégico y persuasivo que puede cambiar el destino de todo el pueblo.
+
+
+Pescador
+Te despiertas todas las noches para elegir a un jugador, que irá contigo a tu barco.
+
+Esa persona no recibirá acciones especiales ni habilidades, pero formará parte de tu tripulación.
+
+Tu objetivo es subir a todos los aldeanos a tu barco.
+Si lo consigues, ganarás la partida.
+
+Pero cuidado: si eliges a un lobo, este te descuartizará en tu intento.
+
+Un rol arriesgado que exige buena intuición y mucha cautela.
+
+
+Vampiro
+Cada noche te despiertas para chupar la sangre de un jugador.
+
+Si chupas la sangre de la misma persona tres veces, esa persona muere.
+
+Si consigues asesinar a 3 jugadores, ganas la partida.
+
+Un rol sigiloso y letal, capaz de cambiar el rumbo del juego sin que nadie lo note..
+
+
+Bruja
+Cada noche te despiertas para cazar a la Vidente.
+Si la encuentras, el máster te revelará su identidad y podrás entregarla a los lobos para que sea devorada sin piedad.
+
+A partir de ese momento, los lobos sabrán quién eres y no te atacarán, reconociéndote como una de los suyos.
+
+Una aliada oscura, silenciosa y letal. Tu misión: borrar la luz del pueblo antes de que te descubran.
+
+Banshee
+Cada noche te despiertas y puedes señalar a un jugador o decidir no señalar a nadie.
+Si el jugador que señalas muere durante esa noche  tu presagio se cumple.
+
+Si fallas dos veces en tus predicciones, mueres y quedas eliminado de la partida.
+
+Cada vez que aciertas, te acercas a tu liberación.
+Cuando logras tres aciertos a lo largo de la partida, ganas inmediatamente, sin importar qué equipo venza.
+
+Tu grito no mata.
+Tu grito anuncia.
+Eres una presencia maldita que despierta noche tras noche, marcando a quienes están destinados a caer… hasta que la muerte te conceda la libertad.

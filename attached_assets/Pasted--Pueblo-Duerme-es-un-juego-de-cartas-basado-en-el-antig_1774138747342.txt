@@ -1,0 +1,98 @@
+
+Pueblo Duerme es un juego de cartas basado en el antiguo juego Los Hombres Lobo. En este juego, el máster que es la persona encargada de narrar la partida te asignará un rol antes de comenzar.
+Obviamente, no puedes revelar tu rol a nadie ni mostrar tu carta, ya que arruinarías tu experiencia de juego y la de los demás jugadores.
+
+Al comienzo de la partida, cuando todos los jugadores tengan una carta, el máster dirá las palabras: "Pueblo, duerme". En ese momento, todos los jugadores deberán cerrar los ojos y no abrirlos hasta que su rol sea llamado durante la noche.
+
+Hay cartas que no abren los ojos en ningún momento durante la fase nocturna. Durante esta fase, no se debe hacer ruido (o al menos se debe intentar guardar silencio) y está prohibido hablar.
+
+Cuando todos los roles hayan sido llamados, el máster dirá: "Pueblo, despierta", y todos los jugadores podrán abrir los ojos. En ese momento, el máster narrará lo que ocurrió durante la noche: a quién han asesinado, encantado, silenciado o hechizado.
+
+Después de esto, el máster dará turno a los jugadores que aún estén vivos para que dialoguen entre ellos y decidan quién podría ser el hombre lobo u otras amenazas para el pueblo. Este debate dura entre 3 y 5 minutos, dependiendo del número de jugadores.
+
+En el aclamado juicio del día, la persona que reciba la mayoría de votos será condenada a muerte en la plaza del pueblo. Esta persona deberá revelar su rol a los demás jugadores vivos.
+
+El juego continuará de esta manera, alternando entre noche y día, hasta que se hayan descubierto y eliminado a todos los hombres lobo… o hasta que los lobos hayan asesinado a todos los campesinos.
+
+En PuebloDuerme  existen cuatro tipos principales de cartas, representando diferentes equipos o condiciones de victoria:
+
+Los aldeanos: cartas con fondo azul Son los habitantes del pueblo y su objetivo es sobrevivir y eliminar a los lobos.
+
+El equipo de los lobos: cartas con fondo rojo. Su misión es asesinar a todos los aldeanos sin ser descubiertos.
+
+Los personajes especiales: cartas con fondo verde o morado. Tienen habilidades únicas y condiciones de victoria propias, que pueden variar según el rol.
+
+Gestos durante la noche
+En la mayoría de los roles, apuntar con el dedo será suficiente para indicar tu acción durante la noche. Sin embargo, algunos personajes tienen gestos especiales.
+
+Por ejemplo, la Bruja usará el pulgar hacia arriba para curar o hacia abajo para envenenar. Asegúrate de conocer bien los gestos de tu rol para que el máster pueda interpretar tus acciones correctamente sin interrumpir el silencio nocturno.
+
+Guía para el Máster
+Dependiendo de la experiencia del máster y del número de jugadores, es recomendable elegir cartas sencillas o roles básicos en tus primeras partidas. Esto ayudará a que todos entiendan mejor el ritmo del juego y disfruten la experiencia.
+
+Por ejemplo, si son 6 jugadores, una combinación recomendada podría ser:
+Lobo – Aldeano – Cura – Gemela – Gemela – Príncipe
+
+Por ejemplo, si son 9 jugadores, una combinación recomendada podría ser:
+
+Lobo- Aldeano - Vidente - Cura - Sacerdote - Gemela - Gemela -Príncipe - Guardián
+
+A medida que el grupo gane experiencia, se pueden introducir personajes más complejos o con habilidades especiales.
+
+Guía rápida:
+
+Preparación previa
+
+Lee bien todas las cartas y sus habilidades antes de empezar.
+
+Ten una lista clara con los roles repartidos y sus equipos.
+
+Prepara el orden de las fases: noche, día, juicios, acciones especiales, etc.
+
+Organiza el espacio y los tiempos
+
+Asegúrate de que todos los jugadores tengan un lugar cómodo para sentarse y puedan verse bien.
+
+Define un límite de tiempo para los debates (por ejemplo, 3-5 minutos) para que la partida no se alargue demasiado.
+
+Controla los momentos de silencio absoluto durante la noche para mantener el misterio y evitar pistas accidentales.
+
+Control de roles y acciones
+
+Lleva un registro escrito o digital de cada acción que se realice (quién elige a quién, qué cartas se usan, quién muere, quién está silenciado, etc.).
+
+Usa una libreta o una app de notas para apuntar todo y no olvidarte de nada.
+
+Recuerda siempre a los jugadores que no pueden revelar su rol ni mostrar su carta.
+
+Mantén la tensión y la narrativa
+
+Usa un tono de voz adecuado para dar ambiente (más serio o misterioso en la noche, más animado en el día).
+
+Narra con detalle qué ocurre tras las acciones nocturnas (asesinatos, hechizos, bendiciones) para que todos sientan la emoción.
+
+Da pequeñas pistas o ayudas sutiles si ves que los jugadores están muy perdidos o si la partida se estanca.
+
+Gestiona los conflictos y las dudas
+
+Sé imparcial y justo, sin favorecer a ningún jugador.
+
+Resuelve dudas rápidamente y con claridad.
+
+Recuerda las reglas y evita interrupciones que puedan romper el ritmo.
+
+Apunta los eliminados y cambios
+
+Ten una lista actualizada de jugadores vivos y eliminados.
+
+Marca los cambios de equipo (por ejemplo, roles que cambian de aldeanos a lobos).
+
+Anota si hay personajes que han usado sus poderes especiales (como el cura o la hechicera).
+
+Consejos para la primera partida
+
+Recomienda usar roles simples y pocos para que todos entiendan el juego.
+
+Explica bien cada fase y los gestos o señales que se usarán.
+
+Sé paciente y abierto a preguntas.
