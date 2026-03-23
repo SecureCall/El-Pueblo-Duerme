@@ -9,8 +9,9 @@ import {
 } from 'firebase/firestore';
 import { ROLES } from './roles';
 import { getRoleIcon } from './roleIcons';
+import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
 
-const DAY_DURATION = 180;
+const DAY_DURATION = 60;
 
 interface Props {
   game: GameState;
@@ -40,7 +41,24 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onT
   const timerEndFired = useRef(false);
   const onTimerEndRef = useRef(onTimerEnd);
   const chatRef = useRef<HTMLDivElement>(null);
+  const narratedRound = useRef<number>(-1);
+  const { speak } = useNarrator();
+
   useEffect(() => { onTimerEndRef.current = onTimerEnd; }, [onTimerEnd]);
+
+  useEffect(() => {
+    const round = game.roundNumber ?? 1;
+    if (narratedRound.current === round) return;
+    narratedRound.current = round;
+    const victimUid = (game as any).dayEliminatedUid ?? null;
+    const victimName = victimUid
+      ? (game.players ?? []).find(p => p.uid === victimUid)?.name ?? null
+      : null;
+    const delay = setTimeout(() => {
+      speak(NARRATIONS.dayStart(victimName), { rate: 0.82, pitch: 0.7 });
+    }, 600);
+    return () => clearTimeout(delay);
+  }, [game.roundNumber, game.dayStartedAt]);
 
   const dayVotes = (game as any).dayVotes ?? {};
   const meAlive = me?.isAlive ?? false;

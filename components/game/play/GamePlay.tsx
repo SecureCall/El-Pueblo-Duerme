@@ -13,6 +13,7 @@ import { RoleReveal } from './RoleReveal';
 import { NightPhase } from './NightPhase';
 import { DayPhase } from './DayPhase';
 import { EndGame } from './EndGame';
+import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
 
 export interface Player {
   uid: string;
@@ -79,6 +80,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const [loading, setLoading] = useState(true);
   const [roleRevealDone, setRoleRevealDone] = useState(false);
   const aiChatSentRound = useRef<number>(-1);
+  const prevPhase = useRef<string | null>(null);
+  const { speak } = useNarrator();
 
   useEffect(() => {
     const unsub = onSnapshot(
@@ -92,6 +95,23 @@ export function GamePlay({ gameId }: { gameId: string }) {
     );
     return () => unsub();
   }, [gameId, router]);
+
+  // Narrate vote results when transitioning from day back to night
+  useEffect(() => {
+    if (!game) return;
+    const phase = game.phase;
+    if (prevPhase.current === 'day' && phase === 'night') {
+      const history = game.eliminatedHistory ?? [];
+      const lastElim = history[history.length - 1];
+      if (lastElim) {
+        setTimeout(() => {
+          speak(NARRATIONS.voteResult(lastElim.name), { rate: 0.82, pitch: 0.7 });
+        }, 400);
+      }
+    }
+    prevPhase.current = phase ?? null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.phase]);
 
   // Host assigns roles on game start
   useEffect(() => {

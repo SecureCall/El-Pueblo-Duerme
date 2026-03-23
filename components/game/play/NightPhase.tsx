@@ -7,6 +7,7 @@ import { GameState, Player } from './GamePlay';
 import { Moon, Send, Bot, Eye, Shield, Skull, Heart, Loader2, Music, Star, Zap } from 'lucide-react';
 import { db } from '@/lib/firebase/config';
 import { collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
 
 interface Props {
   game: GameState;
@@ -29,7 +30,9 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
   const [sendingMsg, setSendingMsg] = useState(false);
   const [loboBlancoCide, setLoboBlancoCide] = useState<string | null>(null);
   const [perroLoboSide, setPerroLoboSide] = useState<'wolves' | 'village' | null>(null);
+  const [autoSkipCountdown, setAutoSkipCountdown] = useState<number | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
+  const { speak } = useNarrator();
 
   const round = game.roundNumber ?? 1;
   const subs = game.nightSubmissions ?? {};
@@ -70,6 +73,63 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
     });
     return () => unsub();
   }, [isWolfTeam, gameId]);
+
+  // Narrator: narrate role instructions at night start
+  useEffect(() => {
+    if (submitted) return;
+    const timer = setTimeout(() => {
+      if (isWolf || isLoboBlanco) speak(NARRATIONS.nightWolves(), { rate: 0.82, pitch: 0.65 });
+      else if (isSeer) speak(NARRATIONS.nightSeer(), { rate: 0.82, pitch: 0.7 });
+      else if (isWitch) speak(NARRATIONS.nightWitch(), { rate: 0.82, pitch: 0.7 });
+      else if (isCupido) speak(NARRATIONS.nightCupido(), { rate: 0.82, pitch: 0.7 });
+      else if (isGuardian) speak(NARRATIONS.nightGuardian(), { rate: 0.82, pitch: 0.7 });
+      else if (isFlautista) speak(NARRATIONS.nightFlautista(), { rate: 0.82, pitch: 0.7 });
+      else if (isPerroLobo) speak(NARRATIONS.nightPerroLobo(), { rate: 0.82, pitch: 0.7 });
+      else if (isSalvaje) speak(NARRATIONS.nightSalvaje(), { rate: 0.82, pitch: 0.7 });
+      else speak(NARRATIONS.nightStart(), { rate: 0.82, pitch: 0.65 });
+    }, 500);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [round]);
+
+  // Auto-submit for non-night roles (Aldeano, etc.) after a countdown
+  useEffect(() => {
+    if (submitted) return;
+    const needsManualAction = isWolfTeam || isSeer || isWitch || isCupido || isGuardian ||
+      isFlautista || isPerroLobo || isSalvaje || isProfeta || isSacerdote;
+    if (needsManualAction) return;
+
+    let seconds = 8;
+    setAutoSkipCountdown(seconds);
+    const interval = setInterval(() => {
+      seconds--;
+      if (seconds <= 0) {
+        clearInterval(interval);
+        setAutoSkipCountdown(null);
+        onSubmitAction({ _skip: true }).then(() => setSubmitted(true)).catch(() => {});
+      } else {
+        setAutoSkipCountdown(seconds);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [round, submitted]);
+
+  // 35-second auto-submit timeout for night roles who haven't acted
+  useEffect(() => {
+    if (submitted) return;
+    const needsManualAction = isWolfTeam || isSeer || isWitch || isCupido || isGuardian ||
+      isFlautista || isPerroLobo || isSalvaje || isProfeta || isSacerdote;
+    if (!needsManualAction) return;
+
+    const timer = setTimeout(() => {
+      if (!submitted) {
+        onSubmitAction({ _skip: true }).then(() => setSubmitted(true)).catch(() => {});
+      }
+    }, 35000);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [round, submitted]);
 
   const handleSubmit = async () => {
     if (submitted) return;
@@ -756,7 +816,12 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
               <div className="bg-black/40 border border-white/10 rounded-2xl p-8 text-center">
                 <div className="text-6xl mb-4">😴</div>
                 <h3 className="font-semibold text-white/70 mb-2">El pueblo duerme</h3>
-                <p className="text-white/40 text-sm mb-6">No tienes acción nocturna. Descansa mientras las sombras actúan...</p>
+                <p className="text-white/40 text-sm mb-4">No tienes acción nocturna. Descansa mientras las sombras actúan...</p>
+                {autoSkipCountdown !== null && (
+                  <p className="text-amber-400/70 text-xs mb-4">
+                    Durmiendo automáticamente en {autoSkipCountdown}s...
+                  </p>
+                )}
                 <button onClick={handleAutoSkip}
                   className="bg-white/10 hover:bg-white/20 border border-white/20 text-white text-sm font-medium px-6 py-2.5 rounded-xl transition-colors">
                   Confirmar que estoy dormido
