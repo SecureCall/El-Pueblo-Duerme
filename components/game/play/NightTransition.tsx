@@ -19,6 +19,9 @@ export function NightTransition({ game, victimName, victimRole, onDone, autoSeco
   const [countdown, setCountdown] = useState(autoSeconds);
   const { playSequence, play, AUDIO_FILES } = useNarrator();
   const played = useRef(false);
+  const doneFired = useRef(false);
+  const onDoneRef = useRef(onDone);
+  useEffect(() => { onDoneRef.current = onDone; }, [onDone]);
 
   useEffect(() => {
     if (!played.current) {
@@ -32,19 +35,21 @@ export function NightTransition({ game, victimName, victimRole, onDone, autoSeco
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Countdown runs only once — no dependency on onDone to avoid restarting
   useEffect(() => {
     const interval = setInterval(() => {
-      setCountdown(c => {
-        if (c <= 1) {
-          clearInterval(interval);
-          onDone();
-          return 0;
-        }
-        return c - 1;
-      });
+      setCountdown(c => Math.max(0, c - 1));
     }, 1000);
     return () => clearInterval(interval);
-  }, [onDone]);
+  }, []);
+
+  // Fire onDone exactly once when countdown reaches 0
+  useEffect(() => {
+    if (countdown === 0 && !doneFired.current) {
+      doneFired.current = true;
+      onDoneRef.current();
+    }
+  }, [countdown]);
 
   const bearGrowl = (game as any).bearGrowl;
   const profetaReveal = (game as any).profetaReveal;
@@ -109,7 +114,12 @@ export function NightTransition({ game, victimName, victimRole, onDone, autoSeco
         <div className="flex items-center justify-center gap-3">
           <div className="text-white/30 text-xs">El debate comienza en {countdown}s...</div>
           <button
-            onClick={onDone}
+            onClick={() => {
+              if (!doneFired.current) {
+                doneFired.current = true;
+                onDoneRef.current();
+              }
+            }}
             className="text-white/50 hover:text-white text-xs underline transition-colors"
           >
             Continuar ahora

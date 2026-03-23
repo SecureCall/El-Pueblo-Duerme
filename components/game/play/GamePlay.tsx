@@ -84,6 +84,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const [nightRevealData, setNightRevealData] = useState<{ victimName: string | null; victimRole: string | null }>({ victimName: null, victimRole: null });
   const aiChatSentRound = useRef<number>(-1);
   const prevPhase = useRef<string | null>(null);
+  const processingDayRef = useRef(false);
   const { play, playSequence, AUDIO_FILES } = useNarrator();
 
   useEffect(() => {
@@ -117,6 +118,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }
 
     if (prevPhase.current === 'day' && phase === 'night') {
+      processingDayRef.current = false;
       const history = game.eliminatedHistory ?? [];
       const lastElim = history[history.length - 1];
       if (lastElim) {
@@ -683,6 +685,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
   async function processDayVotes(dayVotes: Record<string, string>) {
     if (!game) return;
+    if (processingDayRef.current) return;
+    processingDayRef.current = true;
     const roles = game.roles ?? {};
     const newRoles = { ...roles };
     const salvajeMentors = game.salvajeMentors ?? {};
@@ -773,6 +777,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
       });
     } catch (e) {
       console.error('processDayVotes updateDoc error:', e);
+    } finally {
+      processingDayRef.current = false;
     }
   }
 
