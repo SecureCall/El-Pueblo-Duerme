@@ -1,0 +1,53 @@
+00:15:57.103
+ 
+Compilación en curso en Washington, DC, EE. UU. (Este) – iad1
+00:15:57.104
+ 
+Configuración de la máquina de compilación: 2 núcleos, 8 GB
+00:15:57.117
+ 
+Clonando github.com/SecureCall/El-Pueblo-Duerme (Rama: main, Commit: b5ed4f1)
+00:15:57.118
+ 
+Se omitió la caché de compilación y el despliegue se activó sin caché.
+00:16:01.101
+ 
+Advertencia: No se pudieron obtener uno o más submódulos de Git.
+00:16:01.102
+ 
+Clonación completada: 3,985 s
+00:16:01.514
+ 
+Ejecutando "vercel build"
+00:16:02.285
+ 
+Vercel CLI 50.35.0
+00:16:02.648
+ 
+Instalando dependencias...
+00:16:05.108
+ 
+npm warn deprecated rimraf@3.0.2: Las versiones de Rimraf anteriores a la v4 ya no son compatibles.
+00:16:05.918
+ 
+npm warn deprecated inflight@1.0.6: Este módulo no es compatible y tiene fugas de memoria. No lo utilice. Consulte lru-cache si desea una forma eficaz y probada de agrupar solicitudes asíncronas por clave-valor, que es mucho más completa y potente.
+00:16:07.425
+ 
+npm advierte que @humanwhocodes/config-array@0.13.0 está obsoleto: utilice @eslint/config-array en su lugar.
+00:16:07.459
+ 
+npm advierte que @humanwhocodes/object-schema@2.0.3 está obsoleto: utilice @eslint/object-schema en su lugar.
+00:16:08.025
+ 
+npm warn deprecated glob@7.2.3: Las versiones antiguas de glob no son compatibles y contienen vulnerabilidades de seguridad ampliamente conocidas, que se han corregido en la versión actual. Actualice. Puede adquirir soporte para versiones antiguas (a precios exorbitantes) contactando con i@izs.me
+00:16:08.288
+ 
+npm warn deprecated glob@10.3.10: Las versiones antiguas de glob no son compatibles y contienen vulnerabilidades de seguridad ampliamente conocidas, que se han corregido en la versión actual. Actualice. Puede adquirir soporte para versiones antiguas (a precios exorbitantes) contactando con i@izs.me
+00:16:09.889
+ 
+npm warn deprecated eslint@8.57.1: Esta versión ya no es compatible. Consulte https://eslint.org/version-support para ver otras opciones.
+00:16:18.781
+ 
+npm advierte sobre la versión obsoleta next@14.2.3: Esta versión tiene una vulnerabilidad de seguridad. Actualice a una versión parcheada. Consulte https://nextjs.org/blog/security-update-2025-12-11 para obtener más detalles.
+00:16:19.128
+ 
