@@ -83,7 +83,8 @@ export function GameRoom({ gameId }: { gameId: string }) {
   const [showShare, setShowShare] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
-  const { play, AUDIO_FILES } = useNarrator();
+  const { play, stop, AUDIO_FILES } = useNarrator();
+  const [introSkipped, setIntroSkipped] = useState(false);
   const salasPlayed = useRef(false);
 
   useEffect(() => {
@@ -208,8 +209,14 @@ export function GameRoom({ gameId }: { gameId: string }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const skipIntro = () => {
+    stop();
+    setIntroSkipped(true);
+  };
+
   const startGame = async () => {
     if (!user || !game || game.hostUid !== user.uid) return;
+    stop(); // Corta salas.mp3 si sigue sonando
     setStarting(true);
     try {
       const realPlayers = game.players ?? [];
@@ -440,6 +447,17 @@ export function GameRoom({ gameId }: { gameId: string }) {
               {game?.juryVote && <p>⚖️ Voto del Jurado</p>}
               {game?.fillWithAI && <p className="text-cyan-400">🤖 Modo con IA activo</p>}
             </div>
+
+            {/* Skip intro button — visible while salas.mp3 plays */}
+            {!introSkipped && (
+              <button
+                onClick={skipIntro}
+                className="w-full flex items-center justify-center gap-2 text-white/40 hover:text-white/70 text-xs py-1 transition-colors animate-pulse"
+              >
+                <span>⏭</span>
+                <span>Saltar narración del narrador</span>
+              </button>
+            )}
 
             {isHost && (
               <>
