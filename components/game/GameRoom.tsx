@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { Copy, Crown, LogOut, Send, Users, Loader2, Bot, Share2, MessageCircle, Facebook, Link, Check } from 'lucide-react';
 import { PageAudio } from '@/components/audio/PageAudio';
+import { useNarrator } from '@/hooks/useNarrator';
 
 interface Player {
   uid: string;
@@ -82,6 +83,16 @@ export function GameRoom({ gameId }: { gameId: string }) {
   const [showShare, setShowShare] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
+  const { play, AUDIO_FILES } = useNarrator();
+  const salasPlayed = useRef(false);
+
+  useEffect(() => {
+    if (salasPlayed.current) return;
+    salasPlayed.current = true;
+    play(AUDIO_FILES.salas);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const shareRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

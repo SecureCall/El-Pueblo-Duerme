@@ -104,6 +104,10 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (!game) return;
     const phase = game.phase;
 
+    if (prevPhase.current === null && phase === 'roleReveal') {
+      playSequence([AUDIO_FILES.introEpic, AUDIO_FILES.gameStart]);
+    }
+
     if (prevPhase.current === 'night' && phase === 'day') {
       const victimUid = (game as any).dayEliminatedUid ?? null;
       const victim = victimUid ? (game.players ?? []).find((p: any) => p.uid === victimUid) : null;
@@ -837,7 +841,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
           autoSeconds={10}
           onDone={() => {
             setShowNightReveal(false);
-            play(AUDIO_FILES.debatesOpen);
+            playSequence([AUDIO_FILES.debatesOpen, AUDIO_FILES.debateAmbient]);
           }}
         />
       );

@@ -22,6 +22,11 @@ function getWinnerDisplay(winners: string | null): { emoji: string; title: strin
     case 'flautista': return { emoji: '🪈', title: '¡El Flautista Ha Hechizado al Pueblo!' };
     case 'angel':     return { emoji: '😇', title: '¡El Ángel Ha Ganado!' };
     case 'picaro':    return { emoji: '🃏', title: '¡El Pícaro Ha Ganado!' };
+    case 'vampiro':   return { emoji: '🧛', title: '¡El Vampiro Ha Ganado!' };
+    case 'ebrio':     return { emoji: '🍺', title: '¡El Ebrio Se Ha Llevado la Victoria!' };
+    case 'verdugo':   return { emoji: '🪓', title: '¡El Verdugo Ha Triunfado!' };
+    case 'culto':     return { emoji: '🕯️', title: '¡El Culto Ha Tomado el Pueblo!' };
+    case 'pescador':  return { emoji: '🎣', title: '¡El Pescador Ha Ganado!' };
     default:          return { emoji: '⚖️', title: 'Partida Terminada' };
   }
 }
@@ -36,6 +41,11 @@ function didIWin(winners: string | null, myRole?: string): boolean {
   if (winners === 'flautista') return myRole === 'Flautista';
   if (winners === 'angel')     return myRole === 'Ángel';
   if (winners === 'picaro')    return myRole === 'Pícaro';
+  if (winners === 'vampiro')   return myRole === 'Vampiro';
+  if (winners === 'ebrio')     return myRole === 'Ebrio';
+  if (winners === 'verdugo')   return myRole === 'Verdugo';
+  if (winners === 'culto')     return myRole === 'Líder del Culto';
+  if (winners === 'pescador')  return myRole === 'Pescador';
   return false;
 }
 

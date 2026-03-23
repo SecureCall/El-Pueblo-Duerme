@@ -5,26 +5,51 @@ import { useCallback } from 'react';
 const VOZ = '/audio/voz/';
 
 export const AUDIO_FILES = {
-  nightStart:     `${VOZ}El pueblo... duerme.mp3`,
-  nightAmbient:   `${VOZ}noche_pueblo_duerme.mp3`,
-  dayWakeup:      `${VOZ}¡Pueblo... despierta!.mp3`,
-  dayStart:       `${VOZ}dia_pueblo_despierta.mp3`,
-  deathAnnounce:  `${VOZ}muerto.mp3`,
-  rip:            `${VOZ}Descanse en paz.mp3`,
-  debateStart:    `${VOZ}inicio_debate.mp3`,
-  debatesOpen:    `${VOZ}debates empiecen.mp3`,
-  voteStart:      `${VOZ}inicio_votacion.mp3`,
-  exiled:         `${VOZ}destarrado por el pueblo.mp3`,
-  exiledAnnounce: `${VOZ}anuncio_exilio.mp3`,
-  dangerHere:     `${VOZ}el peligro está aquí.mp3`,
-  villageDies:    `${VOZ}aldea perecerá.mp3`,
-  miracle:        `${VOZ}¡Milagro!.mp3`,
-  gameStart:      `${VOZ}Que comience el juego..mp3`,
-  victoryVillage: `${VOZ}victoria_aldeanos.mp3`,
-  victoryWolves:  `${VOZ}victoria_lobos.mp3`,
+  // ─── Noche ───────────────────────────────────────────────────────
+  nightStart:       `${VOZ}El pueblo... duerme.mp3`,
+  nightAmbient:     `${VOZ}noche_pueblo_duerme.mp3`,
+
+  // ─── Día ─────────────────────────────────────────────────────────
+  dayWakeup:        `${VOZ}¡Pueblo... despierta!.mp3`,
+  dayStart:         `${VOZ}dia_pueblo_despierta.mp3`,
+
+  // ─── Muertes ─────────────────────────────────────────────────────
+  deathAnnounce:    `${VOZ}muerto.mp3`,
+  rip:              `${VOZ}Descanse en paz.mp3`,
+  vampireDeath:     `${VOZ}muerte vampiro.mp3`,
+
+  // ─── Debate / Votación ───────────────────────────────────────────
+  debateAmbient:    `${VOZ}debate.mp3`,
+  debateStart:      `${VOZ}inicio_debate.mp3`,
+  debatesOpen:      `${VOZ}debates empiecen.mp3`,
+  voteStart:        `${VOZ}inicio_votacion.mp3`,
+  dangerHere:       `${VOZ}el peligro está aquí.mp3`,
+
+  // ─── Exilio / Expulsión ──────────────────────────────────────────
+  exiled:           `${VOZ}destarrado por el pueblo.mp3`,
+  exiledAnnounce:   `${VOZ}anuncio_exilio.mp3`,
+
+  // ─── Inicio de partida ───────────────────────────────────────────
+  gameStart:        `${VOZ}Que comience el juego..mp3`,
+  introEpic:        `${VOZ}intro_epica.mp3`,
+  salas:            `${VOZ}salas.mp3`,
+
+  // ─── Efectos especiales ──────────────────────────────────────────
+  miracle:          `${VOZ}¡Milagro!.mp3`,
+  villageDies:      `${VOZ}aldea perecerá.mp3`,
+  lastBullet:       `${VOZ}la ultima bala.mp3`,
+
+  // ─── Victorias ───────────────────────────────────────────────────
+  victoryVillage:   `${VOZ}victoria_aldeanos.mp3`,
+  victoryWolves:    `${VOZ}victoria_lobos.mp3`,
+  victoryVampire:   `${VOZ}el vampiro ha ganado .mp3`,
+  victoryEbrio:     `${VOZ}ganador el ebrio.mp3`,
+  victoryVerdugo:   `${VOZ}victoria el berdugo.mp3`,
+  victoryCulto:     `${VOZ}victoria culto.mp3`,
+  victoryPescador:  `${VOZ}pescador ganador.mp3`,
 };
 
-// ─── Singleton audio queue (shared across all components) ───────────────────
+// ─── Singleton audio queue ───────────────────────────────────────────────────
 
 let _current: HTMLAudioElement | null = null;
 let _queue: string[] = [];
@@ -90,7 +115,7 @@ function interrupt(...files: string[]) {
   enqueue(...files);
 }
 
-// ─── React hook ─────────────────────────────────────────────────────────────
+// ─── React hook ──────────────────────────────────────────────────────────────
 
 export function useNarrator() {
   const play = useCallback((src: string) => enqueue(src), []);
@@ -101,13 +126,25 @@ export function useNarrator() {
   return { play, playSequence, stop, interruptWith, AUDIO_FILES };
 }
 
+// ─── Convenience helpers ──────────────────────────────────────────────────────
+
 export const NARRATIONS = {
   nightStart:  () => AUDIO_FILES.nightStart,
   dayWakeup:   () => AUDIO_FILES.dayWakeup,
   debateOpen:  () => AUDIO_FILES.debateStart,
   voteStart:   () => AUDIO_FILES.voteStart,
   exiled:      () => AUDIO_FILES.exiled,
-  winMessage:  (winners: string | null) =>
-    winners === 'wolves' ? AUDIO_FILES.victoryWolves : AUDIO_FILES.victoryVillage,
   gameStart:   () => AUDIO_FILES.gameStart,
+  winMessage:  (winners: string | null): string => {
+    switch (winners) {
+      case 'wolves':    return AUDIO_FILES.victoryWolves;
+      case 'village':   return AUDIO_FILES.victoryVillage;
+      case 'vampiro':   return AUDIO_FILES.victoryVampire;
+      case 'ebrio':     return AUDIO_FILES.victoryEbrio;
+      case 'verdugo':   return AUDIO_FILES.victoryVerdugo;
+      case 'culto':     return AUDIO_FILES.victoryCulto;
+      case 'pescador':  return AUDIO_FILES.victoryPescador;
+      default:          return AUDIO_FILES.victoryVillage;
+    }
+  },
 };
