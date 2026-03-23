@@ -61,11 +61,18 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const [roleRevealDone, setRoleRevealDone] = useState(false);
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'games', gameId), snap => {
-      if (!snap.exists()) { router.push('/'); return; }
-      setGame(snap.data() as GameState);
-      setLoading(false);
-    });
+    const unsub = onSnapshot(
+      doc(db, 'games', gameId),
+      snap => {
+        if (!snap.exists()) { router.push('/'); return; }
+        setGame(snap.data() as GameState);
+        setLoading(false);
+      },
+      _err => {
+        // Permission denied or network error — go home
+        router.push('/');
+      }
+    );
     return () => unsub();
   }, [gameId, router]);
 
@@ -95,23 +102,28 @@ export function GamePlay({ gameId }: { gameId: string }) {
       roundNumber: 1,
       nightActions: {},
       nightSubmissions: {},
+      dayVotes: {},
       dayEliminatedUid: null,
       seerReveal: null,
       lovers: null,
       winners: null,
       eliminatedHistory: [],
-    });
+    }).catch(e => console.error('assignRoles error:', e));
   }, [game, user, gameId]);
 
   const advanceFromRoleReveal = useCallback(async () => {
     if (!game) return;
     setRoleRevealDone(true);
     if (game.hostUid !== user?.uid) return;
-    await updateDoc(doc(db, 'games', gameId), {
-      phase: 'night',
-      nightActions: {},
-      nightSubmissions: {},
-    });
+    try {
+      await updateDoc(doc(db, 'games', gameId), {
+        phase: 'night',
+        nightActions: {},
+        nightSubmissions: {},
+      });
+    } catch (e) {
+      console.error('advanceFromRoleReveal error:', e);
+    }
   }, [game, user, gameId]);
 
   const submitNightAction = useCallback(async (action: Record<string, unknown>) => {
@@ -125,7 +137,11 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }
     updates[`nightSubmissions.${submissionKey}`] = true;
 
-    await updateDoc(doc(db, 'games', gameId), updates);
+    try {
+      await updateDoc(doc(db, 'games', gameId), updates);
+    } catch (e) {
+      console.error('submitNightAction error:', e);
+    }
   }, [game, user, gameId]);
 
   // Host auto-submits AI players' night actions
@@ -248,24 +264,33 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
     const winner = checkWinCondition(players, roles);
 
-    await updateDoc(doc(db, 'games', gameId), {
-      players,
-      eliminatedHistory: history,
-      dayEliminatedUid,
-      seerReveal,
-      phase: winner ? 'ended' : 'day',
-      winners: winner ?? null,
-      winMessage: winner === 'wolves' ? '¡Los lobos han devorado al pueblo!' : winner === 'village' ? '¡El pueblo ha eliminado a todos los lobos!' : null,
-      nightActions: {},
-      nightSubmissions: {},
-    });
+    try {
+      await updateDoc(doc(db, 'games', gameId), {
+        players,
+        eliminatedHistory: history,
+        dayEliminatedUid,
+        seerReveal,
+        phase: winner ? 'ended' : 'day',
+        winners: winner ?? null,
+        winMessage: winner === 'wolves' ? '¡Los lobos han devorado al pueblo!' : winner === 'village' ? '¡El pueblo ha eliminado a todos los lobos!' : null,
+        nightActions: {},
+        nightSubmissions: {},
+        dayVotes: {},
+      });
+    } catch (e) {
+      console.error('processNight updateDoc error:', e);
+    }
   }
 
   const submitDayVote = useCallback(async (targetUid: string) => {
     if (!user || !game) return;
-    await updateDoc(doc(db, 'games', gameId), {
-      [`dayVotes.${user.uid}`]: targetUid,
-    });
+    try {
+      await updateDoc(doc(db, 'games', gameId), {
+        [`dayVotes.${user.uid}`]: targetUid,
+      });
+    } catch (e) {
+      console.error('submitDayVote error:', e);
+    }
   }, [user, game, gameId]);
 
   // Host auto-votes for AI players during day
@@ -339,19 +364,23 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
     const winner = checkWinCondition(players, roles);
 
-    await updateDoc(doc(db, 'games', gameId), {
-      players,
-      eliminatedHistory: history,
-      phase: winner ? 'ended' : 'night',
-      winners: winner ?? null,
-      winMessage: winner === 'wolves' ? '¡Los lobos han devorado al pueblo!' : winner === 'village' ? '¡El pueblo ha eliminado a todos los lobos!' : null,
-      roundNumber: (game.roundNumber ?? 1) + 1,
-      dayVotes: {},
-      dayEliminatedUid: null,
-      seerReveal: null,
-      nightActions: {},
-      nightSubmissions: {},
-    });
+    try {
+      await updateDoc(doc(db, 'games', gameId), {
+        players,
+        eliminatedHistory: history,
+        phase: winner ? 'ended' : 'night',
+        winners: winner ?? null,
+        winMessage: winner === 'wolves' ? '¡Los lobos han devorado al pueblo!' : winner === 'village' ? '¡El pueblo ha eliminado a todos los lobos!' : null,
+        roundNumber: (game.roundNumber ?? 1) + 1,
+        dayVotes: {},
+        dayEliminatedUid: null,
+        seerReveal: null,
+        nightActions: {},
+        nightSubmissions: {},
+      });
+    } catch (e) {
+      console.error('processDayVotes updateDoc error:', e);
+    }
   }
 
   if (loading || !game) return (

@@ -7,19 +7,17 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isHost(gameData) {
-      return request.auth.uid == gameData.hostUid;
+    function isHost(gameId) {
+      return request.auth.uid == get(/databases/$(database)/documents/games/$(gameId)).data.hostUid;
     }
 
-    function isPlayerInGame(gameId) {
-      let game = get(/databases/$(database)/documents/games/$(gameId));
-      let players = game.data.players;
-      return players != null && request.auth.uid in players.keys();
+    // Only the specific fields being changed (simplified check)
+    function onlyUpdating(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
 
-    function isPlayerInGameByArray(gameId) {
-      // Check if the user is in the players array (array of maps)
-      return isAuth();
+    function affectedAre(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(keys);
     }
 
     // ── Users ──────────────────────────────────────────────────────────────
@@ -31,17 +29,20 @@ service cloud.firestore {
 
     // ── Games ──────────────────────────────────────────────────────────────
     match /games/{gameId} {
-      // Any logged-in user can read games (for listing public rooms, joining by code)
+      // Any logged-in user can read games
       allow read: if isAuth();
 
-      // Any logged-in user can create a game
+      // Any logged-in user can create a game they host
       allow create: if isAuth() && request.auth.uid == request.resource.data.hostUid;
 
-      // Host can update any game field; players can update the players array (joining)
+      // Host can update anything
+      // Players can join (players/playerCount only)
+      // Players can submit night actions and day votes
       allow update: if isAuth() && (
-        request.auth.uid == resource.data.hostUid ||
-        // Allow joining: only the players array is being added to
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players', 'playerCount']))
+        request.auth.uid == resource.data.hostUid
+        || onlyUpdating(['players', 'playerCount'])
+        || affectedAre(['nightActions', 'nightSubmissions'])
+        || affectedAre(['dayVotes'])
       );
 
       allow delete: if isAuth() && request.auth.uid == resource.data.hostUid;
@@ -68,7 +69,7 @@ service cloud.firestore {
 
     match /games/{gameId}/wolfChat/{messageId} {
       allow read: if isAuth();
-      allow create: if isAuth() && request.auth.uid == request.resource.data.senderId;
+      allow create: if isAuth();
       allow update, delete: if false;
     }
 
@@ -92,13 +93,13 @@ service cloud.firestore {
 
     match /games/{gameId}/nightActions/{actionId} {
       allow read: if isAuth();
-      allow create, update: if isAuth() && request.auth.uid == request.resource.data.uid;
+      allow create, update: if isAuth();
       allow delete: if false;
     }
 
     match /games/{gameId}/votes/{voteId} {
       allow read: if isAuth();
-      allow create, update: if isAuth() && request.auth.uid == request.resource.data.voterId;
+      allow create, update: if isAuth();
       allow delete: if false;
     }
   }

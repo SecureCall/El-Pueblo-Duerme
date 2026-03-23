@@ -169,7 +169,6 @@ export function GameRoom({ gameId }: { gameId: string }) {
 
       await updateDoc(doc(db, 'games', gameId), {
         status: 'playing',
-        phase: 'night',
         players: allPlayers,
         playerCount: allPlayers.length,
         startedAt: serverTimestamp(),
