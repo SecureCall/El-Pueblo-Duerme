@@ -9,7 +9,7 @@ import {
 } from 'firebase/firestore';
 import { ROLES } from './roles';
 import { getRoleIcon } from './roleIcons';
-import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
+import { useNarrator } from '@/hooks/useNarrator';
 
 const DAY_DURATION = 60;
 
@@ -41,20 +41,10 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onT
   const timerEndFired = useRef(false);
   const onTimerEndRef = useRef(onTimerEnd);
   const chatRef = useRef<HTMLDivElement>(null);
-  const narratedRound = useRef<number>(-1);
-  const { play } = useNarrator();
+  const voteNarratedRound = useRef<number>(-1);
+  const { play, AUDIO_FILES } = useNarrator();
 
   useEffect(() => { onTimerEndRef.current = onTimerEnd; }, [onTimerEnd]);
-
-  useEffect(() => {
-    const round = game.roundNumber ?? 1;
-    if (narratedRound.current === round) return;
-    narratedRound.current = round;
-    const delay = setTimeout(() => {
-      play(NARRATIONS.debateOpen());
-    }, 400);
-    return () => clearTimeout(delay);
-  }, [game.roundNumber, game.dayStartedAt]);
 
   const dayVotes = (game as any).dayVotes ?? {};
   const meAlive = me?.isAlive ?? false;
@@ -81,10 +71,15 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onT
     const startedAt = game.dayStartedAt ?? Date.now();
     timerEndFired.current = false;
 
+    const round = game.roundNumber ?? 1;
     const tick = () => {
       const elapsed = Math.floor((Date.now() - startedAt) / 1000);
       const remaining = Math.max(0, DAY_DURATION - elapsed);
       setSecondsLeft(remaining);
+      if (remaining === 20 && voteNarratedRound.current !== round) {
+        voteNarratedRound.current = round;
+        play(AUDIO_FILES.voteStart);
+      }
       if (remaining === 0 && !timerEndFired.current) {
         timerEndFired.current = true;
         onTimerEndRef.current();

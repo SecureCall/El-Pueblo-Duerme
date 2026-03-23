@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { GameState } from './GamePlay';
 import { getRoleIcon } from './roleIcons';
 import { ROLES } from './roles';
-import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
+import { useNarrator } from '@/hooks/useNarrator';
 import { Skull, Shield, Music } from 'lucide-react';
 
 interface Props {
@@ -17,18 +17,19 @@ interface Props {
 
 export function NightTransition({ game, victimName, victimRole, onDone, autoSeconds = 10 }: Props) {
   const [countdown, setCountdown] = useState(autoSeconds);
-  const { play, playSequence, AUDIO_FILES } = useNarrator();
+  const { playSequence, play, AUDIO_FILES } = useNarrator();
   const played = useRef(false);
 
   useEffect(() => {
     if (!played.current) {
       played.current = true;
       if (victimName) {
-        playSequence([AUDIO_FILES.deathAnnounce, AUDIO_FILES.rip], 500);
+        playSequence([AUDIO_FILES.deathAnnounce, AUDIO_FILES.rip]);
       } else {
         play(AUDIO_FILES.dayWakeup);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

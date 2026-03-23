@@ -116,9 +116,10 @@ export function GamePlay({ gameId }: { gameId: string }) {
       const history = game.eliminatedHistory ?? [];
       const lastElim = history[history.length - 1];
       if (lastElim) {
-        setTimeout(() => play(AUDIO_FILES.exiled), 300);
+        playSequence([AUDIO_FILES.exiled, AUDIO_FILES.nightStart]);
+      } else {
+        playSequence([AUDIO_FILES.nightStart]);
       }
-      setTimeout(() => play(AUDIO_FILES.nightStart), lastElim ? 2500 : 300);
     }
 
     prevPhase.current = phase ?? null;
