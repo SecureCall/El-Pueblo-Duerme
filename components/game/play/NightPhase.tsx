@@ -7,7 +7,7 @@ import { GameState, Player } from './GamePlay';
 import { Moon, Send, Bot, Eye, Shield, Skull, Heart, Loader2, Music, Star, Zap } from 'lucide-react';
 import { db } from '@/lib/firebase/config';
 import { collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
-import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
+import { useNarrator } from '@/hooks/useNarrator';
 
 interface Props {
   game: GameState;
@@ -32,7 +32,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
   const [perroLoboSide, setPerroLoboSide] = useState<'wolves' | 'village' | null>(null);
   const [autoSkipCountdown, setAutoSkipCountdown] = useState<number | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
-  const { speak } = useNarrator();
+  const { play, AUDIO_FILES } = useNarrator();
 
   const round = game.roundNumber ?? 1;
   const subs = game.nightSubmissions ?? {};
@@ -74,19 +74,11 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
     return () => unsub();
   }, [isWolfTeam, gameId]);
 
-  // Narrator: narrate role instructions at night start
+  // Narrator: play night ambient audio at night start
   useEffect(() => {
     if (submitted) return;
     const timer = setTimeout(() => {
-      if (isWolf || isLoboBlanco) speak(NARRATIONS.nightWolves(), { rate: 0.82, pitch: 0.65 });
-      else if (isSeer) speak(NARRATIONS.nightSeer(), { rate: 0.82, pitch: 0.7 });
-      else if (isWitch) speak(NARRATIONS.nightWitch(), { rate: 0.82, pitch: 0.7 });
-      else if (isCupido) speak(NARRATIONS.nightCupido(), { rate: 0.82, pitch: 0.7 });
-      else if (isGuardian) speak(NARRATIONS.nightGuardian(), { rate: 0.82, pitch: 0.7 });
-      else if (isFlautista) speak(NARRATIONS.nightFlautista(), { rate: 0.82, pitch: 0.7 });
-      else if (isPerroLobo) speak(NARRATIONS.nightPerroLobo(), { rate: 0.82, pitch: 0.7 });
-      else if (isSalvaje) speak(NARRATIONS.nightSalvaje(), { rate: 0.82, pitch: 0.7 });
-      else speak(NARRATIONS.nightStart(), { rate: 0.82, pitch: 0.65 });
+      play(AUDIO_FILES.nightAmbient);
     }, 500);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps

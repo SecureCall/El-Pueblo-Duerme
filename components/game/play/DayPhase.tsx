@@ -42,7 +42,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onT
   const onTimerEndRef = useRef(onTimerEnd);
   const chatRef = useRef<HTMLDivElement>(null);
   const narratedRound = useRef<number>(-1);
-  const { speak } = useNarrator();
+  const { play } = useNarrator();
 
   useEffect(() => { onTimerEndRef.current = onTimerEnd; }, [onTimerEnd]);
 
@@ -50,13 +50,9 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onT
     const round = game.roundNumber ?? 1;
     if (narratedRound.current === round) return;
     narratedRound.current = round;
-    const victimUid = (game as any).dayEliminatedUid ?? null;
-    const victimName = victimUid
-      ? (game.players ?? []).find(p => p.uid === victimUid)?.name ?? null
-      : null;
     const delay = setTimeout(() => {
-      speak(NARRATIONS.dayStart(victimName), { rate: 0.82, pitch: 0.7 });
-    }, 600);
+      play(NARRATIONS.debateOpen());
+    }, 400);
     return () => clearTimeout(delay);
   }, [game.roundNumber, game.dayStartedAt]);
 

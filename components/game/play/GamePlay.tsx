@@ -13,6 +13,7 @@ import { RoleReveal } from './RoleReveal';
 import { NightPhase } from './NightPhase';
 import { DayPhase } from './DayPhase';
 import { EndGame } from './EndGame';
+import { NightTransition } from './NightTransition';
 import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
 
 export interface Player {
@@ -79,9 +80,11 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const [game, setGame] = useState<GameState | null>(null);
   const [loading, setLoading] = useState(true);
   const [roleRevealDone, setRoleRevealDone] = useState(false);
+  const [showNightReveal, setShowNightReveal] = useState(false);
+  const [nightRevealData, setNightRevealData] = useState<{ victimName: string | null; victimRole: string | null }>({ victimName: null, victimRole: null });
   const aiChatSentRound = useRef<number>(-1);
   const prevPhase = useRef<string | null>(null);
-  const { speak } = useNarrator();
+  const { play, playSequence, AUDIO_FILES } = useNarrator();
 
   useEffect(() => {
     const unsub = onSnapshot(
@@ -96,22 +99,31 @@ export function GamePlay({ gameId }: { gameId: string }) {
     return () => unsub();
   }, [gameId, router]);
 
-  // Narrate vote results when transitioning from day back to night
+  // Show transition screen when night→day and play audio
   useEffect(() => {
     if (!game) return;
     const phase = game.phase;
+
+    if (prevPhase.current === 'night' && phase === 'day') {
+      const victimUid = (game as any).dayEliminatedUid ?? null;
+      const victim = victimUid ? (game.players ?? []).find((p: any) => p.uid === victimUid) : null;
+      const victimRole = victim ? (game.roles?.[victim.uid] ?? null) : null;
+      setNightRevealData({ victimName: victim?.name ?? null, victimRole });
+      setShowNightReveal(true);
+    }
+
     if (prevPhase.current === 'day' && phase === 'night') {
       const history = game.eliminatedHistory ?? [];
       const lastElim = history[history.length - 1];
       if (lastElim) {
-        setTimeout(() => {
-          speak(NARRATIONS.voteResult(lastElim.name), { rate: 0.82, pitch: 0.7 });
-        }, 400);
+        setTimeout(() => play(AUDIO_FILES.exiled), 300);
       }
+      setTimeout(() => play(AUDIO_FILES.nightStart), lastElim ? 2500 : 300);
     }
+
     prevPhase.current = phase ?? null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.phase]);
+  }, [game?.phase, game?.roundNumber]);
 
   // Host assigns roles on game start
   useEffect(() => {
@@ -815,6 +827,21 @@ export function GamePlay({ gameId }: { gameId: string }) {
   }
 
   if (game.phase === 'day') {
+    if (showNightReveal) {
+      return (
+        <NightTransition
+          game={game}
+          victimName={nightRevealData.victimName}
+          victimRole={nightRevealData.victimRole}
+          autoSeconds={10}
+          onDone={() => {
+            setShowNightReveal(false);
+            play(AUDIO_FILES.debatesOpen);
+          }}
+        />
+      );
+    }
+
     return (
       <DayPhase
         game={game}

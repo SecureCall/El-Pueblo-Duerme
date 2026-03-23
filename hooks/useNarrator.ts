@@ -2,76 +2,87 @@
 
 import { useCallback, useRef } from 'react';
 
+const VOZ = '/audio/voz/';
+
+export const AUDIO_FILES = {
+  nightStart:        `${VOZ}El pueblo... duerme.mp3`,
+  nightAmbient:      `${VOZ}noche_pueblo_duerme.mp3`,
+  dayWakeup:         `${VOZ}¡Pueblo... despierta!.mp3`,
+  dayStart:          `${VOZ}dia_pueblo_despierta.mp3`,
+  deathAnnounce:     `${VOZ}muerto.mp3`,
+  rip:               `${VOZ}Descanse en paz.mp3`,
+  debateStart:       `${VOZ}inicio_debate.mp3`,
+  debatesOpen:       `${VOZ}debates empiecen.mp3`,
+  voteStart:         `${VOZ}inicio_votacion.mp3`,
+  exiled:            `${VOZ}destarrado por el pueblo.mp3`,
+  exiledAnnounce:    `${VOZ}anuncio_exilio.mp3`,
+  dangerHere:        `${VOZ}el peligro está aquí.mp3`,
+  villageDies:       `${VOZ}aldea perecerá.mp3`,
+  miracle:           `${VOZ}¡Milagro!.mp3`,
+  gameStart:         `${VOZ}Que comience el juego..mp3`,
+  victoryVillage:    `${VOZ}victoria_aldeanos.mp3`,
+  victoryWolves:     `${VOZ}victoria_lobos.mp3`,
+};
+
 export function useNarrator() {
-  const utterRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const speak = useCallback((text: string, options?: { rate?: number; pitch?: number }) => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = 'es-ES';
-    utter.rate = options?.rate ?? 0.88;
-    utter.pitch = options?.pitch ?? 0.75;
-    utter.volume = 1;
-
-    const setVoice = () => {
-      const voices = window.speechSynthesis.getVoices();
-      const esVoice =
-        voices.find(v => v.lang === 'es-ES' && v.name.toLowerCase().includes('jorge')) ||
-        voices.find(v => v.lang === 'es-ES' && !v.name.toLowerCase().includes('female') && !v.name.toLowerCase().includes('mónica') && !v.name.toLowerCase().includes('paulina')) ||
-        voices.find(v => v.lang.startsWith('es')) ||
-        null;
-      if (esVoice) utter.voice = esVoice;
-      window.speechSynthesis.speak(utter);
-    };
-
-    if (window.speechSynthesis.getVoices().length > 0) {
-      setVoice();
-    } else {
-      window.speechSynthesis.onvoiceschanged = setVoice;
-    }
-
-    utterRef.current = utter;
+  const play = useCallback((src: string, options?: { volume?: number }) => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      const a = new Audio(src);
+      a.volume = options?.volume ?? 0.9;
+      a.play().catch(() => {});
+      audioRef.current = a;
+    } catch {}
   }, []);
 
   const stop = useCallback(() => {
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
     }
   }, []);
 
-  return { speak, stop };
+  const playSequence = useCallback(async (files: string[], gapMs = 300) => {
+    for (const src of files) {
+      await new Promise<void>(resolve => {
+        try {
+          const a = new Audio(src);
+          a.volume = 0.9;
+          audioRef.current = a;
+          a.onended = () => setTimeout(resolve, gapMs);
+          a.onerror = () => resolve();
+          a.play().catch(() => resolve());
+        } catch {
+          resolve();
+        }
+      });
+    }
+  }, []);
+
+  return { play, stop, playSequence, AUDIO_FILES };
 }
 
 export const NARRATIONS = {
-  nightStart: () => 'El pueblo duerme. Las sombras cubren las calles y las bestias despiertan.',
-  nightWolves: () => 'Los lobos abren los ojos... y eligen su presa.',
-  nightSeer: () => 'La vidente despierta y consulta las estrellas para descubrir la verdad.',
-  nightWitch: () => 'La bruja despierta. En sus manos, una poción de vida y una de muerte.',
-  nightCupido: () => 'Cupido despierta. Esta noche, unirá dos corazones para siempre.',
-  nightGuardian: () => 'El guardián despierta. ¿A quién protegerá esta noche?',
-  nightFlautista: () => 'El flautista toca su melodía en la oscuridad, hechizando almas inocentes.',
-  nightPerroLobo: () => 'El perro lobo se despierta. ¿Lucha con el pueblo o con los lobos?',
-  nightSalvaje: () => 'El niño salvaje elige a su mentor. Si cae, la bestia despertará en él.',
-  dayStart: (victimName?: string | null) =>
-    victimName
-      ? `El pueblo despierta con horror. ${victimName} fue asesinado durante la noche. El pueblo debe encontrar a los culpables.`
-      : 'Amanece en el pueblo. Esta noche nadie murió. Pero el peligro aún acecha.',
-  voteResult: (name: string) =>
-    `El pueblo ha decidido. ${name} es eliminado. Que la justicia guíe al pueblo.`,
-  winVillage: () => '¡El pueblo ha triunfado! Los lobos han sido derrotados. La paz vuelve al pueblo.',
-  winWolves: () => '¡Los lobos han ganado! Las bestias devoran lo que queda del pueblo en la oscuridad.',
-  winFlautista: () => '¡El flautista ha vencido! Todos bailan al ritmo de su melodía para siempre.',
-  winAngel: () => '¡El ángel ha ganado! Su sacrificio ha salvado al pueblo de la oscuridad.',
-  winPicaro: () => '¡El pícaro ha ganado! El engaño y la astucia triunfan sobre todos.',
-  winMessage: (winners: string | null) => {
+  nightStart:    () => AUDIO_FILES.nightStart,
+  dayStart:      (hasDead: boolean) => hasDead ? AUDIO_FILES.deathAnnounce : AUDIO_FILES.dayWakeup,
+  dayWakeup:     () => AUDIO_FILES.dayWakeup,
+  debateOpen:    () => AUDIO_FILES.debateStart,
+  voteStart:     () => AUDIO_FILES.voteStart,
+  exiled:        () => AUDIO_FILES.exiled,
+  winVillage:    () => AUDIO_FILES.victoryVillage,
+  winWolves:     () => AUDIO_FILES.victoryWolves,
+  winOther:      () => AUDIO_FILES.victoryVillage,
+  winMessage:    (winners: string | null) => {
     switch (winners) {
-      case 'village': return NARRATIONS.winVillage();
-      case 'wolves': return NARRATIONS.winWolves();
-      case 'flautista': return NARRATIONS.winFlautista();
-      case 'angel': return NARRATIONS.winAngel();
-      case 'picaro': return NARRATIONS.winPicaro();
-      default: return 'La partida ha terminado.';
+      case 'wolves': return AUDIO_FILES.victoryWolves;
+      default:       return AUDIO_FILES.victoryVillage;
     }
   },
+  gameStart:     () => AUDIO_FILES.gameStart,
 };

@@ -42,11 +42,11 @@ function didIWin(winners: string | null, myRole?: string): boolean {
 export function EndGame({ game, myRole, winners, winMessage, onPlayAgain }: Props) {
   const { emoji, title } = getWinnerDisplay(winners);
   const iWon = didIWin(winners, myRole);
-  const { speak } = useNarrator();
+  const { play } = useNarrator();
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      speak(NARRATIONS.winMessage(winners), { rate: 0.82, pitch: 0.7 });
+      play(NARRATIONS.winMessage(winners));
     }, 800);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
