@@ -6,47 +6,43 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { db } from '@/lib/firebase/config';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Loader2, Copy } from 'lucide-react';
-import Image from 'next/image';
 
-const SPECIAL_ROLES = [
-  { id: 'vidente', name: 'Vidente', image: '/roles/seer.png', team: 'aldeanos' },
-  { id: 'doctor', name: 'Doctor', image: '/roles/Doctor.png', team: 'aldeanos' },
-  { id: 'cazador', name: 'Cazador', image: '/roles/hunter.png', team: 'aldeanos' },
-  { id: 'cupido', name: 'Cupido', image: '/roles/cupid.png', team: 'neutral' },
-  { id: 'guardian', name: 'Guardián', image: '/roles/Guardian.png', team: 'aldeanos' },
-  { id: 'sacerdote', name: 'Sacerdote', image: '/roles/priest.png', team: 'aldeanos' },
-  { id: 'principe', name: 'Príncipe', image: '/roles/Prince.png', team: 'aldeanos' },
-  { id: 'licántropo', name: 'Licántropo', image: '/roles/lycanthrope.png', team: 'aldeanos' },
-  { id: 'gemela', name: 'Gemela', image: '/roles/twin.png', team: 'aldeanos' },
-  { id: 'hechicera', name: 'Hechicera', image: '/roles/Enchantress.png', team: 'aldeanos' },
-  { id: 'cria_lobo', name: 'Cría de Lobo', image: '/roles/wolf_cub.png', team: 'lobos' },
-  { id: 'maldito', name: 'Maldito', image: '/roles/cursed.png', team: 'lobos' },
-  { id: 'lider_culto', name: 'Líder del Culto', image: '/roles/Cult Leader.png', team: 'neutral' },
-  { id: 'pescador', name: 'Pescador', image: '/roles/Fisherman.png', team: 'neutral' },
-  { id: 'vampiro', name: 'Vampiro', image: '/roles/Vampire.png', team: 'neutral' },
-  { id: 'fantasma', name: 'Fantasma', image: '/roles/Ghost.png', team: 'aldeanos' },
-  { id: 'virginia_woolf', name: 'Virginia Woolf', image: '/roles/Virginia Woolf.png', team: 'aldeanos' },
-  { id: 'leprosa', name: 'Leprosa', image: '/roles/Leper.png', team: 'aldeanos' },
-  { id: 'sirena_rio', name: 'Sirena del Río', image: '/roles/River Siren.png', team: 'aldeanos' },
-  { id: 'vigia', name: 'Vigía', image: '/roles/Watcher.png', team: 'aldeanos' },
-  { id: 'alborotadora', name: 'Alborotadora', image: '/roles/Troublemaker.png', team: 'aldeanos' },
-  { id: 'silenciadora', name: 'Silenciadora', image: '/roles/Silencer.png', team: 'aldeanos' },
-  { id: 'aprendiz_vidente', name: 'Aprendiz de Vidente', image: '/roles/Apprentice Seer.png', team: 'aldeanos' },
-  { id: 'anciana_lider', name: 'Anciana Líder', image: '/roles/Leader Crone.png', team: 'aldeanos' },
-  { id: 'angel_resucitador', name: 'Ángel Resucitador', image: '/roles/angel resucitador.png', team: 'aldeanos' },
-  { id: 'bruja', name: 'Bruja', image: '/roles/Witch.png', team: 'lobos' },
-  { id: 'hada_buscadora', name: 'Hada Buscadora', image: '/roles/Seeker Faerie.png', team: 'lobos' },
-  { id: 'cambiaformas', name: 'Cambiaformas', image: '/roles/Shapeshifter.png', team: 'neutral' },
-  { id: 'hombre_ebrio', name: 'Hombre Ebrio', image: '/roles/Drunken Man.png', team: 'neutral' },
-  { id: 'hada_durmiente', name: 'Hada Durmiente', image: '/roles/Sleeping Faerie.png', team: 'neutral' },
-  { id: 'verdugo', name: 'Verdugo', image: '/roles/verdugo.png', team: 'neutral' },
-  { id: 'banshee', name: 'Banshee', image: '/roles/Banshee.png', team: 'neutral' },
+// Roles match exactly the keys in components/game/play/roles.ts
+const SPECIAL_ROLES: { id: string; name: string; emoji: string; team: 'village' | 'wolves' | 'solo' }[] = [
+  // Village
+  { id: 'Vidente',       name: 'Vidente',         emoji: '🔮', team: 'village' },
+  { id: 'Bruja',         name: 'Bruja',            emoji: '🧪', team: 'village' },
+  { id: 'Cazador',       name: 'Cazador',          emoji: '🏹', team: 'village' },
+  { id: 'Cupido',        name: 'Cupido',           emoji: '💘', team: 'village' },
+  { id: 'Alcalde',       name: 'Alcalde',          emoji: '🎖️', team: 'village' },
+  { id: 'Guardián',      name: 'Guardián',         emoji: '🛡️', team: 'village' },
+  { id: 'Sacerdote',     name: 'Sacerdote',        emoji: '✝️', team: 'village' },
+  { id: 'Niña',          name: 'Niña',             emoji: '👧', team: 'village' },
+  { id: 'Antiguo',       name: 'El Antiguo',       emoji: '🧙', team: 'village' },
+  { id: 'Profeta',       name: 'Profeta',          emoji: '📜', team: 'village' },
+  { id: 'Gemelas',       name: 'Gemelas',          emoji: '👯', team: 'village' },
+  { id: 'Hermanos',      name: 'Hermanos',         emoji: '👬', team: 'village' },
+  { id: 'Médium',        name: 'Médium',           emoji: '👻', team: 'village' },
+  { id: 'Juez',          name: 'Juez',             emoji: '⚖️', team: 'village' },
+  { id: 'Oso',           name: 'Domador de Oso',   emoji: '🐻', team: 'village' },
+  { id: 'Ladrón',        name: 'Ladrón',           emoji: '🦹', team: 'village' },
+  { id: 'Alquimista',    name: 'Alquimista',       emoji: '⚗️', team: 'village' },
+  { id: 'Espía',         name: 'Espía',            emoji: '🕵️', team: 'village' },
+  { id: 'Chivo Expiatorio', name: 'Chivo Expiatorio', emoji: '🐐', team: 'village' },
+  { id: 'Niño Salvaje',  name: 'Niño Salvaje',     emoji: '🌿', team: 'village' },
+  // Solo
+  { id: 'Ángel',         name: 'Ángel',            emoji: '😇', team: 'solo' },
+  { id: 'Pícaro',        name: 'Pícaro',           emoji: '🃏', team: 'solo' },
+  { id: 'Flautista',     name: 'Flautista',        emoji: '🪈', team: 'solo' },
+  { id: 'Perro Lobo',    name: 'Perro Lobo',       emoji: '🐕', team: 'solo' },
+  // Wolves
+  { id: 'Lobo Blanco',   name: 'Lobo Blanco',      emoji: '🤍', team: 'wolves' },
 ];
 
 const TEAM_COLOR: Record<string, string> = {
-  aldeanos: 'text-yellow-400',
-  lobos: 'text-red-400',
-  neutral: 'text-cyan-400',
+  village: 'text-yellow-400',
+  wolves: 'text-red-400',
+  solo: 'text-cyan-400',
 };
 
 function wolfCount(players: number) {
@@ -251,9 +247,7 @@ export function CreateGameForm() {
                 )}
               </div>
               <div className="flex items-center gap-1.5 min-w-0">
-                <div className="w-5 h-5 flex-shrink-0 rounded overflow-hidden bg-black/30">
-                  <Image src={role.image} alt={role.name} width={20} height={20} className="w-full h-full object-cover" />
-                </div>
+                <span className="text-base leading-none">{role.emoji}</span>
                 <span className={`text-xs truncate ${TEAM_COLOR[role.team]}`}>{role.name}</span>
               </div>
             </label>
