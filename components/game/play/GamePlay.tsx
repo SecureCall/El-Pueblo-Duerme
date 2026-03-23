@@ -913,7 +913,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
           onDone={() => {
             setShowNightReveal(false);
             // Reset debate timer so DayPhase shows a full countdown from this moment
-            if (isHost) {
+            if (game.hostUid === user.uid) {
               updateDoc(doc(db, 'games', gameId), { dayStartedAt: Date.now() }).catch(() => {});
             }
             playSequence([AUDIO_FILES.debatesOpen, AUDIO_FILES.debateAmbient]);
