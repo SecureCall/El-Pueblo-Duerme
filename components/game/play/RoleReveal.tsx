@@ -6,6 +6,7 @@ import { GameState, Player } from './GamePlay';
 import { Eye, EyeOff, Check } from 'lucide-react';
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+import { getRoleIcon } from './roleIcons';
 
 interface Props {
   game: GameState;
@@ -63,7 +64,11 @@ export function RoleReveal({ game, myRole, me, isHost, onReady, gameId, userId }
             </div>
           ) : (
             <div className="flex flex-col items-center gap-4">
-              <div className="text-7xl mb-2">{roleInfo?.emoji ?? '🧑'}</div>
+              <img
+                src={getRoleIcon(myRole ?? 'Aldeano')}
+                alt={myRole ?? 'Aldeano'}
+                className="w-28 h-28 object-cover rounded-2xl mb-2 shadow-lg shadow-black/60"
+              />
               <h3 className="font-headline text-4xl font-bold">{myRole ?? 'Aldeano'}</h3>
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mt-1"
                 style={{

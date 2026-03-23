@@ -2,6 +2,7 @@
 
 import { GameState } from './GamePlay';
 import { ROLES } from './roles';
+import { getRoleIcon } from './roleIcons';
 import { Trophy, Skull, Home } from 'lucide-react';
 
 interface Props {
@@ -80,7 +81,7 @@ export function EndGame({ game, myRole, winners, winMessage, onPlayAgain }: Prop
                   : 'bg-green-900/40 text-green-300';
               return (
                 <div key={p.uid} className={`flex items-center gap-3 ${!p.isAlive ? 'opacity-50' : ''}`}>
-                  <span className="text-xl flex-shrink-0">{roleInfo?.emoji ?? '🧑'}</span>
+                  <img src={getRoleIcon(role)} alt={role} className="w-6 h-6 object-cover rounded flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <span className="font-medium text-sm">{p.name}</span>
                     {p.uid === game.hostUid && <span className="text-yellow-400 text-xs ml-1">👑</span>}
@@ -105,7 +106,7 @@ export function EndGame({ game, myRole, winners, winMessage, onPlayAgain }: Prop
                 return (
                   <div key={`${e.uid}-${i}`} className="flex items-center gap-2 text-sm">
                     <span className="text-white/30 w-4 text-right flex-shrink-0">{i + 1}.</span>
-                    <span className="text-xl flex-shrink-0">{roleInfo?.emoji ?? '🧑'}</span>
+                    <img src={getRoleIcon(e.role)} alt={e.role} className="w-6 h-6 object-cover rounded flex-shrink-0" />
                     <span className="text-white/70">{e.name}</span>
                     <span className="text-white/30 text-xs ml-auto">Ronda {e.round}</span>
                   </div>

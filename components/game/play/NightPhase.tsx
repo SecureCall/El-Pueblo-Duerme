@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { ROLES } from './roles';
+import { getRoleIcon } from './roleIcons';
 import { GameState, Player } from './GamePlay';
 import { Moon, Send, Bot, Eye, Shield, Skull, Heart, Loader2, Music, Star, Zap } from 'lucide-react';
 import { db } from '@/lib/firebase/config';
@@ -735,7 +736,9 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
           {/* Chivo Expiatorio & Alquimista & Espía: generic passive */}
           {['Chivo Expiatorio', 'Alquimista', 'Espía', 'Cazador', 'Alcalde'].includes(myRole) && !submitted && (
             <div className="bg-black/40 border border-white/10 rounded-2xl p-8 text-center">
-              <div className="text-5xl mb-3">{ROLES[myRole]?.emoji ?? '😴'}</div>
+              <div className="mb-3 flex justify-center">
+                <img src={getRoleIcon(myRole)} alt={myRole} className="w-16 h-16 object-cover rounded-xl shadow-md" />
+              </div>
               <h3 className="font-semibold text-white/80 mb-2">{ROLES[myRole]?.name ?? myRole}</h3>
               <p className="text-white/40 text-sm mb-6">{ROLES[myRole]?.description}</p>
               <button onClick={handleAutoSkip}
