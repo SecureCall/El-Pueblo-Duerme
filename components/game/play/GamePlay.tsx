@@ -85,6 +85,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const aiChatSentRound = useRef<number>(-1);
   const prevPhase = useRef<string | null>(null);
   const processingDayRef = useRef(false);
+  const processingNightRef = useRef(false);
   const { play, playSequence, AUDIO_FILES } = useNarrator();
 
   useEffect(() => {
@@ -110,6 +111,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }
 
     if (prevPhase.current === 'night' && phase === 'day') {
+      processingNightRef.current = false;
       const victimUid = (game as any).dayEliminatedUid ?? null;
       const victim = victimUid ? (game.players ?? []).find((p: any) => p.uid === victimUid) : null;
       const victimRole = victim ? (game.roles?.[victim.uid] ?? null) : null;
@@ -219,20 +221,25 @@ export function GamePlay({ gameId }: { gameId: string }) {
     let needsUpdate = false;
     const round = game.roundNumber ?? 1;
 
-    // AI Wolves
+    // AI Wolves — only mark submission complete if no human wolves remain
     const aiWolves = aiPlayers.filter(p => roles[p.uid] === 'Lobo' || roles[p.uid] === 'Lobo Blanco');
+    const humanWolves = alivePlayers.filter(p => !p.isAI && (roles[p.uid] === 'Lobo' || roles[p.uid] === 'Lobo Blanco'));
     if (aiWolves.length > 0 && !subs['wolves']) {
       const targets = alivePlayers.filter(p => roles[p.uid] !== 'Lobo' && roles[p.uid] !== 'Lobo Blanco' && !p.isAI);
       if (targets.length > 0) {
         updates['nightActions.wolfTarget'] = targets[Math.floor(Math.random() * targets.length)].uid;
       }
-      updates['nightSubmissions.wolves'] = true;
+      // Only mark wolves-done if human wolves will not override (no human wolves)
+      if (humanWolves.length === 0) {
+        updates['nightSubmissions.wolves'] = true;
+      }
       needsUpdate = true;
     }
 
-    // AI Lobo Blanco (special action every 2 rounds)
+    // AI Lobo Blanco (special action every 2 rounds) — only if no human Lobo Blanco
     const aiLoboBlanco = aiPlayers.find(p => roles[p.uid] === 'Lobo Blanco');
-    if (aiLoboBlanco && round % 2 === 0 && !subs['loboblanco']) {
+    const humanLoboBlanco = alivePlayers.find(p => !p.isAI && roles[p.uid] === 'Lobo Blanco');
+    if (aiLoboBlanco && round % 2 === 0 && !subs['loboblanco'] && !humanLoboBlanco) {
       updates['nightSubmissions.loboblanco'] = true;
       needsUpdate = true;
     }
@@ -358,23 +365,28 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const hasSacerdote = activePlayers.some(p => roles[p.uid] === 'Sacerdote');
     const hasLadron = activePlayers.some(p => roles[p.uid] === 'Ladrón') && round === 1;
 
-    const wolfDone = !hasWolves || subs['wolves'];
-    const seerDone = !hasSeer || subs['vidente'];
-    const witchDone = !hasWitch || subs['bruja'];
-    const cupidoDone = !hasCupido || subs['cupido'];
-    const guardianDone = !hasGuardian || subs['guardian'];
-    const flautistaDone = !hasFlautista || subs['flautista'];
-    const loboblancoDone = !hasLoboBlanco || subs['loboblanco'];
-    const perroLoboDone = !hasPerroLobo || subs['perrolo'];
-    const salvajeDone = !hasSalvaje || subs['salvaje'];
-    const profetaDone = !hasProfeta || subs['profeta'];
-    const sacerdoteDone = !hasSacerdote || subs['sacerdote'];
-    const ladronDone = !hasLadron || subs['ladron'];
+    const wolfDone = !hasWolves || !!subs['wolves'];
+    const seerDone = !hasSeer || !!subs['vidente'];
+    const witchDone = !hasWitch || !!subs['bruja'];
+    const cupidoDone = !hasCupido || !!subs['cupido'];
+    const guardianDone = !hasGuardian || !!subs['guardian'];
+    const flautistaDone = !hasFlautista || !!subs['flautista'];
+    // Lobo Blanco only needs loboblanco on even rounds; odd rounds just need wolves
+    const loboblancoDone = !hasLoboBlanco ||
+      (round % 2 === 0 ? !!subs['loboblanco'] : !!subs['wolves']);
+    const perroLoboDone = !hasPerroLobo || !!subs['perrolo'];
+    const salvajeDone = !hasSalvaje || !!subs['salvaje'];
+    const profetaDone = !hasProfeta || !!subs['profeta'];
+    const sacerdoteDone = !hasSacerdote || !!subs['sacerdote'];
+    const ladronDone = !hasLadron || !!subs['ladron'];
 
     if (wolfDone && seerDone && witchDone && cupidoDone && guardianDone &&
       flautistaDone && loboblancoDone && perroLoboDone && salvajeDone &&
       profetaDone && sacerdoteDone && ladronDone) {
-      processNight();
+      if (!processingNightRef.current) {
+        processingNightRef.current = true;
+        processNight();
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.nightSubmissions, game?.phase]);
@@ -570,6 +582,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
       });
     } catch (e) {
       console.error('processNight updateDoc error:', e);
+    } finally {
+      processingNightRef.current = false;
     }
   }
 
