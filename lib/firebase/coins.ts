@@ -47,7 +47,7 @@ export async function canWatchVideo(userId: string): Promise<boolean> {
     where('reason', '==', 'video'),
   );
   const snap = await getDocs(q);
-  const todayVideos = snap.docs.filter(d => {
+  const todayVideos = snap.docs.filter((d: any) => {
     const ts = d.data().createdAt?.toMillis?.() ?? 0;
     return ts >= startOfDay;
   });

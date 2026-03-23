@@ -31,8 +31,8 @@ export default function PublicRoomsPage() {
       orderBy('createdAt', 'desc'),
       limit(20)
     );
-    const unsub = onSnapshot(q, snap => {
-      setRooms(snap.docs.map(d => ({ id: d.id, ...d.data() } as Room)));
+    const unsub = onSnapshot(q, (snap: any) => {
+      setRooms(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as Room)));
       setLoading(false);
     }, () => setLoading(false));
     return () => unsub();

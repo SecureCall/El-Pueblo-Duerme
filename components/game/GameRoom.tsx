@@ -82,7 +82,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'games', gameId), snap => {
+    const unsub = onSnapshot(doc(db, "games", gameId), (snap: any) => {
       if (!snap.exists()) { setNotFound(true); setLoading(false); return; }
       const data = snap.data() as GameData;
       setGame(data);
@@ -103,8 +103,8 @@ export function GameRoom({ gameId }: { gameId: string }) {
       orderBy('createdAt', 'asc'),
       limit(100)
     );
-    const unsub = onSnap(q, snap => {
-      setMsgs(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMsg)));
+    const unsub = onSnap(q, (snap: any) => {
+      setMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg)));
       setTimeout(() => chatRef.current?.scrollTo({ top: 9999, behavior: 'smooth' }), 50);
     });
     return () => unsub();

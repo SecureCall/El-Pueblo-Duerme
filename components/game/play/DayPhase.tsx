@@ -48,8 +48,8 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote }: P
       orderBy('createdAt', 'asc'),
       limit(100)
     );
-    const unsub = onSnapshot(q, snap => {
-      setMsgs(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMsg)));
+    const unsub = onSnapshot(q, (snap: any) => {
+      setMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg)));
       setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
     });
     return () => unsub();

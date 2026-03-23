@@ -27,7 +27,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!isLoading && !user) { router.push('/login'); return; }
     if (!user) return;
-    getDoc(doc(db, 'users', user.uid)).then(snap => {
+    getDoc(doc(db, 'users', user.uid)).then((snap: any) => {
       if (snap.exists()) setUserData(snap.data() as UserData);
       setLoading(false);
     }).catch(() => setLoading(false));
