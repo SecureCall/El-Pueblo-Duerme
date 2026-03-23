@@ -8,7 +8,7 @@ import {
   doc, onSnapshot, updateDoc, arrayUnion, arrayRemove, serverTimestamp,
   collection, addDoc, query, orderBy, limit, onSnapshot as onSnap,
 } from 'firebase/firestore';
-import { Copy, Crown, LogOut, Send, Users, Loader2, Bot } from 'lucide-react';
+import { Copy, Crown, LogOut, Send, Users, Loader2, Bot, Share2, MessageCircle, Facebook, Link, Check } from 'lucide-react';
 import { PageAudio } from '@/components/audio/PageAudio';
 
 interface Player {
@@ -79,7 +79,10 @@ export function GameRoom({ gameId }: { gameId: string }) {
   const [msg, setMsg] = useState('');
   const [sending, setSending] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [showShare, setShowShare] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
+  const shareRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "games", gameId), (snap: any) => {
@@ -154,6 +157,45 @@ export function GameRoom({ gameId }: { gameId: string }) {
     }
     router.push('/');
   };
+
+  const getShareData = () => {
+    const code = game?.code ?? '';
+    const url = typeof window !== 'undefined' ? window.location.href : '';
+    const text = `¡Únete a mi partida de El Pueblo Duerme! 🐺\nCódigo: ${code}\n${url}`;
+    return { code, url, text };
+  };
+
+  const handleShare = async () => {
+    const { text, url } = getShareData();
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: '¡Únete a El Pueblo Duerme!',
+          text,
+          url,
+        });
+        return;
+      } catch (_) {}
+    }
+    setShowShare(v => !v);
+  };
+
+  const handleCopyLink = async () => {
+    const { text } = getShareData();
+    await navigator.clipboard.writeText(text);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (shareRef.current && !shareRef.current.contains(e.target as Node)) {
+        setShowShare(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const startGame = async () => {
     if (!user || !game || game.hostUid !== user.uid) return;
@@ -231,9 +273,100 @@ export function GameRoom({ gameId }: { gameId: string }) {
               </button>
             </div>
           </div>
-          <button onClick={leaveGame} className="flex items-center gap-1.5 text-white/40 hover:text-red-400 text-sm transition-colors">
-            <LogOut className="h-4 w-4" /> Salir
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Share button with dropdown */}
+            <div className="relative" ref={shareRef}>
+              <button
+                onClick={handleShare}
+                className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/15 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+              >
+                <Share2 className="h-4 w-4 text-white/70" />
+                <span className="text-white/80">Invitar</span>
+              </button>
+
+              {showShare && (
+                <div className="absolute right-0 top-full mt-2 w-56 bg-[#0d1117] border border-white/15 rounded-xl shadow-2xl overflow-hidden z-50">
+                  <div className="px-4 py-3 border-b border-white/10">
+                    <p className="text-white/50 text-xs">Código de sala</p>
+                    <p className="font-mono font-bold text-lg tracking-widest">{game?.code}</p>
+                  </div>
+                  <div className="p-2 space-y-1">
+                    {/* WhatsApp */}
+                    <a
+                      href={`https://wa.me/?text=${encodeURIComponent(getShareData().text)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setShowShare(false)}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition-colors w-full"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-[#25D366]/20 flex items-center justify-center flex-shrink-0">
+                        <MessageCircle className="h-4 w-4 text-[#25D366]" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">WhatsApp</p>
+                        <p className="text-white/30 text-xs">Compartir en WhatsApp</p>
+                      </div>
+                    </a>
+
+                    {/* Facebook */}
+                    <a
+                      href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(getShareData().url)}&quote=${encodeURIComponent(getShareData().text)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setShowShare(false)}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition-colors w-full"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-[#1877F2]/20 flex items-center justify-center flex-shrink-0">
+                        <Facebook className="h-4 w-4 text-[#1877F2]" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">Facebook</p>
+                        <p className="text-white/30 text-xs">Compartir en Facebook</p>
+                      </div>
+                    </a>
+
+                    {/* Telegram */}
+                    <a
+                      href={`https://t.me/share/url?url=${encodeURIComponent(getShareData().url)}&text=${encodeURIComponent(getShareData().text)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setShowShare(false)}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition-colors w-full"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-[#229ED9]/20 flex items-center justify-center flex-shrink-0">
+                        <Send className="h-4 w-4 text-[#229ED9]" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">Telegram</p>
+                        <p className="text-white/30 text-xs">Compartir en Telegram</p>
+                      </div>
+                    </a>
+
+                    {/* Copy link */}
+                    <button
+                      onClick={handleCopyLink}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition-colors w-full text-left"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                        {linkCopied
+                          ? <Check className="h-4 w-4 text-green-400" />
+                          : <Link className="h-4 w-4 text-white/60" />
+                        }
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{linkCopied ? '¡Copiado!' : 'Copiar enlace'}</p>
+                        <p className="text-white/30 text-xs">Código + URL de la sala</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button onClick={leaveGame} className="flex items-center gap-1.5 text-white/40 hover:text-red-400 text-sm transition-colors">
+              <LogOut className="h-4 w-4" /> Salir
+            </button>
+          </div>
         </div>
 
         <div className="flex gap-4 flex-1 min-h-0">
