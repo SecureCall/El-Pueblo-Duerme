@@ -29,7 +29,7 @@ export function NightTransition({ game, victimName, victimRole, onDone, autoSeco
       if (victimName) {
         playSequence([AUDIO_FILES.deathAnnounce, AUDIO_FILES.rip]);
       } else {
-        play(AUDIO_FILES.dayWakeup);
+        playSequence([AUDIO_FILES.miracle, AUDIO_FILES.dayWakeup]);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

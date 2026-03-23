@@ -86,7 +86,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const prevPhase = useRef<string | null>(null);
   const processingDayRef = useRef(false);
   const processingNightRef = useRef(false);
-  const { play, playSequence, AUDIO_FILES } = useNarrator();
+  const { play, playSequence, interruptWith, AUDIO_FILES } = useNarrator();
 
   useEffect(() => {
     const unsub = onSnapshot(
@@ -106,10 +106,17 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (!game) return;
     const phase = game.phase;
 
+    // ① RoleReveal inicia: música épica de ambiente
     if (prevPhase.current === null && phase === 'roleReveal') {
-      playSequence([AUDIO_FILES.introEpic, AUDIO_FILES.gameStart]);
+      play(AUDIO_FILES.introEpic);
     }
 
+    // ② Primera noche: corta la intro épica e inicia "¡Que comience el juego!" → "El pueblo duerme"
+    if (prevPhase.current === 'roleReveal' && phase === 'night') {
+      interruptWith(AUDIO_FILES.gameStart, AUDIO_FILES.nightStart);
+    }
+
+    // ③ Noche → Día: mostrar transición (el audio lo pone NightTransition)
     if (prevPhase.current === 'night' && phase === 'day') {
       processingNightRef.current = false;
       const victimUid = (game as any).dayEliminatedUid ?? null;
@@ -119,14 +126,15 @@ export function GamePlay({ gameId }: { gameId: string }) {
       setShowNightReveal(true);
     }
 
+    // ④ Día → Noche: exiliado + noche / solo noche
     if (prevPhase.current === 'day' && phase === 'night') {
       processingDayRef.current = false;
       const history = game.eliminatedHistory ?? [];
       const lastElim = history[history.length - 1];
       if (lastElim) {
-        playSequence([AUDIO_FILES.exiled, AUDIO_FILES.nightStart]);
+        playSequence([AUDIO_FILES.exiledAnnounce, AUDIO_FILES.exiled, AUDIO_FILES.nightStart]);
       } else {
-        playSequence([AUDIO_FILES.nightStart]);
+        play(AUDIO_FILES.nightStart);
       }
     }
 
