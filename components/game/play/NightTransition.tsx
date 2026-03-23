@@ -18,20 +18,20 @@ interface Props {
 export function NightTransition({ game, victimName, victimRole, onDone, autoSeconds = 4 }: Props) {
   const [narratorDone, setNarratorDone] = useState(false);
   const [countdown, setCountdown] = useState(autoSeconds);
-  const { playSequence, AUDIO_FILES } = useNarrator();
+  const { interruptWith, AUDIO_FILES } = useNarrator();
   const played = useRef(false);
   const doneFired = useRef(false);
   const onDoneRef = useRef(onDone);
   useEffect(() => { onDoneRef.current = onDone; }, [onDone]);
 
-  // Play narrator audio once, then signal when done
+  // Interrupt any ambient playing, then play narrator audio, then signal when done
   useEffect(() => {
     if (played.current) return;
     played.current = true;
     if (victimName) {
-      playSequence([AUDIO_FILES.deathAnnounce, AUDIO_FILES.rip]);
+      interruptWith(AUDIO_FILES.deathAnnounce, AUDIO_FILES.rip);
     } else {
-      playSequence([AUDIO_FILES.miracle, AUDIO_FILES.dayWakeup]);
+      interruptWith(AUDIO_FILES.miracle, AUDIO_FILES.dayWakeup);
     }
     waitForAudio().then(() => setNarratorDone(true));
   // eslint-disable-next-line react-hooks/exhaustive-deps

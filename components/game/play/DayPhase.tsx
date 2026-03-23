@@ -43,7 +43,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onT
   const chatRef = useRef<HTMLDivElement>(null);
   const voteNarratedRound = useRef<number>(-1);
   const dangerNarratedRound = useRef<number>(-1);
-  const { play, AUDIO_FILES } = useNarrator();
+  const { interruptWith, AUDIO_FILES } = useNarrator();
 
   useEffect(() => { onTimerEndRef.current = onTimerEnd; }, [onTimerEnd]);
 
@@ -79,11 +79,11 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onT
       setSecondsLeft(remaining);
       if (remaining === 20 && voteNarratedRound.current !== round) {
         voteNarratedRound.current = round;
-        play(AUDIO_FILES.voteStart);
+        interruptWith(AUDIO_FILES.voteStart);
       }
       if (remaining === 10 && dangerNarratedRound.current !== round) {
         dangerNarratedRound.current = round;
-        play(AUDIO_FILES.dangerHere);
+        interruptWith(AUDIO_FILES.dangerHere);
       }
       if (remaining === 0 && !timerEndFired.current) {
         timerEndFired.current = true;

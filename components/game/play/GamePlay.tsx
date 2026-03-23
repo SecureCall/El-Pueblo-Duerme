@@ -129,16 +129,16 @@ export function GamePlay({ gameId }: { gameId: string }) {
       setShowNightReveal(true);
     }
 
-    // ④ Día → Noche: exiliado + noche / solo noche
+    // ④ Día → Noche: cortar debate ambient y reproducir exilio + noche
     if (prevPhase.current === 'day' && phase === 'night') {
       processingDayRef.current = false;
       nightStartedAtRef.current = Date.now();
       const history = game.eliminatedHistory ?? [];
       const lastElim = history[history.length - 1];
       if (lastElim) {
-        playSequence([AUDIO_FILES.exiledAnnounce, AUDIO_FILES.exiled, AUDIO_FILES.nightStart]);
+        interruptWith(AUDIO_FILES.exiledAnnounce, AUDIO_FILES.exiled, AUDIO_FILES.nightStart);
       } else {
-        play(AUDIO_FILES.nightStart);
+        interruptWith(AUDIO_FILES.nightStart);
       }
     }
 
@@ -916,7 +916,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
             if (game.hostUid === user.uid) {
               updateDoc(doc(db, 'games', gameId), { dayStartedAt: Date.now() }).catch(() => {});
             }
-            playSequence([AUDIO_FILES.debatesOpen, AUDIO_FILES.debateAmbient]);
+            interruptWith(AUDIO_FILES.debatesOpen, AUDIO_FILES.debateAmbient);
           }}
         />
       );
