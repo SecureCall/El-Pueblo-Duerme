@@ -8,7 +8,7 @@ import {
   doc, onSnapshot, updateDoc, arrayUnion, arrayRemove, serverTimestamp,
   collection, addDoc, query, orderBy, limit, onSnapshot as onSnap,
 } from 'firebase/firestore';
-import { Copy, Crown, LogOut, Send, Users, Loader2 } from 'lucide-react';
+import { Copy, Crown, LogOut, Send, Users, Loader2, Bot } from 'lucide-react';
 import { PageAudio } from '@/components/audio/PageAudio';
 
 interface Player {
@@ -18,6 +18,7 @@ interface Player {
   isHost: boolean;
   isAlive: boolean;
   role: string | null;
+  isAI?: boolean;
 }
 
 interface GameData {
@@ -43,6 +44,29 @@ interface ChatMsg {
   senderName: string;
   text: string;
   createdAt: any;
+}
+
+const AI_NAMES = [
+  'Aldeano Misterioso', 'Campesino Justo', 'Herrero Silencioso', 'Monja Devota',
+  'Boticario Sabio', 'Noble Astuto', 'Granjero Honrado', 'Trovador Errante',
+  'Leñador Robusto', 'Pescador Tranquilo', 'Mercader Viajero', 'Clérigo Piadoso',
+  'Tejedora Sagaz', 'Pícaro Sombra', 'Cazador Solitario', 'Doncella Prudente',
+];
+
+function generateAIPlayers(current: Player[], maxPlayers: number): Player[] {
+  const count = maxPlayers - current.length;
+  if (count <= 0) return [];
+  const used = new Set(current.map(p => p.name));
+  const available = AI_NAMES.filter(n => !used.has(n));
+  return Array.from({ length: count }, (_, i) => ({
+    uid: `ai_${Date.now()}_${i}`,
+    name: available[i % available.length] ?? `IA ${i + 1}`,
+    photoURL: '',
+    isHost: false,
+    isAlive: true,
+    role: null,
+    isAI: true,
+  }));
 }
 
 export function GameRoom({ gameId }: { gameId: string }) {
@@ -135,12 +159,23 @@ export function GameRoom({ gameId }: { gameId: string }) {
     if (!user || !game || game.hostUid !== user.uid) return;
     setStarting(true);
     try {
+      const realPlayers = game.players ?? [];
+      let allPlayers = realPlayers;
+
+      if (game.fillWithAI && realPlayers.length < game.maxPlayers) {
+        const aiPlayers = generateAIPlayers(realPlayers, game.maxPlayers);
+        allPlayers = [...realPlayers, ...aiPlayers];
+      }
+
       await updateDoc(doc(db, 'games', gameId), {
         status: 'playing',
         phase: 'night',
+        players: allPlayers,
+        playerCount: allPlayers.length,
         startedAt: serverTimestamp(),
       });
-    } catch {
+    } catch (err) {
+      console.error('Error starting game:', err);
       setStarting(false);
     }
   };
@@ -167,7 +202,11 @@ export function GameRoom({ gameId }: { gameId: string }) {
 
   const isHost = user?.uid === game?.hostUid;
   const players = game?.players ?? [];
-  const canStart = isHost && players.length >= 4;
+  const realPlayers = players.filter(p => !p.isAI);
+  const aiSlots = (game?.maxPlayers ?? 10) - realPlayers.length;
+  const canStart = isHost && (
+    game?.fillWithAI ? realPlayers.length >= 1 : players.length >= 4
+  );
 
   return (
     <div
@@ -205,11 +244,11 @@ export function GameRoom({ gameId }: { gameId: string }) {
               <div className="flex items-center gap-2 mb-3">
                 <Users className="h-4 w-4 text-white/50" />
                 <span className="text-sm text-white/70 font-medium">
-                  Jugadores ({players.length}/{game?.maxPlayers})
+                  Jugadores ({realPlayers.length}/{game?.maxPlayers})
                 </span>
               </div>
               <div className="flex-1 overflow-y-auto space-y-2">
-                {players.map(p => (
+                {realPlayers.map(p => (
                   <div key={p.uid} className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0 overflow-hidden">
                       {p.photoURL
@@ -223,7 +262,27 @@ export function GameRoom({ gameId }: { gameId: string }) {
                     </div>
                   </div>
                 ))}
-                {players.length < (game?.maxPlayers ?? 10) && Array.from({ length: Math.max(0, (game?.maxPlayers ?? 10) - players.length) }).map((_, i) => (
+
+                {game?.fillWithAI && aiSlots > 0 && (
+                  <div className="mt-2 pt-2 border-t border-white/10">
+                    <p className="text-[10px] text-white/30 mb-1.5 flex items-center gap-1">
+                      <Bot className="h-3 w-3" /> Se añadirán al iniciar:
+                    </p>
+                    {Array.from({ length: Math.min(aiSlots, 5) }).map((_, i) => (
+                      <div key={`ai-${i}`} className="flex items-center gap-2 opacity-40 mb-1.5">
+                        <div className="w-8 h-8 rounded-full border border-dashed border-cyan-500/50 flex items-center justify-center">
+                          <Bot className="h-3.5 w-3.5 text-cyan-400" />
+                        </div>
+                        <span className="text-xs text-cyan-300/70">Jugador IA</span>
+                      </div>
+                    ))}
+                    {aiSlots > 5 && (
+                      <p className="text-[10px] text-cyan-400/50 text-center">+{aiSlots - 5} más</p>
+                    )}
+                  </div>
+                )}
+
+                {!game?.fillWithAI && players.length < (game?.maxPlayers ?? 10) && Array.from({ length: Math.max(0, (game?.maxPlayers ?? 10) - players.length) }).slice(0, 5).map((_, i) => (
                   <div key={`empty-${i}`} className="flex items-center gap-2 opacity-25">
                     <div className="w-8 h-8 rounded-full border border-dashed border-white/30" />
                     <span className="text-xs text-white/40">Esperando...</span>
@@ -236,21 +295,30 @@ export function GameRoom({ gameId }: { gameId: string }) {
               <p>🐺 {game?.wolves} Lobo{(game?.wolves ?? 1) > 1 ? 's' : ''}</p>
               <p>{game?.isPublic ? '🌍 Pública' : '🔒 Privada'}</p>
               {game?.juryVote && <p>⚖️ Voto del Jurado</p>}
-              {game?.fillWithAI && <p>🤖 Relleno con IA</p>}
+              {game?.fillWithAI && <p className="text-cyan-400">🤖 Modo con IA activo</p>}
             </div>
 
             {isHost && (
-              <button
-                onClick={startGame}
-                disabled={!canStart || starting}
-                className="w-full flex items-center justify-center gap-2 bg-white text-black font-bold py-3 rounded-xl hover:bg-white/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-              >
-                {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : '⚔️'}
-                {starting ? 'Iniciando...' : 'Comenzar Partida'}
-              </button>
+              <>
+                <button
+                  onClick={startGame}
+                  disabled={!canStart || starting}
+                  className="w-full flex items-center justify-center gap-2 bg-white text-black font-bold py-3 rounded-xl hover:bg-white/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : '⚔️'}
+                  {starting ? 'Iniciando...' : game?.fillWithAI ? 'Comenzar con IA' : 'Comenzar Partida'}
+                </button>
+                {!canStart && !game?.fillWithAI && (
+                  <p className="text-center text-white/30 text-xs">Mínimo 4 jugadores reales</p>
+                )}
+                {game?.fillWithAI && realPlayers.length < 1 && (
+                  <p className="text-center text-white/30 text-xs">Necesitas al menos 1 jugador real</p>
+                )}
+              </>
             )}
-            {isHost && !canStart && (
-              <p className="text-center text-white/30 text-xs">Mínimo 4 jugadores para empezar</p>
+
+            {!isHost && (
+              <p className="text-center text-white/30 text-xs py-2">Esperando al anfitrión...</p>
             )}
           </div>
 
