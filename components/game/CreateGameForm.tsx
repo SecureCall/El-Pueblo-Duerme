@@ -8,35 +8,35 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Loader2, Copy } from 'lucide-react';
 
 // Roles match exactly the keys in components/game/play/roles.ts
-const SPECIAL_ROLES: { id: string; name: string; emoji: string; team: 'village' | 'wolves' | 'solo' }[] = [
+const SPECIAL_ROLES: { id: string; name: string; icon: string; team: 'village' | 'wolves' | 'solo' }[] = [
   // Village
-  { id: 'Vidente',       name: 'Vidente',         emoji: '🔮', team: 'village' },
-  { id: 'Bruja',         name: 'Bruja',            emoji: '🧪', team: 'village' },
-  { id: 'Cazador',       name: 'Cazador',          emoji: '🏹', team: 'village' },
-  { id: 'Cupido',        name: 'Cupido',           emoji: '💘', team: 'village' },
-  { id: 'Alcalde',       name: 'Alcalde',          emoji: '🎖️', team: 'village' },
-  { id: 'Guardián',      name: 'Guardián',         emoji: '🛡️', team: 'village' },
-  { id: 'Sacerdote',     name: 'Sacerdote',        emoji: '✝️', team: 'village' },
-  { id: 'Niña',          name: 'Niña',             emoji: '👧', team: 'village' },
-  { id: 'Antiguo',       name: 'El Antiguo',       emoji: '🧙', team: 'village' },
-  { id: 'Profeta',       name: 'Profeta',          emoji: '📜', team: 'village' },
-  { id: 'Gemelas',       name: 'Gemelas',          emoji: '👯', team: 'village' },
-  { id: 'Hermanos',      name: 'Hermanos',         emoji: '👬', team: 'village' },
-  { id: 'Médium',        name: 'Médium',           emoji: '👻', team: 'village' },
-  { id: 'Juez',          name: 'Juez',             emoji: '⚖️', team: 'village' },
-  { id: 'Oso',           name: 'Domador de Oso',   emoji: '🐻', team: 'village' },
-  { id: 'Ladrón',        name: 'Ladrón',           emoji: '🦹', team: 'village' },
-  { id: 'Alquimista',    name: 'Alquimista',       emoji: '⚗️', team: 'village' },
-  { id: 'Espía',         name: 'Espía',            emoji: '🕵️', team: 'village' },
-  { id: 'Chivo Expiatorio', name: 'Chivo Expiatorio', emoji: '🐐', team: 'village' },
-  { id: 'Niño Salvaje',  name: 'Niño Salvaje',     emoji: '🌿', team: 'village' },
+  { id: 'Vidente',          name: 'Vidente',          icon: '/roles/seer.png',                  team: 'village' },
+  { id: 'Bruja',            name: 'Bruja',             icon: '/roles/Witch.png',                 team: 'village' },
+  { id: 'Cazador',          name: 'Cazador',           icon: '/roles/hunter.png',                team: 'village' },
+  { id: 'Cupido',           name: 'Cupido',            icon: '/roles/cupid.png',                 team: 'village' },
+  { id: 'Alcalde',          name: 'Alcalde',           icon: '/roles/Prince.png',                team: 'village' },
+  { id: 'Guardián',         name: 'Guardián',          icon: '/roles/Guardian.png',              team: 'village' },
+  { id: 'Sacerdote',        name: 'Sacerdote',         icon: '/roles/priest.png',                team: 'village' },
+  { id: 'Niña',             name: 'Niña',              icon: '/roles/Sleeping Faerie.png',       team: 'village' },
+  { id: 'Antiguo',          name: 'El Antiguo',        icon: '/roles/Leper.png',                 team: 'village' },
+  { id: 'Profeta',          name: 'Profeta',           icon: '/roles/Apprentice Seer.png',       team: 'village' },
+  { id: 'Gemelas',          name: 'Gemelas',           icon: '/roles/twin.png',                  team: 'village' },
+  { id: 'Hermanos',         name: 'Hermanos',          icon: '/roles/Watcher.png',               team: 'village' },
+  { id: 'Médium',           name: 'Médium',            icon: '/roles/Ghost.png',                 team: 'village' },
+  { id: 'Juez',             name: 'Juez',              icon: '/roles/verdugo.png',               team: 'village' },
+  { id: 'Oso',              name: 'Domador de Oso',    icon: '/roles/Shapeshifter.png',          team: 'village' },
+  { id: 'Ladrón',           name: 'Ladrón',            icon: '/roles/Troublemaker.png',          team: 'village' },
+  { id: 'Alquimista',       name: 'Alquimista',        icon: '/roles/Doctor.png',                team: 'village' },
+  { id: 'Espía',            name: 'Espía',             icon: '/roles/Silencer.png',              team: 'village' },
+  { id: 'Chivo Expiatorio', name: 'Chivo Expiatorio',  icon: '/roles/cursed.png',                team: 'village' },
+  { id: 'Niño Salvaje',     name: 'Niño Salvaje',      icon: '/roles/Drunken Man.png',           team: 'village' },
   // Solo
-  { id: 'Ángel',         name: 'Ángel',            emoji: '😇', team: 'solo' },
-  { id: 'Pícaro',        name: 'Pícaro',           emoji: '🃏', team: 'solo' },
-  { id: 'Flautista',     name: 'Flautista',        emoji: '🪈', team: 'solo' },
-  { id: 'Perro Lobo',    name: 'Perro Lobo',       emoji: '🐕', team: 'solo' },
+  { id: 'Ángel',            name: 'Ángel',             icon: '/roles/angel resucitador.png',     team: 'solo' },
+  { id: 'Pícaro',           name: 'Pícaro',            icon: '/roles/River Siren.png',           team: 'solo' },
+  { id: 'Flautista',        name: 'Flautista',         icon: '/roles/Enchantress.png',           team: 'solo' },
+  { id: 'Perro Lobo',       name: 'Perro Lobo',        icon: '/roles/lycanthrope.png',           team: 'solo' },
   // Wolves
-  { id: 'Lobo Blanco',   name: 'Lobo Blanco',      emoji: '🤍', team: 'wolves' },
+  { id: 'Lobo Blanco',      name: 'Lobo Blanco',       icon: '/roles/Virginia Woolf.png',        team: 'wolves' },
 ];
 
 const TEAM_COLOR: Record<string, string> = {
@@ -247,7 +247,7 @@ export function CreateGameForm() {
                 )}
               </div>
               <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-base leading-none">{role.emoji}</span>
+                <img src={role.icon} alt={role.name} className="w-5 h-5 rounded object-cover flex-shrink-0" />
                 <span className={`text-xs truncate ${TEAM_COLOR[role.team]}`}>{role.name}</span>
               </div>
             </label>
