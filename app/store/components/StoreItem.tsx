@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Coins, CheckCircle, Loader2, Lock } from 'lucide-react';
+import Image from 'next/image';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { spendCoins, hasPurchased } from '@/lib/firebase/coins';
 import { useToast } from '@/app/hooks/use-toast';
@@ -12,6 +13,7 @@ export interface StoreItemData {
   description: string;
   price: number;
   icon: string;
+  image?: string;
   category: string;
   badge?: string;
 }
@@ -51,37 +53,63 @@ export function StoreItem({ item, userCoins, onPurchase }: StoreItemProps) {
   };
 
   return (
-    <div className={`relative flex flex-col bg-white/5 border rounded-xl p-4 transition-all hover:bg-white/10 ${owned ? 'border-green-500/60' : canAfford ? 'border-white/20 hover:border-yellow-500/50' : 'border-white/10 opacity-70'}`}>
+    <div className={`relative flex flex-col bg-white/5 border rounded-xl overflow-hidden transition-all hover:bg-white/10 ${owned ? 'border-green-500/60' : canAfford ? 'border-white/20 hover:border-yellow-500/50' : 'border-white/10 opacity-70'}`}>
       {item.badge && (
-        <span className="absolute -top-2 -right-2 bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded-full">
+        <span className="absolute top-2 right-2 z-10 bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded-full">
           {item.badge}
         </span>
       )}
-      <div className="text-4xl mb-3 text-center">{item.icon}</div>
-      <h4 className="font-bold text-white text-sm text-center mb-1">{item.name}</h4>
-      <p className="text-white/50 text-xs text-center flex-1 mb-3">{item.description}</p>
 
-      {owned ? (
-        <div className="flex items-center justify-center gap-1 text-green-400 text-sm font-bold">
-          <CheckCircle className="h-4 w-4" /> Obtenido
+      {item.image ? (
+        <div className="relative w-full aspect-square bg-black/30">
+          <Image
+            src={item.image}
+            alt={item.name}
+            fill
+            unoptimized
+            className="object-cover"
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+          />
+          {owned && (
+            <div className="absolute inset-0 bg-green-500/20 flex items-center justify-center">
+              <CheckCircle className="h-10 w-10 text-green-400" />
+            </div>
+          )}
         </div>
       ) : (
-        <button
-          onClick={handleBuy}
-          disabled={loading || !canAfford}
-          className={`flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all ${canAfford ? 'bg-yellow-500 hover:bg-yellow-400 text-black active:scale-95' : 'bg-white/10 text-white/40 cursor-not-allowed'}`}
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <>
-              {!canAfford && <Lock className="h-3 w-3" />}
-              <Coins className="h-3 w-3" />
-              {item.price.toLocaleString()}
-            </>
-          )}
-        </button>
+        <div className="text-4xl py-5 text-center">{item.icon}</div>
       )}
+
+      <div className="p-3 flex flex-col flex-1">
+        <h4 className="font-bold text-white text-xs text-center mb-1 leading-tight">{item.name}</h4>
+        {!item.image && (
+          <p className="text-white/50 text-xs text-center flex-1 mb-3">{item.description}</p>
+        )}
+
+        <div className="mt-auto pt-2">
+          {owned ? (
+            <div className="flex items-center justify-center gap-1 text-green-400 text-xs font-bold py-1.5">
+              <CheckCircle className="h-3.5 w-3.5" /> Obtenido
+            </div>
+          ) : (
+            <button
+              onClick={handleBuy}
+              disabled={loading || !canAfford}
+              className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${canAfford ? 'bg-yellow-500 hover:bg-yellow-400 text-black active:scale-95' : 'bg-white/10 text-white/40 cursor-not-allowed'}`}
+            >
+              {loading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <>
+                  {!canAfford && <Lock className="h-3 w-3" />}
+                  <Coins className="h-3 w-3" />
+                  {item.price.toLocaleString()}
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
