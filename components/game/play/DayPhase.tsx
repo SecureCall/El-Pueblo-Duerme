@@ -2,12 +2,15 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { GameState, Player } from './GamePlay';
-import { Sun, Send, Vote, AlertTriangle, Skull, Bot } from 'lucide-react';
+import { Sun, Send, Vote, Skull, Bot, Timer } from 'lucide-react';
 import { db } from '@/lib/firebase/config';
 import {
   collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit,
 } from 'firebase/firestore';
 import { ROLES } from './roles';
+import { getRoleIcon } from './roleIcons';
+
+const DAY_DURATION = 180;
 
 interface Props {
   game: GameState;
@@ -17,6 +20,7 @@ interface Props {
   userId: string;
   isHost: boolean;
   onVote: (targetUid: string) => Promise<void>;
+  onTimerEnd: () => void;
 }
 
 interface ChatMsg {
@@ -26,13 +30,17 @@ interface ChatMsg {
   text: string;
 }
 
-export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote }: Props) {
+export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onTimerEnd }: Props) {
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [msg, setMsg] = useState('');
   const [sending, setSending] = useState(false);
   const [myVote, setMyVote] = useState<string | null>(null);
   const [voted, setVoted] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(DAY_DURATION);
+  const timerEndFired = useRef(false);
+  const onTimerEndRef = useRef(onTimerEnd);
   const chatRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { onTimerEndRef.current = onTimerEnd; }, [onTimerEnd]);
 
   const dayVotes = (game as any).dayVotes ?? {};
   const meAlive = me?.isAlive ?? false;
@@ -54,6 +62,30 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote }: P
     });
     return () => unsub();
   }, [gameId]);
+
+  useEffect(() => {
+    const startedAt = game.dayStartedAt ?? Date.now();
+    timerEndFired.current = false;
+
+    const tick = () => {
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      const remaining = Math.max(0, DAY_DURATION - elapsed);
+      setSecondsLeft(remaining);
+      if (remaining === 0 && !timerEndFired.current) {
+        timerEndFired.current = true;
+        onTimerEndRef.current();
+      }
+    };
+
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [game.dayStartedAt]);
+
+  const timerColor = secondsLeft <= 30 ? 'text-red-400' : secondsLeft <= 60 ? 'text-amber-400' : 'text-green-400';
+  const timerPct = secondsLeft / DAY_DURATION;
+  const mm = String(Math.floor(secondsLeft / 60)).padStart(2, '0');
+  const ss = String(secondsLeft % 60).padStart(2, '0');
 
   const sendMsg = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,16 +112,17 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote }: P
     voteCounts[target] = (voteCounts[target] ?? 0) + 1;
   }
   const totalVoted = Object.keys(dayVotes).length;
-  const totalAliveReal = alivePlayers.filter(p => !p.isAI).length;
+  const totalAlive = alivePlayers.length;
+
+  const votingTargets = alivePlayers.filter(p => p.uid !== userId);
 
   return (
     <div
       className="min-h-screen w-full text-white flex flex-col"
       style={{
-        backgroundImage: 'url(/noche.png)',
+        backgroundImage: 'url(/dia.png)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
-        filter: 'none',
       }}
     >
       <div className="absolute inset-0 bg-amber-950/60" />
@@ -101,8 +134,25 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote }: P
             <Sun className="h-5 w-5 text-amber-400" />
             <h1 className="font-headline text-xl font-bold">Día {game.roundNumber ?? 1}</h1>
           </div>
+
+          {/* Timer */}
           <div className="flex items-center gap-2">
-            <div className="text-2xl">{roleInfo?.emoji}</div>
+            <div className="relative w-28">
+              <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${secondsLeft <= 30 ? 'bg-red-500' : secondsLeft <= 60 ? 'bg-amber-500' : 'bg-green-500'}`}
+                  style={{ width: `${timerPct * 100}%` }}
+                />
+              </div>
+            </div>
+            <div className={`flex items-center gap-1 font-mono font-bold text-sm ${timerColor}`}>
+              <Timer className="h-3.5 w-3.5" />
+              {mm}:{ss}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <img src={getRoleIcon(myRole)} alt={myRole} className="w-7 h-7 rounded object-cover" />
             <span className="text-white/50 text-sm">{myRole}</span>
           </div>
         </div>
@@ -174,14 +224,14 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote }: P
           {/* Voting panel */}
           <div className="w-52 flex-shrink-0 flex flex-col gap-3">
             <div className="bg-black/40 border border-white/10 rounded-xl p-4 flex-1 flex flex-col">
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 mb-1">
                 <Vote className="h-4 w-4 text-amber-400" />
                 <p className="text-sm font-medium text-amber-300/80">Votación</p>
               </div>
-              <p className="text-white/30 text-xs mb-3">{totalVoted}/{totalAliveReal} han votado</p>
+              <p className="text-white/30 text-xs mb-3">{totalVoted}/{totalAlive} han votado</p>
 
               <div className="flex-1 overflow-y-auto space-y-1.5">
-                {alivePlayers.filter(p => p.uid !== userId && !p.isAI).map(p => {
+                {votingTargets.map(p => {
                   const votes = voteCounts[p.uid] ?? 0;
                   const isSelected = myVote === p.uid;
                   return (
@@ -189,30 +239,28 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote }: P
                       key={p.uid}
                       onClick={() => !voted && meAlive && setMyVote(p.uid)}
                       disabled={voted || !meAlive}
-                      className={`w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-all ${isSelected ? 'border-amber-500 bg-amber-900/30' : 'border-white/10 bg-white/5 hover:border-white/25'} ${!meAlive || voted ? 'opacity-50 cursor-default' : ''}`}
+                      className={`w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-all ${isSelected ? 'border-amber-500 bg-amber-900/30' : 'border-white/10 bg-white/5 hover:border-white/25'} ${!meAlive || voted ? 'opacity-50 cursor-default' : 'cursor-pointer'}`}
                     >
-                      <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-xs flex-shrink-0 font-bold">
-                        {p.photoURL ? <img src={p.photoURL} alt="" className="w-full h-full rounded-full object-cover" /> : p.name[0]}
+                      <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-xs flex-shrink-0 font-bold overflow-hidden">
+                        {p.photoURL
+                          ? <img src={p.photoURL} alt="" className="w-full h-full object-cover" />
+                          : p.name[0]
+                        }
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium truncate">{p.name}</p>
-                        {votes > 0 && <p className="text-amber-400 text-[10px]">{'⚡'.repeat(Math.min(votes, 5))} {votes} voto{votes > 1 ? 's' : ''}</p>}
+                        <div className="flex items-center gap-1">
+                          <p className="text-xs font-medium truncate">{p.name}</p>
+                          {p.isAI && <Bot className="h-2.5 w-2.5 text-cyan-400/60 flex-shrink-0" />}
+                        </div>
+                        {votes > 0 && (
+                          <p className="text-amber-400 text-[10px]">
+                            {'⚡'.repeat(Math.min(votes, 5))} ×{votes}
+                          </p>
+                        )}
                       </div>
                     </button>
                   );
                 })}
-                {alivePlayers.filter(p => p.isAI).length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-white/5">
-                    <p className="text-white/20 text-[10px] mb-1">Jugadores IA:</p>
-                    {alivePlayers.filter(p => p.isAI).map(p => (
-                      <div key={p.uid} className="flex items-center gap-2 mb-1 opacity-50">
-                        <Bot className="h-3 w-3 text-cyan-400" />
-                        <span className="text-xs text-white/40 truncate">{p.name}</span>
-                        {voteCounts[p.uid] && <span className="text-amber-400 text-[10px]">×{voteCounts[p.uid]}</span>}
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {meAlive && !voted && (

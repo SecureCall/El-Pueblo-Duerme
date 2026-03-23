@@ -55,6 +55,8 @@ export interface GameState {
   nightSubmissions?: Record<string, boolean>;
   dayVotes?: Record<string, string>;
   dayEliminatedUid?: string | null;
+  dayStartedAt?: number;
+  dayDuration?: number;
   seerReveal?: { targetUid: string; isWolf: boolean } | null;
   profetaReveal?: { targetUid: string; isWolf: boolean } | null;
   lovers?: [string, string] | null;
@@ -524,6 +526,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
         nightActions: {},
         nightSubmissions: {},
         dayVotes: {},
+        dayStartedAt: Date.now(),
       });
     } catch (e) {
       console.error('processNight updateDoc error:', e);
@@ -745,6 +748,12 @@ export function GamePlay({ gameId }: { gameId: string }) {
         userId={user.uid}
         isHost={game.hostUid === user.uid}
         onVote={submitDayVote}
+        onTimerEnd={() => {
+          if (game.hostUid === user.uid) {
+            const votes = (game.dayVotes ?? {}) as Record<string, string>;
+            processDayVotes(votes);
+          }
+        }}
       />
     );
   }
