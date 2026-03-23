@@ -4,8 +4,8 @@ import { useEffect, useState, useRef } from 'react';
 import { GameState } from './GamePlay';
 import { getRoleIcon } from './roleIcons';
 import { ROLES } from './roles';
-import { useNarrator } from '@/hooks/useNarrator';
-import { Skull, Shield, Music } from 'lucide-react';
+import { useNarrator, waitForAudio } from '@/hooks/useNarrator';
+import { Skull, Shield, Volume2 } from 'lucide-react';
 
 interface Props {
   game: GameState;
@@ -15,47 +15,57 @@ interface Props {
   autoSeconds?: number;
 }
 
-export function NightTransition({ game, victimName, victimRole, onDone, autoSeconds = 10 }: Props) {
+export function NightTransition({ game, victimName, victimRole, onDone, autoSeconds = 4 }: Props) {
+  const [narratorDone, setNarratorDone] = useState(false);
   const [countdown, setCountdown] = useState(autoSeconds);
-  const { playSequence, play, AUDIO_FILES } = useNarrator();
+  const { playSequence, AUDIO_FILES } = useNarrator();
   const played = useRef(false);
   const doneFired = useRef(false);
   const onDoneRef = useRef(onDone);
   useEffect(() => { onDoneRef.current = onDone; }, [onDone]);
 
+  // Play narrator audio once, then signal when done
   useEffect(() => {
-    if (!played.current) {
-      played.current = true;
-      if (victimName) {
-        playSequence([AUDIO_FILES.deathAnnounce, AUDIO_FILES.rip]);
-      } else {
-        playSequence([AUDIO_FILES.miracle, AUDIO_FILES.dayWakeup]);
-      }
+    if (played.current) return;
+    played.current = true;
+    if (victimName) {
+      playSequence([AUDIO_FILES.deathAnnounce, AUDIO_FILES.rip]);
+    } else {
+      playSequence([AUDIO_FILES.miracle, AUDIO_FILES.dayWakeup]);
     }
+    waitForAudio().then(() => setNarratorDone(true));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Countdown runs only once — no dependency on onDone to avoid restarting
+  // Countdown starts only AFTER narrator finishes
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCountdown(c => Math.max(0, c - 1));
+    if (!narratorDone) return;
+    if (countdown <= 0) return;
+    const id = setInterval(() => {
+      setCountdown(c => {
+        const next = Math.max(0, c - 1);
+        return next;
+      });
     }, 1000);
-    return () => clearInterval(interval);
-  }, []);
+    return () => clearInterval(id);
+  }, [narratorDone, countdown]);
 
-  // Fire onDone exactly once when countdown reaches 0
+  // Advance when countdown hits 0 (after narrator)
   useEffect(() => {
+    if (!narratorDone) return;
     if (countdown === 0 && !doneFired.current) {
       doneFired.current = true;
       onDoneRef.current();
     }
-  }, [countdown]);
+  }, [countdown, narratorDone]);
 
   const bearGrowl = (game as any).bearGrowl;
   const profetaReveal = (game as any).profetaReveal;
   const profetaTarget = profetaReveal
     ? (game.players ?? []).find((p: any) => p.uid === profetaReveal.targetUid)
     : null;
+
+  const canContinue = narratorDone;
 
   return (
     <div
@@ -111,27 +121,42 @@ export function NightTransition({ game, victimName, victimRole, onDone, autoSeco
           </div>
         )}
 
-        <div className="flex items-center justify-center gap-3">
-          <div className="text-white/30 text-xs">El debate comienza en {countdown}s...</div>
-          <button
-            onClick={() => {
-              if (!doneFired.current) {
-                doneFired.current = true;
-                onDoneRef.current();
-              }
-            }}
-            className="text-white/50 hover:text-white text-xs underline transition-colors"
-          >
-            Continuar ahora
-          </button>
+        {/* Narrator status & continue */}
+        <div className="flex items-center justify-center gap-3 mt-4">
+          {!narratorDone ? (
+            <div className="flex items-center gap-2 text-white/40 text-sm animate-pulse">
+              <Volume2 className="h-4 w-4" />
+              <span>El narrador está hablando...</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <span className="text-white/30 text-xs">
+                El debate comienza en {countdown}s...
+              </span>
+              <button
+                onClick={() => {
+                  if (!doneFired.current) {
+                    doneFired.current = true;
+                    onDoneRef.current();
+                  }
+                }}
+                className="text-white/60 hover:text-white text-xs underline transition-colors"
+              >
+                Continuar ahora
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="w-full bg-white/5 rounded-full h-1">
-          <div
-            className="bg-white/30 h-1 rounded-full transition-all"
-            style={{ width: `${(countdown / autoSeconds) * 100}%` }}
-          />
-        </div>
+        {/* Progress bar — only visible after narrator */}
+        {narratorDone && (
+          <div className="w-full bg-white/5 rounded-full h-1">
+            <div
+              className="bg-white/30 h-1 rounded-full transition-all duration-1000"
+              style={{ width: `${(countdown / autoSeconds) * 100}%` }}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

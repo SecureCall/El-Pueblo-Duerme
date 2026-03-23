@@ -54,9 +54,20 @@ export const AUDIO_FILES = {
 let _current: HTMLAudioElement | null = null;
 let _queue: string[] = [];
 let _playing = false;
+let _doneCallbacks: Array<() => void> = [];
+
+function _notifyDone() {
+  if (!_playing && _queue.length === 0 && _doneCallbacks.length > 0) {
+    const cbs = _doneCallbacks.splice(0);
+    cbs.forEach(cb => cb());
+  }
+}
 
 function _playNext() {
-  if (_playing || _queue.length === 0) return;
+  if (_playing || _queue.length === 0) {
+    _notifyDone();
+    return;
+  }
   const src = _queue.shift()!;
   _playing = true;
 
@@ -89,6 +100,18 @@ function _playNext() {
     _current = null;
     _playNext();
   }
+}
+
+/** Returns a promise that resolves when the entire audio queue finishes playing. */
+export function waitForAudio(): Promise<void> {
+  if (typeof window === 'undefined') return Promise.resolve();
+  if (!_playing && _queue.length === 0) return Promise.resolve();
+  return new Promise(resolve => { _doneCallbacks.push(resolve); });
+}
+
+/** Returns true if narrator is currently speaking or has queued audio. */
+export function isNarratorBusy(): boolean {
+  return _playing || _queue.length > 0;
 }
 
 /** Enqueue one or more audio files. They play in order, waiting for each to finish. */

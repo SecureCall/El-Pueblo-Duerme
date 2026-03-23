@@ -7,7 +7,7 @@ import { GameState, Player } from './GamePlay';
 import { Moon, Send, Bot, Eye, Shield, Skull, Heart, Loader2, Music, Star, Zap } from 'lucide-react';
 import { db } from '@/lib/firebase/config';
 import { collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
-import { useNarrator } from '@/hooks/useNarrator';
+import { useNarrator, waitForAudio } from '@/hooks/useNarrator';
 
 interface Props {
   game: GameState;
@@ -31,6 +31,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
   const [loboBlancoCide, setLoboBlancoCide] = useState<string | null>(null);
   const [perroLoboSide, setPerroLoboSide] = useState<'wolves' | 'village' | null>(null);
   const [autoSkipCountdown, setAutoSkipCountdown] = useState<number | null>(null);
+  const [narratorReady, setNarratorReady] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
   const { play, AUDIO_FILES } = useNarrator();
 
@@ -74,19 +75,22 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
     return () => unsub();
   }, [isWolfTeam, gameId]);
 
-  // Narrator: play night ambient audio at night start
+  // Wait for narrator to finish, then start nightAmbient and unlock timers
   useEffect(() => {
-    if (submitted) return;
-    const timer = setTimeout(() => {
+    setNarratorReady(false);
+    let cancelled = false;
+    waitForAudio().then(() => {
+      if (cancelled) return;
+      setNarratorReady(true);
       play(AUDIO_FILES.nightAmbient);
-    }, 500);
-    return () => clearTimeout(timer);
+    });
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [round]);
 
-  // Auto-submit for non-night roles (Aldeano, etc.) after a countdown
+  // Auto-submit for non-night roles (Aldeano, etc.) — starts AFTER narrator finishes
   useEffect(() => {
-    if (submitted) return;
+    if (!narratorReady || submitted) return;
     const needsManualAction = isWolfTeam || isSeer || isWitch || isCupido || isGuardian ||
       isFlautista || isPerroLobo || isSalvaje || isProfeta || isSacerdote;
     if (needsManualAction) return;
@@ -105,11 +109,11 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
     }, 1000);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [round, submitted]);
+  }, [round, submitted, narratorReady]);
 
-  // 35-second auto-submit timeout for night roles who haven't acted
+  // 35-second auto-submit for night roles — starts AFTER narrator finishes
   useEffect(() => {
-    if (submitted) return;
+    if (!narratorReady || submitted) return;
     const needsManualAction = isWolfTeam || isSeer || isWitch || isCupido || isGuardian ||
       isFlautista || isPerroLobo || isSalvaje || isProfeta || isSacerdote;
     if (!needsManualAction) return;
@@ -121,7 +125,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
     }, 35000);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [round, submitted]);
+  }, [round, submitted, narratorReady]);
 
   const handleSubmit = async () => {
     if (submitted) return;

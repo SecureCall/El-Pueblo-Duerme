@@ -867,9 +867,12 @@ export function GamePlay({ gameId }: { gameId: string }) {
           game={game}
           victimName={nightRevealData.victimName}
           victimRole={nightRevealData.victimRole}
-          autoSeconds={10}
           onDone={() => {
             setShowNightReveal(false);
+            // Reset debate timer so DayPhase shows a full countdown from this moment
+            if (isHost) {
+              updateDoc(doc(db, 'games', gameId), { dayStartedAt: Date.now() }).catch(() => {});
+            }
             playSequence([AUDIO_FILES.debatesOpen, AUDIO_FILES.debateAmbient]);
           }}
         />
