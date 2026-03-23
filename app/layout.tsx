@@ -4,7 +4,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from './providers/AuthProvider';
 import { AudioProvider } from './providers/AudioProvider';
-import { cn } from './lib/utils';
+import { cn } from '@/lib/utils';
 
 const ptSans = PT_Sans({ 
   subsets: ['latin'], 
