@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { db } from '@/lib/firebase/config';
 import {
-  doc, onSnapshot, updateDoc,
+  doc, onSnapshot, updateDoc, addDoc, collection, serverTimestamp,
 } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
 import { assignRoles, checkWinCondition, ROLES, ROLE_SUBMISSION_KEY } from './roles';
@@ -78,6 +78,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const [game, setGame] = useState<GameState | null>(null);
   const [loading, setLoading] = useState(true);
   const [roleRevealDone, setRoleRevealDone] = useState(false);
+  const aiChatSentRound = useRef<number>(-1);
 
   useEffect(() => {
     const unsub = onSnapshot(
@@ -543,6 +544,61 @@ export function GamePlay({ gameId }: { gameId: string }) {
       console.error('submitDayVote error:', e);
     }
   }, [user, game, gameId]);
+
+  // Host triggers AI chat messages during day phase
+  useEffect(() => {
+    if (!game || !user || game.hostUid !== user.uid) return;
+    if (game.phase !== 'day') return;
+
+    const round = game.roundNumber ?? 1;
+    if (aiChatSentRound.current === round) return;
+    aiChatSentRound.current = round;
+
+    const alivePlayers = (game.players ?? []).filter(p => p.isAlive);
+    const aiPlayers = alivePlayers.filter(p => p.isAI);
+    if (aiPlayers.length === 0) return;
+
+    const roles = game.roles ?? {};
+    const eliminatedPlayer = game.dayEliminatedUid
+      ? game.players?.find(p => p.uid === game.dayEliminatedUid)
+      : null;
+
+    const payload = {
+      aiPlayers: aiPlayers.map(p => ({
+        uid: p.uid,
+        name: p.name,
+        role: roles[p.uid] ?? 'Aldeano',
+        isWolf: (roles[p.uid] === 'Lobo' || roles[p.uid] === 'Lobo Blanco'),
+      })),
+      eliminatedName: eliminatedPlayer?.name ?? null,
+      eliminatedRole: eliminatedPlayer ? (roles[eliminatedPlayer.uid] ?? 'Aldeano') : null,
+      round,
+      allAliveNames: alivePlayers.map(p => p.name),
+    };
+
+    fetch('/api/ai-chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then(r => r.json())
+      .then(async (data: { messages?: { uid: string; name: string; text: string }[] }) => {
+        const messages = data.messages ?? [];
+        for (let i = 0; i < messages.length; i++) {
+          const m = messages[i];
+          const delay = 4000 + i * (3000 + Math.random() * 5000);
+          await new Promise(res => setTimeout(res, delay));
+          addDoc(collection(db, 'games', gameId, 'publicChat'), {
+            senderId: m.uid,
+            senderName: m.name,
+            text: m.text,
+            createdAt: serverTimestamp(),
+          }).catch(() => {});
+        }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.phase, game?.roundNumber]);
 
   // Host auto-votes for AI players during day
   useEffect(() => {
