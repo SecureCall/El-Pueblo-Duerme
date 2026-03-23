@@ -83,9 +83,12 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const [showNightReveal, setShowNightReveal] = useState(false);
   const [nightRevealData, setNightRevealData] = useState<{ victimName: string | null; victimRole: string | null }>({ victimName: null, victimRole: null });
   const aiChatSentRound = useRef<number>(-1);
+  const aiNightSubmittedRound = useRef<number>(-1);
+  const aiDayVotedRound = useRef<number>(-1);
   const prevPhase = useRef<string | null>(null);
   const processingDayRef = useRef(false);
   const processingNightRef = useRef(false);
+  const nightStartedAtRef = useRef<number>(0);
   const { play, playSequence, interruptWith, AUDIO_FILES } = useNarrator();
 
   useEffect(() => {
@@ -129,6 +132,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     // ④ Día → Noche: exiliado + noche / solo noche
     if (prevPhase.current === 'day' && phase === 'night') {
       processingDayRef.current = false;
+      nightStartedAtRef.current = Date.now();
       const history = game.eliminatedHistory ?? [];
       const lastElim = history[history.length - 1];
       if (lastElim) {
@@ -136,6 +140,11 @@ export function GamePlay({ gameId }: { gameId: string }) {
       } else {
         play(AUDIO_FILES.nightStart);
       }
+    }
+
+    // Record night start time for first night too
+    if (prevPhase.current === 'roleReveal' && phase === 'night') {
+      nightStartedAtRef.current = Date.now();
     }
 
     prevPhase.current = phase ?? null;
@@ -219,15 +228,28 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (!game || !user || game.hostUid !== user.uid) return;
     if (game.phase !== 'night') return;
 
-    const roles = game.roles ?? {};
-    const subs = game.nightSubmissions ?? {};
+    const round = game.roundNumber ?? 1;
+    // Only submit AI actions once per round, after a minimum delay
+    if (aiNightSubmittedRound.current === round) return;
+
     const alivePlayers = (game.players ?? []).filter(p => p.isAlive);
     const aiPlayers = alivePlayers.filter(p => p.isAI);
     if (aiPlayers.length === 0) return;
 
-    const updates: Record<string, unknown> = {};
-    let needsUpdate = false;
-    const round = game.roundNumber ?? 1;
+    // Delay AI night submissions so the narrator has time to speak
+    const MIN_NIGHT_DELAY = 10000;
+    const elapsed = Date.now() - nightStartedAtRef.current;
+    const waitMs = Math.max(500, MIN_NIGHT_DELAY - elapsed);
+
+    const nightTimer = setTimeout(() => {
+      if (aiNightSubmittedRound.current === round) return;
+      aiNightSubmittedRound.current = round;
+
+      const roles = game.roles ?? {};
+      const subs = game.nightSubmissions ?? {};
+
+      const updates: Record<string, unknown> = {};
+      let needsUpdate = false;
 
     // AI Wolves — only mark submission complete if no human wolves remain
     const aiWolves = aiPlayers.filter(p => roles[p.uid] === 'Lobo' || roles[p.uid] === 'Lobo Blanco');
@@ -344,11 +366,14 @@ export function GamePlay({ gameId }: { gameId: string }) {
       needsUpdate = true;
     }
 
-    if (needsUpdate) {
-      updateDoc(doc(db, 'games', gameId), updates).catch((e: any) => console.error('AI auto-submit error:', e));
-    }
+      if (needsUpdate) {
+        updateDoc(doc(db, 'games', gameId), updates).catch((e: any) => console.error('AI auto-submit error:', e));
+      }
+    }, waitMs);
+
+    return () => clearTimeout(nightTimer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.phase, game?.roundNumber, game?.nightSubmissions]);
+  }, [game?.phase, game?.roundNumber]);
 
   // Host processes night when all required submissions received
   useEffect(() => {
@@ -662,34 +687,52 @@ export function GamePlay({ gameId }: { gameId: string }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.phase, game?.roundNumber]);
 
-  // Host auto-votes for AI players during day
+  // Host auto-votes for AI players during day — with a debate delay
   useEffect(() => {
     if (!game || !user || game.hostUid !== user.uid) return;
     if (game.phase !== 'day') return;
 
-    const dayVotes = (game.dayVotes ?? {}) as Record<string, string>;
+    const round = game.roundNumber ?? 1;
+    if (aiDayVotedRound.current === round) return;
+
     const alivePlayers = (game.players ?? []).filter(p => p.isAlive);
     const aiAlive = alivePlayers.filter(p => p.isAI);
     if (aiAlive.length === 0) return;
 
-    const updates: Record<string, unknown> = {};
-    let needsUpdate = false;
+    // Delay AI votes so human players have time to debate (30 seconds minimum)
+    const MIN_DEBATE_DELAY = 30000;
+    const elapsed = game.dayStartedAt ? Date.now() - game.dayStartedAt : 0;
+    const waitMs = Math.max(500, MIN_DEBATE_DELAY - elapsed);
 
-    for (const ai of aiAlive) {
-      if (dayVotes[ai.uid]) continue;
-      const candidates = alivePlayers.filter(p => p.uid !== ai.uid);
-      if (candidates.length > 0) {
-        const pick = candidates[Math.floor(Math.random() * candidates.length)];
-        updates[`dayVotes.${ai.uid}`] = pick.uid;
-        needsUpdate = true;
+    const dayTimer = setTimeout(() => {
+      if (aiDayVotedRound.current === round) return;
+      aiDayVotedRound.current = round;
+
+      const currentAlivePlayers = (game.players ?? []).filter(p => p.isAlive);
+      const currentAiAlive = currentAlivePlayers.filter(p => p.isAI);
+      const currentDayVotes = (game.dayVotes ?? {}) as Record<string, string>;
+
+      const updates: Record<string, unknown> = {};
+      let needsUpdate = false;
+
+      for (const ai of currentAiAlive) {
+        if (currentDayVotes[ai.uid]) continue;
+        const candidates = currentAlivePlayers.filter(p => p.uid !== ai.uid);
+        if (candidates.length > 0) {
+          const pick = candidates[Math.floor(Math.random() * candidates.length)];
+          updates[`dayVotes.${ai.uid}`] = pick.uid;
+          needsUpdate = true;
+        }
       }
-    }
 
-    if (needsUpdate) {
-      updateDoc(doc(db, 'games', gameId), updates).catch((e: any) => console.error('AI day vote error:', e));
-    }
+      if (needsUpdate) {
+        updateDoc(doc(db, 'games', gameId), updates).catch((e: any) => console.error('AI day vote error:', e));
+      }
+    }, waitMs);
+
+    return () => clearTimeout(dayTimer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.phase]);
+  }, [game?.phase, game?.roundNumber, game?.dayStartedAt]);
 
   // Host processes day votes when all alive players voted
   useEffect(() => {
