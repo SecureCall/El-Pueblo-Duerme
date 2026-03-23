@@ -218,7 +218,7 @@ export const ROLES: Record<string, RoleInfo> = {
 // Submission keys per role (for night phase tracking)
 export const ROLE_SUBMISSION_KEY: Record<string, string> = {
   'Lobo': 'wolves',
-  'Lobo Blanco': 'loboblanco',
+  'Lobo Blanco': 'wolves',
   'Vidente': 'vidente',
   'Bruja': 'bruja',
   'Cupido': 'cupido',

@@ -352,7 +352,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const activePlayers = (game.players ?? []).filter(p => p.isAlive);
     const round = game.roundNumber ?? 1;
 
-    const hasWolves = activePlayers.some(p => roles[p.uid] === 'Lobo');
+    // Wolf team = Lobo + Lobo Blanco (both use 'wolves' submission key)
+    const hasWolfTeam = activePlayers.some(p => roles[p.uid] === 'Lobo' || roles[p.uid] === 'Lobo Blanco');
     const hasSeer = activePlayers.some(p => roles[p.uid] === 'Vidente');
     const hasWitch = activePlayers.some(p => roles[p.uid] === 'Bruja');
     const hasCupido = activePlayers.some(p => roles[p.uid] === 'Cupido') && round === 1;
@@ -365,15 +366,15 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const hasSacerdote = activePlayers.some(p => roles[p.uid] === 'Sacerdote');
     const hasLadron = activePlayers.some(p => roles[p.uid] === 'Ladrón') && round === 1;
 
-    const wolfDone = !hasWolves || !!subs['wolves'];
+    // wolfDone: covers Lobo and Lobo Blanco (both submit 'wolves' key)
+    const wolfDone = !hasWolfTeam || !!subs['wolves'];
     const seerDone = !hasSeer || !!subs['vidente'];
     const witchDone = !hasWitch || !!subs['bruja'];
     const cupidoDone = !hasCupido || !!subs['cupido'];
     const guardianDone = !hasGuardian || !!subs['guardian'];
     const flautistaDone = !hasFlautista || !!subs['flautista'];
-    // Lobo Blanco only needs loboblanco on even rounds; odd rounds just need wolves
-    const loboblancoDone = !hasLoboBlanco ||
-      (round % 2 === 0 ? !!subs['loboblanco'] : !!subs['wolves']);
+    // loboblanco special kill only happens on even rounds
+    const loboblancoDone = !hasLoboBlanco || round % 2 !== 0 || !!subs['loboblanco'];
     const perroLoboDone = !hasPerroLobo || !!subs['perrolo'];
     const salvajeDone = !hasSalvaje || !!subs['salvaje'];
     const profetaDone = !hasProfeta || !!subs['profeta'];
