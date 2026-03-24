@@ -21,7 +21,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import Link from 'next/link';
 import Image from "next/image";
 import { useToast } from "@/hooks/use-toast";
-import { doc, getDoc } from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 
 const JoinGameSchema = z.object({
@@ -40,20 +40,21 @@ function JoinGameForm() {
 
   async function onSubmit(data: z.infer<typeof JoinGameSchema>) {
     setIsSubmitting(true);
-    const gameId = data.gameId.toUpperCase();
+    const code = data.gameId.toUpperCase();
     
     try {
-      const gameRef = doc(db, 'games', gameId);
-      const gameSnap = await getDoc(gameRef);
+      const q = query(collection(db, 'games'), where('code', '==', code));
+      const snap = await getDocs(q);
 
-      if (gameSnap.exists()) {
-        toast({ title: "Partida encontrada", description: `Uniéndote a la sala ${gameId}...`});
+      if (!snap.empty) {
+        const gameId = snap.docs[0].id;
+        toast({ title: "Partida encontrada", description: `Uniéndote a la sala ${code}...` });
         router.push(`/game/${gameId}`);
       } else {
         toast({
           variant: "destructive",
           title: "Partida no encontrada",
-          description: "El ID de la partida no es válido. Revisa el código e inténtalo de nuevo.",
+          description: "El código no es válido. Revisa el código e inténtalo de nuevo.",
         });
         setIsSubmitting(false);
       }

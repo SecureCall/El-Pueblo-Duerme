@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Loader2 } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 
 interface Props {
@@ -18,13 +18,15 @@ export function JoinByCodeModal({ onClose }: Props) {
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const gameId = code.trim().toUpperCase();
-    if (!gameId) return;
+    const codeUpper = code.trim().toUpperCase();
+    if (!codeUpper) return;
     setLoading(true);
     setError('');
     try {
-      const snap = await getDoc(doc(db, 'games', gameId));
-      if (snap.exists()) {
+      const q = query(collection(db, 'games'), where('code', '==', codeUpper));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const gameId = snap.docs[0].id;
         router.push(`/game/${gameId}`);
       } else {
         setError('No se encontró ninguna partida con ese código.');
