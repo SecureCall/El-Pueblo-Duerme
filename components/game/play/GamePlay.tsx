@@ -14,6 +14,7 @@ import { NightPhase } from './NightPhase';
 import { DayPhase } from './DayPhase';
 import { EndGame } from './EndGame';
 import { NightTransition } from './NightTransition';
+import { DayTransition } from './DayTransition';
 import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
 
 export interface Player {
@@ -82,6 +83,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const [roleRevealDone, setRoleRevealDone] = useState(false);
   const [showNightReveal, setShowNightReveal] = useState(false);
   const [nightRevealData, setNightRevealData] = useState<{ victimName: string | null; victimRole: string | null }>({ victimName: null, victimRole: null });
+  const [showDayTransition, setShowDayTransition] = useState(false);
+  const [dayTransitionData, setDayTransitionData] = useState<{ eliminatedName: string | null; eliminatedRole: string | null }>({ eliminatedName: null, eliminatedRole: null });
   const aiChatSentRound = useRef<number>(-1);
   const aiNightSubmittedRound = useRef<number>(-1);
   const aiDayVotedRound = useRef<number>(-1);
@@ -129,17 +132,15 @@ export function GamePlay({ gameId }: { gameId: string }) {
       setShowNightReveal(true);
     }
 
-    // ④ Día → Noche: cortar debate ambient y reproducir exilio + noche
+    // ④ Día → Noche: mostrar transición (el audio lo pone DayTransition)
     if (prevPhase.current === 'day' && phase === 'night') {
       processingDayRef.current = false;
-      nightStartedAtRef.current = Date.now();
       const history = game.eliminatedHistory ?? [];
       const lastElim = history[history.length - 1];
-      if (lastElim) {
-        interruptWith(AUDIO_FILES.exiledAnnounce, AUDIO_FILES.exiled, AUDIO_FILES.nightStart);
-      } else {
-        interruptWith(AUDIO_FILES.nightStart);
-      }
+      const eliminatedName = lastElim?.name ?? null;
+      const eliminatedRole = lastElim?.role ?? null;
+      setDayTransitionData({ eliminatedName, eliminatedRole });
+      setShowDayTransition(true);
     }
 
     // Record night start time for first night too
@@ -890,6 +891,20 @@ export function GamePlay({ gameId }: { gameId: string }) {
   }
 
   if (game.phase === 'night') {
+    if (showDayTransition) {
+      return (
+        <DayTransition
+          game={game}
+          eliminatedName={dayTransitionData.eliminatedName}
+          eliminatedRole={dayTransitionData.eliminatedRole}
+          onDone={() => {
+            setShowDayTransition(false);
+            nightStartedAtRef.current = Date.now();
+          }}
+        />
+      );
+    }
+
     return (
       <NightPhase
         game={game}
