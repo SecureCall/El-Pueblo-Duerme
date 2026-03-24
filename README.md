@@ -1,4 +1,4 @@
-
+ 
 # El Pueblo Duerme
 
 Bienvenido a "El Pueblo Duerme", un juego de misterio, engaño y supervivencia inspirado en clásicos como Mafia o Werewolf.
