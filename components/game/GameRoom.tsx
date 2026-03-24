@@ -9,8 +9,8 @@ import {
   collection, addDoc, query, orderBy, limit, onSnapshot as onSnap,
 } from 'firebase/firestore';
 import { Copy, Crown, LogOut, Send, Users, Loader2, Bot, Share2, MessageCircle, Facebook, Link, Check } from 'lucide-react';
-import { PageAudio } from '@/components/audio/PageAudio';
-import { useNarrator } from '@/hooks/useNarrator';
+import { useNarrator, waitForAudio } from '@/hooks/useNarrator';
+import { useAudio } from '@/app/providers/AudioProvider';
 
 interface Player {
   uid: string;
@@ -84,6 +84,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
   const [linkCopied, setLinkCopied] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
   const { play, stop, AUDIO_FILES } = useNarrator();
+  const { playMusic } = useAudio();
   const [introSkipped, setIntroSkipped] = useState(false);
   const salasPlayed = useRef(false);
 
@@ -91,6 +92,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
     if (salasPlayed.current) return;
     salasPlayed.current = true;
     play(AUDIO_FILES.salas);
+    waitForAudio().then(() => playMusic('lobby'));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -212,6 +214,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
   const skipIntro = () => {
     stop();
     setIntroSkipped(true);
+    playMusic('lobby');
   };
 
   const startGame = async () => {
@@ -272,7 +275,6 @@ export function GameRoom({ gameId }: { gameId: string }) {
       className="min-h-screen w-full text-white flex flex-col"
       style={{ backgroundImage: 'url(/noche.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}
     >
-      <PageAudio track="lobby" />
       <div className="absolute inset-0 bg-black/80" />
 
       <div className="relative z-10 flex flex-col h-screen max-w-5xl mx-auto w-full p-4 gap-4">

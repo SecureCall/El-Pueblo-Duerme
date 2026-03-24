@@ -73,6 +73,7 @@ export interface GameState {
   perroLoboChoices?: Record<string, 'wolves' | 'village'>;
   salvajeMentors?: Record<string, string>;
   bearGrowl?: boolean;
+  cazadorPendingShot?: string | null;
 }
 
 export function GamePlay({ gameId }: { gameId: string }) {
@@ -431,6 +432,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const actions = game.nightActions ?? {};
     const roles = game.roles ?? {};
     let players = [...(game.players ?? [])];
+    const aliveBeforeNight = new Set(players.filter(p => p.isAlive).map(p => p.uid));
     const history = [...(game.eliminatedHistory ?? [])];
     const round = game.roundNumber ?? 1;
     let enchanted = [...(game.enchanted ?? [])];
@@ -574,6 +576,12 @@ export function GamePlay({ gameId }: { gameId: string }) {
       }
     }
 
+    // Cazador: if he died this night, queue his last shot before proceeding
+    const deadCazador = players.find(p =>
+      !p.isAlive && aliveBeforeNight.has(p.uid) && newRoles[p.uid] === 'Cazador'
+    );
+    const cazadorPendingShot = deadCazador?.uid ?? null;
+
     // Bear Growl: check if active player's neighbors include a wolf
     let bearGrowl = false;
     const bearTamer = players.find(p => newRoles[p.uid] === 'Oso' && p.isAlive);
@@ -607,6 +615,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
         perroLoboChoices,
         salvajeMentors,
         bearGrowl,
+        cazadorPendingShot: cazadorPendingShot && !winResult.winner ? cazadorPendingShot : null,
         phase: winResult.winner ? 'ended' : 'day',
         winners: winResult.winner ?? null,
         winMessage: winResult.message ?? null,
@@ -759,6 +768,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const salvajeMentors = game.salvajeMentors ?? {};
     const perroLoboChoices = game.perroLoboChoices ?? {};
     const round = game.roundNumber ?? 1;
+    const aliveBeforeDay = new Set((game.players ?? []).filter(p => p.isAlive).map(p => p.uid));
 
     // Tally votes (Alcalde gets double vote)
     const tally: Record<string, number> = {};
@@ -816,6 +826,12 @@ export function GamePlay({ gameId }: { gameId: string }) {
       }
     }
 
+    // Cazador: if eliminated by vote, queue last shot
+    const deadCazadorDay = players.find(p =>
+      !p.isAlive && aliveBeforeDay.has(p.uid) && newRoles[p.uid] === 'Cazador'
+    );
+    const cazadorPendingShot = deadCazadorDay?.uid ?? null;
+
     const winResult = checkWinCondition(players, newRoles, {
       enchanted,
       round,
@@ -830,6 +846,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
         roles: newRoles,
         eliminatedHistory: history,
         enchanted,
+        cazadorPendingShot: cazadorPendingShot && !winResult.winner ? cazadorPendingShot : null,
         phase: winResult.winner ? 'ended' : 'night',
         winners: winResult.winner ?? null,
         winMessage: winResult.message ?? null,
@@ -849,6 +866,54 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }
   }
 
+  // Cazador fires last shot
+  const applyCazadorShot = useCallback(async (targetUid: string) => {
+    if (!game) return;
+    const roles = game.roles ?? {};
+    let players = [...(game.players ?? [])];
+    const history = [...(game.eliminatedHistory ?? [])];
+    const round = game.roundNumber ?? 1;
+    const target = players.find(p => p.uid === targetUid && p.isAlive);
+    if (target) {
+      players = players.map(p => p.uid === targetUid ? { ...p, isAlive: false } : p);
+      history.push({ uid: targetUid, name: target.name, role: roles[targetUid] ?? 'Aldeano', round });
+    }
+    const winResult = checkWinCondition(players, roles, {
+      enchanted: game.enchanted ?? [],
+      round,
+      perroLoboChoices: game.perroLoboChoices ?? {},
+    });
+    interruptWith(AUDIO_FILES.lastBullet);
+    await updateDoc(doc(db, 'games', gameId), {
+      players,
+      eliminatedHistory: history,
+      cazadorPendingShot: null,
+      winners: winResult.winner ?? null,
+      winMessage: winResult.message ?? null,
+      phase: winResult.winner ? 'ended' : game.phase,
+    }).catch((e: unknown) => console.error('cazadorShot error:', e));
+  }, [game, gameId, interruptWith, AUDIO_FILES]);
+
+  // AI auto-shoots for Cazador
+  useEffect(() => {
+    if (!game || !user || game.hostUid !== user.uid) return;
+    if (!game.cazadorPendingShot) return;
+    const cazadorUid = game.cazadorPendingShot;
+    const cazador = (game.players ?? []).find(p => p.uid === cazadorUid);
+    if (!cazador?.isAI) return;
+    const timer = setTimeout(() => {
+      const alive = (game.players ?? []).filter(p => p.isAlive && p.uid !== cazadorUid);
+      if (alive.length > 0) {
+        const pick = alive[Math.floor(Math.random() * alive.length)];
+        applyCazadorShot(pick.uid);
+      } else {
+        updateDoc(doc(db, 'games', gameId), { cazadorPendingShot: null }).catch(() => {});
+      }
+    }, 2500);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.cazadorPendingShot]);
+
   if (loading || !game) return (
     <div className="min-h-screen flex items-center justify-center bg-[#05080f]">
       <Loader2 className="h-10 w-10 animate-spin text-white/50" />
@@ -863,6 +928,55 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
   const myRole = game.roles?.[user.uid];
   const me = game.players?.find(p => p.uid === user.uid);
+
+  // Cazador last shot overlay — interrupts any phase
+  if (game.cazadorPendingShot) {
+    const cazadorUid = game.cazadorPendingShot;
+    const isMyShot = cazadorUid === user.uid;
+    const cazadorPlayer = (game.players ?? []).find(p => p.uid === cazadorUid);
+    const targets = (game.players ?? []).filter(p => p.isAlive && p.uid !== cazadorUid);
+    return (
+      <div
+        className="min-h-screen w-full text-white flex flex-col items-center justify-center p-6 relative"
+        style={{ backgroundImage: 'url(/noche.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}
+      >
+        <div className="absolute inset-0 bg-black/85" />
+        <div className="relative z-10 w-full max-w-md text-center">
+          <div className="text-7xl mb-4">🏹</div>
+          {isMyShot ? (
+            <>
+              <h2 className="text-3xl font-bold mb-2 text-red-400">¡Última bala!</h2>
+              <p className="text-white/60 mb-8">Estás muriendo... pero puedes llevarte a alguien contigo.</p>
+              <div className="space-y-3">
+                {targets.map(p => (
+                  <button
+                    key={p.uid}
+                    onClick={() => applyCazadorShot(p.uid)}
+                    className="w-full flex items-center gap-3 bg-red-900/30 border border-red-500/40 rounded-xl p-4 hover:bg-red-900/60 transition-all text-left"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-white/10 overflow-hidden flex-shrink-0 flex items-center justify-center font-bold">
+                      {p.photoURL
+                        ? <img src={p.photoURL} alt={p.name} className="w-full h-full object-cover" />
+                        : <span>{p.name[0]}</span>}
+                    </div>
+                    <span className="font-semibold">{p.name}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 className="text-3xl font-bold mb-2 text-red-400">¡El Cazador dispara!</h2>
+              <p className="text-white/60 mb-4">
+                <span className="text-white font-semibold">{cazadorPlayer?.name ?? 'El Cazador'}</span> agoniza y apunta su última bala...
+              </p>
+              <div className="animate-pulse text-5xl mt-4">💀</div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (game.phase === 'roleReveal' || !game.roles) {
     return (
