@@ -5,7 +5,6 @@ import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from './providers/AuthProvider';
 import { AudioProvider } from './providers/AudioProvider';
 import { cn } from '@/lib/utils';
-import Script from 'next/script';
 
 const ptSans = PT_Sans({ 
   subsets: ['latin'], 
@@ -30,6 +29,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es" className="dark">
+      <head>
+        {/* Google AdSense — verificación y monetización */}
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4807272408824742"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className={cn(ptSans.variable, playfair.variable, "font-sans")}>
         <AuthProvider>
           <AudioProvider>
@@ -37,12 +44,6 @@ export default function RootLayout({
             <Toaster />
           </AudioProvider>
         </AuthProvider>
-        <Script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4807272408824742"
-          crossOrigin="anonymous"
-          strategy="afterInteractive"
-        />
       </body>
     </html>
   );
