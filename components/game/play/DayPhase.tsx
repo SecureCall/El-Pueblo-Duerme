@@ -22,6 +22,7 @@ interface Props {
   isHost: boolean;
   onVote: (targetUid: string) => Promise<void>;
   onJuezSecondVote: () => Promise<void>;
+  onAlborotadoraFight: (p1: string, p2: string) => Promise<void>;
   onTimerEnd: () => void;
 }
 
@@ -34,7 +35,7 @@ interface ChatMsg {
 
 type ChatTab = 'public' | 'ghost' | 'lovers';
 
-export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJuezSecondVote, onTimerEnd }: Props) {
+export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJuezSecondVote, onAlborotadoraFight, onTimerEnd }: Props) {
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [ghostMsgs, setGhostMsgs] = useState<ChatMsg[]>([]);
   const [loversMsgs, setLoversMsgs] = useState<ChatMsg[]>([]);
@@ -74,6 +75,12 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
   const isAlquimista = myRole === 'Alquimista';
   const voteBanned = game.voteBanned ?? [];
   const myVoteBanned = voteBanned.includes(userId);
+  const isSilenced = (game.silencedPlayers ?? []).includes(userId);
+  const isAlborotadora = myRole === 'Alborotadora' && meAlive && !game.alborotadoraUsed;
+  const [alborotadoraStep, setAlborotadoraStep] = useState<0 | 1>(0);
+  const [alborotadoraFighters, setAlborotadoraFighters] = useState<string[]>([]);
+  const isVerdugo = myRole === 'Verdugo';
+  const verdugoTarget = isVerdugo ? (game.players ?? []).find(p => p.uid === game.verdugos?.[userId]) : null;
 
   // Tabs available
   const availableTabs: ChatTab[] = ['public'];
@@ -156,7 +163,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
 
   const sendMsg = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!msg.trim()) return;
+    if (!msg.trim() || isSilenced) return;
     setSending(true);
     await addDoc(collection(db, 'games', gameId, 'publicChat'), {
       senderId: userId,
@@ -330,7 +337,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
             </div>
           ))}
         </div>
-        {meAlive && (
+        {meAlive && !isSilenced && (
           <form onSubmit={sendMsg} className="p-3 border-t border-white/10 flex gap-2">
             <input
               value={msg}
@@ -343,6 +350,11 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
               <Send className="h-4 w-4 text-amber-400" />
             </button>
           </form>
+        )}
+        {meAlive && isSilenced && (
+          <div className="p-3 border-t border-slate-700/30 text-center">
+            <p className="text-slate-400/60 text-xs">🤫 La Silenciadora te ha robado la voz esta ronda.</p>
+          </div>
         )}
         {!meAlive && (
           <div className="p-3 border-t border-white/5 text-center">
@@ -553,6 +565,66 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
               {isJuez && game.juezUsed && (
                 <div className="mt-2 text-center text-gray-400/40 text-[10px] py-1">
                   ⚖️ Segunda votación usada
+                </div>
+              )}
+
+              {/* Alborotadora fight picker */}
+              {isAlborotadora && !game.alborotadoraFight && (
+                <div className="mt-3 border border-amber-500/30 rounded-xl p-3 bg-amber-900/10">
+                  <p className="text-xs text-amber-300 font-semibold mb-1">🥊 Alborotadora — provocar pelea</p>
+                  <p className="text-[10px] text-white/40 mb-2">Elige 2 jugadores. Ambos morirán antes de la votación final.</p>
+                  {alborotadoraStep === 0 ? (
+                    <>
+                      <p className="text-[10px] text-amber-300/60 mb-1">1er luchador:</p>
+                      <div className="space-y-1">
+                        {alivePlayers.filter(p => p.uid !== userId).map(p => (
+                          <button key={p.uid} onClick={() => { setAlborotadoraFighters([p.uid]); setAlborotadoraStep(1); }}
+                            className="w-full text-left text-xs p-1.5 rounded-lg border border-white/10 bg-white/5 hover:border-amber-500/50 transition-all">
+                            {p.name}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[10px] text-amber-300/60 mb-1">
+                        2º luchador (contra {alivePlayers.find(p => p.uid === alborotadoraFighters[0])?.name}):
+                      </p>
+                      <div className="space-y-1">
+                        {alivePlayers.filter(p => p.uid !== alborotadoraFighters[0]).map(p => (
+                          <button key={p.uid} onClick={() => onAlborotadoraFight(alborotadoraFighters[0], p.uid)}
+                            className="w-full text-left text-xs p-1.5 rounded-lg border border-white/10 bg-white/5 hover:border-red-500/50 transition-all">
+                            {p.name}
+                          </button>
+                        ))}
+                        <button onClick={() => { setAlborotadoraFighters([]); setAlborotadoraStep(0); }}
+                          className="w-full text-[10px] text-white/30 hover:text-white/50 pt-1">
+                          ← Volver
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+              {game.alborotadoraFight && (
+                <div className="mt-2 text-center text-amber-400/60 text-[10px] py-1">
+                  🥊 Pelea activa: {game.alborotadoraFight.map(uid => (game.players ?? []).find(p => p.uid === uid)?.name).join(' vs ')}
+                </div>
+              )}
+
+              {/* Verdugo secret target reminder */}
+              {isVerdugo && verdugoTarget && (
+                <div className="mt-3 border border-red-700/30 rounded-xl p-3 bg-red-950/10">
+                  <p className="text-[10px] text-red-300/60 uppercase tracking-wide mb-1">Tu objetivo secreto</p>
+                  <p className="text-sm text-white font-semibold">{verdugoTarget.name}</p>
+                  <p className="text-[10px] text-white/30">Si el pueblo lo lincha hoy, ¡ganas solo!</p>
+                </div>
+              )}
+
+              {/* Silenciadora reminder */}
+              {isSilenced && (
+                <div className="mt-3 border border-slate-700/40 rounded-xl p-3 bg-slate-950/20 text-center">
+                  <p className="text-xs text-slate-400">🤫 Has sido silenciado. No puedes escribir en el chat.</p>
                 </div>
               )}
             </div>
