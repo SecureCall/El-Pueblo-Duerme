@@ -32,8 +32,11 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
   const [perroLoboSide, setPerroLoboSide] = useState<'wolves' | 'village' | null>(null);
   const [autoSkipCountdown, setAutoSkipCountdown] = useState<number | null>(null);
   const [narratorReady, setNarratorReady] = useState(false);
+  const [espiaViewActive, setEspiaViewActive] = useState(false);
+  const [wolfMsgsForEspia, setWolfMsgsForEspia] = useState<{ id: string; name: string; text: string }[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
   const { play, AUDIO_FILES } = useNarrator();
+  const isEspia = myRole === 'Espía';
 
   const round = game.roundNumber ?? 1;
   const subs = game.nightSubmissions ?? {};
@@ -64,7 +67,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
   const wolves = (game.players ?? []).filter(p => p.isAlive && (game.roles?.[p.uid] === 'Lobo' || game.roles?.[p.uid] === 'Lobo Blanco'));
   const enchanted = game.enchanted ?? [];
 
-  // Wolf chat listener
+  // Wolf chat listener (for wolf team)
   useEffect(() => {
     if (!isWolfTeam) return;
     const q = query(collection(db, 'games', gameId, 'wolfChat'), orderBy('createdAt', 'asc'), limit(50));
@@ -74,6 +77,16 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
     });
     return () => unsub();
   }, [isWolfTeam, gameId]);
+
+  // Wolf chat listener for Espía (read-only, only when activated)
+  useEffect(() => {
+    if (!isEspia || !espiaViewActive) return;
+    const q = query(collection(db, 'games', gameId, 'wolfChat'), orderBy('createdAt', 'asc'), limit(50));
+    const unsub = onSnapshot(q, (snap: any) => {
+      setWolfMsgsForEspia(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
+  }, [isEspia, espiaViewActive, gameId]);
 
   // Wait for narrator to finish, then start nightAmbient and unlock timers
   useEffect(() => {
@@ -92,7 +105,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
   useEffect(() => {
     if (!narratorReady || submitted) return;
     const needsManualAction = isWolfTeam || isSeer || isWitch || isCupido || isGuardian ||
-      isFlautista || isPerroLobo || isSalvaje || isProfeta || isSacerdote;
+      isFlautista || isPerroLobo || isSalvaje || isProfeta || isSacerdote || isEspia;
     if (needsManualAction) return;
 
     let seconds = 8;
@@ -115,7 +128,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
   useEffect(() => {
     if (!narratorReady || submitted) return;
     const needsManualAction = isWolfTeam || isSeer || isWitch || isCupido || isGuardian ||
-      isFlautista || isPerroLobo || isSalvaje || isProfeta || isSacerdote;
+      isFlautista || isPerroLobo || isSalvaje || isProfeta || isSacerdote || isEspia;
     if (!needsManualAction) return;
 
     const timer = setTimeout(() => {
@@ -150,8 +163,11 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
     }
     if (isSalvaje && selectedTarget) action.salvajeMentor = selectedTarget;
     if (isSacerdote && selectedTarget) action.sacerdoteTarget = selectedTarget;
-    if (isLadron) action._skip = true;
-    if (!isNightRole) action._skip = true;
+    if (isLadron && selectedTarget) action.ladronTarget = selectedTarget;
+    else if (isLadron) action._skip = true;
+    if (isEspia && espiaViewActive) action.espiaActivate = true;
+    else if (isEspia) action._skip = true;
+    if (!isNightRole && !isEspia) action._skip = true;
 
     await onSubmitAction(action);
     setSubmitted(true);
@@ -206,6 +222,8 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
     if (isPerroLobo && !perroLoboSide) return false;
     if (isSalvaje && !selectedTarget) return false;
     if (isSacerdote && !selectedTarget) return false;
+    // Ladrón: needs selectedTarget to steal (or use "no robar" button which bypasses canSubmit)
+    if (isLadron && !selectedTarget) return false;
     return true;
   })();
 
@@ -592,30 +610,40 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
           {/* ── LADRÓN ───────────────────────────────────────────────────────── */}
           {isLadron && !submitted && (
             <div className="bg-zinc-900/40 border border-zinc-500/30 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
+              <div className="flex items-center gap-2 mb-2">
                 <span className="text-xl">🦹</span>
                 <h3 className="font-semibold text-zinc-300">El Ladrón — primera noche</h3>
               </div>
-              <p className="text-white/60 text-sm mb-4">
-                En esta versión, el Ladrón puede mirar en secreto el rol de cualquier jugador vivo esta noche.
-              </p>
+              <p className="text-white/50 text-xs mb-4">Elige a un jugador y <strong className="text-zinc-200">roba su rol</strong>. Ese jugador pasará a ser Aldeano. O no robes nada.</p>
               <div className="space-y-2 mb-4">
-                {alivePlayers.map(p => (
-                  <button key={p.uid} onClick={() => setSelectedTarget(selectedTarget === p.uid ? null : p.uid)}
-                    className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${selectedTarget === p.uid ? 'border-zinc-400 bg-zinc-800/40' : 'border-white/10 bg-white/5'}`}>
-                    <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-xs flex-shrink-0">{p.name[0]}</div>
-                    <span className="font-medium flex-1 text-left">{p.name}</span>
-                    {selectedTarget === p.uid && game.roles?.[p.uid] && (
-                      <span className="text-xs bg-black/40 px-2 py-1 rounded-lg">
-                        {ROLES[game.roles[p.uid]]?.emoji} {game.roles[p.uid]}
-                      </span>
-                    )}
-                  </button>
-                ))}
+                {alivePlayers.map(p => {
+                  const sel = selectedTarget === p.uid;
+                  return (
+                    <button key={p.uid} onClick={() => setSelectedTarget(sel ? null : p.uid)}
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${sel ? 'border-zinc-400 bg-zinc-800/60' : 'border-white/10 bg-white/5 hover:border-white/30'}`}>
+                      <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-xs flex-shrink-0 overflow-hidden">
+                        {p.photoURL ? <img src={p.photoURL} alt="" className="w-full h-full object-cover" /> : p.name[0]}
+                      </div>
+                      <span className="font-medium flex-1 text-left">{p.name}</span>
+                      {sel && game.roles?.[p.uid] && (
+                        <span className="text-xs bg-black/50 border border-zinc-500/40 px-2 py-1 rounded-lg text-zinc-200">
+                          {ROLES[game.roles[p.uid]]?.emoji} {game.roles[p.uid]}
+                        </span>
+                      )}
+                      {p.isAI && <Bot className="h-3.5 w-3.5 text-cyan-400" />}
+                    </button>
+                  );
+                })}
               </div>
-              <button onClick={handleSubmit}
-                className="w-full bg-zinc-600 hover:bg-zinc-500 text-white font-bold py-3 rounded-xl transition-colors">
-                Continuar
+              {selectedTarget && (
+                <button onClick={handleSubmit}
+                  className="w-full bg-zinc-500 hover:bg-zinc-400 text-white font-bold py-3 rounded-xl transition-colors mb-2">
+                  🦹 Robar rol de {alivePlayers.find(p => p.uid === selectedTarget)?.name}
+                </button>
+              )}
+              <button onClick={async () => { await onSubmitAction({ _skip: true }); setSubmitted(true); }}
+                className="w-full bg-white/10 hover:bg-white/15 border border-white/20 text-white/70 text-sm py-2.5 rounded-xl transition-colors">
+                No robar nada esta noche
               </button>
             </div>
           )}
@@ -789,8 +817,76 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
             </div>
           )}
 
-          {/* Chivo Expiatorio & Alquimista & Espía: generic passive */}
-          {['Chivo Expiatorio', 'Alquimista', 'Espía', 'Cazador', 'Alcalde'].includes(myRole) && !submitted && (
+          {/* ── ESPÍA ────────────────────────────────────────────────────────── */}
+          {isEspia && !submitted && (
+            <div className="bg-cyan-900/20 border border-cyan-500/30 rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xl">🕵️</span>
+                <h3 className="font-semibold text-cyan-300">El Espía</h3>
+              </div>
+              {!espiaViewActive ? (
+                <>
+                  <p className="text-white/50 text-xs mb-5">
+                    {game.espiaUsed
+                      ? 'Ya usaste tu habilidad de espionaje. Observas en silencio.'
+                      : 'Puedes activar tu espionaje una sola vez y escuchar el chat de los lobos esta noche (solo lectura).'}
+                  </p>
+                  <div className="space-y-2">
+                    {!game.espiaUsed && (
+                      <button onClick={() => setEspiaViewActive(true)}
+                        className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-colors">
+                        🔍 Activar espionaje
+                      </button>
+                    )}
+                    <button onClick={handleAutoSkip}
+                      className="w-full bg-white/10 hover:bg-white/15 border border-white/20 text-white/70 text-sm py-2.5 rounded-xl transition-colors">
+                      {game.espiaUsed ? 'Confirmar' : 'Pasar esta noche'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-cyan-300/70 text-xs mb-3">📡 Interceptando el chat de lobos en tiempo real...</p>
+                  <div className="bg-black/40 rounded-xl mb-4 p-3 min-h-16 max-h-40 overflow-y-auto space-y-1">
+                    {wolfMsgsForEspia.length === 0
+                      ? <p className="text-white/30 text-xs text-center pt-2">Los lobos aún no han hablado...</p>
+                      : wolfMsgsForEspia.map(m => (
+                          <p key={m.id} className="text-xs text-white/70">
+                            <span className="text-red-400 font-medium">{m.name}:</span> {m.text}
+                          </p>
+                        ))
+                    }
+                  </div>
+                  <button onClick={handleSubmit}
+                    className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-colors">
+                    Confirmar espionaje
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── ALQUIMISTA ───────────────────────────────────────────────────── */}
+          {myRole === 'Alquimista' && !submitted && (
+            <div className="bg-lime-900/20 border border-lime-500/30 rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xl">⚗️</span>
+                <h3 className="font-semibold text-lime-300">El Alquimista</h3>
+              </div>
+              <p className="text-white/50 text-xs mb-4">Cada noche destila una poción aleatoria. Sabrás el resultado al amanecer.</p>
+              <div className="bg-black/30 rounded-xl p-4 mb-4 text-center">
+                <div className="animate-spin inline-block text-3xl mb-2">⚗️</div>
+                <p className="text-lime-300/60 text-sm">Preparando la poción de esta noche...</p>
+              </div>
+              <button onClick={handleAutoSkip}
+                className="w-full bg-lime-700/50 hover:bg-lime-600/50 text-white font-bold py-3 rounded-xl transition-colors">
+                Confirmar
+              </button>
+            </div>
+          )}
+
+          {/* Chivo Expiatorio, Cazador, Alcalde: generic passive */}
+          {['Chivo Expiatorio', 'Cazador', 'Alcalde'].includes(myRole) && !submitted && (
             <div className="bg-black/40 border border-white/10 rounded-2xl p-8 text-center">
               <div className="mb-3 flex justify-center">
                 <img src={getRoleIcon(myRole)} alt={myRole} className="w-16 h-16 object-cover rounded-xl shadow-md" />
@@ -805,7 +901,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
           )}
 
           {/* Default: Aldeano / other non-night roles */}
-          {!isNightRole &&
+          {!isNightRole && !isEspia &&
             !['Niña', 'Gemelas', 'Hermanos', 'Médium', 'Ángel', 'Antiguo', 'Pícaro', 'Juez', 'Oso',
               'Chivo Expiatorio', 'Alquimista', 'Espía', 'Cazador', 'Alcalde'].includes(myRole) &&
             !submitted && (

@@ -229,6 +229,7 @@ export const ROLE_SUBMISSION_KEY: Record<string, string> = {
   'Profeta': 'profeta',
   'Sacerdote': 'sacerdote',
   'Ladrón': 'ladron',
+  'Espía': 'espia',
 };
 
 export function assignRoles(

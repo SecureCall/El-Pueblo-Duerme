@@ -54,6 +54,7 @@ export interface GameState {
     profetaTarget?: string;
     sacerdoteTarget?: string;
     ladronTarget?: string;
+    espiaActivate?: boolean;
   };
   nightSubmissions?: Record<string, boolean>;
   dayVotes?: Record<string, string>;
@@ -74,6 +75,12 @@ export interface GameState {
   salvajeMentors?: Record<string, string>;
   bearGrowl?: boolean;
   cazadorPendingShot?: string | null;
+  juezUsed?: boolean;
+  espiaUsed?: boolean;
+  chivoPendingChoice?: string | null;
+  voteBanned?: string[];
+  alquimistaPotion?: 'save' | 'reveal' | 'nothing' | null;
+  alquimistaRevealUid?: string | null;
 }
 
 export function GamePlay({ gameId }: { gameId: string }) {
@@ -361,9 +368,21 @@ export function GamePlay({ gameId }: { gameId: string }) {
       needsUpdate = true;
     }
 
-    // AI Ladrón (night 1)
+    // AI Espía (skip — AI never activates spy ability)
+    const aiEspia = aiPlayers.find(p => roles[p.uid] === 'Espía');
+    if (aiEspia && !subs['espia']) {
+      updates['nightSubmissions.espia'] = true;
+      needsUpdate = true;
+    }
+
+    // AI Ladrón (night 1): randomly steals a role from a non-wolf player
     const aiLadron = aiPlayers.find(p => roles[p.uid] === 'Ladrón');
     if (aiLadron && !subs['ladron'] && round === 1) {
+      const candidates = alivePlayers.filter(p => p.uid !== aiLadron.uid && roles[p.uid] !== 'Lobo' && roles[p.uid] !== 'Lobo Blanco');
+      if (candidates.length > 0) {
+        const pick = candidates[Math.floor(Math.random() * candidates.length)];
+        updates['nightActions.ladronTarget'] = pick.uid;
+      }
       updates['nightSubmissions.ladron'] = true;
       needsUpdate = true;
     }
@@ -400,6 +419,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const hasProfeta = activePlayers.some(p => roles[p.uid] === 'Profeta');
     const hasSacerdote = activePlayers.some(p => roles[p.uid] === 'Sacerdote');
     const hasLadron = activePlayers.some(p => roles[p.uid] === 'Ladrón') && round === 1;
+    const hasEspia = activePlayers.some(p => roles[p.uid] === 'Espía');
 
     // wolfDone: covers Lobo and Lobo Blanco (both submit 'wolves' key)
     const wolfDone = !hasWolfTeam || !!subs['wolves'];
@@ -415,10 +435,11 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const profetaDone = !hasProfeta || !!subs['profeta'];
     const sacerdoteDone = !hasSacerdote || !!subs['sacerdote'];
     const ladronDone = !hasLadron || !!subs['ladron'];
+    const espiaDone = !hasEspia || !!subs['espia'];
 
     if (wolfDone && seerDone && witchDone && cupidoDone && guardianDone &&
       flautistaDone && loboblancoDone && perroLoboDone && salvajeDone &&
-      profetaDone && sacerdoteDone && ladronDone) {
+      profetaDone && sacerdoteDone && ladronDone && espiaDone) {
       if (!processingNightRef.current) {
         processingNightRef.current = true;
         processNight();
@@ -433,7 +454,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const roles = game.roles ?? {};
     let players = [...(game.players ?? [])];
     const aliveBeforeNight = new Set(players.filter(p => p.isAlive).map(p => p.uid));
-    const history = [...(game.eliminatedHistory ?? [])];
+    let history = [...(game.eliminatedHistory ?? [])];
     const round = game.roundNumber ?? 1;
     let enchanted = [...(game.enchanted ?? [])];
     const antiguoHit = [...(game.antiguoHit ?? [])];
@@ -576,6 +597,51 @@ export function GamePlay({ gameId }: { gameId: string }) {
       }
     }
 
+    // Ladrón: steal a role (round 1 only)
+    if (actions.ladronTarget && round === 1) {
+      const ladron = players.find(p => newRoles[p.uid] === 'Ladrón' && p.isAlive);
+      const target = players.find(p => p.uid === actions.ladronTarget && p.isAlive);
+      if (ladron && target) {
+        const stolenRole = newRoles[target.uid] ?? 'Aldeano';
+        newRoles[ladron.uid] = stolenRole;
+        newRoles[target.uid] = 'Aldeano';
+        players = players.map(p => {
+          if (p.uid === ladron.uid) return { ...p, role: stolenRole };
+          if (p.uid === target.uid) return { ...p, role: 'Aldeano' };
+          return p;
+        });
+      }
+    }
+
+    // Espía activates wolf chat spy (mark as used)
+    let espiaUsed = game.espiaUsed ?? false;
+    if (actions.espiaActivate && !espiaUsed) {
+      espiaUsed = true;
+    }
+
+    // Alquimista: generates a random potion effect each night
+    let alquimistaPotion: 'save' | 'reveal' | 'nothing' | null = null;
+    let alquimistaRevealUid: string | null = null;
+    const alquimista = players.find(p => newRoles[p.uid] === 'Alquimista' && p.isAlive);
+    if (alquimista) {
+      const rand = Math.random();
+      if (rand < 0.25 && dayEliminatedUid) {
+        alquimistaPotion = 'save';
+        players = players.map(p => p.uid === dayEliminatedUid ? { ...p, isAlive: true } : p);
+        const histIdx = history.findIndex(h => h.uid === dayEliminatedUid);
+        if (histIdx !== -1) history.splice(histIdx, 1);
+        dayEliminatedUid = null;
+      } else if (rand < 0.5) {
+        alquimistaPotion = 'reveal';
+        const revealable = players.filter(p => p.isAlive && p.uid !== alquimista.uid);
+        if (revealable.length > 0) {
+          alquimistaRevealUid = revealable[Math.floor(Math.random() * revealable.length)].uid;
+        }
+      } else {
+        alquimistaPotion = 'nothing';
+      }
+    }
+
     // Cazador: if he died this night, queue his last shot before proceeding
     const deadCazador = players.find(p =>
       !p.isAlive && aliveBeforeNight.has(p.uid) && newRoles[p.uid] === 'Cazador'
@@ -616,6 +682,9 @@ export function GamePlay({ gameId }: { gameId: string }) {
         salvajeMentors,
         bearGrowl,
         cazadorPendingShot: cazadorPendingShot && !winResult.winner ? cazadorPendingShot : null,
+        espiaUsed,
+        alquimistaPotion,
+        alquimistaRevealUid,
         phase: winResult.winner ? 'ended' : 'day',
         winners: winResult.winner ?? null,
         winMessage: winResult.message ?? null,
@@ -770,17 +839,37 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const round = game.roundNumber ?? 1;
     const aliveBeforeDay = new Set((game.players ?? []).filter(p => p.isAlive).map(p => p.uid));
 
+    // Apply vote ban from Chivo Expiatorio's previous choice
+    const voteBanned = game.voteBanned ?? [];
+    const effectiveVotes: Record<string, string> = {};
+    for (const [voter, target] of Object.entries(dayVotes)) {
+      if (!voteBanned.includes(voter)) effectiveVotes[voter] = target;
+    }
+
     // Tally votes (Alcalde gets double vote)
     const tally: Record<string, number> = {};
-    for (const [voterUid, target] of Object.entries(dayVotes)) {
+    for (const [voterUid, target] of Object.entries(effectiveVotes)) {
       const multiplier = newRoles[voterUid] === 'Alcalde' ? 2 : 1;
       tally[target] = (tally[target] ?? 0) + multiplier;
     }
 
     let maxVotes = 0;
     let eliminated: string | null = null;
+    let isTie = false;
     for (const [uid, count] of Object.entries(tally)) {
-      if (count > maxVotes) { maxVotes = count; eliminated = uid; }
+      if (count > maxVotes) { maxVotes = count; eliminated = uid; isTie = false; }
+      else if (count === maxVotes && maxVotes > 0) { isTie = true; }
+    }
+    if (isTie) eliminated = null;
+
+    // Chivo Expiatorio: dies on tie instead of nobody
+    let chivoPendingChoice: string | null = null;
+    if (isTie) {
+      const chivoPlayer = players.find(p => p.isAlive && newRoles[p.uid] === 'Chivo Expiatorio');
+      if (chivoPlayer) {
+        eliminated = chivoPlayer.uid;
+        chivoPendingChoice = chivoPlayer.uid;
+      }
     }
 
     let players = [...(game.players ?? [])];
@@ -847,6 +936,11 @@ export function GamePlay({ gameId }: { gameId: string }) {
         eliminatedHistory: history,
         enchanted,
         cazadorPendingShot: cazadorPendingShot && !winResult.winner ? cazadorPendingShot : null,
+        chivoPendingChoice: chivoPendingChoice && !winResult.winner ? chivoPendingChoice : null,
+        voteBanned: [],
+        alquimistaPotion: null,
+        alquimistaRevealUid: null,
+        juezUsed: false,
         phase: winResult.winner ? 'ended' : 'night',
         winners: winResult.winner ?? null,
         winMessage: winResult.message ?? null,
@@ -894,6 +988,43 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }).catch((e: unknown) => console.error('cazadorShot error:', e));
   }, [game, gameId, interruptWith, AUDIO_FILES]);
 
+  // Chivo Expiatorio: after dying in tie, chooses who can't vote next round
+  const applyChivoChoice = useCallback(async (bannedUid: string | null) => {
+    await updateDoc(doc(db, 'games', gameId), {
+      chivoPendingChoice: null,
+      voteBanned: bannedUid ? [bannedUid] : [],
+    }).catch((e: unknown) => console.error('chivoChoice error:', e));
+  }, [gameId]);
+
+  // Juez: calls a second vote during day phase
+  const juezCallSecondVote = useCallback(async () => {
+    if (!game) return;
+    await updateDoc(doc(db, 'games', gameId), {
+      dayVotes: {},
+      juezUsed: true,
+    }).catch((e: unknown) => console.error('juezSecondVote error:', e));
+  }, [game, gameId]);
+
+  // AI auto-selects for Chivo Expiatorio
+  useEffect(() => {
+    if (!game || !user || game.hostUid !== user.uid) return;
+    if (!game.chivoPendingChoice) return;
+    const chivoUid = game.chivoPendingChoice;
+    const chivo = (game.players ?? []).find(p => p.uid === chivoUid);
+    if (!chivo?.isAI) return;
+    const timer = setTimeout(() => {
+      const alive = (game.players ?? []).filter(p => p.isAlive && p.uid !== chivoUid);
+      if (alive.length > 0) {
+        const pick = alive[Math.floor(Math.random() * alive.length)];
+        applyChivoChoice(pick.uid);
+      } else {
+        applyChivoChoice(null);
+      }
+    }, 2500);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.chivoPendingChoice]);
+
   // AI auto-shoots for Cazador
   useEffect(() => {
     if (!game || !user || game.hostUid !== user.uid) return;
@@ -928,6 +1059,58 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
   const myRole = game.roles?.[user.uid];
   const me = game.players?.find(p => p.uid === user.uid);
+
+  // Chivo Expiatorio choice overlay — interrupts any phase after tie death
+  if (game.chivoPendingChoice) {
+    const chivoUid = game.chivoPendingChoice;
+    const isMyChoice = chivoUid === user.uid;
+    const alivePlayers = (game.players ?? []).filter(p => p.isAlive);
+    return (
+      <div
+        className="min-h-screen w-full text-white flex flex-col items-center justify-center p-6 relative"
+        style={{ backgroundImage: 'url(/dia.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}
+      >
+        <div className="absolute inset-0 bg-black/85" />
+        <div className="relative z-10 w-full max-w-md text-center">
+          <div className="text-7xl mb-4">🐐</div>
+          {isMyChoice ? (
+            <>
+              <h2 className="text-3xl font-bold mb-2 text-amber-400">¡El Chivo Expiatorio!</h2>
+              <p className="text-white/60 mb-2">Has muerto en el empate. Pero puedes elegir quién <strong>no podrá votar</strong> en la próxima ronda.</p>
+              <div className="space-y-2 mt-6 mb-4">
+                {alivePlayers.map(p => (
+                  <button
+                    key={p.uid}
+                    onClick={() => applyChivoChoice(p.uid)}
+                    className="w-full flex items-center gap-3 bg-amber-900/30 border border-amber-500/40 rounded-xl p-4 hover:bg-amber-900/60 transition-all text-left"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-white/10 overflow-hidden flex-shrink-0 flex items-center justify-center font-bold">
+                      {p.photoURL ? <img src={p.photoURL} alt={p.name} className="w-full h-full object-cover" /> : <span>{p.name[0]}</span>}
+                    </div>
+                    <span className="font-semibold">{p.name}</span>
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => applyChivoChoice(null)}
+                className="w-full bg-white/10 hover:bg-white/20 border border-white/20 text-white text-sm font-medium py-3 rounded-xl transition-colors"
+              >
+                No excluir a nadie
+              </button>
+            </>
+          ) : (
+            <>
+              <h2 className="text-3xl font-bold mb-2 text-amber-400">¡El Chivo Expiatorio muere!</h2>
+              <p className="text-white/60 mb-4">
+                <span className="text-white font-semibold">{(game.players ?? []).find(p => p.uid === chivoUid)?.name ?? 'El Chivo'}</span> ha muerto en el empate y elige quién no votará en la próxima ronda...
+              </p>
+              <div className="animate-pulse text-5xl mt-4">⏳</div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // Cazador last shot overlay — interrupts any phase
   if (game.cazadorPendingShot) {
@@ -1060,6 +1243,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
         userId={user.uid}
         isHost={game.hostUid === user.uid}
         onVote={submitDayVote}
+        onJuezSecondVote={juezCallSecondVote}
         onTimerEnd={() => {
           if (game.hostUid === user.uid) {
             const votes = (game.dayVotes ?? {}) as Record<string, string>;

@@ -63,6 +63,26 @@ Para activar Google y Facebook en Firebase Console:
 - Las monedas se guardan en Firestore: `users/{uid}.coins`
 - Las compras en `users/{uid}/purchases`, historial en `users/{uid}/coinHistory`
 
+## Motor de Juego — Roles implementados (26)
+
+**Completamente funcionales (con mecánica activa):**
+Aldeano, Lobo, Lobo Blanco, Vidente, Profeta, Bruja, Cazador (última bala), Cupido, Alcalde (voto doble), Guardián, Niña, Antiguo, Ángel, Pícaro, Flautista, Perro Lobo, Niño Salvaje, Gemelas, Hermanos, Sacerdote, Oso, Médium (ghost chat)
+
+**Implementados recientemente:**
+- **Ladrón**: Roba el rol real de otro jugador (target → swap roles, target → Aldeano)
+- **Espía**: Puede activar espionaje UNA vez para leer el chat de lobos en tiempo real
+- **Alquimista**: Poción aleatoria cada noche (salvar víctima 25% / revelar rol 25% / nada 50%)
+- **Juez**: Botón "segunda votación" en DayPhase (borra votos, una vez por partida)
+- **Chivo Expiatorio**: Muere en empate de votos; luego elige quién no vota la próxima ronda
+- **Ghost Chat** (Médium): Jugadores muertos escriben, Médium lee durante el día
+- **Lovers Chat**: Chat privado entre los enamorados (Cupido) durante el día
+
+**Colecciones Firestore de chat:**
+- `games/{id}/publicChat` — debate del pueblo
+- `games/{id}/wolfChat` — lobos + Espía cuando activa
+- `games/{id}/ghostChat` — muertos ↔ Médium
+- `games/{id}/loversChat` — enamorados (privado)
+
 ## Variables de Entorno (Replit Secrets)
 
 - `FIREBASE_PRIVATE_KEY`

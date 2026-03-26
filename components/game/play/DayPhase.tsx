@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { GameState, Player } from './GamePlay';
-import { Sun, Send, Vote, Skull, Bot, Timer } from 'lucide-react';
+import { Sun, Send, Vote, Skull, Bot, Timer, Scale } from 'lucide-react';
 import { db } from '@/lib/firebase/config';
 import {
   collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit,
@@ -21,6 +21,7 @@ interface Props {
   userId: string;
   isHost: boolean;
   onVote: (targetUid: string) => Promise<void>;
+  onJuezSecondVote: () => Promise<void>;
   onTimerEnd: () => void;
 }
 
@@ -31,13 +32,22 @@ interface ChatMsg {
   text: string;
 }
 
-export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onTimerEnd }: Props) {
+type ChatTab = 'public' | 'ghost' | 'lovers';
+
+export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJuezSecondVote, onTimerEnd }: Props) {
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
+  const [ghostMsgs, setGhostMsgs] = useState<ChatMsg[]>([]);
+  const [loversMsgs, setLoversMsgs] = useState<ChatMsg[]>([]);
   const [msg, setMsg] = useState('');
+  const [ghostMsg, setGhostMsg] = useState('');
+  const [loversMsg, setLoversMsg] = useState('');
   const [sending, setSending] = useState(false);
+  const [sendingGhost, setSendingGhost] = useState(false);
+  const [sendingLovers, setSendingLovers] = useState(false);
   const [myVote, setMyVote] = useState<string | null>(null);
   const [voted, setVoted] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(DAY_DURATION);
+  const [chatTab, setChatTab] = useState<ChatTab>('public');
   const timerEndFired = useRef(false);
   const onTimerEndRef = useRef(onTimerEnd);
   const chatRef = useRef<HTMLDivElement>(null);
@@ -53,21 +63,64 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onT
   const eliminatedNight = game.dayEliminatedUid
     ? game.players?.find(p => p.uid === game.dayEliminatedUid)
     : null;
-  const roleInfo = ROLES[myRole];
 
+  // Role-based access flags
+  const isMedium = myRole === 'Médium';
+  const isDead = !meAlive;
+  const canSeeGhostChat = isMedium || isDead;
+  const lovers = game.lovers ?? null;
+  const isLover = lovers ? (lovers[0] === userId || lovers[1] === userId) : false;
+  const isJuez = myRole === 'Juez' && meAlive;
+  const isAlquimista = myRole === 'Alquimista';
+  const voteBanned = game.voteBanned ?? [];
+  const myVoteBanned = voteBanned.includes(userId);
+
+  // Tabs available
+  const availableTabs: ChatTab[] = ['public'];
+  if (canSeeGhostChat) availableTabs.push('ghost');
+  if (isLover) availableTabs.push('lovers');
+
+  // Public chat
   useEffect(() => {
-    const q = query(
-      collection(db, 'games', gameId, 'publicChat'),
-      orderBy('createdAt', 'asc'),
-      limit(100)
-    );
+    const q = query(collection(db, 'games', gameId, 'publicChat'), orderBy('createdAt', 'asc'), limit(100));
     const unsub = onSnapshot(q, (snap: any) => {
       setMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg)));
-      setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
+      if (chatTab === 'public') setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
     });
     return () => unsub();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId]);
 
+  // Ghost chat (Médium reads, dead players write)
+  useEffect(() => {
+    if (!canSeeGhostChat) return;
+    const q = query(collection(db, 'games', gameId, 'ghostChat'), orderBy('createdAt', 'asc'), limit(100));
+    const unsub = onSnapshot(q, (snap: any) => {
+      setGhostMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg)));
+      if (chatTab === 'ghost') setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
+    });
+    return () => unsub();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameId, canSeeGhostChat]);
+
+  // Lovers chat (only the pair)
+  useEffect(() => {
+    if (!isLover) return;
+    const q = query(collection(db, 'games', gameId, 'loversChat'), orderBy('createdAt', 'asc'), limit(100));
+    const unsub = onSnapshot(q, (snap: any) => {
+      setLoversMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg)));
+      if (chatTab === 'lovers') setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
+    });
+    return () => unsub();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameId, isLover]);
+
+  // Scroll chat on tab switch
+  useEffect(() => {
+    setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
+  }, [chatTab]);
+
+  // Timer
   useEffect(() => {
     const startedAt = game.dayStartedAt ?? Date.now();
     timerEndFired.current = false;
@@ -115,8 +168,36 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onT
     setSending(false);
   };
 
+  const sendGhostMsg = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ghostMsg.trim() || !isDead) return;
+    setSendingGhost(true);
+    await addDoc(collection(db, 'games', gameId, 'ghostChat'), {
+      senderId: userId,
+      senderName: me?.name ?? 'Fantasma',
+      text: ghostMsg.trim(),
+      createdAt: serverTimestamp(),
+    });
+    setGhostMsg('');
+    setSendingGhost(false);
+  };
+
+  const sendLoversMsg = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loversMsg.trim() || !isLover || !meAlive) return;
+    setSendingLovers(true);
+    await addDoc(collection(db, 'games', gameId, 'loversChat'), {
+      senderId: userId,
+      senderName: me?.name ?? 'Enamorado',
+      text: loversMsg.trim(),
+      createdAt: serverTimestamp(),
+    });
+    setLoversMsg('');
+    setSendingLovers(false);
+  };
+
   const handleVote = async () => {
-    if (!myVote || voted || !meAlive) return;
+    if (!myVote || voted || !meAlive || myVoteBanned) return;
     await onVote(myVote);
     setVoted(true);
   };
@@ -129,6 +210,148 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onT
   const totalAlive = alivePlayers.length;
 
   const votingTargets = alivePlayers.filter(p => p.uid !== userId);
+
+  const tabLabel: Record<ChatTab, string> = {
+    public: '💬 Pueblo',
+    ghost: '👻 Muertos',
+    lovers: '💕 Privado',
+  };
+
+  const renderChatContent = () => {
+    if (chatTab === 'ghost') {
+      return (
+        <>
+          <div ref={chatRef} className="flex-1 overflow-y-auto p-4 space-y-2">
+            {ghostMsgs.length === 0 && (
+              <p className="text-white/20 text-sm text-center mt-8">
+                {isMedium ? 'El más allá guarda silencio...' : 'Los muertos aún no hablan...'}
+              </p>
+            )}
+            {ghostMsgs.map(m => (
+              <div key={m.id} className={`flex gap-2 ${m.senderId === userId ? 'flex-row-reverse' : ''}`}>
+                <div className={`max-w-[80%] flex flex-col ${m.senderId === userId ? 'items-end' : 'items-start'}`}>
+                  {m.senderId !== userId && (
+                    <span className="text-[10px] text-white/40 mb-0.5">{m.senderName}</span>
+                  )}
+                  <div className={`px-3 py-1.5 rounded-xl text-sm ${m.senderId === userId ? 'bg-slate-500 text-white' : 'bg-white/10 text-white/70'}`}>
+                    {m.text}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {isDead && (
+            <form onSubmit={sendGhostMsg} className="p-3 border-t border-white/10 flex gap-2">
+              <input
+                value={ghostMsg}
+                onChange={e => setGhostMsg(e.target.value)}
+                placeholder="Habla desde el más allá..."
+                maxLength={200}
+                className="flex-1 bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-white/40"
+              />
+              <button type="submit" disabled={!ghostMsg.trim() || sendingGhost} className="bg-slate-500/20 hover:bg-slate-500/30 border border-slate-500/30 p-2 rounded-lg disabled:opacity-40">
+                <Send className="h-4 w-4 text-slate-400" />
+              </button>
+            </form>
+          )}
+          {isMedium && !isDead && (
+            <div className="p-3 border-t border-white/5 text-center">
+              <p className="text-white/20 text-xs">👻 Solo los muertos pueden escribir aquí. Tú puedes leer.</p>
+            </div>
+          )}
+        </>
+      );
+    }
+
+    if (chatTab === 'lovers') {
+      const partner = (game.players ?? []).find(p => lovers && p.uid !== userId && (lovers[0] === p.uid || lovers[1] === p.uid));
+      return (
+        <>
+          <div className="px-4 py-2 border-b border-white/10">
+            <p className="text-xs text-pink-400/70">💕 Chat privado con {partner?.name ?? 'tu amado/a'}</p>
+          </div>
+          <div ref={chatRef} className="flex-1 overflow-y-auto p-4 space-y-2">
+            {loversMsgs.length === 0 && (
+              <p className="text-white/20 text-sm text-center mt-8">Solo tú y {partner?.name ?? 'tu pareja'} podéis leer esto...</p>
+            )}
+            {loversMsgs.map(m => (
+              <div key={m.id} className={`flex gap-2 ${m.senderId === userId ? 'flex-row-reverse' : ''}`}>
+                <div className={`max-w-[80%] flex flex-col ${m.senderId === userId ? 'items-end' : 'items-start'}`}>
+                  {m.senderId !== userId && (
+                    <span className="text-[10px] text-white/40 mb-0.5">{m.senderName}</span>
+                  )}
+                  <div className={`px-3 py-1.5 rounded-xl text-sm ${m.senderId === userId ? 'bg-pink-500 text-white font-medium' : 'bg-pink-900/40 text-white'}`}>
+                    {m.text}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {meAlive && (
+            <form onSubmit={sendLoversMsg} className="p-3 border-t border-white/10 flex gap-2">
+              <input
+                value={loversMsg}
+                onChange={e => setLoversMsg(e.target.value)}
+                placeholder="Solo vuestra pareja lo ve..."
+                maxLength={200}
+                className="flex-1 bg-white/5 border border-pink-500/30 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-pink-500/50"
+              />
+              <button type="submit" disabled={!loversMsg.trim() || sendingLovers} className="bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/30 p-2 rounded-lg disabled:opacity-40">
+                <Send className="h-4 w-4 text-pink-400" />
+              </button>
+            </form>
+          )}
+          {!meAlive && (
+            <div className="p-3 border-t border-white/5 text-center">
+              <p className="text-white/20 text-xs">💔 Estás muerto/a. Solo podéis leer.</p>
+            </div>
+          )}
+        </>
+      );
+    }
+
+    // Public chat
+    return (
+      <>
+        <div ref={chatRef} className="flex-1 overflow-y-auto p-4 space-y-2">
+          {msgs.length === 0 && (
+            <p className="text-white/20 text-sm text-center mt-8">El pueblo delibera en silencio...</p>
+          )}
+          {msgs.map(m => (
+            <div key={m.id} className={`flex gap-2 ${m.senderId === userId ? 'flex-row-reverse' : ''}`}>
+              <div className={`max-w-[80%] flex flex-col ${m.senderId === userId ? 'items-end' : 'items-start'}`}>
+                {m.senderId !== userId && (
+                  <span className="text-[10px] text-white/40 mb-0.5">{m.senderName}</span>
+                )}
+                <div className={`px-3 py-1.5 rounded-xl text-sm ${m.senderId === userId ? 'bg-amber-500 text-black font-medium' : 'bg-white/10 text-white'}`}>
+                  {m.text}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        {meAlive && (
+          <form onSubmit={sendMsg} className="p-3 border-t border-white/10 flex gap-2">
+            <input
+              value={msg}
+              onChange={e => setMsg(e.target.value)}
+              placeholder="Defiéndete o acusa..."
+              maxLength={200}
+              className="flex-1 bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-white/40"
+            />
+            <button type="submit" disabled={!msg.trim() || sending} className="bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 p-2 rounded-lg disabled:opacity-40">
+              <Send className="h-4 w-4 text-amber-400" />
+            </button>
+          </form>
+        )}
+        {!meAlive && (
+          <div className="p-3 border-t border-white/5 text-center">
+            <p className="text-white/20 text-xs">👻 Estás muerto. Observas en silencio.</p>
+          </div>
+        )}
+      </>
+    );
+  };
 
   return (
     <div
@@ -190,49 +413,64 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onT
           </div>
         )}
 
-        <div className="flex gap-3 flex-1 min-h-0">
-          {/* Chat */}
-          <div className="flex-1 flex flex-col bg-black/40 border border-white/10 rounded-xl overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-white/10">
-              <p className="text-sm font-medium text-amber-300/80">💬 Debate del Pueblo</p>
-              <p className="text-white/30 text-xs">Discutid y decidid quién ejecutar hoy</p>
+        {/* Alquimista potion result */}
+        {isAlquimista && game.alquimistaPotion && (
+          <div className={`rounded-xl p-3 border text-sm flex items-center gap-3 ${
+            game.alquimistaPotion === 'save' ? 'bg-lime-900/30 border-lime-500/40 text-lime-300' :
+            game.alquimistaPotion === 'reveal' ? 'bg-cyan-900/30 border-cyan-500/40 text-cyan-300' :
+            'bg-white/5 border-white/10 text-white/50'
+          }`}>
+            <span className="text-2xl">⚗️</span>
+            <div>
+              <p className="font-semibold">
+                {game.alquimistaPotion === 'save' && '¡Tu poción salvó a la víctima de los lobos esta noche!'}
+                {game.alquimistaPotion === 'reveal' && game.alquimistaRevealUid
+                  ? `Tu poción revela: ${(game.players ?? []).find(p => p.uid === game.alquimistaRevealUid)?.name ?? '?'} es ${(game.roles ?? {})[game.alquimistaRevealUid ?? ''] ?? 'Aldeano'}`
+                  : game.alquimistaPotion === 'reveal' && '🔍 Tu poción no reveló nada (no había candidatos)'}
+                {game.alquimistaPotion === 'nothing' && 'Tu poción de anoche fue inerte. Sin efecto.'}
+              </p>
             </div>
-            <div ref={chatRef} className="flex-1 overflow-y-auto p-4 space-y-2">
-              {msgs.length === 0 && (
-                <p className="text-white/20 text-sm text-center mt-8">El pueblo delibera en silencio...</p>
-              )}
-              {msgs.map(m => (
-                <div key={m.id} className={`flex gap-2 ${m.senderId === userId ? 'flex-row-reverse' : ''}`}>
-                  <div className={`max-w-[80%] flex flex-col ${m.senderId === userId ? 'items-end' : 'items-start'}`}>
-                    {m.senderId !== userId && (
-                      <span className="text-[10px] text-white/40 mb-0.5">{m.senderName}</span>
-                    )}
-                    <div className={`px-3 py-1.5 rounded-xl text-sm ${m.senderId === userId ? 'bg-amber-500 text-black font-medium' : 'bg-white/10 text-white'}`}>
-                      {m.text}
-                    </div>
-                  </div>
-                </div>
+          </div>
+        )}
+
+        {/* Vote ban notice */}
+        {myVoteBanned && meAlive && (
+          <div className="bg-orange-900/30 border border-orange-500/40 rounded-xl p-3 text-center">
+            <p className="text-orange-300 text-sm">🐐 El Chivo Expiatorio te excluyó — <strong>no puedes votar esta ronda</strong>.</p>
+          </div>
+        )}
+
+        <div className="flex gap-3 flex-1 min-h-0">
+          {/* Chat area with tabs */}
+          <div className="flex-1 flex flex-col bg-black/40 border border-white/10 rounded-xl overflow-hidden">
+            {/* Tab bar */}
+            <div className="flex border-b border-white/10">
+              {availableTabs.map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setChatTab(tab)}
+                  className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+                    chatTab === tab
+                      ? tab === 'ghost' ? 'bg-slate-800/60 text-slate-300 border-b-2 border-slate-400'
+                      : tab === 'lovers' ? 'bg-pink-900/40 text-pink-300 border-b-2 border-pink-400'
+                      : 'bg-amber-900/30 text-amber-300 border-b-2 border-amber-400'
+                      : 'text-white/40 hover:text-white/60'
+                  }`}
+                >
+                  {tabLabel[tab]}
+                </button>
               ))}
             </div>
-            {meAlive && (
-              <form onSubmit={sendMsg} className="p-3 border-t border-white/10 flex gap-2">
-                <input
-                  value={msg}
-                  onChange={e => setMsg(e.target.value)}
-                  placeholder="Defiéndete o acusa..."
-                  maxLength={200}
-                  className="flex-1 bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-white/40"
-                />
-                <button type="submit" disabled={!msg.trim() || sending} className="bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 p-2 rounded-lg disabled:opacity-40">
-                  <Send className="h-4 w-4 text-amber-400" />
-                </button>
-              </form>
-            )}
-            {!meAlive && (
-              <div className="p-3 border-t border-white/5 text-center">
-                <p className="text-white/20 text-xs">👻 Estás muerto. Observas en silencio.</p>
+
+            {/* Header for public chat */}
+            {chatTab === 'public' && (
+              <div className="px-4 py-2 border-b border-white/5">
+                <p className="text-white/30 text-xs">Discutid y decidid quién ejecutar hoy</p>
               </div>
             )}
+
+            {/* Chat content */}
+            {renderChatContent()}
           </div>
 
           {/* Voting panel */}
@@ -251,9 +489,9 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onT
                   return (
                     <button
                       key={p.uid}
-                      onClick={() => !voted && meAlive && setMyVote(p.uid)}
-                      disabled={voted || !meAlive}
-                      className={`w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-all ${isSelected ? 'border-amber-500 bg-amber-900/30' : 'border-white/10 bg-white/5 hover:border-white/25'} ${!meAlive || voted ? 'opacity-50 cursor-default' : 'cursor-pointer'}`}
+                      onClick={() => !voted && meAlive && !myVoteBanned && setMyVote(p.uid)}
+                      disabled={voted || !meAlive || myVoteBanned}
+                      className={`w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-all ${isSelected ? 'border-amber-500 bg-amber-900/30' : 'border-white/10 bg-white/5 hover:border-white/25'} ${!meAlive || voted || myVoteBanned ? 'opacity-50 cursor-default' : 'cursor-pointer'}`}
                     >
                       <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-xs flex-shrink-0 font-bold overflow-hidden">
                         {p.photoURL
@@ -277,7 +515,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onT
                 })}
               </div>
 
-              {meAlive && !voted && (
+              {meAlive && !voted && !myVoteBanned && (
                 <button
                   onClick={handleVote}
                   disabled={!myVote}
@@ -291,9 +529,30 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onT
                   ✓ Voto registrado
                 </div>
               )}
+              {myVoteBanned && meAlive && (
+                <div className="mt-3 text-center text-orange-400/60 text-xs py-1">
+                  🐐 Sin voto esta ronda
+                </div>
+              )}
               {!meAlive && (
                 <div className="mt-3 text-center text-white/20 text-xs py-1">
                   No puedes votar
+                </div>
+              )}
+
+              {/* Juez second vote button */}
+              {isJuez && !game.juezUsed && (
+                <button
+                  onClick={onJuezSecondVote}
+                  className="mt-2 w-full flex items-center justify-center gap-1.5 bg-gray-700/60 hover:bg-gray-600/60 border border-gray-500/40 text-gray-200 text-xs font-medium py-2 rounded-xl transition-colors"
+                >
+                  <Scale className="h-3.5 w-3.5" />
+                  Segunda votación
+                </button>
+              )}
+              {isJuez && game.juezUsed && (
+                <div className="mt-2 text-center text-gray-400/40 text-[10px] py-1">
+                  ⚖️ Segunda votación usada
                 </div>
               )}
             </div>
@@ -306,6 +565,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onT
                   <div className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
                   <span className="text-white/50 text-xs truncate">{p.name}</span>
                   {p.isAI && <Bot className="h-2.5 w-2.5 text-cyan-400/40" />}
+                  {voteBanned.includes(p.uid) && <span className="text-orange-400 text-[9px]">🚫</span>}
                 </div>
               ))}
               {(game.players ?? []).filter(p => !p.isAlive).map(p => (
