@@ -6,10 +6,13 @@ import { ROLES } from './roles';
 import { getRoleIcon } from './roleIcons';
 import { Trophy, Skull, Home } from 'lucide-react';
 import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
+import { AdBanner } from '@/components/ads/AdBanner';
+import { RewardedAd } from '@/components/ads/RewardedAd';
 
 interface Props {
   game: GameState;
   myRole?: string;
+  myUid?: string;
   winners: string | null;
   winMessage: string;
   onPlayAgain: () => void;
@@ -49,7 +52,7 @@ function didIWin(winners: string | null, myRole?: string): boolean {
   return false;
 }
 
-export function EndGame({ game, myRole, winners, winMessage, onPlayAgain }: Props) {
+export function EndGame({ game, myRole, myUid, winners, winMessage, onPlayAgain }: Props) {
   const { emoji, title } = getWinnerDisplay(winners);
   const iWon = didIWin(winners, myRole);
   const { play } = useNarrator();
@@ -136,6 +139,16 @@ export function EndGame({ game, myRole, winners, winMessage, onPlayAgain }: Prop
             </div>
           </div>
         )}
+
+        {/* Anuncio recompensado — gana monedas viendo un anuncio */}
+        {myUid && (
+          <div className="mb-4">
+            <RewardedAd userId={myUid} coinsReward={50} />
+          </div>
+        )}
+
+        {/* Banner de AdSense */}
+        <AdBanner format="horizontal" className="mb-4" />
 
         <button
           onClick={onPlayAgain}

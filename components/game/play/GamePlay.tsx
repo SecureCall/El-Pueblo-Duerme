@@ -1726,7 +1726,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
   if (game.phase === 'ended') {
     return (
       <EndGame
-        game={game} myRole={myRole}
+        game={game} myRole={myRole} myUid={user?.uid}
         winners={game.winners ?? null}
         winMessage={game.winMessage ?? ''}
         onPlayAgain={() => router.push('/')}

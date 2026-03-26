@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 import { JoinByCodeModal } from '@/components/JoinByCodeModal';
 import { PageAudio } from '@/components/audio/PageAudio';
 import { AudioControls } from '@/components/audio/AudioControls';
+import { AdBanner } from '@/components/ads/AdBanner';
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -106,6 +107,11 @@ export default function HomePage() {
         >
           O únete con un código
         </button>
+
+        {/* Banner publicitario */}
+        <div className="mt-10 w-full max-w-xl">
+          <AdBanner format="horizontal" />
+        </div>
       </div>
 
       {showJoinModal && <JoinByCodeModal onClose={() => setShowJoinModal(false)} />}
