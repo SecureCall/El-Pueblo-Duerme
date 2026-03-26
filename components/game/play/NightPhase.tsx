@@ -377,7 +377,6 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
                   🔮 La Bruja aliada <strong>ha encontrado a la Vidente</strong>. Considera si eliminarla esta noche.
                 </div>
               )}
-              </div>
 
               {/* Wolf chat */}
               <div className="bg-black/40 rounded-xl mb-3 overflow-hidden">
