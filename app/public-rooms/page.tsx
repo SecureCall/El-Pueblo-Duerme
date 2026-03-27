@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { Users, Lock, Globe, Loader2, Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -28,13 +28,18 @@ export default function PublicRoomsPage() {
       collection(db, 'games'),
       where('isPublic', '==', true),
       where('status', '==', 'lobby'),
-      orderBy('createdAt', 'desc'),
-      limit(20)
+      limit(30)
     );
     const unsub = onSnapshot(q, (snap: any) => {
-      setRooms(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as Room)));
+      const list: Room[] = snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as Room));
+      list.sort((a, b) => {
+        const ta = a.createdAt?.seconds ?? 0;
+        const tb = b.createdAt?.seconds ?? 0;
+        return tb - ta;
+      });
+      setRooms(list);
       setLoading(false);
-    }, () => setLoading(false));
+    }, (err: any) => { console.error('public-rooms query error:', err); setLoading(false); });
     return () => unsub();
   }, []);
 

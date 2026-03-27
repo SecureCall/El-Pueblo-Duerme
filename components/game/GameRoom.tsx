@@ -6,7 +6,7 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { db } from '@/lib/firebase/config';
 import {
   doc, onSnapshot, updateDoc, arrayUnion, arrayRemove, serverTimestamp,
-  collection, addDoc, query, orderBy, limit, onSnapshot as onSnap,
+  collection, addDoc, query, orderBy, limit, onSnapshot as onSnap, deleteDoc,
 } from 'firebase/firestore';
 import { Copy, Crown, LogOut, Send, Users, Loader2, Bot, Share2, MessageCircle, Facebook, Link, Check } from 'lucide-react';
 import { useNarrator, waitForAudio } from '@/hooks/useNarrator';
@@ -163,11 +163,22 @@ export function GameRoom({ gameId }: { gameId: string }) {
   const leaveGame = async () => {
     if (!user || !game) return;
     const me = game.players?.find(p => p.uid === user.uid);
-    if (me) {
-      await updateDoc(doc(db, 'games', gameId), {
+
+    const remainingHumans = (game.players ?? []).filter(p => !p.isAI && p.uid !== user.uid);
+
+    if (remainingHumans.length === 0 && game.isPublic) {
+      await deleteDoc(doc(db, 'games', gameId)).catch(() => {});
+    } else if (me) {
+      const updates: Record<string, unknown> = {
         players: arrayRemove(me),
         playerCount: Math.max(0, (game.playerCount ?? 1) - 1),
-      }).catch(() => {});
+      };
+      if (me.isHost && remainingHumans.length > 0) {
+        const newHost = remainingHumans[0];
+        updates['hostUid'] = newHost.uid;
+        updates['hostName'] = newHost.name;
+      }
+      await updateDoc(doc(db, 'games', gameId), updates).catch(() => {});
     }
     router.push('/');
   };
