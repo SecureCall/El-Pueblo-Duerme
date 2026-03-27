@@ -1,11 +1,34 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Play, CheckCircle, Coins, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Play, CheckCircle, Coins } from 'lucide-react';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { addCoins, canWatchVideo } from '@/lib/firebase/coins';
 import { useToast } from '@/app/hooks/use-toast';
+
+declare global { interface Window { adsbygoogle: unknown[] } }
+
+function AdSlot() {
+  const ref = useRef<HTMLModElement>(null);
+  const pushed = useRef(false);
+  useEffect(() => {
+    if (pushed.current) return;
+    pushed.current = true;
+    try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (_) {}
+  }, []);
+  return (
+    <div className="w-full bg-black/30 rounded-xl overflow-hidden min-h-[160px] flex items-center justify-center">
+      <ins
+        ref={ref}
+        className="adsbygoogle"
+        style={{ display: 'block', width: '100%', minHeight: 160 }}
+        data-ad-client="ca-pub-4807272408824742"
+        data-ad-format="auto"
+        data-full-width-responsive="true"
+      />
+    </div>
+  );
+}
 
 interface VideoRewardProps {
   onCoinsEarned: () => void;
@@ -92,12 +115,11 @@ export function VideoReward({ onCoinsEarned }: VideoRewardProps) {
 
       {phase === 'watching' && (
         <div className="space-y-3">
-          <div className="relative bg-black rounded-xl overflow-hidden" style={{ paddingBottom: '42%' }}>
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
-              <div className="text-6xl mb-3">🎬</div>
-              <p className="text-white/70 text-sm">Vídeo en reproducción...</p>
-              <p className="text-yellow-400 font-bold text-2xl mt-2">{seconds}s</p>
-            </div>
+          {/* Anuncio real de AdSense — aparece una vez que Google apruebe el sitio */}
+          <AdSlot />
+          <div className="flex items-center justify-between text-sm">
+            <p className="text-white/50">Espera {seconds}s para recibir tus monedas...</p>
+            <span className="text-yellow-400 font-bold text-xl">{seconds}s</span>
           </div>
           <div className="bg-white/10 rounded-full h-2 overflow-hidden">
             <div
