@@ -8,10 +8,11 @@ import {
   doc, onSnapshot, updateDoc, arrayUnion, arrayRemove, serverTimestamp,
   collection, addDoc, query, orderBy, limit, onSnapshot as onSnap, deleteDoc,
 } from 'firebase/firestore';
-import { Copy, Crown, LogOut, Send, Users, Loader2, Bot, Share2, MessageCircle, Facebook, Link, Check } from 'lucide-react';
+import { Copy, Crown, LogOut, Send, Users, Loader2, Bot, Share2, MessageCircle, Facebook, Link, Check, UserPlus } from 'lucide-react';
 import { useNarrator, waitForAudio } from '@/hooks/useNarrator';
 import { useAudio } from '@/app/providers/AudioProvider';
 import { FriendsPanel } from '@/components/friends/FriendsPanel';
+import { sendFriendRequest } from '@/lib/firebase/friends';
 
 interface Player {
   uid: string;
@@ -88,6 +89,14 @@ export function GameRoom({ gameId }: { gameId: string }) {
   const { playMusic } = useAudio();
   const [introSkipped, setIntroSkipped] = useState(false);
   const salasPlayed = useRef(false);
+  const [sentFriendReqs, setSentFriendReqs] = useState<Set<string>>(new Set());
+
+  const addFriend = async (e: React.MouseEvent, targetUid: string) => {
+    e.stopPropagation();
+    if (!user) return;
+    await sendFriendRequest(user.uid, targetUid);
+    setSentFriendReqs(prev => new Set(prev).add(targetUid));
+  };
 
   useEffect(() => {
     if (salasPlayed.current) return;
@@ -414,17 +423,28 @@ export function GameRoom({ gameId }: { gameId: string }) {
               </div>
               <div className="flex-1 overflow-y-auto space-y-2">
                 {realPlayers.map(p => (
-                  <div key={p.uid} className="flex items-center gap-2">
+                  <div key={p.uid} className="flex items-center gap-2 group">
                     <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0 overflow-hidden">
                       {p.photoURL
                         ? <img src={p.photoURL} alt={p.name} className="w-full h-full object-cover" />
                         : <span className="w-full h-full flex items-center justify-center text-xs font-bold">{p.name[0]}</span>
                       }
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="text-xs font-medium truncate">{p.name}</p>
                       {p.isHost && <span className="text-yellow-400 text-[10px] flex items-center gap-0.5"><Crown className="h-2.5 w-2.5" /> Anfitrión</span>}
                     </div>
+                    {p.uid !== user?.uid && (
+                      sentFriendReqs.has(p.uid)
+                        ? <span className="flex items-center gap-1 text-green-400 text-[10px]"><Check className="h-3 w-3" /> Enviado</span>
+                        : <button
+                            onClick={e => addFriend(e, p.uid)}
+                            title={`Agregar a ${p.name} como amigo`}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-[10px] text-white/50 hover:text-amber-400 font-medium"
+                          >
+                            <UserPlus className="h-3.5 w-3.5" /> Agregar
+                          </button>
+                    )}
                   </div>
                 ))}
 

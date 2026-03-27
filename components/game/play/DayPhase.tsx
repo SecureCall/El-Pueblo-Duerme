@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { GameState, Player } from './GamePlay';
-import { Sun, Send, Vote, Skull, Bot, Timer, Scale } from 'lucide-react';
+import { Sun, Send, Vote, Skull, Bot, Timer, Scale, UserPlus, Check } from 'lucide-react';
 import { db } from '@/lib/firebase/config';
 import {
   collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit,
@@ -10,6 +10,7 @@ import {
 import { ROLES } from './roles';
 import { getRoleIcon } from './roleIcons';
 import { useNarrator } from '@/hooks/useNarrator';
+import { sendFriendRequest } from '@/lib/firebase/friends';
 
 const DAY_DURATION = 60;
 
@@ -79,6 +80,13 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
   const isSilenced = (game.silencedPlayers ?? []).includes(userId);
   const isAlborotadora = myRole === 'Alborotadora' && meAlive && !game.alborotadoraUsed;
   const [alborotadoraStep, setAlborotadoraStep] = useState<0 | 1>(0);
+  const [sentFriendReqs, setSentFriendReqs] = useState<Set<string>>(new Set());
+
+  const addFriend = async (e: React.MouseEvent, targetUid: string) => {
+    e.stopPropagation();
+    await sendFriendRequest(userId, targetUid);
+    setSentFriendReqs(prev => new Set(prev).add(targetUid));
+  };
   const [alborotadoraFighters, setAlborotadoraFighters] = useState<string[]>([]);
   const isVerdugo = myRole === 'Verdugo';
   const verdugoTarget = isVerdugo ? (game.players ?? []).find(p => p.uid === game.verdugos?.[userId]) : null;
@@ -523,6 +531,17 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
                           </p>
                         )}
                       </div>
+                      {!p.isAI && (
+                        sentFriendReqs.has(p.uid)
+                          ? <Check className="h-3.5 w-3.5 text-green-400 flex-shrink-0" />
+                          : <span
+                              onClick={e => addFriend(e, p.uid)}
+                              title={`Agregar a ${p.name} como amigo`}
+                              className="flex-shrink-0 text-white/30 hover:text-amber-400 transition-colors cursor-pointer"
+                            >
+                              <UserPlus className="h-3.5 w-3.5" />
+                            </span>
+                      )}
                     </button>
                   );
                 })}
@@ -634,17 +653,39 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
             <div className="bg-black/60 border border-white/15 rounded-xl p-3">
               <p className="text-white/70 text-[10px] uppercase tracking-wide mb-2">Vivos ({alivePlayers.length})</p>
               {alivePlayers.map(p => (
-                <div key={p.uid} className="flex items-center gap-1.5 mb-1">
+                <div key={p.uid} className="flex items-center gap-1.5 mb-1 group">
                   <div className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
-                  <span className="text-white/90 text-xs truncate">{p.name}</span>
+                  <span className="text-white/90 text-xs truncate flex-1">{p.name}</span>
                   {p.isAI && <Bot className="h-2.5 w-2.5 text-cyan-400/60" />}
                   {voteBanned.includes(p.uid) && <span className="text-orange-400 text-[9px]">🚫</span>}
+                  {p.uid !== userId && !p.isAI && (
+                    sentFriendReqs.has(p.uid)
+                      ? <Check className="h-3 w-3 text-green-400 flex-shrink-0" />
+                      : <button
+                          onClick={e => addFriend(e, p.uid)}
+                          title={`Agregar a ${p.name} como amigo`}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 text-white/50 hover:text-amber-400"
+                        >
+                          <UserPlus className="h-3 w-3" />
+                        </button>
+                  )}
                 </div>
               ))}
               {(game.players ?? []).filter(p => !p.isAlive).map(p => (
-                <div key={p.uid} className="flex items-center gap-1.5 mb-1">
+                <div key={p.uid} className="flex items-center gap-1.5 mb-1 group">
                   <div className="w-1.5 h-1.5 rounded-full bg-white/30 flex-shrink-0" />
-                  <span className="text-white/40 text-xs truncate line-through">{p.name}</span>
+                  <span className="text-white/40 text-xs truncate line-through flex-1">{p.name}</span>
+                  {p.uid !== userId && !p.isAI && (
+                    sentFriendReqs.has(p.uid)
+                      ? <Check className="h-3 w-3 text-green-400 flex-shrink-0" />
+                      : <button
+                          onClick={e => addFriend(e, p.uid)}
+                          title={`Agregar a ${p.name} como amigo`}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 text-white/30 hover:text-amber-400"
+                        >
+                          <UserPlus className="h-3 w-3" />
+                        </button>
+                  )}
                 </div>
               ))}
             </div>
