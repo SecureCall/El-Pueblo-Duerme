@@ -1790,10 +1790,36 @@ export function GamePlay({ gameId }: { gameId: string }) {
   if (game.phase === 'ended') {
     return (
       <EndGame
-        game={game} myRole={myRole} myUid={user?.uid}
+        game={game}
+        myRole={myRole}
+        myUid={user?.uid}
+        isHost={game.hostUid === user?.uid}
         winners={game.winners ?? null}
         winMessage={game.winMessage ?? ''}
         onPlayAgain={() => router.push('/')}
+        onPlayAgainSameRoom={async () => {
+          if (game.hostUid !== user?.uid) return;
+          const resetPlayers = (game.players ?? []).map((p: Player) => ({
+            ...p,
+            isAlive: true,
+            role: null,
+          }));
+          await updateDoc(doc(db, 'games', gameId), {
+            phase: 'lobby',
+            roundNumber: 0,
+            roles: {},
+            nightActions: {},
+            nightSubmissions: {},
+            dayVotes: {},
+            eliminatedHistory: [],
+            winners: null,
+            winMessage: '',
+            lastVictim: null,
+            bearGrowl: false,
+            profetaReveal: null,
+            players: resetPlayers,
+          });
+        }}
       />
     );
   }

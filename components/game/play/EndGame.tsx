@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { GameState } from './GamePlay';
 import { ROLES } from './roles';
 import { getRoleIcon } from './roleIcons';
-import { Trophy, Skull, Home } from 'lucide-react';
+import { Trophy, Skull, Home, RefreshCw, Clock } from 'lucide-react';
 import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
 import { AdBanner } from '@/components/ads/AdBanner';
 import { RewardedAd } from '@/components/ads/RewardedAd';
@@ -13,9 +13,11 @@ interface Props {
   game: GameState;
   myRole?: string;
   myUid?: string;
+  isHost?: boolean;
   winners: string | null;
   winMessage: string;
   onPlayAgain: () => void;
+  onPlayAgainSameRoom?: () => void;
 }
 
 function getWinnerDisplay(winners: string | null): { emoji: string; title: string } {
@@ -52,7 +54,7 @@ function didIWin(winners: string | null, myRole?: string): boolean {
   return false;
 }
 
-export function EndGame({ game, myRole, myUid, winners, winMessage, onPlayAgain }: Props) {
+export function EndGame({ game, myRole, myUid, isHost, winners, winMessage, onPlayAgain, onPlayAgainSameRoom }: Props) {
   const { emoji, title } = getWinnerDisplay(winners);
   const iWon = didIWin(winners, myRole);
   const { interruptWith } = useNarrator();
@@ -152,13 +154,31 @@ export function EndGame({ game, myRole, myUid, winners, winMessage, onPlayAgain 
         {/* Banner de AdSense */}
         <AdBanner format="horizontal" className="mb-4" />
 
-        <button
-          onClick={onPlayAgain}
-          className="w-full flex items-center justify-center gap-2 bg-white text-black font-bold py-4 rounded-xl hover:bg-white/90 transition-all text-lg"
-        >
-          <Home className="h-5 w-5" />
-          Volver al inicio
-        </button>
+        {/* Play again in same room */}
+        <div className="space-y-3">
+          {onPlayAgainSameRoom && isHost && (
+            <button
+              onClick={onPlayAgainSameRoom}
+              className="w-full flex items-center justify-center gap-2 bg-yellow-500 hover:bg-yellow-400 active:bg-yellow-400 text-black font-bold py-4 rounded-xl transition-all text-lg shadow-lg shadow-yellow-900/30"
+            >
+              <RefreshCw className="h-5 w-5" />
+              Volver a jugar en esta sala
+            </button>
+          )}
+          {onPlayAgainSameRoom && !isHost && (
+            <div className="w-full flex items-center justify-center gap-2 bg-white/10 border border-white/15 text-white/50 py-4 rounded-xl text-sm">
+              <Clock className="h-4 w-4" />
+              Esperando al anfitrión para jugar de nuevo…
+            </div>
+          )}
+          <button
+            onClick={onPlayAgain}
+            className="w-full flex items-center justify-center gap-2 bg-white/15 hover:bg-white/25 active:bg-white/25 text-white font-semibold py-3 rounded-xl transition-all border border-white/20"
+          >
+            <Home className="h-5 w-5" />
+            Volver al inicio
+          </button>
+        </div>
       </div>
     </div>
   );
