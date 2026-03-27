@@ -63,7 +63,15 @@ Para activar Google y Facebook en Firebase Console:
 - Las monedas se guardan en Firestore: `users/{uid}.coins`
 - Las compras en `users/{uid}/purchases`, historial en `users/{uid}/coinHistory`
 
-## Motor de Juego — Roles implementados (26)
+## Sistemas de Retención y Progresión
+
+- **XP y Niveles** (`lib/firebase/xp.ts`): +50 XP por jugar, +100 XP por ganar, +25 XP rol especial. Nivel = xp÷200+1 (máx 50). Emojis de rango (🌱 Novato → 👑 Leyenda). Barra de progreso en `app/profile/page.tsx`. Badge de nivel en lobby (`components/game/GameRoom.tsx`).
+- **Reportes Anti-Troll** (`lib/firebase/reports.ts`): Botón ⚑ en cada jugador del panel de votación durante el día. Guarda en `games/{id}/reports`. El anfitrión puede kickear jugadores inactivos desde el lobby.
+- **Jugadores Inactivos**: Heartbeat de presencia cada 60s en `GameRoom.tsx` (`lastSeen`). Badge rojo en lobby si >3min sin señal. El host ve botón Kick en hover.
+- **Eventos Aleatorios**: 8 eventos con 30% de probabilidad por ronda. Banner púrpura visible en DayPhase. Modifican duración del debate (±30s), exilio, segundo kill de lobos, pociones de Hechicera, votos anónimos, y visión de Vidente doble.
+- **Cronómetro nocturno**: Barra de progreso sincronizada para todos en NightPhase (90s base, basado en `game.nightStartedAt`). Color cambia: azul → ámbar (≤30s) → rojo (≤15s).
+
+## Motor de Juego — Roles implementados (35)
 
 **Completamente funcionales (con mecánica activa):**
 Aldeano, Lobo, Lobo Blanco, Vidente, Profeta, Bruja, Cazador (última bala), Cupido, Alcalde (voto doble), Guardián, Niña, Antiguo, Ángel, Pícaro, Flautista, Perro Lobo, Niño Salvaje, Gemelas, Hermanos, Sacerdote, Oso, Médium (ghost chat)
@@ -76,6 +84,9 @@ Aldeano, Lobo, Lobo Blanco, Vidente, Profeta, Bruja, Cazador (última bala), Cup
 - **Chivo Expiatorio**: Muere en empate de votos; luego elige quién no vota la próxima ronda
 - **Ghost Chat** (Médium): Jugadores muertos escriben, Médium lee durante el día
 - **Lovers Chat**: Chat privado entre los enamorados (Cupido) durante el día
+- **Médico Forense** 🔬: Examina cadáveres cada noche para descubrir su rol. Panel en NightPhase muestra historial de eliminados con su ronda.
+- **Iluminado** 💡: Rol pasivo. Conoce la identidad de UN lobo desde el inicio (`game.iluminadoReveal[uid]` → wolf uid).
+- **Saboteador** 💣: Anula el voto de un jugador elegido por noche (`game.saboteadorBan`). El target ve aviso y no puede votar.
 
 **Colecciones Firestore de chat:**
 - `games/{id}/publicChat` — debate del pueblo

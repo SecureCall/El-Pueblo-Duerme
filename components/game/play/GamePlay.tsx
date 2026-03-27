@@ -9,7 +9,7 @@ import {
   query, orderBy, limit,
 } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
-import { assignRoles, checkWinCondition, ROLES, ROLE_SUBMISSION_KEY } from './roles';
+import { assignRoles, checkWinCondition, ROLES, ROLE_SUBMISSION_KEY, drawRandomEvent } from './roles';
 import { RoleReveal } from './RoleReveal';
 import { NightPhase } from './NightPhase';
 import { DayPhase } from './DayPhase';
@@ -71,6 +71,8 @@ export interface GameState {
     vampiroTarget?: string;
     hadaBuscadoraTarget?: string;
     brujaTarget?: string;
+    forenseTarget?: string;
+    saboteadorTarget?: string;
   };
   nightSubmissions?: Record<string, boolean>;
   dayVotes?: Record<string, string>;
@@ -129,6 +131,17 @@ export interface GameState {
   hechiceraLifeUsed?: boolean;
   hechiceraPoisonUsed?: boolean;
   malditoUid?: string | null;
+  // New feature fields
+  nightStartedAt?: number;
+  currentEvent?: { id: string; emoji: string; name: string; description: string; mechanical: string } | null;
+  eventRound?: number;
+  saboteadorBan?: string | null;
+  forenseResults?: Record<string, string>;
+  iluminadoReveal?: Record<string, string>;
+  eclipseActive?: boolean;
+  doubleSeerActive?: boolean;
+  anonymousVotesActive?: boolean;
+  noExileActive?: boolean;
 }
 
 export function GamePlay({ gameId }: { gameId: string }) {
@@ -219,6 +232,15 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }
     const pescUid = game.players.find(p => assigned[p.uid] === 'Pescador')?.uid ?? null;
 
+    // Iluminado: reveal one wolf to the Iluminado player
+    const iluminadoReveal: Record<string, string> = {};
+    for (const [uid, role] of Object.entries(assigned)) {
+      if (role === 'Iluminado') {
+        const wolves = game.players.filter(p => assigned[p.uid] === 'Lobo' || assigned[p.uid] === 'Lobo Blanco' || assigned[p.uid] === 'Cría de Lobo');
+        if (wolves.length > 0) iluminadoReveal[uid] = wolves[Math.floor(Math.random() * wolves.length)].uid;
+      }
+    }
+
     updateDoc(doc(db, 'games', gameId), {
       roles: assigned,
       players: updatedPlayers,
@@ -269,6 +291,15 @@ export function GamePlay({ gameId }: { gameId: string }) {
       hechiceraLifeUsed: false,
       hechiceraPoisonUsed: false,
       malditoUid,
+      iluminadoReveal,
+      forenseResults: {},
+      saboteadorBan: null,
+      currentEvent: null,
+      eventRound: 0,
+      eclipseActive: false,
+      doubleSeerActive: false,
+      anonymousVotesActive: false,
+      noExileActive: false,
     }).catch((e: any) => console.error('assignRoles error:', e));
   }, [game, user, gameId]);
 
@@ -277,7 +308,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     setRoleRevealDone(true);
     if (game.hostUid !== user?.uid) return;
     try {
-      await updateDoc(doc(db, 'games', gameId), { phase: 'night', nightActions: {}, nightSubmissions: {} });
+      await updateDoc(doc(db, 'games', gameId), { phase: 'night', nightActions: {}, nightSubmissions: {}, nightStartedAt: Date.now() });
     } catch (e) { console.error('advanceFromRoleReveal error:', e); }
   }, [game, user, gameId]);
 
@@ -556,6 +587,25 @@ export function GamePlay({ gameId }: { gameId: string }) {
         updates['nightSubmissions.hadabuscadora'] = true; needsUpdate = true;
       }
 
+      // AI Médico Forense
+      const aiForense = aiPlayers.find(p => roles[p.uid] === 'Médico Forense');
+      if (aiForense && !subs['forense']) {
+        const dead = (game.players ?? []).filter(p => !p.isAlive);
+        if (dead.length > 0) {
+          const pick = dead[Math.floor(Math.random() * dead.length)];
+          updates['nightActions.forenseTarget'] = pick.uid;
+        }
+        updates['nightSubmissions.forense'] = true; needsUpdate = true;
+      }
+
+      // AI Saboteador
+      const aiSaboteador = aiPlayers.find(p => roles[p.uid] === 'Saboteador');
+      if (aiSaboteador && !subs['saboteador']) {
+        const pick = randAlive([aiSaboteador.uid]);
+        if (pick) updates['nightActions.saboteadorTarget'] = pick.uid;
+        updates['nightSubmissions.saboteador'] = true; needsUpdate = true;
+      }
+
       if (needsUpdate) {
         updateDoc(doc(db, 'games', gameId), updates).catch((e: any) => console.error('AI auto-submit error:', e));
       }
@@ -672,7 +722,9 @@ export function GamePlay({ gameId }: { gameId: string }) {
       done('liderculto', has('Líder del Culto')) &&
       done('pescador', has('Pescador')) &&
       done('vampiro', has('Vampiro')) &&
-      done('hadabuscadora', has('Hada Buscadora') && !game.hadaLinked);
+      done('hadabuscadora', has('Hada Buscadora') && !game.hadaLinked) &&
+      done('forense', has('Médico Forense')) &&
+      done('saboteador', has('Saboteador'));
 
     if (allDone && !processingNightRef.current) {
       processingNightRef.current = true;
@@ -780,7 +832,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     // ── Wolf kill ─────────────────────────────────────────────────────────
 
     let wolfTarget = (game.lobosBlocked) ? null : (actions.wolfTarget ?? null);
-    let wolfTarget2: string | null = game.criaLoboRage ? (actions.wolfTarget2 ?? null) : null;
+    let wolfTarget2: string | null = (game.criaLoboRage || game.eclipseActive) ? (actions.wolfTarget2 ?? null) : null;
 
     const isWolfProtected = (uid: string) =>
       uid === guardianProtects || uid === sacerdoteProtects || uid === doctorProtects ||
@@ -1090,6 +1142,36 @@ export function GamePlay({ gameId }: { gameId: string }) {
       bearGrowl = [left, right].some(n => n && (newRoles[n.uid] === 'Lobo' || newRoles[n.uid] === 'Lobo Blanco' || newRoles[n.uid] === 'Cría de Lobo'));
     }
 
+    // ── Médico Forense: learns role of chosen dead player ─────────────────
+    const forenseResults: Record<string, string> = { ...(game.forenseResults ?? {}) };
+    const forensePlayer = players.find(p => newRoles[p.uid] === 'Médico Forense' && p.isAlive);
+    if (forensePlayer && actions.forenseTarget) {
+      const deadTarget = history.find(h => h.uid === actions.forenseTarget);
+      if (deadTarget) forenseResults[forensePlayer.uid] = `${deadTarget.name}: ${deadTarget.role}`;
+    }
+
+    // ── Saboteador: bans target's vote for next day ───────────────────────
+    let saboteadorBan: string | null = null;
+    const saboteadorPlayer = players.find(p => newRoles[p.uid] === 'Saboteador' && p.isAlive);
+    if (saboteadorPlayer && actions.saboteadorTarget) {
+      const banTarget = players.find(p => p.uid === actions.saboteadorTarget && p.isAlive);
+      if (banTarget) saboteadorBan = banTarget.uid;
+    }
+
+    // ── Random event for next day ─────────────────────────────────────────
+    const randomEvent = drawRandomEvent();
+    const eclipseActiveNext = false; // reset after night
+    const doubleSeerActiveNext = randomEvent?.mechanical === 'doubleSeer';
+    const anonymousVotesActiveNext = randomEvent?.mechanical === 'anonymousVotes';
+    const noExileActiveNext = randomEvent?.mechanical === 'noExile';
+    // healWitch: restore potions if event
+    let hechiceraLifeUsedNext = hechiceraLifeUsed;
+    let hechiceraPoisonUsedNext = hechiceraPoisonUsed;
+    if (randomEvent?.mechanical === 'healWitch') {
+      hechiceraLifeUsedNext = false;
+      hechiceraPoisonUsedNext = false;
+    }
+
     // ── Win check ─────────────────────────────────────────────────────────
     const nightKilledUids = players.filter(p => !p.isAlive && aliveBeforeNight.has(p.uid)).map(p => p.uid);
     const winResult = checkWinCondition(players, newRoles, {
@@ -1142,10 +1224,18 @@ export function GamePlay({ gameId }: { gameId: string }) {
         cambiaformasTargets,
         virginiawoolFate,
         verdugos,
-        hechiceraLifeUsed,
-        hechiceraPoisonUsed,
+        hechiceraLifeUsed: hechiceraLifeUsedNext,
+        hechiceraPoisonUsed: hechiceraPoisonUsedNext,
         fantasmaPending,
         fantasmaUsed,
+        forenseResults,
+        saboteadorBan,
+        currentEvent: randomEvent ?? null,
+        eventRound: randomEvent ? round : (game.eventRound ?? 0),
+        eclipseActive: randomEvent?.mechanical === 'eclipse' ? true : eclipseActiveNext,
+        doubleSeerActive: doubleSeerActiveNext,
+        anonymousVotesActive: anonymousVotesActiveNext,
+        noExileActive: noExileActiveNext,
         phase: finalWinner ? 'ended' : 'day',
         winners: finalWinner ?? null,
         winMessage: finalMsg ?? null,
@@ -1308,8 +1398,9 @@ export function GamePlay({ gameId }: { gameId: string }) {
       effectiveDayVotes[sirenaLinked] = effectiveDayVotes[sirenaUid];
     }
 
-    // Apply vote ban
-    const voteBanned = game.voteBanned ?? [];
+    // Apply vote ban (includes Saboteador's nightly ban)
+    const voteBanned = [...(game.voteBanned ?? [])];
+    if (game.saboteadorBan && !voteBanned.includes(game.saboteadorBan)) voteBanned.push(game.saboteadorBan);
     const effectiveVotes: Record<string, string> = {};
     for (const [voter, target] of Object.entries(effectiveDayVotes)) {
       if (!voteBanned.includes(voter)) effectiveVotes[voter] = target;
@@ -1330,6 +1421,9 @@ export function GamePlay({ gameId }: { gameId: string }) {
       else if (count === maxVotes && maxVotes > 0) { isTie = true; }
     }
     if (isTie) eliminated = null;
+
+    // Evento: Tormenta — nadie puede ser exiliado hoy
+    if (game.noExileActive) eliminated = null;
 
     // Chivo Expiatorio: dies on tie
     let chivoPendingChoice: string | null = null;
@@ -1497,6 +1591,13 @@ export function GamePlay({ gameId }: { gameId: string }) {
         nightActions: {},
         nightSubmissions: {},
         bearGrowl: false,
+        nightStartedAt: finalWinner ? null : Date.now(),
+        currentEvent: null,
+        eclipseActive: false,
+        doubleSeerActive: false,
+        anonymousVotesActive: false,
+        noExileActive: false,
+        saboteadorBan: null,
       });
     } catch (e) {
       console.error('processDayVotes updateDoc error:', e);

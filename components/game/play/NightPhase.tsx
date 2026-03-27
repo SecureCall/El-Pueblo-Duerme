@@ -33,6 +33,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
   const [perroLoboSide, setPerroLoboSide] = useState<'wolves' | 'village' | null>(null);
   const [autoSkipCountdown, setAutoSkipCountdown] = useState<number | null>(null);
   const [narratorReady, setNarratorReady] = useState(false);
+  const [nightSecondsLeft, setNightSecondsLeft] = useState<number>(90);
   const [espiaViewActive, setEspiaViewActive] = useState(false);
   const [wolfMsgsForEspia, setWolfMsgsForEspia] = useState<{ id: string; name: string; text: string }[]>([]);
   const [vigiaActivated, setVigiaActivated] = useState(false);
@@ -77,11 +78,15 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
   const isPescador = myRole === 'Pescador';
   const isVampiro = myRole === 'Vampiro';
   const isHadaBuscadora = myRole === 'Hada Buscadora' && !game.hadaLinked;
+  const isForense = myRole === 'Médico Forense';
+  const isSaboteador = myRole === 'Saboteador';
+  const isIluminado = myRole === 'Iluminado';
 
   const isNightRole = isWolfTeam || isSeer || isWitch || isLoboBruja || isCupido || isGuardian ||
     isDoctor || isFlautista || isPerroLobo || isSalvaje || isProfeta || isSacerdote || isLadron ||
     isAnciana || isAngelResucitador || isSilenciadora || isSirena || isVirginia || isVigia ||
-    isBanshee || isCambiaformas || isLiderCulto || isPescador || isVampiro || isHadaBuscadora;
+    isBanshee || isCambiaformas || isLiderCulto || isPescador || isVampiro || isHadaBuscadora ||
+    isForense || isSaboteador;
 
   const wolfTarget = game.nightActions?.wolfTarget;
   const victim = wolfTarget ? game.players?.find(p => p.uid === wolfTarget) : null;
@@ -158,6 +163,20 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [round, submitted, narratorReady]);
 
+  // Visible night countdown based on nightStartedAt (90s max)
+  const NIGHT_DURATION = 90;
+  useEffect(() => {
+    if (!game.nightStartedAt) return;
+    const startedAt = game.nightStartedAt;
+    const tick = () => {
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      setNightSecondsLeft(Math.max(0, NIGHT_DURATION - elapsed));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [game.nightStartedAt]);
+
   const handleSubmit = async () => {
     if (submitted) return;
     const action: Record<string, unknown> = {};
@@ -198,6 +217,10 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
     if (isHadaBuscadora && selectedTarget) action.hadaBuscadoraTarget = selectedTarget;
     if (isEspia && espiaViewActive) action.espiaActivate = true;
     else if (isEspia) action._skip = true;
+    if (isForense && selectedTarget) action.forenseTarget = selectedTarget;
+    else if (isForense) action._skip = true;
+    if (isSaboteador && selectedTarget) action.saboteadorTarget = selectedTarget;
+    else if (isSaboteador) action._skip = true;
     if (!isNightRole && !isEspia) action._skip = true;
 
     await onSubmitAction(action);
@@ -267,6 +290,8 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
     if (isPescador && !selectedTarget) return false;
     if (isVampiro && !selectedTarget) return false;
     if (isHadaBuscadora && !selectedTarget) return false;
+    if (isForense && !selectedTarget) return false;
+    if (isSaboteador && !selectedTarget) return false;
     return true;
   })();
 
@@ -298,7 +323,24 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
           <Moon className="h-6 w-6 text-blue-400" />
           <h1 className="font-headline text-2xl font-bold">Noche {round}</h1>
         </div>
-        <p className="text-white/40 text-sm mb-8">El pueblo duerme. Las sombras actúan...</p>
+        <p className="text-white/40 text-sm mb-3">El pueblo duerme. Las sombras actúan...</p>
+
+        {/* Night timer bar */}
+        {game.nightStartedAt && (
+          <div className="w-full max-w-lg mb-5">
+            <div className="flex justify-between text-xs text-white/40 mb-1">
+              <span>⏱ Tiempo de noche</span>
+              <span className={nightSecondsLeft <= 15 ? 'text-red-400 font-bold' : ''}>{nightSecondsLeft}s</span>
+            </div>
+            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-1000"
+                style={{
+                  width: `${(nightSecondsLeft / 90) * 100}%`,
+                  backgroundColor: nightSecondsLeft <= 15 ? '#ef4444' : nightSecondsLeft <= 30 ? '#f59e0b' : '#3b82f6',
+                }} />
+            </div>
+          </div>
+        )}
 
         {/* Bear Growl announcement */}
         {game.bearGrowl && (
@@ -1062,6 +1104,86 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
               </button>
             </div>
           )}
+
+          {/* ── MÉDICO FORENSE ──────────────────────────────────────────────── */}
+          {isForense && !submitted && (
+            <div className="bg-teal-900/20 border border-teal-400/30 rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xl">🔬</span>
+                <h3 className="font-semibold text-teal-300">Médico Forense — examinar cadáver</h3>
+              </div>
+              <p className="text-white/50 text-xs mb-3">Elige a un jugador eliminado para descubrir su rol.</p>
+              {(game.forenseResults ?? {})[userId] && (
+                <div className="mb-3 p-3 bg-teal-900/30 border border-teal-500/30 rounded-xl text-teal-200 text-sm">
+                  🧬 Último análisis: <strong>{(game.forenseResults ?? {})[userId]}</strong>
+                </div>
+              )}
+              <div className="space-y-2 mb-4">
+                {(game.eliminatedHistory ?? []).map(h => (
+                  <button key={h.uid} onClick={() => setSelectedTarget(h.uid)}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${selectedTarget === h.uid ? 'border-teal-400 bg-teal-900/40' : 'border-white/10 bg-white/5 hover:bg-white/10'}`}>
+                    <span className="text-lg">💀</span>
+                    <span className="font-medium">{h.name}</span>
+                    <span className="text-white/40 text-xs ml-auto">Ronda {h.round}</span>
+                  </button>
+                ))}
+                {(game.eliminatedHistory ?? []).length === 0 && (
+                  <p className="text-white/30 text-sm text-center py-3">No hay cadáveres que examinar aún.</p>
+                )}
+              </div>
+              <button onClick={handleSubmit} disabled={!canSubmit}
+                className="w-full bg-teal-700 hover:bg-teal-600 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-colors">
+                Examinar cadáver
+              </button>
+            </div>
+          )}
+
+          {/* ── SABOTEADOR ──────────────────────────────────────────────────── */}
+          {isSaboteador && !submitted && (
+            <div className="bg-orange-900/20 border border-orange-400/30 rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xl">💣</span>
+                <h3 className="font-semibold text-orange-300">Saboteador — anular un voto</h3>
+              </div>
+              <p className="text-white/50 text-xs mb-4">El jugador que elijas no podrá votar mañana.</p>
+              <div className="space-y-2 mb-4">
+                {alivePlayers.map(p => playerCard(p, selectedTarget === p.uid, () => setSelectedTarget(p.uid), 'border-orange-500 bg-orange-900/30'))}
+              </div>
+              <button onClick={handleSubmit} disabled={!canSubmit}
+                className="w-full bg-orange-700 hover:bg-orange-600 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-colors">
+                Sabotear voto
+              </button>
+            </div>
+          )}
+
+          {/* ── ILUMINADO (passive reveal) ───────────────────────────────────── */}
+          {isIluminado && !submitted && (() => {
+            const wolfUid = (game.iluminadoReveal ?? {})[userId];
+            const wolfPlayer = wolfUid ? (game.players ?? []).find(p => p.uid === wolfUid) : null;
+            return (
+              <div className="bg-yellow-900/20 border border-yellow-400/30 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xl">💡</span>
+                  <h3 className="font-semibold text-yellow-300">Tu visión de esta noche</h3>
+                </div>
+                {wolfPlayer ? (
+                  <div className="mt-2 p-4 bg-red-900/30 border border-red-500/30 rounded-xl">
+                    <p className="text-white/60 text-xs mb-2">Los astros te han revelado un lobo:</p>
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">🐺</span>
+                      <span className="font-bold text-red-300 text-lg">{wolfPlayer.name}</span>
+                    </div>
+                    <p className="text-white/40 text-xs mt-2">Úsalo con sabiduría — si los señalas directamente, los lobos irán a por ti.</p>
+                  </div>
+                ) : (
+                  <p className="text-white/40 text-sm">No hay visión disponible esta noche.</p>
+                )}
+                <button onClick={handleAutoSkip} className="w-full mt-4 bg-yellow-700/60 hover:bg-yellow-600/60 text-white font-bold py-3 rounded-xl transition-colors">
+                  Entendido
+                </button>
+              </div>
+            );
+          })()}
 
           {/* ── NIÑA (passive — knows wolves) ──────────────────────────────── */}
           {isNiña && !submitted && (

@@ -405,6 +405,29 @@ export const ROLES: Record<string, RoleInfo> = {
     description: 'Al inicio se te asigna un objetivo secreto. Tu única misión es convencer al pueblo para que lo linchen. Si lo consigues, ganas la partida en solitario.',
     nightAction: false,
   },
+  'Médico Forense': {
+    name: 'Médico Forense',
+    team: 'village',
+    emoji: '🔬',
+    description: 'Cada noche examinas el cadáver de un jugador eliminado y descubres su rol exacto. Eres un detective de la muerte al servicio del pueblo.',
+    nightAction: true,
+    actionLabel: 'Examinar cadáver',
+  },
+  'Iluminado': {
+    name: 'Iluminado',
+    team: 'village',
+    emoji: '💡',
+    description: 'Al inicio de la partida recibes una visión: conoces la identidad de uno de los lobos. Úsala con sabiduría o nadie te creerá.',
+    nightAction: false,
+  },
+  'Saboteador': {
+    name: 'Saboteador',
+    team: 'village',
+    emoji: '💣',
+    description: 'Cada noche puedes silenciar el voto de un jugador: su voto mañana no contará. Úsalo para neutralizar al Alcalde o a los lobos infiltrados.',
+    nightAction: true,
+    actionLabel: 'Sabotear voto',
+  },
 };
 
 // Submission keys per role (for night phase tracking)
@@ -438,7 +461,82 @@ export const ROLE_SUBMISSION_KEY: Record<string, string> = {
   'Vampiro': 'vampiro',
   'Hada Buscadora': 'hadabuscadora',
   'Lobo Blanco_kill': 'loboblanco',
+  'Médico Forense': 'forense',
+  'Saboteador': 'saboteador',
 };
+
+// ── Random Events ────────────────────────────────────────────────────────────
+export interface RandomEvent {
+  id: string;
+  emoji: string;
+  name: string;
+  description: string;
+  mechanical: string; // key used in GamePlay for mechanical effect
+}
+
+export const RANDOM_EVENTS: RandomEvent[] = [
+  {
+    id: 'tormenta',
+    emoji: '🌩️',
+    name: 'Tormenta sobre el Pueblo',
+    description: 'El cielo se oscurece. Nadie puede ser exiliado hoy — la votación queda suspendida por las fuerzas de la naturaleza.',
+    mechanical: 'noExile',
+  },
+  {
+    id: 'eclipse',
+    emoji: '🌑',
+    name: 'Eclipse de Sangre',
+    description: 'La oscuridad es total. Esta noche los lobos son más poderosos: podrán elegir dos víctimas en lugar de una.',
+    mechanical: 'doubleKill',
+  },
+  {
+    id: 'rumor',
+    emoji: '👁️',
+    name: 'El Rumor del Pueblo',
+    description: 'Un testigo anónimo revela algo que vio: se desvela el rol de uno de los jugadores ya eliminados.',
+    mechanical: 'revealDead',
+  },
+  {
+    id: 'curacion',
+    emoji: '✨',
+    name: 'Curación Divina',
+    description: 'Una fuerza mística restaura las pociones de la Hechicera. Si está en la partida, recupera tanto el antídoto como el veneno.',
+    mechanical: 'healWitch',
+  },
+  {
+    id: 'amnesia',
+    emoji: '🔮',
+    name: 'Amnesia Colectiva',
+    description: 'Un hechizo borra la memoria del pueblo. Los votos de hoy son completamente anónimos — nadie sabrá quién votó a quién.',
+    mechanical: 'anonymousVotes',
+  },
+  {
+    id: 'calma',
+    emoji: '🕊️',
+    name: 'Calma Chicha',
+    description: 'Un misterioso silencio cae sobre el pueblo. El debate de hoy dura 30 segundos extra para encontrar la verdad.',
+    mechanical: 'extraTime',
+  },
+  {
+    id: 'panico',
+    emoji: '😱',
+    name: 'Pánico en el Pueblo',
+    description: '¡Hay un asesino entre nosotros! El miedo acorta el debate — solo tenéis la mitad del tiempo para tomar una decisión.',
+    mechanical: 'halfTime',
+  },
+  {
+    id: 'presagio',
+    emoji: '⚡',
+    name: 'Presagio del Oráculo',
+    description: 'Las estrellas hablan. El Vidente puede consultar a los astros sobre DOS jugadores esta noche en lugar de uno.',
+    mechanical: 'doubleSeer',
+  },
+];
+
+export function drawRandomEvent(): RandomEvent | null {
+  if (Math.random() > 0.30) return null;
+  return RANDOM_EVENTS[Math.floor(Math.random() * RANDOM_EVENTS.length)];
+}
 
 export function assignRoles(
   players: { uid: string; name: string; isAI?: boolean }[],

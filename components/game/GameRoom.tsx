@@ -7,12 +7,14 @@ import { db } from '@/lib/firebase/config';
 import {
   doc, onSnapshot, updateDoc, arrayUnion, arrayRemove, serverTimestamp,
   collection, addDoc, query, orderBy, limit, onSnapshot as onSnap, deleteDoc,
+  getDoc,
 } from 'firebase/firestore';
 import { Copy, Crown, LogOut, Send, Users, Loader2, Bot, Share2, MessageCircle, Facebook, Link, Check, UserPlus } from 'lucide-react';
 import { useNarrator, waitForAudio } from '@/hooks/useNarrator';
 import { useAudio } from '@/app/providers/AudioProvider';
 import { FriendsPanel } from '@/components/friends/FriendsPanel';
 import { sendFriendRequest } from '@/lib/firebase/friends';
+import { xpToLevel, levelEmoji } from '@/lib/firebase/xp';
 
 interface Player {
   uid: string;
@@ -22,6 +24,8 @@ interface Player {
   isAlive: boolean;
   role: string | null;
   isAI?: boolean;
+  level?: number;
+  lastSeen?: number;
 }
 
 interface GameData {
@@ -98,6 +102,16 @@ export function GameRoom({ gameId }: { gameId: string }) {
     setSentFriendReqs(prev => new Set(prev).add(targetUid));
   };
 
+  const kickPlayer = async (targetUid: string) => {
+    if (!isHost || !game) return;
+    const target = game.players?.find(p => p.uid === targetUid);
+    if (!target) return;
+    await updateDoc(doc(db, 'games', gameId), {
+      players: arrayRemove(target),
+      playerCount: Math.max(0, (game.playerCount ?? 1) - 1),
+    }).catch(() => {});
+  };
+
   useEffect(() => {
     if (salasPlayed.current) return;
     salasPlayed.current = true;
@@ -142,20 +156,40 @@ export function GameRoom({ gameId }: { gameId: string }) {
     const already = game.players?.some(p => p.uid === user.uid);
     if (!already) {
       const resolvedName = user.displayName || user.email?.split('@')[0] || 'Jugador';
-      const newPlayer: Player = {
-        uid: user.uid,
-        name: resolvedName,
-        photoURL: user.photoURL ?? '',
-        isHost: false,
-        isAlive: true,
-        role: null,
-      };
-      updateDoc(doc(db, 'games', gameId), {
-        players: arrayUnion(newPlayer),
-        playerCount: (game.playerCount ?? 1) + 1,
+      getDoc(doc(db, 'users', user.uid)).then(snap => {
+        const xp = snap.exists() ? (snap.data().xp ?? 0) : 0;
+        const newPlayer: Player = {
+          uid: user.uid,
+          name: resolvedName,
+          photoURL: user.photoURL ?? '',
+          isHost: false,
+          isAlive: true,
+          role: null,
+          level: xpToLevel(xp),
+          lastSeen: Date.now(),
+        };
+        updateDoc(doc(db, 'games', gameId), {
+          players: arrayUnion(newPlayer),
+          playerCount: (game.playerCount ?? 1) + 1,
+        }).catch(() => {});
       }).catch(() => {});
     }
   }, [user, game, gameId]);
+
+  // Heartbeat: update lastSeen every 60s so others can detect inactivity
+  useEffect(() => {
+    if (!user || !game) return;
+    const updatePresence = () => {
+      const me = game.players?.find(p => p.uid === user.uid);
+      if (!me) return;
+      const updated = game.players?.map(p => p.uid === user.uid ? { ...p, lastSeen: Date.now() } : p);
+      updateDoc(doc(db, 'games', gameId), { players: updated }).catch(() => {});
+    };
+    updatePresence();
+    const id = setInterval(updatePresence, 60000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, gameId]);
 
   const sendMsg = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -422,31 +456,54 @@ export function GameRoom({ gameId }: { gameId: string }) {
                 </span>
               </div>
               <div className="flex-1 overflow-y-auto space-y-2">
-                {realPlayers.map(p => (
+                {realPlayers.map(p => {
+                  const inactive = p.lastSeen ? (Date.now() - p.lastSeen) > 3 * 60 * 1000 : false;
+                  const lvl = p.level ?? 1;
+                  return (
                   <div key={p.uid} className="flex items-center gap-2 group">
-                    <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0 overflow-hidden">
-                      {p.photoURL
-                        ? <img src={p.photoURL} alt={p.name} className="w-full h-full object-cover" />
-                        : <span className="w-full h-full flex items-center justify-center text-xs font-bold">{p.name[0]}</span>
-                      }
+                    <div className="relative w-8 h-8 flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-white/10 overflow-hidden">
+                        {p.photoURL
+                          ? <img src={p.photoURL} alt={p.name} className="w-full h-full object-cover" />
+                          : <span className="w-full h-full flex items-center justify-center text-xs font-bold">{p.name[0]}</span>
+                        }
+                      </div>
+                      {inactive && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-red-500 border border-black" title="Inactivo" />}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-medium truncate">{p.name}</p>
-                      {p.isHost && <span className="text-yellow-400 text-[10px] flex items-center gap-0.5"><Crown className="h-2.5 w-2.5" /> Anfitrión</span>}
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {p.isHost && <span className="text-yellow-400 text-[10px] flex items-center gap-0.5"><Crown className="h-2.5 w-2.5" /> Anfitrión</span>}
+                        <span className="text-white/30 text-[10px]">{levelEmoji(lvl)} Nv.{lvl}</span>
+                        {inactive && <span className="text-red-400 text-[10px]">⚠ inactivo</span>}
+                      </div>
                     </div>
                     {p.uid !== user?.uid && (
-                      sentFriendReqs.has(p.uid)
-                        ? <span className="flex items-center gap-1 text-green-400 text-[10px]"><Check className="h-3 w-3" /> Enviado</span>
-                        : <button
-                            onClick={e => addFriend(e, p.uid)}
-                            title={`Agregar a ${p.name} como amigo`}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-[10px] text-white/50 hover:text-amber-400 font-medium"
+                      <div className="flex items-center gap-1">
+                        {isHost && inactive && (
+                          <button
+                            onClick={() => kickPlayer(p.uid)}
+                            title={`Expulsar a ${p.name}`}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-red-400 hover:text-red-300 font-medium"
                           >
-                            <UserPlus className="h-3.5 w-3.5" /> Agregar
+                            Kick
                           </button>
+                        )}
+                        {sentFriendReqs.has(p.uid)
+                          ? <span className="flex items-center gap-1 text-green-400 text-[10px]"><Check className="h-3 w-3" /></span>
+                          : <button
+                              onClick={e => addFriend(e, p.uid)}
+                              title={`Agregar a ${p.name} como amigo`}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-white/50 hover:text-amber-400 font-medium"
+                            >
+                              <UserPlus className="h-3.5 w-3.5" />
+                            </button>
+                        }
+                      </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
 
                 {game?.fillWithAI && aiSlots > 0 && (
                   <div className="mt-2 pt-2 border-t border-white/10">

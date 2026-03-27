@@ -11,6 +11,7 @@ import { ROLES } from './roles';
 import { getRoleIcon } from './roleIcons';
 import { useNarrator } from '@/hooks/useNarrator';
 import { sendFriendRequest } from '@/lib/firebase/friends';
+import { submitReport } from '@/lib/firebase/reports';
 
 function computeDayDuration(alivePlayers: number): number {
   // 20s per alive player, min 60s, max 300s
@@ -80,11 +81,12 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
   const isJuez = myRole === 'Juez' && meAlive;
   const isAlquimista = myRole === 'Alquimista';
   const voteBanned = game.voteBanned ?? [];
-  const myVoteBanned = voteBanned.includes(userId);
+  const myVoteBanned = voteBanned.includes(userId) || game.saboteadorBan === userId;
   const isSilenced = (game.silencedPlayers ?? []).includes(userId);
   const isAlborotadora = myRole === 'Alborotadora' && meAlive && !game.alborotadoraUsed;
   const [alborotadoraStep, setAlborotadoraStep] = useState<0 | 1>(0);
   const [sentFriendReqs, setSentFriendReqs] = useState<Set<string>>(new Set());
+  const [reportedPlayers, setReportedPlayers] = useState<Set<string>>(new Set());
 
   const addFriend = async (e: React.MouseEvent, targetUid: string) => {
     e.stopPropagation();
@@ -144,8 +146,12 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
   useEffect(() => {
     const startedAt = game.dayStartedAt ?? Date.now();
     timerEndFired.current = false;
-    // Lock duration at start of day based on how many players were alive
-    dayDurationRef.current = computeDayDuration((game.players ?? []).filter(p => p.isAlive).length);
+    // Lock duration at start of day: base from player count, then apply event modifiers
+    const base = computeDayDuration((game.players ?? []).filter(p => p.isAlive).length);
+    const mech = game.currentEvent?.mechanical;
+    dayDurationRef.current = mech === 'extraTime' ? Math.min(300, base + 30)
+      : mech === 'halfTime' ? Math.max(30, Math.floor(base / 2))
+      : base;
 
     const round = game.roundNumber ?? 1;
     const tick = () => {
@@ -460,6 +466,24 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
           </div>
         )}
 
+        {/* Random event banner */}
+        {game.currentEvent && (
+          <div className="bg-purple-900/30 border border-purple-500/40 rounded-xl p-3 flex items-center gap-3">
+            <span className="text-2xl flex-shrink-0">{game.currentEvent.emoji}</span>
+            <div>
+              <p className="text-purple-300 font-semibold text-sm">{game.currentEvent.name}</p>
+              <p className="text-purple-400/70 text-xs">{game.currentEvent.description}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Saboteador vote ban notice */}
+        {(game.saboteadorBan === userId) && meAlive && (
+          <div className="bg-orange-900/30 border border-orange-500/40 rounded-xl p-3 text-center">
+            <p className="text-orange-300 text-sm">💣 El Saboteador anuló tu voto — <strong>no puedes votar esta ronda</strong>.</p>
+          </div>
+        )}
+
         {/* Vote ban notice */}
         {myVoteBanned && meAlive && (
           <div className="bg-orange-900/30 border border-orange-500/40 rounded-xl p-3 text-center">
@@ -538,15 +562,24 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
                         )}
                       </div>
                       {!p.isAI && (
-                        sentFriendReqs.has(p.uid)
-                          ? <Check className="h-3.5 w-3.5 text-green-400 flex-shrink-0" />
-                          : <span
-                              onClick={e => addFriend(e, p.uid)}
-                              title={`Agregar a ${p.name} como amigo`}
-                              className="flex-shrink-0 text-white/30 hover:text-amber-400 transition-colors cursor-pointer"
-                            >
-                              <UserPlus className="h-3.5 w-3.5" />
-                            </span>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {sentFriendReqs.has(p.uid)
+                            ? <Check className="h-3 w-3 text-green-400" />
+                            : <span onClick={e => addFriend(e, p.uid)} title={`Agregar a ${p.name}`} className="text-white/25 hover:text-amber-400 transition-colors cursor-pointer">
+                                <UserPlus className="h-3 w-3" />
+                              </span>
+                          }
+                          <span
+                            onClick={async e => {
+                              e.stopPropagation();
+                              if (reportedPlayers.has(p.uid)) return;
+                              await submitReport(gameId, p.uid, p.name, userId, userName, 'otro');
+                              setReportedPlayers(prev => new Set(prev).add(p.uid));
+                            }}
+                            title={reportedPlayers.has(p.uid) ? 'Reportado' : `Reportar a ${p.name}`}
+                            className={`cursor-pointer transition-colors ${reportedPlayers.has(p.uid) ? 'text-red-400' : 'text-white/20 hover:text-red-400'}`}
+                          >⚑</span>
+                        </div>
                       )}
                     </button>
                   );

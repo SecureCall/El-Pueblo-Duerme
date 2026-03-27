@@ -8,13 +8,17 @@ import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase/config';
 import { doc, getDoc } from 'firebase/firestore';
-import { Coins, LogOut, ShoppingBag, User, Trophy, Loader2 } from 'lucide-react';
+import { Coins, LogOut, ShoppingBag, User, Trophy, Loader2, Star } from 'lucide-react';
+import { xpProgress, levelLabel, levelEmoji } from '@/lib/firebase/xp';
 
 interface UserData {
   displayName: string;
   email: string;
   photoURL: string;
   coins: number;
+  xp: number;
+  gamesPlayed: number;
+  gamesWon: number;
   createdAt: any;
 }
 
@@ -48,8 +52,15 @@ export default function ProfilePage() {
 
   const displayName = userData?.displayName ?? user?.displayName ?? 'Jugador';
   const coins = userData?.coins ?? 0;
+  const xp = userData?.xp ?? 0;
+  const gamesPlayed = userData?.gamesPlayed ?? 0;
+  const gamesWon = userData?.gamesWon ?? 0;
   const avatar = userData?.photoURL ?? user?.photoURL ?? '';
   const initial = displayName.charAt(0).toUpperCase();
+
+  const { current: xpCurrent, needed: xpNeeded, pct: xpPct, level } = xpProgress(xp);
+  const label = levelLabel(level);
+  const lEmoji = levelEmoji(level);
 
   return (
     <div className="relative min-h-screen w-full text-white" style={{ backgroundImage: 'url(/noche.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
@@ -61,7 +72,7 @@ export default function ProfilePage() {
 
         {/* Profile card */}
         <div className="bg-white/5 border border-white/10 rounded-2xl p-8 mb-6">
-          <div className="flex items-center gap-6 mb-8">
+          <div className="flex items-center gap-6 mb-6">
             {avatar ? (
               <img src={avatar} alt={displayName} className="w-20 h-20 rounded-full object-cover border-2 border-white/20" />
             ) : (
@@ -70,25 +81,41 @@ export default function ProfilePage() {
               </div>
             )}
             <div>
-              <h1 className="font-headline text-3xl font-bold">{displayName}</h1>
-              <p className="text-white/40 text-sm mt-1">{user?.email}</p>
+              <div className="flex items-center gap-2 mb-1">
+                <h1 className="font-headline text-3xl font-bold">{displayName}</h1>
+                <span className="text-lg">{lEmoji}</span>
+              </div>
+              <p className="text-white/40 text-sm">{user?.email}</p>
+              <p className="text-white/60 text-sm font-semibold mt-0.5">{label} · Nivel {level}</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 flex items-center gap-3">
-              <Coins className="h-6 w-6 text-yellow-400" />
-              <div>
-                <p className="text-yellow-300 font-bold text-2xl">{coins.toLocaleString()}</p>
-                <p className="text-yellow-400/60 text-xs">monedas</p>
-              </div>
+          {/* XP bar */}
+          <div className="mb-6">
+            <div className="flex justify-between text-xs text-white/50 mb-1">
+              <span className="flex items-center gap-1"><Star className="h-3 w-3 text-yellow-400" /> {xp.toLocaleString()} XP total</span>
+              <span>{xpCurrent} / {xpNeeded} para nivel {level + 1}</span>
             </div>
-            <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center gap-3">
-              <Trophy className="h-6 w-6 text-white/40" />
-              <div>
-                <p className="text-white font-bold text-2xl">—</p>
-                <p className="text-white/40 text-xs">partidas jugadas</p>
-              </div>
+            <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+              <div className="h-full bg-yellow-400 rounded-full transition-all" style={{ width: `${xpPct * 100}%` }} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 flex flex-col items-center gap-1">
+              <Coins className="h-5 w-5 text-yellow-400" />
+              <p className="text-yellow-300 font-bold text-xl">{coins.toLocaleString()}</p>
+              <p className="text-yellow-400/60 text-xs">monedas</p>
+            </div>
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col items-center gap-1">
+              <Trophy className="h-5 w-5 text-white/40" />
+              <p className="text-white font-bold text-xl">{gamesPlayed}</p>
+              <p className="text-white/40 text-xs">partidas</p>
+            </div>
+            <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 flex flex-col items-center gap-1">
+              <Trophy className="h-5 w-5 text-green-400" />
+              <p className="text-green-300 font-bold text-xl">{gamesWon}</p>
+              <p className="text-green-400/60 text-xs">victorias</p>
             </div>
           </div>
 
@@ -111,10 +138,25 @@ export default function ProfilePage() {
           <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
             <User className="h-4 w-4 text-white/40" /> Historial de partidas
           </h2>
-          <p className="text-white/30 text-sm text-center py-8">No has jugado ninguna partida todavía.<br />¡Crea o únete a una!</p>
-          <Link href="/" className="block text-center bg-white text-black font-bold py-3 rounded-xl hover:bg-white/90 transition-all">
-            Jugar ahora
-          </Link>
+          {gamesPlayed === 0 ? (
+            <>
+              <p className="text-white/30 text-sm text-center py-8">No has jugado ninguna partida todavía.<br />¡Crea o únete a una!</p>
+              <Link href="/" className="block text-center bg-white text-black font-bold py-3 rounded-xl hover:bg-white/90 transition-all">
+                Jugar ahora
+              </Link>
+            </>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm text-white/60 py-3 border-b border-white/10">
+                <span>Tasa de victorias</span>
+                <span className="font-bold text-white">{gamesPlayed > 0 ? Math.round((gamesWon / gamesPlayed) * 100) : 0}%</span>
+              </div>
+              <div className="flex justify-between text-sm text-white/60 py-3">
+                <span>Partidas ganadas</span>
+                <span className="font-bold text-green-400">{gamesWon} / {gamesPlayed}</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

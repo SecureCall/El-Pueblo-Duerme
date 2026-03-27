@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { GameState } from './GamePlay';
 import { ROLES } from './roles';
 import { getRoleIcon } from './roleIcons';
-import { Trophy, Skull, Home, RefreshCw, Clock } from 'lucide-react';
+import { Trophy, Skull, Home, RefreshCw, Clock, Star } from 'lucide-react';
 import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
 import { AdBanner } from '@/components/ads/AdBanner';
 import { RewardedAd } from '@/components/ads/RewardedAd';
+import { awardXP, xpToLevel, levelEmoji } from '@/lib/firebase/xp';
 
 interface Props {
   game: GameState;
@@ -59,16 +60,26 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
   const { emoji, title } = getWinnerDisplay(winners);
   const iWon = didIWin(winners, myRole);
   const { interruptWith } = useNarrator();
+  const xpAwarded = useRef(false);
+  const [xpGained, setXpGained] = useState<number | null>(null);
 
   useEffect(() => {
-    // Cut through any lingering audio (debate ambient, night sounds, etc.)
-    // and play the victory narration cleanly.
     const timer = setTimeout(() => {
       interruptWith(NARRATIONS.winMessage(winners));
     }, 400);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [winners]);
+
+  // Award XP once per game end
+  useEffect(() => {
+    if (!myUid || xpAwarded.current) return;
+    xpAwarded.current = true;
+    const roleInfo = myRole ? ROLES[myRole] : null;
+    const hasSpecialRole = !!roleInfo && roleInfo.team !== 'village' && myRole !== 'Aldeano' && myRole !== 'Lobo';
+    awardXP(myUid, { isWin: iWon, hasSpecialRole }).then(gained => setXpGained(gained)).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myUid]);
 
   const allPlayers = game.players ?? [];
   const eliminated = game.eliminatedHistory ?? [];
@@ -95,6 +106,20 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
           {iWon ? <Trophy className="h-4 w-4" /> : <Skull className="h-4 w-4" />}
           {iWon ? `¡Has ganado como ${myRole}!` : `Has perdido como ${myRole}`}
         </div>
+
+        {/* XP gained */}
+        {xpGained !== null && (
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4 mb-4 text-center animate-pulse-once">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <Star className="h-5 w-5 text-yellow-400" />
+              <span className="text-yellow-300 font-bold text-lg">+{xpGained} XP</span>
+            </div>
+            <p className="text-yellow-400/60 text-xs">
+              {iWon ? '🏆 Bonus de victoria incluido' : '🎮 XP por participar'}{' '}
+              · Nivel {xpToLevel(0)} {levelEmoji(xpToLevel(0))}
+            </p>
+          </div>
+        )}
 
         {/* Roles revealed */}
         <div className="bg-black/50 border border-white/10 rounded-2xl p-5 mb-4 text-left">
