@@ -56,6 +56,16 @@ let _queue: string[] = [];
 let _playing = false;
 let _doneCallbacks: Array<() => void> = [];
 
+/**
+ * Generation counter — incremented every time stopAll() is called.
+ * Each audio element captures the generation at creation time.
+ * If the generation doesn't match when a callback fires, the audio
+ * was from a previous sequence and its callback is silently ignored.
+ * This prevents stale onended / onerror events from corrupting state
+ * and causing two tracks to play simultaneously.
+ */
+let _generation = 0;
+
 function _notifyDone() {
   if (!_playing && _queue.length === 0 && _doneCallbacks.length > 0) {
     const cbs = _doneCallbacks.splice(0);
@@ -63,42 +73,43 @@ function _notifyDone() {
   }
 }
 
-function _playNext() {
+function _playNext(gen: number) {
+  if (gen !== _generation) return; // stale callback — ignore
   if (_playing || _queue.length === 0) {
     _notifyDone();
     return;
   }
+
   const src = _queue.shift()!;
   _playing = true;
 
   try {
+    // Detach handlers from previous element before replacing
     if (_current) {
+      _current.onended = null;
+      _current.onerror = null;
       _current.pause();
       _current.src = '';
     }
-    _current = new Audio(src);
-    _current.volume = 0.9;
 
-    _current.onended = () => {
+    const audio = new Audio(src);
+    _current = audio;
+    audio.volume = 0.9;
+
+    const done = (ok: boolean) => {
+      if (_generation !== gen) return; // stale
       _playing = false;
       _current = null;
-      _playNext();
-    };
-    _current.onerror = () => {
-      _playing = false;
-      _current = null;
-      _playNext();
+      _playNext(gen);
     };
 
-    _current.play().catch(() => {
-      _playing = false;
-      _current = null;
-      _playNext();
-    });
+    audio.onended = () => done(true);
+    audio.onerror = () => done(false);
+    audio.play().catch(() => done(false));
   } catch {
     _playing = false;
     _current = null;
-    _playNext();
+    _playNext(gen);
   }
 }
 
@@ -118,18 +129,22 @@ export function isNarratorBusy(): boolean {
 function enqueue(...files: string[]) {
   if (typeof window === 'undefined') return;
   _queue.push(...files);
-  _playNext();
+  _playNext(_generation);
 }
 
-/** Stop current audio and clear the entire queue. */
+/** Stop current audio, detach its callbacks, and clear the entire queue. */
 function stopAll() {
+  _generation++;           // invalidate all in-flight callbacks
   _queue = [];
   _playing = false;
   if (_current) {
+    _current.onended = null;
+    _current.onerror = null;
     _current.pause();
     _current.src = '';
     _current = null;
   }
+  _doneCallbacks = [];     // cancel pending waitForAudio promises
 }
 
 /** Stop current audio, clear queue, then enqueue new files (interrupt). */
