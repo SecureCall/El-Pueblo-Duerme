@@ -19,6 +19,7 @@ interface Props {
   myRole: string;
   me?: Player;
   userId: string;
+  userName: string;
   isHost: boolean;
   onVote: (targetUid: string) => Promise<void>;
   onJuezSecondVote: () => Promise<void>;
@@ -35,7 +36,7 @@ interface ChatMsg {
 
 type ChatTab = 'public' | 'ghost' | 'lovers';
 
-export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJuezSecondVote, onAlborotadoraFight, onTimerEnd }: Props) {
+export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, onVote, onJuezSecondVote, onAlborotadoraFight, onTimerEnd }: Props) {
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [ghostMsgs, setGhostMsgs] = useState<ChatMsg[]>([]);
   const [loversMsgs, setLoversMsgs] = useState<ChatMsg[]>([]);
@@ -167,7 +168,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
     setSending(true);
     await addDoc(collection(db, 'games', gameId, 'publicChat'), {
       senderId: userId,
-      senderName: me?.name ?? 'Jugador',
+      senderName: userName,
       text: msg.trim(),
       createdAt: serverTimestamp(),
     });
@@ -181,7 +182,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
     setSendingGhost(true);
     await addDoc(collection(db, 'games', gameId, 'ghostChat'), {
       senderId: userId,
-      senderName: me?.name ?? 'Fantasma',
+      senderName: userName,
       text: ghostMsg.trim(),
       createdAt: serverTimestamp(),
     });
@@ -195,7 +196,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
     setSendingLovers(true);
     await addDoc(collection(db, 'games', gameId, 'loversChat'), {
       senderId: userId,
-      senderName: me?.name ?? 'Enamorado',
+      senderName: userName,
       text: loversMsg.trim(),
       createdAt: serverTimestamp(),
     });
@@ -358,7 +359,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
         )}
         {!meAlive && (
           <div className="p-3 border-t border-white/5 text-center">
-            <p className="text-white/20 text-xs">👻 Estás muerto. Observas en silencio.</p>
+            <p className="text-white/70 text-xs">👻 Estás muerto. Observas en silencio.</p>
           </div>
         )}
       </>
@@ -374,7 +375,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
         backgroundPosition: 'center',
       }}
     >
-      <div className="absolute inset-0 bg-black/78" />
+      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.82)' }} />
       <div className="relative z-10 flex flex-col h-screen max-w-3xl mx-auto w-full p-4 gap-3">
 
         {/* Header */}

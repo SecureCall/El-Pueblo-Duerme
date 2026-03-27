@@ -132,9 +132,10 @@ export function GameRoom({ gameId }: { gameId: string }) {
     if (!user || !game) return;
     const already = game.players?.some(p => p.uid === user.uid);
     if (!already) {
+      const resolvedName = user.displayName || user.email?.split('@')[0] || 'Jugador';
       const newPlayer: Player = {
         uid: user.uid,
-        name: user.displayName ?? 'Jugador',
+        name: resolvedName,
         photoURL: user.photoURL ?? '',
         isHost: false,
         isAlive: true,
@@ -153,7 +154,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
     setSending(true);
     await addDoc(collection(db, 'games', gameId, 'lobbyChat'), {
       senderId: user.uid,
-      senderName: user.displayName ?? 'Jugador',
+      senderName: user.displayName || user.email?.split('@')[0] || 'Jugador',
       text: msg.trim(),
       createdAt: serverTimestamp(),
     });

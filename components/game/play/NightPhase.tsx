@@ -15,11 +15,12 @@ interface Props {
   myRole: string;
   me?: Player;
   userId: string;
+  userName: string;
   isHost: boolean;
   onSubmitAction: (action: Record<string, unknown>) => Promise<void>;
 }
 
-export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitAction }: Props) {
+export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost, onSubmitAction }: Props) {
   const [submitted, setSubmitted] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
   const [witchChoice, setWitchChoice] = useState<'save' | 'poison' | 'pass' | null>(null);
@@ -212,7 +213,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, isHost, onSubmitA
     if (!wolfMsg.trim() || !isWolfTeam) return;
     setSendingMsg(true);
     await addDoc(collection(db, 'games', gameId, 'wolfChat'), {
-      name: me?.name ?? 'Lobo',
+      name: userName,
       text: wolfMsg.trim(),
       createdAt: serverTimestamp(),
     });

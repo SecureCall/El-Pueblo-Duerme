@@ -1813,7 +1813,9 @@ export function GamePlay({ gameId }: { gameId: string }) {
       <NightPhase
         game={game} gameId={gameId}
         myRole={myRole ?? 'Aldeano'} me={me}
-        userId={user.uid} isHost={game.hostUid === user.uid}
+        userId={user.uid}
+        userName={user.displayName || user.email?.split('@')[0] || me?.name || 'Jugador'}
+        isHost={game.hostUid === user.uid}
         onSubmitAction={submitNightAction}
       />
     );
@@ -1840,7 +1842,9 @@ export function GamePlay({ gameId }: { gameId: string }) {
       <DayPhase
         game={game} gameId={gameId}
         myRole={myRole ?? 'Aldeano'} me={me}
-        userId={user.uid} isHost={game.hostUid === user.uid}
+        userId={user.uid}
+        userName={user.displayName || user.email?.split('@')[0] || me?.name || 'Jugador'}
+        isHost={game.hostUid === user.uid}
         onVote={submitDayVote}
         onJuezSecondVote={juezCallSecondVote}
         onAlborotadoraFight={alborotadoraChooseFight}
