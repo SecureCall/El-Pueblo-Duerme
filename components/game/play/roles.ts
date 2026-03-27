@@ -473,6 +473,7 @@ interface WinCheckOpts {
   vampiroKills?: number;
   pescadorBoat?: string[];
   hadaLinked?: boolean;
+  nightKilledUids?: string[];
 }
 
 interface WinResult {
@@ -488,7 +489,7 @@ export function checkWinCondition(
   const {
     enchanted = [], round = 1, dayEliminatedUid, eliminatedByVote,
     perroLoboChoices = {}, cultMembers = [], vampiroKills = 0,
-    pescadorBoat = [], hadaLinked = false,
+    pescadorBoat = [], hadaLinked = false, nightKilledUids = [],
   } = opts;
 
   const effectiveRoles: Record<string, string> = { ...roles };
@@ -505,11 +506,15 @@ export function checkWinCondition(
     }
   }
 
-  // Hombre Ebrio: wins if lynched by village
+  // Hombre Ebrio: wins if lynched by village vote OR killed by wolves at night
   if (dayEliminatedUid && eliminatedByVote) {
     if (effectiveRoles[dayEliminatedUid] === 'Hombre Ebrio') {
-      return { winner: 'hombre_ebrio', message: '¡El Hombre Ebrio logró que lo lincharan y gana solo!' };
+      return { winner: 'ebrio', message: '¡El Hombre Ebrio lo logró! Consiguió que el pueblo lo linchara y gana en solitario. ¡Era su plan desde el principio!' };
     }
+  }
+  // Night kill (wolves / poison / etc.)
+  if (nightKilledUids.some(uid => effectiveRoles[uid] === 'Hombre Ebrio')) {
+    return { winner: 'ebrio', message: '¡El Hombre Ebrio consiguió que lo eliminaran esta noche y gana en solitario. ¡Era exactamente lo que buscaba!' };
   }
 
   const aliveWolves = alive.filter(p =>

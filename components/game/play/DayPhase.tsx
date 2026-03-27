@@ -12,7 +12,10 @@ import { getRoleIcon } from './roleIcons';
 import { useNarrator } from '@/hooks/useNarrator';
 import { sendFriendRequest } from '@/lib/firebase/friends';
 
-const DAY_DURATION = 60;
+function computeDayDuration(alivePlayers: number): number {
+  // 20s per alive player, min 60s, max 300s
+  return Math.min(300, Math.max(60, alivePlayers * 20));
+}
 
 interface Props {
   game: GameState;
@@ -49,7 +52,8 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
   const [sendingLovers, setSendingLovers] = useState(false);
   const [myVote, setMyVote] = useState<string | null>(null);
   const [voted, setVoted] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(DAY_DURATION);
+  const dayDurationRef = useRef(60);
+  const [secondsLeft, setSecondsLeft] = useState(60);
   const [chatTab, setChatTab] = useState<ChatTab>('public');
   const timerEndFired = useRef(false);
   const onTimerEndRef = useRef(onTimerEnd);
@@ -140,11 +144,13 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
   useEffect(() => {
     const startedAt = game.dayStartedAt ?? Date.now();
     timerEndFired.current = false;
+    // Lock duration at start of day based on how many players were alive
+    dayDurationRef.current = computeDayDuration((game.players ?? []).filter(p => p.isAlive).length);
 
     const round = game.roundNumber ?? 1;
     const tick = () => {
       const elapsed = Math.floor((Date.now() - startedAt) / 1000);
-      const remaining = Math.max(0, DAY_DURATION - elapsed);
+      const remaining = Math.max(0, dayDurationRef.current - elapsed);
       setSecondsLeft(remaining);
       if (remaining === 20 && voteNarratedRound.current !== round) {
         voteNarratedRound.current = round;
@@ -166,7 +172,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
   }, [game.dayStartedAt]);
 
   const timerColor = secondsLeft <= 30 ? 'text-red-400' : secondsLeft <= 60 ? 'text-amber-400' : 'text-green-400';
-  const timerPct = secondsLeft / DAY_DURATION;
+  const timerPct = secondsLeft / (dayDurationRef.current || 60);
   const mm = String(Math.floor(secondsLeft / 60)).padStart(2, '0');
   const ss = String(secondsLeft % 60).padStart(2, '0');
 

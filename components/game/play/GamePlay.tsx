@@ -1091,9 +1091,11 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }
 
     // ── Win check ─────────────────────────────────────────────────────────
+    const nightKilledUids = players.filter(p => !p.isAlive && aliveBeforeNight.has(p.uid)).map(p => p.uid);
     const winResult = checkWinCondition(players, newRoles, {
       enchanted, round, perroLoboChoices,
       cultMembers, vampiroKills, pescadorBoat, hadaLinked,
+      nightKilledUids,
     });
 
     // Banshee wins at 2 points

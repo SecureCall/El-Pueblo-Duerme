@@ -48,7 +48,7 @@ function didIWin(winners: string | null, myRole?: string): boolean {
   if (winners === 'angel')     return myRole === 'Ángel';
   if (winners === 'picaro')    return myRole === 'Pícaro';
   if (winners === 'vampiro')   return myRole === 'Vampiro';
-  if (winners === 'ebrio')     return myRole === 'Ebrio';
+  if (winners === 'ebrio')     return myRole === 'Hombre Ebrio';
   if (winners === 'verdugo')   return myRole === 'Verdugo';
   if (winners === 'culto')     return myRole === 'Líder del Culto';
   if (winners === 'pescador')  return myRole === 'Pescador';
