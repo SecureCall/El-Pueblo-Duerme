@@ -9,7 +9,8 @@ export const AUDIO_FILES = {
   nightStart:       `${VOZ}El pueblo... duerme.mp3`,
   nightAmbient:     `${VOZ}noche_pueblo_duerme.mp3`,
 
-  // ─── Día ─────────────────────────────────────────────────────────
+  // ─── Día / Mañana ────────────────────────────────────────────────
+  roosterCrow:      '/audio/rooster-crowing-364473.mp3',
   dayWakeup:        `${VOZ}¡Pueblo... despierta!.mp3`,
   dayStart:         `${VOZ}dia_pueblo_despierta.mp3`,
 
@@ -59,10 +60,8 @@ let _doneCallbacks: Array<() => void> = [];
 /**
  * Generation counter — incremented every time stopAll() is called.
  * Each audio element captures the generation at creation time.
- * If the generation doesn't match when a callback fires, the audio
- * was from a previous sequence and its callback is silently ignored.
- * This prevents stale onended / onerror events from corrupting state
- * and causing two tracks to play simultaneously.
+ * Stale onended / onerror callbacks from old audio elements are
+ * silently ignored, preventing two tracks from playing at once.
  */
 let _generation = 0;
 
@@ -84,7 +83,7 @@ function _playNext(gen: number) {
   _playing = true;
 
   try {
-    // Detach handlers from previous element before replacing
+    // Detach handlers before replacing the element
     if (_current) {
       _current.onended = null;
       _current.onerror = null;
@@ -96,16 +95,16 @@ function _playNext(gen: number) {
     _current = audio;
     audio.volume = 0.9;
 
-    const done = (ok: boolean) => {
+    const done = () => {
       if (_generation !== gen) return; // stale
       _playing = false;
       _current = null;
       _playNext(gen);
     };
 
-    audio.onended = () => done(true);
-    audio.onerror = () => done(false);
-    audio.play().catch(() => done(false));
+    audio.onended = done;
+    audio.onerror = done;
+    audio.play().catch(done);
   } catch {
     _playing = false;
     _current = null;
@@ -132,9 +131,11 @@ function enqueue(...files: string[]) {
   _playNext(_generation);
 }
 
-/** Stop current audio, detach its callbacks, and clear the entire queue. */
+/** Stop current audio, detach its callbacks, and clear the queue.
+ *  waitForAudio promises are NOT cleared — they will resolve when the
+ *  next audio sequence finishes, so transition screens never hang. */
 function stopAll() {
-  _generation++;           // invalidate all in-flight callbacks
+  _generation++;      // invalidate all in-flight callbacks
   _queue = [];
   _playing = false;
   if (_current) {
@@ -144,7 +145,6 @@ function stopAll() {
     _current.src = '';
     _current = null;
   }
-  _doneCallbacks = [];     // cancel pending waitForAudio promises
 }
 
 /** Stop current audio, clear queue, then enqueue new files (interrupt). */

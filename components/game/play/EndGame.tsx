@@ -55,12 +55,14 @@ function didIWin(winners: string | null, myRole?: string): boolean {
 export function EndGame({ game, myRole, myUid, winners, winMessage, onPlayAgain }: Props) {
   const { emoji, title } = getWinnerDisplay(winners);
   const iWon = didIWin(winners, myRole);
-  const { play } = useNarrator();
+  const { interruptWith } = useNarrator();
 
   useEffect(() => {
+    // Cut through any lingering audio (debate ambient, night sounds, etc.)
+    // and play the victory narration cleanly.
     const timer = setTimeout(() => {
-      play(NARRATIONS.winMessage(winners));
-    }, 800);
+      interruptWith(NARRATIONS.winMessage(winners));
+    }, 400);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [winners]);

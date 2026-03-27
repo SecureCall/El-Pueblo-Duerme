@@ -29,9 +29,11 @@ export function NightTransition({ game, victimName, victimRole, onDone, autoSeco
     if (played.current) return;
     played.current = true;
     if (victimName) {
-      interruptWith(AUDIO_FILES.deathAnnounce, AUDIO_FILES.rip);
+      // Rooster → death announce → RIP
+      interruptWith(AUDIO_FILES.roosterCrow, AUDIO_FILES.deathAnnounce, AUDIO_FILES.rip);
     } else {
-      interruptWith(AUDIO_FILES.miracle, AUDIO_FILES.dayWakeup);
+      // Rooster → miracle / wakeup
+      interruptWith(AUDIO_FILES.roosterCrow, AUDIO_FILES.dayWakeup);
     }
     waitForAudio().then(() => setNarratorDone(true));
   // eslint-disable-next-line react-hooks/exhaustive-deps
