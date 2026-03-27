@@ -10,7 +10,7 @@ import {
 } from '@/lib/firebase/friends';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
-import { Users, UserPlus, Search, Check, X, Send, Wifi, WifiOff, Loader2, UserMinus } from 'lucide-react';
+import { Users, UserPlus, Search, Check, X, Send, Loader2, UserMinus } from 'lucide-react';
 
 interface FriendsPanelProps {
   gameId?: string;
@@ -181,10 +181,10 @@ export function FriendsPanel({ gameId, gameCode, gameName, compact = false }: Fr
               <div key={uid} className="flex items-center gap-2 py-1.5">
                 <Avatar name={requestProfiles[uid]?.displayName ?? '?'} photoURL={requestProfiles[uid]?.photoURL} />
                 <span className="flex-1 text-xs text-white truncate">{requestProfiles[uid]?.displayName ?? uid.slice(0, 8)}</span>
-                <button onClick={() => handleAccept(uid)} className="p-1 rounded-lg bg-green-500/20 hover:bg-green-500/40 text-green-400 transition-colors">
+                <button onClick={() => handleAccept(uid)} className="p-1.5 rounded-lg bg-green-500/20 hover:bg-green-500/40 active:bg-green-500/40 text-green-400 transition-colors">
                   <Check className="h-3.5 w-3.5" />
                 </button>
-                <button onClick={() => handleReject(uid)} className="p-1 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-400 transition-colors">
+                <button onClick={() => handleReject(uid)} className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 active:bg-red-500/40 text-red-400 transition-colors">
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -202,7 +202,7 @@ export function FriendsPanel({ gameId, gameCode, gameName, compact = false }: Fr
                 placeholder="Buscar por nombre..."
                 className="flex-1 bg-white/5 border border-white/15 rounded-lg px-2 py-1.5 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-white/40"
               />
-              <button onClick={handleSearch} disabled={searching} className="bg-white/10 hover:bg-white/20 border border-white/20 p-1.5 rounded-lg transition-colors disabled:opacity-40">
+              <button onClick={handleSearch} disabled={searching} className="bg-white/10 hover:bg-white/20 active:bg-white/20 border border-white/20 p-1.5 rounded-lg transition-colors disabled:opacity-40">
                 {searching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
               </button>
             </div>
@@ -218,7 +218,7 @@ export function FriendsPanel({ gameId, gameCode, gameName, compact = false }: Fr
                   ) : alreadySent ? (
                     <span className="text-[10px] text-white/40">Enviada</span>
                   ) : (
-                    <button onClick={() => handleAddFriend(r.uid)} className="p-1 rounded-lg bg-blue-500/20 hover:bg-blue-500/40 text-blue-400 transition-colors">
+                    <button onClick={() => handleAddFriend(r.uid)} className="p-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/40 active:bg-blue-500/40 text-blue-400 transition-colors">
                       <UserPlus className="h-3.5 w-3.5" />
                     </button>
                   )}
@@ -239,7 +239,7 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
   return (
     <button
       onClick={onClick}
-      className={`p-1.5 rounded-lg transition-colors ${active ? 'bg-white/20 text-white' : 'text-white/40 hover:text-white/70 hover:bg-white/10'}`}
+      className={`p-1.5 rounded-lg transition-colors ${active ? 'bg-white/20 text-white' : 'text-white/40 hover:text-white/70 active:text-white/70 hover:bg-white/10 active:bg-white/10'}`}
     >
       {children}
     </button>
@@ -270,11 +270,7 @@ function FriendRow({
   const name = profile?.displayName ?? presenceData?.displayName ?? uid.slice(0, 8);
 
   return (
-    <div
-      className="flex items-center gap-2 py-1.5 group"
-      onMouseEnter={() => setShowRemove(true)}
-      onMouseLeave={() => setShowRemove(false)}
-    >
+    <div className="flex items-center gap-2 py-1.5">
       <div className="relative flex-shrink-0">
         <Avatar name={name} photoURL={profile?.photoURL ?? presenceData?.photoURL} />
         <span className={`absolute bottom-0 right-0 w-2 h-2 rounded-full border border-black ${online ? 'bg-green-400' : 'bg-gray-500'}`} />
@@ -283,20 +279,34 @@ function FriendRow({
         <p className="text-xs text-white truncate">{name}</p>
         <p className={`text-[10px] ${online ? 'text-green-400' : 'text-white/30'}`}>{online ? 'En línea' : 'Desconectado'}</p>
       </div>
-      <div className="flex gap-1 flex-shrink-0">
-        {gameId && online && (
+      <div className="flex gap-1 flex-shrink-0 items-center">
+        {/* Invite button: show for ALL friends when in a lobby (online or offline) */}
+        {gameId && (
           <button
             onClick={onInvite}
             disabled={invited}
             title="Invitar a la partida"
-            className={`p-1 rounded-lg transition-colors ${invited ? 'text-green-400 bg-green-500/10' : 'text-blue-400 bg-blue-500/10 hover:bg-blue-500/30'}`}
+            className={`p-1.5 rounded-lg transition-colors ${invited ? 'text-green-400 bg-green-500/10' : 'text-blue-400 bg-blue-500/10 hover:bg-blue-500/30 active:bg-blue-500/30'}`}
           >
             {invited ? <Check className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
           </button>
         )}
-        {showRemove && (
-          <button onClick={onRemove} title="Eliminar amigo" className="p-1 rounded-lg text-red-400/60 hover:bg-red-500/20 hover:text-red-400 transition-colors">
+        {/* Remove: tap to toggle visibility on mobile */}
+        {showRemove ? (
+          <button
+            onClick={() => { onRemove(); setShowRemove(false); }}
+            title="Eliminar amigo"
+            className="p-1.5 rounded-lg text-red-400 bg-red-500/20 hover:bg-red-500/30 active:bg-red-500/30 transition-colors"
+          >
             <UserMinus className="h-3.5 w-3.5" />
+          </button>
+        ) : (
+          <button
+            onClick={() => setShowRemove(true)}
+            title="Opciones"
+            className="p-1.5 rounded-lg text-white/20 hover:text-white/50 active:text-white/50 transition-colors"
+          >
+            <span className="text-[14px] leading-none">···</span>
           </button>
         )}
       </div>
