@@ -6,6 +6,7 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { db } from '@/lib/firebase/config';
 import {
   doc, onSnapshot, updateDoc, addDoc, collection, serverTimestamp,
+  query, orderBy, limit,
 } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
 import { assignRoles, checkWinCondition, ROLES, ROLE_SUBMISSION_KEY } from './roles';
@@ -145,6 +146,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const aiChatSentRound = useRef<number>(-1);
   const aiNightSubmittedRound = useRef<number>(-1);
   const aiDayVotedRound = useRef<number>(-1);
+  const wolfChatLastProcessed = useRef<string>('');
   const prevPhase = useRef<string | null>(null);
   const processingDayRef = useRef(false);
   const processingNightRef = useRef(false);
@@ -562,6 +564,68 @@ export function GamePlay({ gameId }: { gameId: string }) {
     return () => clearTimeout(nightTimer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.phase, game?.roundNumber]);
+
+  // Host listens to wolf chat — AI wolves reply and auto-confirm kill target
+  useEffect(() => {
+    if (!game || !user || game.hostUid !== user.uid) return;
+    if (game.phase !== 'night') return;
+
+    const roles = game.roles ?? {};
+    const alivePlayers = (game.players ?? []).filter(p => p.isAlive);
+    const humanWolves = alivePlayers.filter(p => !p.isAI && (roles[p.uid] === 'Lobo' || roles[p.uid] === 'Lobo Blanco' || roles[p.uid] === 'Cría de Lobo' || roles[p.uid] === 'Bruja'));
+    const aiWolves = alivePlayers.filter(p => p.isAI && (roles[p.uid] === 'Lobo' || roles[p.uid] === 'Lobo Blanco' || roles[p.uid] === 'Cría de Lobo' || roles[p.uid] === 'Bruja'));
+
+    if (humanWolves.length === 0 || aiWolves.length === 0) return;
+
+    const q = query(collection(db, 'games', gameId, 'wolfChat'), orderBy('createdAt', 'desc'), limit(1));
+    const unsub = onSnapshot(q, async (snap: any) => {
+      if (snap.empty) return;
+      const latestDoc = snap.docs[0];
+      const latestId = latestDoc.id;
+      if (wolfChatLastProcessed.current === latestId) return;
+
+      const latestMsg = latestDoc.data();
+      const isFromHuman = humanWolves.some(p => p.uid === latestMsg.senderId || p.name === latestMsg.name);
+      if (!isFromHuman) return;
+
+      wolfChatLastProcessed.current = latestId;
+
+      try {
+        const res = await fetch('/api/wolf-agree', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            humanMessage: latestMsg.text,
+            humanName: latestMsg.name ?? latestMsg.senderName ?? '',
+            aiWolves: aiWolves.map(p => ({ uid: p.uid, name: p.name })),
+            alivePlayers: alivePlayers.filter(p => humanWolves.every(h => h.uid !== p.uid) || true).map(p => ({ uid: p.uid, name: p.name })),
+          }),
+        });
+        const data: { messages?: { uid: string; name: string; text: string }[]; targetUid?: string | null } = await res.json();
+
+        const msgs = data.messages ?? [];
+        for (let i = 0; i < msgs.length; i++) {
+          const m = msgs[i];
+          await new Promise(r => setTimeout(r, 1500 + i * (1000 + Math.random() * 2000)));
+          addDoc(collection(db, 'games', gameId, 'wolfChat'), {
+            senderId: m.uid, senderName: m.name, name: m.name, text: m.text, createdAt: serverTimestamp(),
+          }).catch(() => {});
+        }
+
+        if (data.targetUid) {
+          const updates: Record<string, unknown> = { 'nightActions.wolfTarget': data.targetUid };
+          const subs = game.nightSubmissions ?? {};
+          if (!subs['wolves']) updates['nightSubmissions.wolves'] = true;
+          updateDoc(doc(db, 'games', gameId), updates).catch(() => {});
+        }
+      } catch (e) {
+        console.error('wolf-agree fetch error:', e);
+      }
+    });
+
+    return () => unsub();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.phase, game?.roundNumber, gameId]);
 
   // Host processes night when all required submissions received
   useEffect(() => {
