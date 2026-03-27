@@ -230,7 +230,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
         <>
           <div ref={chatRef} className="flex-1 overflow-y-auto p-4 space-y-2">
             {ghostMsgs.length === 0 && (
-              <p className="text-white/20 text-sm text-center mt-8">
+              <p className="text-white/60 text-sm text-center mt-8">
                 {isMedium ? 'El más allá guarda silencio...' : 'Los muertos aún no hablan...'}
               </p>
             )}
@@ -238,9 +238,9 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
               <div key={m.id} className={`flex gap-2 ${m.senderId === userId ? 'flex-row-reverse' : ''}`}>
                 <div className={`max-w-[80%] flex flex-col ${m.senderId === userId ? 'items-end' : 'items-start'}`}>
                   {m.senderId !== userId && (
-                    <span className="text-[10px] text-white/40 mb-0.5">{m.senderName}</span>
+                    <span className="text-[10px] text-white/70 mb-0.5 font-semibold">{m.senderName}</span>
                   )}
-                  <div className={`px-3 py-1.5 rounded-xl text-sm ${m.senderId === userId ? 'bg-slate-500 text-white' : 'bg-white/10 text-white/70'}`}>
+                  <div className={`px-3 py-1.5 rounded-xl text-sm ${m.senderId === userId ? 'bg-slate-500 text-white' : 'bg-white/20 text-white'}`}>
                     {m.text}
                   </div>
                 </div>
@@ -279,13 +279,13 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
           </div>
           <div ref={chatRef} className="flex-1 overflow-y-auto p-4 space-y-2">
             {loversMsgs.length === 0 && (
-              <p className="text-white/20 text-sm text-center mt-8">Solo tú y {partner?.name ?? 'tu pareja'} podéis leer esto...</p>
+              <p className="text-white/60 text-sm text-center mt-8">Solo tú y {partner?.name ?? 'tu pareja'} podéis leer esto...</p>
             )}
             {loversMsgs.map(m => (
               <div key={m.id} className={`flex gap-2 ${m.senderId === userId ? 'flex-row-reverse' : ''}`}>
                 <div className={`max-w-[80%] flex flex-col ${m.senderId === userId ? 'items-end' : 'items-start'}`}>
                   {m.senderId !== userId && (
-                    <span className="text-[10px] text-white/40 mb-0.5">{m.senderName}</span>
+                    <span className="text-[10px] text-white/70 mb-0.5 font-semibold">{m.senderName}</span>
                   )}
                   <div className={`px-3 py-1.5 rounded-xl text-sm ${m.senderId === userId ? 'bg-pink-500 text-white font-medium' : 'bg-pink-900/40 text-white'}`}>
                     {m.text}
@@ -322,15 +322,15 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
       <>
         <div ref={chatRef} className="flex-1 overflow-y-auto p-4 space-y-2">
           {msgs.length === 0 && (
-            <p className="text-white/20 text-sm text-center mt-8">El pueblo delibera en silencio...</p>
+            <p className="text-white/60 text-sm text-center mt-8">El pueblo delibera en silencio...</p>
           )}
           {msgs.map(m => (
             <div key={m.id} className={`flex gap-2 ${m.senderId === userId ? 'flex-row-reverse' : ''}`}>
               <div className={`max-w-[80%] flex flex-col ${m.senderId === userId ? 'items-end' : 'items-start'}`}>
                 {m.senderId !== userId && (
-                  <span className="text-[10px] text-white/40 mb-0.5">{m.senderName}</span>
+                  <span className="text-[10px] text-white/70 mb-0.5 font-semibold">{m.senderName}</span>
                 )}
-                <div className={`px-3 py-1.5 rounded-xl text-sm ${m.senderId === userId ? 'bg-amber-500 text-black font-medium' : 'bg-white/10 text-white'}`}>
+                <div className={`px-3 py-1.5 rounded-xl text-sm ${m.senderId === userId ? 'bg-amber-500 text-black font-medium' : 'bg-white/20 text-white'}`}>
                   {m.text}
                 </div>
               </div>
@@ -374,7 +374,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
         backgroundPosition: 'center',
       }}
     >
-      <div className="absolute inset-0 bg-amber-950/60" />
+      <div className="absolute inset-0 bg-black/78" />
       <div className="relative z-10 flex flex-col h-screen max-w-3xl mx-auto w-full p-4 gap-3">
 
         {/* Header */}
@@ -402,7 +402,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
 
           <div className="flex items-center gap-2">
             <img src={getRoleIcon(myRole)} alt={myRole} className="w-7 h-7 rounded object-cover" />
-            <span className="text-white/50 text-sm">{myRole}</span>
+            <span className="text-white/90 text-sm font-medium">{myRole}</span>
           </div>
         </div>
 
@@ -454,7 +454,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
 
         <div className="flex gap-3 flex-1 min-h-0">
           {/* Chat area with tabs */}
-          <div className="flex-1 flex flex-col bg-black/40 border border-white/10 rounded-xl overflow-hidden">
+          <div className="flex-1 flex flex-col bg-black/65 border border-white/20 rounded-xl overflow-hidden">
             {/* Tab bar */}
             <div className="flex border-b border-white/10">
               {availableTabs.map(tab => (
@@ -476,8 +476,8 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
 
             {/* Header for public chat */}
             {chatTab === 'public' && (
-              <div className="px-4 py-2 border-b border-white/5">
-                <p className="text-white/30 text-xs">Discutid y decidid quién ejecutar hoy</p>
+              <div className="px-4 py-2 border-b border-white/10">
+                <p className="text-white/70 text-xs">Discutid y decidid quién ejecutar hoy</p>
               </div>
             )}
 
@@ -487,12 +487,12 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
 
           {/* Voting panel */}
           <div className="w-52 flex-shrink-0 flex flex-col gap-3">
-            <div className="bg-black/40 border border-white/10 rounded-xl p-4 flex-1 flex flex-col">
+            <div className="bg-black/65 border border-white/20 rounded-xl p-4 flex-1 flex flex-col">
               <div className="flex items-center gap-2 mb-1">
                 <Vote className="h-4 w-4 text-amber-400" />
-                <p className="text-sm font-medium text-amber-300/80">Votación</p>
+                <p className="text-sm font-medium text-amber-300">Votación</p>
               </div>
-              <p className="text-white/30 text-xs mb-3">{totalVoted}/{totalAlive} han votado</p>
+              <p className="text-white/70 text-xs mb-3">{totalVoted}/{totalAlive} han votado</p>
 
               <div className="flex-1 overflow-y-auto space-y-1.5">
                 {votingTargets.map(p => {
@@ -537,17 +537,17 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
                 </button>
               )}
               {voted && (
-                <div className="mt-3 text-center text-amber-400/60 text-xs py-1">
+                <div className="mt-3 text-center text-amber-400 text-xs py-1 font-semibold">
                   ✓ Voto registrado
                 </div>
               )}
               {myVoteBanned && meAlive && (
-                <div className="mt-3 text-center text-orange-400/60 text-xs py-1">
+                <div className="mt-3 text-center text-orange-300 text-xs py-1 font-semibold">
                   🐐 Sin voto esta ronda
                 </div>
               )}
               {!meAlive && (
-                <div className="mt-3 text-center text-white/20 text-xs py-1">
+                <div className="mt-3 text-center text-white/60 text-xs py-1">
                   No puedes votar
                 </div>
               )}
@@ -572,7 +572,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
               {isAlborotadora && !game.alborotadoraFight && (
                 <div className="mt-3 border border-amber-500/30 rounded-xl p-3 bg-amber-900/10">
                   <p className="text-xs text-amber-300 font-semibold mb-1">🥊 Alborotadora — provocar pelea</p>
-                  <p className="text-[10px] text-white/40 mb-2">Elige 2 jugadores. Ambos morirán antes de la votación final.</p>
+                  <p className="text-[10px] text-white/80 mb-2">Elige 2 jugadores. Ambos morirán antes de la votación final.</p>
                   {alborotadoraStep === 0 ? (
                     <>
                       <p className="text-[10px] text-amber-300/60 mb-1">1er luchador:</p>
@@ -615,9 +615,9 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
               {/* Verdugo secret target reminder */}
               {isVerdugo && verdugoTarget && (
                 <div className="mt-3 border border-red-700/30 rounded-xl p-3 bg-red-950/10">
-                  <p className="text-[10px] text-red-300/60 uppercase tracking-wide mb-1">Tu objetivo secreto</p>
+                  <p className="text-[10px] text-red-300/80 uppercase tracking-wide mb-1">Tu objetivo secreto</p>
                   <p className="text-sm text-white font-semibold">{verdugoTarget.name}</p>
-                  <p className="text-[10px] text-white/30">Si el pueblo lo lincha hoy, ¡ganas solo!</p>
+                  <p className="text-[10px] text-white/80">Si el pueblo lo lincha hoy, ¡ganas solo!</p>
                 </div>
               )}
 
@@ -630,20 +630,20 @@ export function DayPhase({ game, gameId, myRole, me, userId, isHost, onVote, onJ
             </div>
 
             {/* Alive list */}
-            <div className="bg-black/30 border border-white/5 rounded-xl p-3">
-              <p className="text-white/25 text-[10px] uppercase tracking-wide mb-2">Vivos ({alivePlayers.length})</p>
+            <div className="bg-black/60 border border-white/15 rounded-xl p-3">
+              <p className="text-white/70 text-[10px] uppercase tracking-wide mb-2">Vivos ({alivePlayers.length})</p>
               {alivePlayers.map(p => (
                 <div key={p.uid} className="flex items-center gap-1.5 mb-1">
                   <div className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
-                  <span className="text-white/50 text-xs truncate">{p.name}</span>
-                  {p.isAI && <Bot className="h-2.5 w-2.5 text-cyan-400/40" />}
+                  <span className="text-white/90 text-xs truncate">{p.name}</span>
+                  {p.isAI && <Bot className="h-2.5 w-2.5 text-cyan-400/60" />}
                   {voteBanned.includes(p.uid) && <span className="text-orange-400 text-[9px]">🚫</span>}
                 </div>
               ))}
               {(game.players ?? []).filter(p => !p.isAlive).map(p => (
                 <div key={p.uid} className="flex items-center gap-1.5 mb-1">
-                  <div className="w-1.5 h-1.5 rounded-full bg-white/15 flex-shrink-0" />
-                  <span className="text-white/20 text-xs truncate line-through">{p.name}</span>
+                  <div className="w-1.5 h-1.5 rounded-full bg-white/30 flex-shrink-0" />
+                  <span className="text-white/40 text-xs truncate line-through">{p.name}</span>
                 </div>
               ))}
             </div>
