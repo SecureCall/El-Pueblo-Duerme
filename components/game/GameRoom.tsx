@@ -11,6 +11,7 @@ import {
 import { Copy, Crown, LogOut, Send, Users, Loader2, Bot, Share2, MessageCircle, Facebook, Link, Check } from 'lucide-react';
 import { useNarrator, waitForAudio } from '@/hooks/useNarrator';
 import { useAudio } from '@/app/providers/AudioProvider';
+import { FriendsPanel } from '@/components/friends/FriendsPanel';
 
 interface Player {
   uid: string;
@@ -495,6 +496,14 @@ export function GameRoom({ gameId }: { gameId: string }) {
               <p className="text-center text-white/30 text-xs py-2">Esperando al anfitrión...</p>
             )}
           </div>
+
+          {/* Friends panel */}
+          <FriendsPanel
+            gameId={gameId}
+            gameCode={game?.code}
+            gameName={game?.name}
+            compact
+          />
 
           {/* Chat */}
           <div className="flex-1 flex flex-col bg-black/40 border border-white/10 rounded-xl overflow-hidden">

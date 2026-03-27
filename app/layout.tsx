@@ -4,6 +4,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from './providers/AuthProvider';
 import { AudioProvider } from './providers/AudioProvider';
+import { ClientShell } from '@/components/friends/ClientShell';
 import { cn } from '@/lib/utils';
 
 const ptSans = PT_Sans({ 
@@ -40,8 +41,10 @@ export default function RootLayout({
       <body className={cn(ptSans.variable, playfair.variable, "font-sans")}>
         <AuthProvider>
           <AudioProvider>
-            {children}
-            <Toaster />
+            <ClientShell>
+              {children}
+              <Toaster />
+            </ClientShell>
           </AudioProvider>
         </AuthProvider>
       </body>

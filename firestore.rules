@@ -22,9 +22,24 @@ service cloud.firestore {
 
     // ── Users ──────────────────────────────────────────────────────────────
     match /users/{userId} {
-      allow read: if isAuth() && request.auth.uid == userId;
+      allow read: if isAuth();
       allow create: if isAuth() && request.auth.uid == userId;
-      allow update: if isAuth() && request.auth.uid == userId;
+      allow update: if isAuth() && (
+        request.auth.uid == userId
+        || affectedAre(['friendRequests'])
+      );
+    }
+
+    // ── Presence ───────────────────────────────────────────────────────────
+    match /presence/{userId} {
+      allow read: if isAuth();
+      allow write: if isAuth() && request.auth.uid == userId;
+    }
+
+    // ── Game invites ────────────────────────────────────────────────────────
+    match /gameInvites/{userId}/items/{inviteId} {
+      allow read, delete: if isAuth() && request.auth.uid == userId;
+      allow create: if isAuth();
     }
 
     // ── Games ──────────────────────────────────────────────────────────────
@@ -45,7 +60,10 @@ service cloud.firestore {
         || affectedAre(['dayVotes'])
       );
 
-      allow delete: if isAuth() && request.auth.uid == resource.data.hostUid;
+      allow delete: if isAuth() && (
+        request.auth.uid == resource.data.hostUid
+        || resource.data.isPublic == true
+      );
     }
 
     // ── Chat channels ──────────────────────────────────────────────────────
