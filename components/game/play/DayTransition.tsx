@@ -177,7 +177,7 @@ export function DayTransition({ game, gameId, userId, userName, eliminatedName, 
                   {m.senderId !== userId && (
                     <span className="text-[10px] text-white/60 mb-0.5 font-semibold">{m.senderName}</span>
                   )}
-                  <div className={`px-2.5 py-1.5 rounded-xl text-xs ${m.senderId === userId ? 'bg-blue-500 text-white font-medium' : 'bg-white/15 text-white'}`}>
+                  <div className={`px-2.5 py-1.5 rounded-xl text-xs text-white ${m.senderId === userId ? 'bg-blue-600 font-semibold' : 'bg-gray-700'}`}>
                     {m.text}
                   </div>
                 </div>

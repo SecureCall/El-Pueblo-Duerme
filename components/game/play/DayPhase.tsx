@@ -249,7 +249,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
                   {m.senderId !== userId && (
                     <span className="text-[10px] text-white/70 mb-0.5 font-semibold">{m.senderName}</span>
                   )}
-                  <div className={`px-3 py-1.5 rounded-xl text-sm ${m.senderId === userId ? 'bg-slate-500 text-white' : 'bg-white/20 text-white'}`}>
+                  <div className={`px-3 py-1.5 rounded-xl text-sm text-white ${m.senderId === userId ? 'bg-slate-600' : 'bg-gray-700'}`}>
                     {m.text}
                   </div>
                 </div>
@@ -296,7 +296,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
                   {m.senderId !== userId && (
                     <span className="text-[10px] text-white/70 mb-0.5 font-semibold">{m.senderName}</span>
                   )}
-                  <div className={`px-3 py-1.5 rounded-xl text-sm ${m.senderId === userId ? 'bg-pink-500 text-white font-medium' : 'bg-pink-900/40 text-white'}`}>
+                  <div className={`px-3 py-1.5 rounded-xl text-sm text-white font-medium ${m.senderId === userId ? 'bg-pink-600' : 'bg-pink-900'}`}>
                     {m.text}
                   </div>
                 </div>
@@ -339,7 +339,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
                 {m.senderId !== userId && (
                   <span className="text-[10px] text-white/70 mb-0.5 font-semibold">{m.senderName}</span>
                 )}
-                <div className={`px-3 py-1.5 rounded-xl text-sm ${m.senderId === userId ? 'bg-amber-500 text-black font-medium' : 'bg-white/20 text-white'}`}>
+                <div className={`px-3 py-1.5 rounded-xl text-sm text-white ${m.senderId === userId ? 'bg-amber-600 font-semibold' : 'bg-gray-700'}`}>
                   {m.text}
                 </div>
               </div>

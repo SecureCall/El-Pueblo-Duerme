@@ -199,7 +199,7 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
                   {m.senderId !== userId && (
                     <span className="text-[10px] text-white/60 mb-0.5 font-semibold">{m.senderName}</span>
                   )}
-                  <div className={`px-2.5 py-1.5 rounded-xl text-xs ${m.senderId === userId ? 'bg-amber-500 text-black font-medium' : 'bg-white/15 text-white'}`}>
+                  <div className={`px-2.5 py-1.5 rounded-xl text-xs text-white ${m.senderId === userId ? 'bg-amber-600 font-semibold' : 'bg-gray-700'}`}>
                     {m.text}
                   </div>
                 </div>
