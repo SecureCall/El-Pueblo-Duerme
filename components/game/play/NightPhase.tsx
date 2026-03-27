@@ -88,16 +88,17 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
   const wolves = (game.players ?? []).filter(p => p.isAlive && (game.roles?.[p.uid] === 'Lobo' || game.roles?.[p.uid] === 'Lobo Blanco'));
   const enchanted = game.enchanted ?? [];
 
-  // Wolf chat listener (for wolf team)
+  // Wolf chat listener (for wolf team + Bruja ally)
+  const canSeeWolfChat = isWolfTeam || isLoboBruja;
   useEffect(() => {
-    if (!isWolfTeam) return;
+    if (!canSeeWolfChat) return;
     const q = query(collection(db, 'games', gameId, 'wolfChat'), orderBy('createdAt', 'asc'), limit(50));
     const unsub = onSnapshot(q, (snap: any) => {
       setWolfMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
       setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
     });
     return () => unsub();
-  }, [isWolfTeam, gameId]);
+  }, [canSeeWolfChat, gameId]);
 
   // Wolf chat listener for Espía (read-only, only when activated)
   useEffect(() => {
@@ -210,7 +211,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
 
   const sendWolfMsg = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!wolfMsg.trim() || !isWolfTeam) return;
+    if (!wolfMsg.trim() || !canSeeWolfChat) return;
     setSendingMsg(true);
     await addDoc(collection(db, 'games', gameId, 'wolfChat'), {
       name: userName,
@@ -379,30 +380,6 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
                 </div>
               )}
 
-              {/* Wolf chat */}
-              <div className="bg-black/40 rounded-xl mb-3 overflow-hidden">
-                <p className="text-red-400/60 text-xs px-3 pt-2 pb-1 uppercase tracking-wide">Chat de lobos</p>
-                <div ref={chatRef} className="h-24 overflow-y-auto px-3 pb-2 space-y-1">
-                  {wolfMsgs.map((m: any) => (
-                    <p key={m.id} className="text-xs text-white/70">
-                      <span className="text-red-400 font-medium">{m.name}:</span> {m.text}
-                    </p>
-                  ))}
-                </div>
-                <form onSubmit={sendWolfMsg} className="flex gap-2 p-2 border-t border-white/5">
-                  <input
-                    value={wolfMsg}
-                    onChange={e => setWolfMsg(e.target.value)}
-                    placeholder="Hablar con tu manada..."
-                    className="flex-1 bg-transparent text-xs text-white placeholder:text-white/30 outline-none"
-                    maxLength={150}
-                  />
-                  <button type="submit" disabled={!wolfMsg.trim() || sendingMsg} className="text-red-400 hover:text-red-300 disabled:opacity-30">
-                    <Send className="h-3.5 w-3.5" />
-                  </button>
-                </form>
-              </div>
-
               {/* Lobo Blanco special action (every 2 rounds) */}
               {isLoboBlanco && round % 2 === 0 && (
                 <div className="mb-3 p-3 bg-white/5 border border-white/10 rounded-xl">
@@ -437,6 +414,41 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
               >
                 Confirmar víctima
               </button>
+            </div>
+          )}
+
+          {/* ── CHAT DE LOBOS — siempre visible para el equipo lobo + Bruja ─── */}
+          {canSeeWolfChat && (
+            <div className="bg-red-950/30 border border-red-500/20 rounded-2xl overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-red-500/10">
+                <span className="text-base">🐺</span>
+                <p className="text-red-400/80 text-xs font-semibold uppercase tracking-wide">Chat de lobos</p>
+                {isLoboBruja && <span className="text-[10px] text-red-400/50 ml-auto">Aliada — solo lectura y escritura</span>}
+                {submitted && <span className="text-[10px] text-white/30 ml-auto">Ya actuaste — puedes seguir hablando</span>}
+              </div>
+              <div ref={chatRef} className="h-36 overflow-y-auto px-4 py-3 space-y-1.5">
+                {wolfMsgs.length === 0 && (
+                  <p className="text-white/20 text-xs text-center pt-4">La manada no ha hablado aún…</p>
+                )}
+                {wolfMsgs.map((m: any) => (
+                  <p key={m.id} className="text-xs text-white/75">
+                    <span className="text-red-400 font-semibold">{m.name}:</span> {m.text}
+                  </p>
+                ))}
+              </div>
+              <form onSubmit={sendWolfMsg} className="flex gap-2 px-3 py-2 border-t border-red-500/10">
+                <input
+                  value={wolfMsg}
+                  onChange={e => setWolfMsg(e.target.value)}
+                  placeholder="Hablar con tu manada…"
+                  className="flex-1 bg-transparent text-xs text-white placeholder:text-white/25 outline-none"
+                  maxLength={150}
+                />
+                <button type="submit" disabled={!wolfMsg.trim() || sendingMsg}
+                  className="text-red-400 hover:text-red-300 disabled:opacity-30 transition-colors">
+                  <Send className="h-3.5 w-3.5" />
+                </button>
+              </form>
             </div>
           )}
 
