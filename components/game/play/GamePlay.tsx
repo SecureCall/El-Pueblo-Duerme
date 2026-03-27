@@ -1803,6 +1803,9 @@ export function GamePlay({ gameId }: { gameId: string }) {
       return (
         <DayTransition
           game={game}
+          gameId={gameId}
+          userId={user.uid}
+          userName={user.displayName || user.email?.split('@')[0] || me?.name || 'Jugador'}
           eliminatedName={dayTransitionData.eliminatedName}
           eliminatedRole={dayTransitionData.eliminatedRole}
           onDone={() => { setShowDayTransition(false); nightStartedAtRef.current = Date.now(); }}
@@ -1826,6 +1829,9 @@ export function GamePlay({ gameId }: { gameId: string }) {
       return (
         <NightTransition
           game={game}
+          gameId={gameId}
+          userId={user.uid}
+          userName={user.displayName || user.email?.split('@')[0] || me?.name || 'Jugador'}
           victimName={nightRevealData.victimName}
           victimRole={nightRevealData.victimRole}
           onDone={() => {
