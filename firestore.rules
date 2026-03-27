@@ -58,6 +58,8 @@ service cloud.firestore {
         || onlyUpdating(['players', 'playerCount'])
         || affectedAre(['nightActions', 'nightSubmissions'])
         || affectedAre(['dayVotes'])
+        // Any authenticated player can reset a finished game (to become new host)
+        || resource.data.phase == 'ended'
       );
 
       allow delete: if isAuth() && (

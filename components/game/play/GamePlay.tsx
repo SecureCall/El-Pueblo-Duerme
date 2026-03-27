@@ -1794,19 +1794,33 @@ export function GamePlay({ gameId }: { gameId: string }) {
         myRole={myRole}
         myUid={user?.uid}
         isHost={game.hostUid === user?.uid}
+        hostInGame={(game.players ?? []).some((p: Player) => p.uid === game.hostUid)}
         winners={game.winners ?? null}
         winMessage={game.winMessage ?? ''}
         onPlayAgain={() => router.push('/')}
         onPlayAgainSameRoom={async () => {
-          if (game.hostUid !== user?.uid) return;
+          if (!user) return;
+          const amHost = game.hostUid === user.uid;
+          const hostStillHere = (game.players ?? []).some((p: Player) => p.uid === game.hostUid);
+          // Only allow if I'm the host, OR the host has left
+          if (!amHost && hostStillHere) return;
+
+          const newHostUid = user.uid;
+          const newHostName = user.displayName || user.email?.split('@')[0] || me?.name || 'Jugador';
+
+          // Restore all players to alive; give crown to new host
           const resetPlayers = (game.players ?? []).map((p: Player) => ({
             ...p,
             isAlive: true,
             role: null,
+            isHost: p.uid === newHostUid,
           }));
+
           await updateDoc(doc(db, 'games', gameId), {
             phase: 'lobby',
             roundNumber: 0,
+            hostUid: newHostUid,
+            hostName: newHostName,
             roles: {},
             nightActions: {},
             nightSubmissions: {},

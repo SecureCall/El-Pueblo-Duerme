@@ -14,6 +14,7 @@ interface Props {
   myRole?: string;
   myUid?: string;
   isHost?: boolean;
+  hostInGame?: boolean;  // false = el anfitrión original se fue
   winners: string | null;
   winMessage: string;
   onPlayAgain: () => void;
@@ -54,7 +55,7 @@ function didIWin(winners: string | null, myRole?: string): boolean {
   return false;
 }
 
-export function EndGame({ game, myRole, myUid, isHost, winners, winMessage, onPlayAgain, onPlayAgainSameRoom }: Props) {
+export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winners, winMessage, onPlayAgain, onPlayAgainSameRoom }: Props) {
   const { emoji, title } = getWinnerDisplay(winners);
   const iWon = didIWin(winners, myRole);
   const { interruptWith } = useNarrator();
@@ -156,21 +157,40 @@ export function EndGame({ game, myRole, myUid, isHost, winners, winMessage, onPl
 
         {/* Play again in same room */}
         <div className="space-y-3">
-          {onPlayAgainSameRoom && isHost && (
-            <button
-              onClick={onPlayAgainSameRoom}
-              className="w-full flex items-center justify-center gap-2 bg-yellow-500 hover:bg-yellow-400 active:bg-yellow-400 text-black font-bold py-4 rounded-xl transition-all text-lg shadow-lg shadow-yellow-900/30"
-            >
-              <RefreshCw className="h-5 w-5" />
-              Volver a jugar en esta sala
-            </button>
+          {onPlayAgainSameRoom && (
+            <>
+              {/* Case 1: I AM the host → always can restart */}
+              {isHost && (
+                <button
+                  onClick={onPlayAgainSameRoom}
+                  className="w-full flex items-center justify-center gap-2 bg-yellow-500 hover:bg-yellow-400 active:bg-yellow-400 text-black font-bold py-4 rounded-xl transition-all text-lg shadow-lg shadow-yellow-900/30"
+                >
+                  <RefreshCw className="h-5 w-5" />
+                  Volver a jugar en esta sala
+                </button>
+              )}
+
+              {/* Case 2: I'm NOT the host but host is still here → wait */}
+              {!isHost && hostInGame && (
+                <div className="w-full flex items-center justify-center gap-2 bg-white/10 border border-white/15 text-white/50 py-4 rounded-xl text-sm">
+                  <Clock className="h-4 w-4" />
+                  Esperando al anfitrión para jugar de nuevo…
+                </div>
+              )}
+
+              {/* Case 3: I'm NOT the host and host LEFT → anyone can take over */}
+              {!isHost && !hostInGame && (
+                <button
+                  onClick={onPlayAgainSameRoom}
+                  className="w-full flex items-center justify-center gap-2 bg-yellow-500 hover:bg-yellow-400 active:bg-yellow-400 text-black font-bold py-4 rounded-xl transition-all text-lg shadow-lg shadow-yellow-900/30"
+                >
+                  <RefreshCw className="h-5 w-5" />
+                  👑 Ser anfitrión y volver a jugar
+                </button>
+              )}
+            </>
           )}
-          {onPlayAgainSameRoom && !isHost && (
-            <div className="w-full flex items-center justify-center gap-2 bg-white/10 border border-white/15 text-white/50 py-4 rounded-xl text-sm">
-              <Clock className="h-4 w-4" />
-              Esperando al anfitrión para jugar de nuevo…
-            </div>
-          )}
+
           <button
             onClick={onPlayAgain}
             className="w-full flex items-center justify-center gap-2 bg-white/15 hover:bg-white/25 active:bg-white/25 text-white font-semibold py-3 rounded-xl transition-all border border-white/20"
