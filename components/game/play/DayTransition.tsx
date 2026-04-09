@@ -10,6 +10,7 @@ import { db } from '@/lib/firebase/config';
 import {
   collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit,
 } from 'firebase/firestore';
+import { ShareMomentCard } from './ShareMomentCard';
 
 interface Props {
   game: GameState;
@@ -168,6 +169,7 @@ function ExileCinematic({
 // ── Componente principal ──────────────────────────────────────────────────────
 export function DayTransition({ game, gameId, userId, userName, eliminatedName, eliminatedRole, onDone, autoSeconds = 4 }: Props) {
   const [cinemaPhase, setCinemaPhase] = useState(!!eliminatedName);
+  const [showShareCard, setShowShareCard] = useState(false);
   const [narratorDone, setNarratorDone] = useState(false);
   const [countdown, setCountdown] = useState(autoSeconds);
   const [narration, setNarration] = useState('');
@@ -268,6 +270,23 @@ export function DayTransition({ game, gameId, userId, userName, eliminatedName, 
     }
   }, [countdown, narratorDone, cinemaPhase]);
 
+  const alivePlayers = (game.players ?? []).filter((p: any) => p.isAlive);
+
+  // ── Tarjeta de clip viral ────────────────────────────────────────
+  if (showShareCard && eliminatedName) {
+    return (
+      <ShareMomentCard
+        type="exile"
+        victimName={eliminatedName}
+        victimRole={eliminatedRole}
+        wasWolf={eliminatedWasWolf}
+        round={game.roundNumber ?? 1}
+        survivorsCount={alivePlayers.length}
+        onContinue={() => { setShowShareCard(false); setCinemaPhase(false); }}
+      />
+    );
+  }
+
   // ── Fase cinemática ──────────────────────────────────────────────
   if (cinemaPhase && eliminatedName) {
     return (
@@ -276,7 +295,7 @@ export function DayTransition({ game, gameId, userId, userName, eliminatedName, 
         eliminatedRole={eliminatedRole}
         eliminatedWasWolf={eliminatedWasWolf}
         narration={narration}
-        onSkip={() => setCinemaPhase(false)}
+        onSkip={() => setShowShareCard(true)}
       />
     );
   }

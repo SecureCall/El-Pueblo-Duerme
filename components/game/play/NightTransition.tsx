@@ -10,6 +10,7 @@ import { db } from '@/lib/firebase/config';
 import {
   collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit,
 } from 'firebase/firestore';
+import { ShareMomentCard } from './ShareMomentCard';
 
 interface Props {
   game: GameState;
@@ -159,6 +160,7 @@ function DeathCinematic({
 // ── Componente principal ──────────────────────────────────────────────────────
 export function NightTransition({ game, gameId, userId, userName, victimName, victimRole, onDone, autoSeconds = 4 }: Props) {
   const [cinemaPhase, setCinemaPhase] = useState(!!victimName);
+  const [showShareCard, setShowShareCard] = useState(false);
   const [narratorDone, setNarratorDone] = useState(false);
   const [countdown, setCountdown] = useState(autoSeconds);
   const [narration, setNarration] = useState('');
@@ -252,6 +254,22 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
     ? (game.players ?? []).find((p: any) => p.uid === profetaReveal.targetUid)
     : null;
 
+  const alivePlayers = (game.players ?? []).filter((p: any) => p.isAlive);
+
+  // ── Tarjeta de clip viral ────────────────────────────────────────
+  if (showShareCard && victimName) {
+    return (
+      <ShareMomentCard
+        type="death"
+        victimName={victimName}
+        victimRole={victimRole}
+        round={game.roundNumber ?? 1}
+        survivorsCount={alivePlayers.length}
+        onContinue={() => { setShowShareCard(false); setCinemaPhase(false); }}
+      />
+    );
+  }
+
   // ── Fase cinemática ──────────────────────────────────────────────
   if (cinemaPhase && victimName) {
     return (
@@ -259,7 +277,7 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
         victimName={victimName}
         victimRole={victimRole}
         narration={narration}
-        onSkip={() => setCinemaPhase(false)}
+        onSkip={() => setShowShareCard(true)}
       />
     );
   }
