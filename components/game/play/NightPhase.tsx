@@ -8,6 +8,7 @@ import { Moon, Send, Bot, Eye, Shield, Skull, Heart, Loader2, Music, Star, Zap }
 import { db } from '@/lib/firebase/config';
 import { collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { useNarrator, waitForAudio } from '@/hooks/useNarrator';
+import { EmoteBar } from './EmoteBar';
 
 interface Props {
   game: GameState;
@@ -1521,6 +1522,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
 
         </div>
       </div>
+      <EmoteBar gameId={gameId} userId={userId} userName={userName} />
     </div>
   );
 }

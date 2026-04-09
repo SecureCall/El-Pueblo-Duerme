@@ -11,11 +11,20 @@ Un juego de deducción social multijugador en español, inspirado en Mafia/Werew
 - **IA**: Gemini 2.0 Flash (narrador cinematográfico + chat de jugadores IA)
 - **Puerto**: 5000
 
-## Narrador IA
+## Sistema Viral
 
-- **`app/api/narrator/route.ts`**: POST endpoint con Gemini 2.0 Flash. Personalidad oscura/sardónica. 6 tipos de evento: `night_death`, `night_safe`, `night_multiple_deaths`, `day_exile`, `day_no_exile`, `game_start`, `final_duel`. Fallbacks dramáticos en español si Gemini no está disponible.
-- **`NightTransition.tsx`**: Pantalla cinemática de muerte (`DeathCinematic`) con fondo negro, gotas CSS, calavera animada, texto del narrador con efecto máquina de escribir, vibración en móvil, glow rojo. Toca para saltarla.
-- **`DayTransition.tsx`**: Pantalla cinemática de destierro (`ExileCinematic`) con tema naranja (lobo desterrado) o violeta (inocente exiliado), icono Gavel, mismo efecto typewriter. Ambas transiciones incluyen chat del pueblo en tiempo real durante la espera.
+### Narrador IA
+- **`app/api/narrator/route.ts`**: POST con Gemini 2.0 Flash. Personalidad oscura/sardónica. Acepta contexto de votos (`voteHistory`, `fastVoter`, `loneVoter`, `accusationsToday`) para narración más agresiva y específica. Fallbacks dramáticos en español.
+- **`NightTransition.tsx`**: `DeathCinematic` — fondo negro, gotas CSS, calavera, typewriter de narrador, vibración móvil, glow rojo.
+- **`DayTransition.tsx`**: `ExileCinematic` — tema naranja (lobo) o violeta (inocente), icono Gavel, typewriter.
+
+### Eventos de Caos
+- **`ChaosEventScreen.tsx`**: Pantalla full-screen dramática al inicio de cada fase con evento activo. Emoji gigante, glow temático, typewriter de descripción, countdown 7s. Vibración en móvil. Se muestra entre NightTransition y DayPhase.
+- **Nuevos eventos en `roles.ts`**: `roleSwap` (barajado de roles entre vivos), `inverterVotes` (el menos votado es exiliado), `aiEliminate` (la IA mata a un jugador aleatorio).
+- Mecánicos implementados en `GamePlay.tsx`: roleSwap (Fisher-Yates shuffle de newRoles), aiEliminate (mata candidato random + añade a history), inverterVotes (tally inverso en processDayVotes).
+
+### Emotes en Tiempo Real
+- **`EmoteBar.tsx`**: Barra de 8 emojis (😱 😡 🤡 💀 👀 🎭 🤥 🎉) en esquina inferior derecha. Cooldown 1.5s. Emotes flotantes animados encima de todos los jugadores. Almacenados en `games/{gameId}/emotes`. Auto-expiran a los 4s. Integrado en `DayPhase.tsx` y `NightPhase.tsx`.
 
 ## Páginas
 

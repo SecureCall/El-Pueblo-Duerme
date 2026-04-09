@@ -531,6 +531,27 @@ export const RANDOM_EVENTS: RandomEvent[] = [
     description: 'Las estrellas hablan. El Vidente puede consultar a los astros sobre DOS jugadores esta noche en lugar de uno.',
     mechanical: 'doubleSeer',
   },
+  {
+    id: 'intercambio',
+    emoji: '🔀',
+    name: 'El Gran Intercambio',
+    description: '¡Los roles cambian! Una fuerza desconocida ha barajado las identidades de todos los jugadores vivos. Nadie sabe ya quién es quién.',
+    mechanical: 'roleSwap',
+  },
+  {
+    id: 'democracia_inversa',
+    emoji: '🙃',
+    name: 'Democracia Inversa',
+    description: '¡Las reglas han cambiado! Hoy será exiliado el jugador que reciba MENOS votos, no el que reciba más. Piénsalo bien antes de votar.',
+    mechanical: 'inverterVotes',
+  },
+  {
+    id: 'juicio_ia',
+    emoji: '🤖',
+    name: 'El Juicio de la IA',
+    description: 'La IA narradora ha tomado el control. Ha estudiado los patrones y ha decidido eliminar a alguien esta misma noche. El pueblo elige, pero la IA también.',
+    mechanical: 'aiEliminate',
+  },
 ];
 
 export function drawRandomEvent(): RandomEvent | null {

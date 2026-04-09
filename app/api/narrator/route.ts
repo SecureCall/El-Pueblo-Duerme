@@ -17,6 +17,8 @@ export type NarratorEvent =
   | 'game_start'
   | 'final_duel';
 
+interface VoteEntry { voter: string; target: string; }
+
 interface NarratorRequest {
   event: NarratorEvent;
   victimName?: string;
@@ -30,32 +32,57 @@ interface NarratorRequest {
   round: number;
   survivors: string[];
   totalPlayers?: number;
+  // Contexto enriquecido para narración más agresiva
+  voteHistory?: VoteEntry[];         // quién votó a quién esta ronda
+  prevVoteHistory?: VoteEntry[];     // ronda anterior
+  accusationsToday?: string[];       // nombres más acusados hoy
+  fastVoter?: string;                // jugador que votó más rápido
+  loneVoter?: string;                // único que votó diferente
+  chaosEvent?: string;               // si hubo evento de caos
 }
 
 const NARRATOR_PERSONA = `Eres el Narrador de "El Pueblo Duerme", un juego de rol oscuro.
 Tu personalidad:
 - Dramático y teatral como un escritor gótico
-- Sardónico: disfrutas del caos y la traición
-- Usas los nombres reales de los jugadores
-- Hablas en español castellano con fluidez y elegancia oscura
+- Sardónico y polémico: te encanta señalar traiciones, patrones de voto sospechosos, cambios de opinión
+- Usas los nombres reales de los jugadores — no "un jugador", sino el nombre exacto
+- Mencionas comportamientos específicos: quién votó a quién, quién cambió de voto, quién votó demasiado rápido
+- Hablas en español castellano coloquial oscuro — natural, no formal
 - Nunca usas emojis
 - Cada narración es única — nunca repites las mismas frases
-- Eres conciso: 2-3 frases cortas y poderosas (máx 60 palabras en total)
-- A veces añades una pulla irónica o una pregunta perturbadora al final`;
+- Eres conciso: 2-3 frases cortas y poderosas (máx 65 palabras en total)
+- Terminas con una pregunta perturbadora O una observación irónica que genere paranoia entre los jugadores`;
+
+function buildVoteContext(req: NarratorRequest): string {
+  const parts: string[] = [];
+  if (req.voteHistory && req.voteHistory.length > 0) {
+    const voteLines = req.voteHistory.slice(0, 6).map(v => `${v.voter} votó a ${v.target}`).join(', ');
+    parts.push(`Votos de hoy: ${voteLines}.`);
+  }
+  if (req.fastVoter) parts.push(`${req.fastVoter} fue el primero en votar, quizá demasiado rápido.`);
+  if (req.loneVoter) parts.push(`${req.loneVoter} fue el único que votó diferente al resto.`);
+  if (req.accusationsToday && req.accusationsToday.length > 0) {
+    parts.push(`Los más acusados hoy: ${req.accusationsToday.slice(0, 3).join(', ')}.`);
+  }
+  if (req.chaosEvent) parts.push(`Evento especial activo: "${req.chaosEvent}".`);
+  return parts.join(' ');
+}
 
 function buildPrompt(req: NarratorRequest): string {
   const survivorList = req.survivors.slice(0, 6).join(', ');
   const roundInfo = `Ronda ${req.round}. Sobrevivientes: ${survivorList}.`;
+  const voteCtx = buildVoteContext(req);
 
   switch (req.event) {
     case 'night_death':
       return `${NARRATOR_PERSONA}
 
 ${roundInfo}
+${voteCtx ? `Contexto del día anterior: ${voteCtx}` : ''}
 Esta noche, ${req.victimName} ha muerto. Era ${req.victimRole ?? 'un aldeano'}.${req.killedBy ? ` Lo mató: ${req.killedBy}.` : ''}
 
-Narra este momento con drama y oscuridad. Menciona el nombre, el rol. Puedes insinuar traición, soledad, o ironía. 
-Puedes comentar si era inocente o si murió por una causa justa/injusta.
+Narra este momento con drama y oscuridad. Menciona el nombre, el rol. Puedes insinuar traición, soledad, o ironía.
+Si hay contexto de votos disponible, úsalo para hacer la narración más específica y personal.
 NO empieces con "Esta noche". Empieza de otra forma.`;
 
     case 'night_safe':
@@ -79,20 +106,23 @@ Narra esta carnicería con intensidad. Dos muertes en una noche es una masacre.`
       return `${NARRATOR_PERSONA}
 
 ${roundInfo}
+${voteCtx ? `Datos de la votación: ${voteCtx}` : ''}
 El pueblo ha votado y ha desterrado a ${req.eliminatedName}, que era ${req.eliminatedRole ?? 'aldeano'}.${req.eliminatedWasWolf ? ' Era un lobo. El pueblo acertó.' : ' Era inocente. El pueblo cometió un error terrible.'}
 
-Narra este destierro. ${req.eliminatedWasWolf
-        ? 'La justicia llega. Celebra la victoria del pueblo, pero con mesura: quedan lobos.'
-        : 'Una inocente ha sido sacrificada. El error pesa. Los lobos aplauden en silencio.'}
-Menciona el nombre. Añade ironía si era inocente.`;
+Narra este destierro con datos específicos. ${req.eliminatedWasWolf
+        ? 'La justicia llega, pero no sin trampa. Comenta el patrón de votos si lo tienes.'
+        : 'La inocencia paga el precio de la paranoia. Señala si alguien votó de forma sospechosa.'}
+Menciona el nombre. Sé específico con los votos si tienes datos. Genera paranoia.`;
 
     case 'day_no_exile':
       return `${NARRATOR_PERSONA}
 
 ${roundInfo}
+${voteCtx ? `Datos de la votación: ${voteCtx}` : ''}
 El pueblo debatió pero no llegó a un acuerdo. Nadie fue desterrado hoy.
 
-Narra este fracaso con decepción oscura. Los lobos ganan tiempo. El pueblo desperdicia una oportunidad.`;
+Narra este fracaso señalando a alguien específico del contexto de votos como responsable del caos.
+Los lobos ganan tiempo. Culpa al que actuó más sospechoso.`;
 
     case 'game_start':
       return `${NARRATOR_PERSONA}

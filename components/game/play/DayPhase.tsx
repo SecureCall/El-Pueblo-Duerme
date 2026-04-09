@@ -12,6 +12,7 @@ import { getRoleIcon } from './roleIcons';
 import { useNarrator } from '@/hooks/useNarrator';
 import { sendFriendRequest } from '@/lib/firebase/friends';
 import { submitReport } from '@/lib/firebase/reports';
+import { EmoteBar } from './EmoteBar';
 
 function computeDayDuration(alivePlayers: number): number {
   // 20s per alive player, min 60s, max 300s
@@ -734,6 +735,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
           </div>
         </div>
       </div>
+      <EmoteBar gameId={gameId} userId={userId} userName={userName} />
     </div>
   );
 }

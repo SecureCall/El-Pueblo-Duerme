@@ -16,6 +16,7 @@ import { DayPhase } from './DayPhase';
 import { EndGame } from './EndGame';
 import { NightTransition } from './NightTransition';
 import { DayTransition } from './DayTransition';
+import { ChaosEventScreen } from './ChaosEventScreen';
 import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
 
 export interface Player {
@@ -171,6 +172,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const [nightRevealData, setNightRevealData] = useState<{ victimName: string | null; victimRole: string | null }>({ victimName: null, victimRole: null });
   const [showDayTransition, setShowDayTransition] = useState(false);
   const [dayTransitionData, setDayTransitionData] = useState<{ eliminatedName: string | null; eliminatedRole: string | null }>({ eliminatedName: null, eliminatedRole: null });
+  const [showChaosEvent, setShowChaosEvent] = useState(false);
+  const chaosShownForRound = useRef<number>(-1);
   const [fantasmaMsg, setFantasmaMsg] = useState('');
   const [fantasmaTarget, setFantasmaTarget] = useState('');
   const [hostAbsent, setHostAbsent] = useState(false);
@@ -215,6 +218,12 @@ export function GamePlay({ gameId }: { gameId: string }) {
       const victimRole = victim ? (game.roles?.[victim.uid] ?? null) : null;
       setNightRevealData({ victimName: victim?.name ?? null, victimRole });
       setShowNightReveal(true);
+      // Queue chaos event reveal (shown after NightTransition)
+      const round = game.roundNumber ?? 1;
+      if (game.currentEvent && chaosShownForRound.current !== round) {
+        chaosShownForRound.current = round;
+        setShowChaosEvent(true);
+      }
     }
     if (prevPhase.current === 'day' && phase === 'night') {
       processingDayRef.current = false;
@@ -1348,6 +1357,32 @@ export function GamePlay({ gameId }: { gameId: string }) {
       hechiceraPoisonUsedNext = false;
     }
 
+    // ── Random event mechanicals that fire immediately at night end ───────
+    // roleSwap: shuffle roles among alive players
+    if (randomEvent?.mechanical === 'roleSwap') {
+      const alivePlayers2 = players.filter(p => p.isAlive);
+      const aliveRoles2 = alivePlayers2.map(p => newRoles[p.uid] ?? 'Aldeano');
+      // Fisher-Yates shuffle
+      for (let i = aliveRoles2.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [aliveRoles2[i], aliveRoles2[j]] = [aliveRoles2[j], aliveRoles2[i]];
+      }
+      alivePlayers2.forEach((p, i) => { newRoles[p.uid] = aliveRoles2[i]; });
+    }
+
+    // aiEliminate: randomly kill one alive player (chosen by "the AI narrator")
+    if (randomEvent?.mechanical === 'aiEliminate') {
+      const candidates = players.filter(p => p.isAlive);
+      if (candidates.length > 0) {
+        const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+        players = players.map(p => p.uid === chosen.uid ? { ...p, isAlive: false } : p);
+        history.push({ uid: chosen.uid, name: chosen.name, role: newRoles[chosen.uid] ?? 'Aldeano', round });
+        if (newRoles[chosen.uid] === 'Fantasma' && !fantasmaUsed.includes(chosen.uid)) {
+          fantasmaPending.push(chosen.uid);
+        }
+      }
+    }
+
     // ── STEP 9 — Win check ────────────────────────────────────────────────
     const nightKilledUids = players.filter(p => !p.isAlive && aliveBeforeNight.has(p.uid)).map(p => p.uid);
     const winResult = checkWinCondition(players, newRoles, {
@@ -1644,11 +1679,22 @@ export function GamePlay({ gameId }: { gameId: string }) {
     let maxVotes = 0;
     let eliminated: string | null = null;
     let isTie = false;
-    for (const [uid, count] of Object.entries(tally)) {
-      if (count > maxVotes) { maxVotes = count; eliminated = uid; isTie = false; }
-      else if (count === maxVotes && maxVotes > 0) { isTie = true; }
+
+    // Evento: Democracia Inversa — el menos votado es exiliado
+    if (game.currentEvent?.mechanical === 'inverterVotes' && Object.keys(tally).length > 0) {
+      let minVotes = Infinity;
+      for (const [uid, count] of Object.entries(tally)) {
+        if (count < minVotes) { minVotes = count; eliminated = uid; isTie = false; }
+        else if (count === minVotes) { isTie = true; }
+      }
+      if (isTie) eliminated = null;
+    } else {
+      for (const [uid, count] of Object.entries(tally)) {
+        if (count > maxVotes) { maxVotes = count; eliminated = uid; isTie = false; }
+        else if (count === maxVotes && maxVotes > 0) { isTie = true; }
+      }
+      if (isTie) eliminated = null;
     }
-    if (isTie) eliminated = null;
 
     // Evento: Tormenta — nadie puede ser exiliado hoy
     if (game.noExileActive) eliminated = null;
@@ -2215,6 +2261,23 @@ export function GamePlay({ gameId }: { gameId: string }) {
           victimRole={nightRevealData.victimRole}
           onDone={() => {
             setShowNightReveal(false);
+            if (!game.currentEvent) {
+              if (game.hostUid === user.uid) {
+                updateDoc(doc(db, 'games', gameId), { dayStartedAt: Date.now() }).catch(() => {});
+              }
+              interruptWith(AUDIO_FILES.debatesOpen, AUDIO_FILES.debateAmbient);
+            }
+          }}
+        />
+      );
+    }
+    if (showChaosEvent && game.currentEvent) {
+      return (
+        <ChaosEventScreen
+          event={game.currentEvent}
+          round={game.roundNumber ?? 1}
+          onDone={() => {
+            setShowChaosEvent(false);
             if (game.hostUid === user.uid) {
               updateDoc(doc(db, 'games', gameId), { dayStartedAt: Date.now() }).catch(() => {});
             }
