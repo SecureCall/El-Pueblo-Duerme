@@ -331,7 +331,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }
 
     // Write each player's role to a private subcollection (only readable by that player + host)
-    await Promise.all(
+    // Fire-and-forget — runs concurrently with the main updateDoc below
+    Promise.all(
       Object.entries(assigned).map(([uid, role]) =>
         setDoc(doc(db, 'games', gameId, 'playerRoles', uid), { role, assignedAt: Date.now() })
       )
