@@ -13,6 +13,7 @@
   "dir": "ltr",
   "scope": "/",
   "categories": ["games", "entertainment"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icons/16.png",
@@ -29,12 +30,6 @@
     {
       "src": "/icons/72.png",
       "sizes": "72x72",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/96.png",
-      "sizes": "96x96",
       "type": "image/png",
       "purpose": "any"
     },
@@ -93,14 +88,14 @@
       "short_name": "Crear",
       "description": "Inicia una nueva partida y configura las reglas.",
       "url": "/create",
-      "icons": [{ "src": "/icons/96.png", "sizes": "96x96" }]
+      "icons": [{ "src": "/icons/72.png", "sizes": "72x72", "type": "image/png" }]
     },
     {
       "name": "Cómo Jugar",
       "short_name": "Reglas",
       "description": "Aprende las reglas y los roles del juego.",
       "url": "/how-to-play",
-      "icons": [{ "src": "/icons/96.png", "sizes": "96x96" }]
+      "icons": [{ "src": "/icons/72.png", "sizes": "72x72", "type": "image/png" }]
     }
   ],
   "screenshots": [
@@ -121,6 +116,12 @@
       "type": "image/png",
       "sizes": "1080x1920",
       "form_factor": "narrow"
+    },
+    {
+      "src": "/screenshot1.png",
+      "type": "image/png",
+      "sizes": "1920x1080",
+      "form_factor": "wide"
     }
   ]
 }
