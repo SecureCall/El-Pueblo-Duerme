@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 // v2 - build fix
 const nextConfig = {
+  trailingSlash: false,
   typescript: {
     ignoreBuildErrors: true,
   },
