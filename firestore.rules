@@ -116,6 +116,14 @@ service cloud.firestore {
 
         // ⑤ Ended games — allow minor updates (host reassignment after game ends)
         || resource.data.phase == 'ended'
+
+        // ⑥ Host self-claim — any alive player can promote themselves to host
+        //    (client-side enforces a 5-minute absence delay before triggering this)
+        || (
+          onlyUpdating(['hostUid', 'players']) &&
+          request.resource.data.hostUid == request.auth.uid &&
+          resource.data.phase != 'lobby'
+        )
       );
 
       allow delete: if isAuth() && request.auth.uid == resource.data.hostUid;

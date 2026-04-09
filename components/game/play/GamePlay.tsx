@@ -6,7 +6,7 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { db } from '@/lib/firebase/config';
 import {
   doc, onSnapshot, updateDoc, addDoc, collection, serverTimestamp,
-  query, orderBy, limit, setDoc,
+  query, orderBy, limit, setDoc, getDoc,
 } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
 import { assignRoles, checkWinCondition, ROLES, ROLE_SUBMISSION_KEY, drawRandomEvent } from './roles';
@@ -172,6 +172,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const [dayTransitionData, setDayTransitionData] = useState<{ eliminatedName: string | null; eliminatedRole: string | null }>({ eliminatedName: null, eliminatedRole: null });
   const [fantasmaMsg, setFantasmaMsg] = useState('');
   const [fantasmaTarget, setFantasmaTarget] = useState('');
+  const [hostAbsent, setHostAbsent] = useState(false);
   const aiChatSentRound = useRef<number>(-1);
   const aiNightSubmittedRound = useRef<number>(-1);
   const aiDayVotedRound = useRef<number>(-1);
@@ -226,6 +227,52 @@ export function GamePlay({ gameId }: { gameId: string }) {
     prevPhase.current = phase ?? null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.phase, game?.roundNumber]);
+
+  // ── Heartbeat during game: write to /presence/{uid} every 60s ────────────
+  useEffect(() => {
+    if (!user || !gameId) return;
+    const writePresence = () => {
+      setDoc(doc(db, 'presence', user.uid), { uid: user.uid, gameId, lastSeen: Date.now() }, { merge: true }).catch(() => {});
+    };
+    writePresence();
+    const id = setInterval(writePresence, 60000);
+    return () => clearInterval(id);
+  }, [user?.uid, gameId]);
+
+  // ── Host absence detection: check /presence every 30s, auto-claim after 5min ─
+  useEffect(() => {
+    if (!game || !user) return;
+    if (game.hostUid === user.uid) { setHostAbsent(false); return; }
+    if (game.phase === 'ended' || game.phase === 'lobby' || !game.phase) return;
+
+    const HOST_ABSENT_MS = 5 * 60 * 1000;
+    const check = async () => {
+      try {
+        const presSnap = await getDoc(doc(db, 'presence', game.hostUid));
+        const lastSeen: number = presSnap.exists() ? (presSnap.data().lastSeen ?? 0) : 0;
+        const gone = !lastSeen || Date.now() - lastSeen > HOST_ABSENT_MS;
+        setHostAbsent(gone);
+        if (!gone) return;
+
+        // Only the lexicographically first alive non-host player auto-claims
+        const me = (game.players ?? []).find(p => p.uid === user.uid);
+        if (!me?.isAlive) return;
+        const candidates = (game.players ?? []).filter(p => p.isAlive && p.uid !== game.hostUid);
+        if (!candidates.length) return;
+        candidates.sort((a, b) => a.uid.localeCompare(b.uid));
+        if (candidates[0].uid !== user.uid) return;
+
+        console.warn('[Host absent] Auto-claiming host after 5min absence');
+        const newPlayers = (game.players ?? []).map(p => ({ ...p, isHost: p.uid === user.uid }));
+        await updateDoc(doc(db, 'games', gameId), { hostUid: user.uid, players: newPlayers });
+      } catch { /* ignore */ }
+    };
+
+    const id = setInterval(check, 30000);
+    check();
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.hostUid, game?.phase, user?.uid]);
 
   // Host assigns roles on game start
   useEffect(() => {
@@ -768,6 +815,23 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.nightSubmissions, game?.phase]);
+
+  // ── Anti-softlock: force processNight when 90s night timer expires ────────
+  useEffect(() => {
+    if (!game || !user || game.hostUid !== user.uid) return;
+    if (game.phase !== 'night') return;
+    const NIGHT_MS = 93000; // 90s night + 3s grace
+    const started = game.nightStartedAt ?? Date.now();
+    const remaining = Math.max(0, NIGHT_MS - (Date.now() - started));
+    const t = setTimeout(() => {
+      if (game.phase !== 'night' || processingNightRef.current) return;
+      console.warn('[Anti-softlock] Night timer expired → forcing processNight');
+      processingNightRef.current = true;
+      processNight();
+    }, remaining);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.phase, game?.roundNumber, game?.nightStartedAt]);
 
   async function processNight() {
     if (!game) return;
@@ -1415,6 +1479,27 @@ export function GamePlay({ gameId }: { gameId: string }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.dayVotes, game?.phase]);
 
+  // ── Anti-softlock: force processDayVotes when day timer expires ───────────
+  useEffect(() => {
+    if (!game || !user || game.hostUid !== user.uid) return;
+    if (game.phase !== 'day') return;
+    const alive = (game.players ?? []).filter(p => p.isAlive).length;
+    const base = Math.min(300, Math.max(60, alive * 20));
+    const mech = game.currentEvent?.mechanical;
+    const dayDuration = mech === 'extraTime' ? Math.min(300, base + 30)
+      : mech === 'halfTime' ? Math.max(30, Math.floor(base / 2))
+      : base;
+    const started = game.dayStartedAt ?? Date.now();
+    const remaining = Math.max(0, dayDuration * 1000 + 2000 - (Date.now() - started));
+    const t = setTimeout(() => {
+      if (game.phase !== 'day' || processingDayRef.current) return;
+      console.warn('[Anti-softlock] Day timer expired → forcing processDayVotes');
+      processDayVotes((game.dayVotes ?? {}) as Record<string, string>);
+    }, remaining);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.phase, game?.roundNumber, game?.dayStartedAt]);
+
   async function processDayVotes(dayVotes: Record<string, string>) {
     if (!game) return;
     if (game.phase !== 'day' && game.phase !== 'voting') { return; }
@@ -1997,14 +2082,21 @@ export function GamePlay({ gameId }: { gameId: string }) {
       );
     }
     return (
-      <NightPhase
-        game={game} gameId={gameId}
-        myRole={myRole ?? 'Aldeano'} me={me}
-        userId={user.uid}
-        userName={user.displayName || user.email?.split('@')[0] || me?.name || 'Jugador'}
-        isHost={game.hostUid === user.uid}
-        onSubmitAction={submitNightAction}
-      />
+      <div className="relative">
+        {hostAbsent && (
+          <div className="fixed top-0 inset-x-0 z-50 bg-red-900/90 border-b border-red-600 text-white text-sm text-center py-2 px-4">
+            ⚠️ El anfitrión se ha desconectado. La partida avanzará automáticamente o se reasignará el anfitrión en breve.
+          </div>
+        )}
+        <NightPhase
+          game={game} gameId={gameId}
+          myRole={myRole ?? 'Aldeano'} me={me}
+          userId={user.uid}
+          userName={user.displayName || user.email?.split('@')[0] || me?.name || 'Jugador'}
+          isHost={game.hostUid === user.uid}
+          onSubmitAction={submitNightAction}
+        />
+      </div>
     );
   }
 
@@ -2029,21 +2121,28 @@ export function GamePlay({ gameId }: { gameId: string }) {
       );
     }
     return (
-      <DayPhase
-        game={game} gameId={gameId}
-        myRole={myRole ?? 'Aldeano'} me={me}
-        userId={user.uid}
-        userName={user.displayName || user.email?.split('@')[0] || me?.name || 'Jugador'}
-        isHost={game.hostUid === user.uid}
-        onVote={submitDayVote}
-        onJuezSecondVote={juezCallSecondVote}
-        onAlborotadoraFight={alborotadoraChooseFight}
-        onTimerEnd={() => {
-          if (game.hostUid === user.uid) {
-            processDayVotes((game.dayVotes ?? {}) as Record<string, string>);
-          }
-        }}
-      />
+      <div className="relative">
+        {hostAbsent && (
+          <div className="fixed top-0 inset-x-0 z-50 bg-red-900/90 border-b border-red-600 text-white text-sm text-center py-2 px-4">
+            ⚠️ El anfitrión se ha desconectado. La partida avanzará automáticamente o se reasignará el anfitrión en breve.
+          </div>
+        )}
+        <DayPhase
+          game={game} gameId={gameId}
+          myRole={myRole ?? 'Aldeano'} me={me}
+          userId={user.uid}
+          userName={user.displayName || user.email?.split('@')[0] || me?.name || 'Jugador'}
+          isHost={game.hostUid === user.uid}
+          onVote={submitDayVote}
+          onJuezSecondVote={juezCallSecondVote}
+          onAlborotadoraFight={alborotadoraChooseFight}
+          onTimerEnd={() => {
+            if (game.hostUid === user.uid) {
+              processDayVotes((game.dayVotes ?? {}) as Record<string, string>);
+            }
+          }}
+        />
+      </div>
     );
   }
 
