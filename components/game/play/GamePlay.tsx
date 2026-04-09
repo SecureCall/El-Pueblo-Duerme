@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
 import { assignRoles, checkWinCondition, ROLES, ROLE_SUBMISSION_KEY, drawRandomEvent } from './roles';
+import { BOT_VOTE_CONFIG, pickBotVoteTarget, type BotType, FALLBACK_BOT_MESSAGES } from '@/lib/bots/botSystem';
 import { RoleReveal } from './RoleReveal';
 import { NightPhase } from './NightPhase';
 import { DayPhase } from './DayPhase';
@@ -28,6 +29,7 @@ export interface Player {
   isAlive: boolean;
   role: string | null;
   isAI?: boolean;
+  botType?: BotType;
 }
 
 export interface GameState {
@@ -482,7 +484,9 @@ export function GamePlay({ gameId }: { gameId: string }) {
       const humanWolves = alivePlayers.filter(p => !p.isAI && (roles[p.uid] === 'Lobo' || roles[p.uid] === 'Lobo Blanco' || roles[p.uid] === 'Cría de Lobo'));
       if (aiWolves.length > 0 && !subs['wolves'] && !game.lobosBlocked) {
         const notWolf = alivePlayers.filter(p => roles[p.uid] !== 'Lobo' && roles[p.uid] !== 'Lobo Blanco' && roles[p.uid] !== 'Cría de Lobo' && roles[p.uid] !== 'Bruja' && p.uid !== game.brujaProtectedUid);
-        const target = notWolf.filter(p => !p.isAI)[0] ?? notWolf[0];
+        const humanTargets = notWolf.filter(p => !p.isAI);
+        const pool = humanTargets.length > 0 ? humanTargets : notWolf;
+        const target = pool[Math.floor(Math.random() * pool.length)] ?? null;
         if (target) updates['nightActions.wolfTarget'] = target.uid;
         if (game.criaLoboRage) {
           const target2 = notWolf.filter(p => p.uid !== target?.uid)[0];
@@ -1539,6 +1543,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
       aiPlayers: aiPlayers.map(p => ({
         uid: p.uid, name: p.name, role: roles[p.uid] ?? 'Aldeano',
         isWolf: roles[p.uid] === 'Lobo' || roles[p.uid] === 'Lobo Blanco' || roles[p.uid] === 'Cría de Lobo',
+        botType: p.botType ?? 'caotico',
       })),
       eliminatedName: eliminatedPlayer?.name ?? null,
       eliminatedRole: eliminatedPlayer ? (roles[eliminatedPlayer.uid] ?? 'Aldeano') : null,
@@ -1567,7 +1572,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.phase, game?.roundNumber]);
 
-  // Host auto-votes for AI players during day
+  // Host auto-votes for AI players during day — personality-based timing
   useEffect(() => {
     if (!game || !user || game.hostUid !== user.uid) return;
     if (game.phase !== 'day') return;
@@ -1579,38 +1584,44 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const aiAlive = alivePlayers.filter(p => p.isAI);
     if (aiAlive.length === 0) return;
 
-    const MIN_DEBATE_DELAY = 30000;
-    const elapsed = game.dayStartedAt ? Date.now() - game.dayStartedAt : 0;
-    const waitMs = Math.max(500, MIN_DEBATE_DELAY - elapsed);
+    const dayStarted = game.dayStartedAt ?? Date.now();
+    const elapsed = Date.now() - dayStarted;
+    const voteBanned = game.voteBanned ?? [];
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const alreadyVoted = new Set<string>(Object.keys(votesFromSub));
 
-    const dayTimer = setTimeout(() => {
-      if (aiDayVotedRound.current === round) return;
-      aiDayVotedRound.current = round;
+    for (const ai of aiAlive) {
+      if (alreadyVoted.has(ai.uid) || voteBanned.includes(ai.uid)) continue;
+      const bType = (ai.botType ?? 'caotico') as BotType;
+      const cfg = BOT_VOTE_CONFIG[bType];
+      const targetDelay = cfg.minDelay + Math.random() * (cfg.maxDelay - cfg.minDelay);
+      const waitMs = Math.max(500, targetDelay - elapsed);
+      const capturedUid = ai.uid;
 
-      const currentAlivePlayers = (game.players ?? []).filter(p => p.isAlive);
-      const currentAiAlive = currentAlivePlayers.filter(p => p.isAI);
-      const voteBanned = game.voteBanned ?? [];
-      let needsUpdate = false;
-      const batch = writeBatch(db);
-      for (const ai of currentAiAlive) {
-        if (votesFromSub[ai.uid] || voteBanned.includes(ai.uid)) continue;
-        const candidates = currentAlivePlayers.filter(p => p.uid !== ai.uid);
-        if (candidates.length > 0) {
-          const pick = candidates[Math.floor(Math.random() * candidates.length)];
-          batch.set(doc(db, 'games', gameId, 'votes', ai.uid), {
-            target: pick.uid,
-            round: game.roundNumber ?? 1,
+      const t = setTimeout(async () => {
+        try {
+          const snap = await getDoc(doc(db, 'games', gameId));
+          if (!snap.exists()) return;
+          const freshGame = snap.data() as GameState;
+          if (freshGame.phase !== 'day' || (freshGame.roundNumber ?? 1) !== round) return;
+
+          const freshAlive = (freshGame.players ?? []).filter(p => p.isAlive);
+          const allCurrentVotes: Record<string, string> = freshGame.dayVotes ?? {};
+          const targetUid = pickBotVoteTarget(bType, capturedUid, freshAlive, allCurrentVotes);
+          if (!targetUid) return;
+
+          await setDoc(doc(db, 'games', gameId, 'votes', capturedUid), {
+            target: targetUid,
+            round,
             submittedAt: Date.now(),
           });
-          needsUpdate = true;
-        }
-      }
-      if (needsUpdate) {
-        batch.commit().catch((e: any) => console.error('AI day vote error:', e));
-      }
-    }, waitMs);
+        } catch { /* ignore */ }
+      }, waitMs);
+      timers.push(t);
+    }
 
-    return () => clearTimeout(dayTimer);
+    aiDayVotedRound.current = round;
+    return () => timers.forEach(clearTimeout);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.phase, game?.roundNumber, game?.dayStartedAt]);
 

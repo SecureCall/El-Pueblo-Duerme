@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { FALLBACK_BOT_MESSAGES, BOT_CHAT_STYLE, type BotType } from '@/lib/bots/botSystem';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
@@ -8,6 +9,7 @@ interface AIPlayer {
   name: string;
   role: string;
   isWolf: boolean;
+  botType?: BotType;
 }
 
 interface RequestBody {
@@ -21,17 +23,14 @@ interface RequestBody {
 const WOLF_INSTRUCTIONS = `Eres un LOBO disfrazado de aldeano. Debes parecer inocente.
 - Nunca confieses que eres un lobo
 - Acusa a aldeanos reales o desvía la atención
-- Muestra "preocupación" falsa por el pueblo
-- Usa frases como "Hay algo raro en..." o "¿No os parece sospechoso que...?"`;
+- Muestra "preocupación" falsa por el pueblo`;
 
 const VILLAGE_INSTRUCTIONS = `Eres un aldeano inocente tratando de encontrar a los lobos.
 - Debate activamente sobre quién puede ser el lobo
-- Usa tu lógica e intuición
-- Puedes defender a otros o señalar comportamientos sospechosos`;
+- Usa tu lógica e intuición`;
 
-const SEER_INSTRUCTIONS = `Eres un vidente. Tienes información, pero no puedes revelar tu rol directamente.
-- Da pistas sutiles sobre quién es el lobo sin revelar que eres el vidente
-- Usa frases como "Tengo una corazonada sobre..." o "Algo me dice que..."`;
+const SEER_INSTRUCTIONS = `Eres un vidente. Tienes información, pero no puedes revelar tu rol.
+- Da pistas sutiles sobre quién es el lobo`;
 
 function getRoleStyle(role: string, isWolf: boolean): string {
   if (isWolf) return WOLF_INSTRUCTIONS;
@@ -39,9 +38,20 @@ function getRoleStyle(role: string, isWolf: boolean): string {
   return VILLAGE_INSTRUCTIONS;
 }
 
+function getFallback(players: AIPlayer[]): { messages: { uid: string; name: string; text: string }[] } {
+  const messages = players.map(p => {
+    const bType = (p.botType ?? 'caotico') as BotType;
+    const pool = FALLBACK_BOT_MESSAGES[bType];
+    const text = pool[Math.floor(Math.random() * pool.length)];
+    return { uid: p.uid, name: p.name, text };
+  });
+  return { messages };
+}
+
 export async function POST(req: NextRequest) {
+  let body: RequestBody = { aiPlayers: [], round: 1, allAliveNames: [] };
   try {
-    const body: RequestBody = await req.json();
+    body = await req.json();
     const { aiPlayers, eliminatedName, eliminatedRole, round, allAliveNames } = body;
 
     if (!aiPlayers || aiPlayers.length === 0) {
@@ -57,49 +67,48 @@ export async function POST(req: NextRequest) {
     const namesStr = allAliveNames.join(', ');
 
     const playersDesc = aiPlayers
-      .map(p => `- ${p.name} (rol secreto: ${p.role}${p.isWolf ? ', LOBO' : ''})`)
+      .map(p => {
+        const bType = (p.botType ?? 'caotico') as BotType;
+        const personality = BOT_CHAT_STYLE[bType];
+        return `- ${p.name}: ${personality}. ${getRoleStyle(p.role, p.isWolf)}`;
+      })
       .join('\n');
 
-    const prompt = `Eres el narrador de un juego de rol "El Pueblo Duerme" (Werewolf/Mafia). Es el DÍA ${round}.
+    const prompt = `Eres el narrador de "El Pueblo Duerme" (Werewolf/Mafia). Es el DÍA ${round}.
 ${contextInfo}
 Los jugadores vivos son: ${namesStr}.
 
-Debes generar mensajes de chat para estos jugadores IA durante el debate del pueblo:
+Genera mensajes de chat para estos jugadores IA:
 ${playersDesc}
 
-INSTRUCCIONES CRÍTICAS:
-- Cada mensaje debe estar en ESPAÑOL natural y coloquial
-- Máximo 15 palabras por mensaje (como un chat de móvil)
-- Los mensajes deben sonar como personas reales hablando, con errores tipográficos ocasionales, abreviaciones, etc.
-- NO uses saludos formales ni lenguaje de IA
-- Cada jugador tiene su propia personalidad y estilo
-- Contexto: acaban de ver quién murió y están debatiendo a quién votar
+REGLAS:
+- ESPAÑOL coloquial y natural
+- Máximo 12 palabras por mensaje
+- Sin saludos formales
+- Cada jugador tiene su personalidad propia
+- Errores tipográficos ocasionales están bien
+- NO uses emojis
 
-${aiPlayers.map(p => `JUGADOR "${p.name}" (${getRoleStyle(p.role, p.isWolf)})`).join('\n\n')}
-
-Responde SOLO con un objeto JSON válido con este formato exacto:
+Responde SOLO con JSON válido:
 {
   "messages": [
-    {"uid": "${aiPlayers[0]?.uid}", "name": "${aiPlayers[0]?.name}", "text": "mensaje aquí"},
+    {"uid": "uid_aqui", "name": "nombre_aqui", "text": "mensaje"},
     ...
   ]
 }
 
-Genera 1-2 mensajes por jugador. Si hay 5+ jugadores, genera solo 1 por jugador. Los mensajes deben ser variados y coherentes con el debate.`;
+Genera 1 mensaje por jugador.`;
 
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
-
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return NextResponse.json({ messages: [] });
-    }
+    if (!jsonMatch) return NextResponse.json(getFallback(aiPlayers));
 
     const parsed = JSON.parse(jsonMatch[0]);
     return NextResponse.json({ messages: parsed.messages ?? [] });
 
   } catch (error) {
     console.error('ai-chat error:', error);
-    return NextResponse.json({ messages: [] }, { status: 200 });
+    return NextResponse.json(getFallback(body.aiPlayers ?? []));
   }
 }

@@ -15,6 +15,7 @@ import { useAudio } from '@/app/providers/AudioProvider';
 import { FriendsPanel } from '@/components/friends/FriendsPanel';
 import { sendFriendRequest } from '@/lib/firebase/friends';
 import { xpToLevel, levelEmoji } from '@/lib/firebase/xp';
+import { BOT_NAMES, assignBotType } from '@/lib/bots/botSystem';
 
 interface Player {
   uid: string;
@@ -24,6 +25,7 @@ interface Player {
   isAlive: boolean;
   role: string | null;
   isAI?: boolean;
+  botType?: string;
   level?: number;
   lastSeen?: number;
 }
@@ -53,26 +55,20 @@ interface ChatMsg {
   createdAt: any;
 }
 
-const AI_NAMES = [
-  'Aldeano Misterioso', 'Campesino Justo', 'Herrero Silencioso', 'Monja Devota',
-  'Boticario Sabio', 'Noble Astuto', 'Granjero Honrado', 'Trovador Errante',
-  'Leñador Robusto', 'Pescador Tranquilo', 'Mercader Viajero', 'Clérigo Piadoso',
-  'Tejedora Sagaz', 'Pícaro Sombra', 'Cazador Solitario', 'Doncella Prudente',
-];
-
 function generateAIPlayers(current: Player[], maxPlayers: number): Player[] {
   const count = maxPlayers - current.length;
   if (count <= 0) return [];
   const used = new Set(current.map(p => p.name));
-  const available = AI_NAMES.filter(n => !used.has(n));
+  const available = BOT_NAMES.filter(n => !used.has(n));
   return Array.from({ length: count }, (_, i) => ({
     uid: `ai_${Date.now()}_${i}`,
-    name: available[i % available.length] ?? `IA ${i + 1}`,
+    name: available[i % available.length] ?? `Jugador ${i + 1}`,
     photoURL: '',
     isHost: false,
     isAlive: true,
     role: null,
     isAI: true,
+    botType: assignBotType(),
   }));
 }
 
