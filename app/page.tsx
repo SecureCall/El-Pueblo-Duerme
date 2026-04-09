@@ -112,6 +112,17 @@ export default function HomePage() {
         <div className="mt-10 w-full max-w-xl">
           <AdBanner format="horizontal" />
         </div>
+
+        {/* Footer legal */}
+        <footer className="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-1 text-xs text-white/30">
+          <Link href="/privacy-policy" className="hover:text-white/60 transition-colors">
+            Política de Privacidad
+          </Link>
+          <Link href="/how-to-play" className="hover:text-white/60 transition-colors">
+            Cómo Jugar
+          </Link>
+          <span>© {new Date().getFullYear()} El Pueblo Duerme</span>
+        </footer>
       </div>
 
       {showJoinModal && <JoinByCodeModal onClose={() => setShowJoinModal(false)} />}
