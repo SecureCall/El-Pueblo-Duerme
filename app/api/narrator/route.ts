@@ -15,7 +15,10 @@ export type NarratorEvent =
   | 'day_exile'
   | 'day_no_exile'
   | 'game_start'
-  | 'final_duel';
+  | 'final_duel'
+  | 'day_interrupt';
+
+export type InterruptType = 'warning' | 'suspicion' | 'chaos' | 'irony' | 'accusation';
 
 interface VoteEntry { voter: string; target: string; }
 
@@ -33,12 +36,18 @@ interface NarratorRequest {
   survivors: string[];
   totalPlayers?: number;
   // Contexto enriquecido para narración más agresiva
-  voteHistory?: VoteEntry[];         // quién votó a quién esta ronda
-  prevVoteHistory?: VoteEntry[];     // ronda anterior
-  accusationsToday?: string[];       // nombres más acusados hoy
-  fastVoter?: string;                // jugador que votó más rápido
-  loneVoter?: string;                // único que votó diferente
-  chaosEvent?: string;               // si hubo evento de caos
+  voteHistory?: VoteEntry[];
+  prevVoteHistory?: VoteEntry[];
+  accusationsToday?: string[];
+  fastVoter?: string;
+  loneVoter?: string;
+  chaosEvent?: string;
+  // Para day_interrupt
+  interruptType?: InterruptType;
+  silentPlayers?: string[];
+  talkingMost?: string;
+  timeElapsedSeconds?: number;
+  recentMessages?: string[];
 }
 
 const NARRATOR_PERSONA = `Eres el Narrador de "El Pueblo Duerme", un juego de rol oscuro.
@@ -46,12 +55,12 @@ Tu personalidad:
 - Dramático y teatral como un escritor gótico
 - Sardónico y polémico: te encanta señalar traiciones, patrones de voto sospechosos, cambios de opinión
 - Usas los nombres reales de los jugadores — no "un jugador", sino el nombre exacto
-- Mencionas comportamientos específicos: quién votó a quién, quién cambió de voto, quién votó demasiado rápido
+- Mencionas comportamientos específicos: quién habla mucho, quién calla, quién acusa sin pruebas
 - Hablas en español castellano coloquial oscuro — natural, no formal
 - Nunca usas emojis
 - Cada narración es única — nunca repites las mismas frases
-- Eres conciso: 2-3 frases cortas y poderosas (máx 65 palabras en total)
-- Terminas con una pregunta perturbadora O una observación irónica que genere paranoia entre los jugadores`;
+- Eres conciso: 1-2 frases cortas y poderosas (máx 40 palabras en total)
+- Generas paranoia inmediata`;
 
 function buildVoteContext(req: NarratorRequest): string {
   const parts: string[] = [];
@@ -69,11 +78,40 @@ function buildVoteContext(req: NarratorRequest): string {
 }
 
 function buildPrompt(req: NarratorRequest): string {
-  const survivorList = req.survivors.slice(0, 6).join(', ');
+  const survivorList = req.survivors.slice(0, 8).join(', ');
   const roundInfo = `Ronda ${req.round}. Sobrevivientes: ${survivorList}.`;
   const voteCtx = buildVoteContext(req);
 
   switch (req.event) {
+    case 'day_interrupt': {
+      const silentList = (req.silentPlayers ?? []).slice(0, 3).join(', ');
+      const recentCtx = (req.recentMessages ?? []).slice(0, 4).join(' | ');
+      const elapsed = req.timeElapsedSeconds ?? 0;
+      const talkingMost = req.talkingMost ?? '';
+
+      let focus = '';
+      if (req.interruptType === 'suspicion' && silentList) {
+        focus = `Estos jugadores no han dicho nada: ${silentList}. El silencio delata.`;
+      } else if (req.interruptType === 'accusation' && talkingMost) {
+        focus = `${talkingMost} lleva hablando sin parar. ¿Distracción deliberada?`;
+      } else if (req.interruptType === 'chaos') {
+        focus = `Han pasado ${elapsed} segundos y el debate va en círculos.`;
+      } else if (req.interruptType === 'warning') {
+        focus = `El tiempo se acaba. Alguien aquí todavía no ha mostrado sus cartas.`;
+      } else {
+        focus = recentCtx ? `El debate está así: ${recentCtx}` : 'El pueblo debate.';
+      }
+
+      return `${NARRATOR_PERSONA}
+
+${roundInfo}
+${focus}
+
+Genera UNA frase corta e inquietante que interrumpa el debate. 
+Debe crear paranoia inmediata sobre alguien específico.
+Máximo 35 palabras. NO empieces con "El narrador" ni con "Nota". Empieza directo.`;
+    }
+
     case 'night_death':
       return `${NARRATOR_PERSONA}
 
@@ -180,11 +218,33 @@ const FALLBACKS: Record<NarratorEvent, string[]> = {
   final_duel: [
     'El momento de la verdad. Solo quedan unos pocos. La mentira ya no tiene dónde esconderse.',
   ],
+  day_interrupt: [
+    'Alguien aquí lleva demasiado tiempo callado. Los lobos no gritan, susurran.',
+    'Fíjate en quien más habla. La distracción es la herramienta favorita del lobo.',
+    'El tiempo pasa. Y cada segundo de silencio acusa a alguien.',
+    'Demasiadas palabras, demasiada poca verdad. Abrid los ojos.',
+    'El que más tranquilo parece... suele tener más que esconder.',
+    'Las acusaciones suenan huecas cuando quien acusa es el culpable.',
+    'Un lobo entre vosotros asiente mientras el pueblo se destruye solo.',
+    'Están mirando en la dirección equivocada. Alguien lo sabe.',
+    'La inocencia nunca necesita defenderse tanto.',
+    'Cada minuto que pasa sin un nombre claro, los lobos sonríen.',
+  ],
 };
 
 function getFallback(event: NarratorEvent): string {
   const list = FALLBACKS[event] ?? FALLBACKS.night_death;
   return list[Math.floor(Math.random() * list.length)];
+}
+
+function getInterruptType(req: NarratorRequest): InterruptType {
+  if (req.interruptType) return req.interruptType;
+  const elapsed = req.timeElapsedSeconds ?? 0;
+  if (elapsed < 30) return 'irony';
+  if ((req.silentPlayers ?? []).length > 0) return 'suspicion';
+  if (req.talkingMost) return 'accusation';
+  if (elapsed > 90) return 'warning';
+  return 'chaos';
 }
 
 export async function POST(req: NextRequest) {
@@ -193,14 +253,16 @@ export async function POST(req: NextRequest) {
     body = await req.json();
 
     if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json({ narration: getFallback(body.event) });
+      const fallback = getFallback(body.event);
+      const itype = body.event === 'day_interrupt' ? getInterruptType(body) : undefined;
+      return NextResponse.json({ narration: fallback, interruptType: itype });
     }
 
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.0-flash',
       generationConfig: {
-        temperature: 1.1,
-        maxOutputTokens: 120,
+        temperature: 1.15,
+        maxOutputTokens: body.event === 'day_interrupt' ? 60 : 120,
       },
     });
 
@@ -208,13 +270,18 @@ export async function POST(req: NextRequest) {
     const result = await model.generateContent(prompt);
     const text = result.response.text().trim();
 
-    if (!text || text.length < 10) {
-      return NextResponse.json({ narration: getFallback(body.event) });
+    if (!text || text.length < 8) {
+      const fallback = getFallback(body.event);
+      const itype = body.event === 'day_interrupt' ? getInterruptType(body) : undefined;
+      return NextResponse.json({ narration: fallback, interruptType: itype });
     }
 
-    return NextResponse.json({ narration: text });
+    const itype = body.event === 'day_interrupt' ? getInterruptType(body) : undefined;
+    return NextResponse.json({ narration: text, interruptType: itype });
   } catch (err) {
     console.error('[narrator]', err);
-    return NextResponse.json({ narration: getFallback(body.event ?? 'night_death') });
+    const fallback = getFallback(body.event ?? 'night_death');
+    const itype = body.event === 'day_interrupt' ? getInterruptType(body) : undefined;
+    return NextResponse.json({ narration: fallback, interruptType: itype });
   }
 }

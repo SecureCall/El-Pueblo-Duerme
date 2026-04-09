@@ -72,7 +72,16 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
   const getLocalStream = useCallback(async (): Promise<MediaStream | null> => {
     if (localStreamRef.current) return localStreamRef.current;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 48000,
+          channelCount: 1,
+        },
+        video: false,
+      });
       localStreamRef.current = stream;
       stream.getAudioTracks().forEach(t => { t.enabled = canSpeak && !isMutedRef.current; });
       setPermissionGranted(true);

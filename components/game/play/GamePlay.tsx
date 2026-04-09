@@ -17,6 +17,7 @@ import { EndGame } from './EndGame';
 import { NightTransition } from './NightTransition';
 import { DayTransition } from './DayTransition';
 import { ChaosEventScreen } from './ChaosEventScreen';
+import { NarratorBroadcast } from './NarratorBroadcast';
 import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
 
 export interface Player {
@@ -145,6 +146,7 @@ export interface GameState {
   doubleSeerActive?: boolean;
   anonymousVotesActive?: boolean;
   noExileActive?: boolean;
+  narratorBroadcast?: { text: string; type: 'warning' | 'suspicion' | 'chaos' | 'irony' | 'accusation'; triggeredAt: number } | null;
 }
 
 // ── Finite-State Machine: only these transitions are legal ────────────────
@@ -184,6 +186,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const wolfChatLastProcessed = useRef<string>('');
   const prevPhase = useRef<string | null>(null);
   const processingDayRef = useRef(false);
+  const narratorInterruptAt = useRef<number>(0);
+  const narratorInterruptRound = useRef<number>(-1);
   const processingNightRef = useRef(false);
   const nightStartedAtRef = useRef<number>(0);
   const { play, playSequence, interruptWith, AUDIO_FILES } = useNarrator();
@@ -1383,6 +1387,17 @@ export function GamePlay({ gameId }: { gameId: string }) {
       }
     }
 
+    // revive: un jugador muerto vuelve a la vida
+    if (randomEvent?.mechanical === 'revive') {
+      const dead = players.filter(p => !p.isAlive);
+      if (dead.length > 0) {
+        const revived = dead[Math.floor(Math.random() * dead.length)];
+        players = players.map(p => p.uid === revived.uid ? { ...p, isAlive: true } : p);
+        // Quitar del historial de eliminados
+        history.splice(history.findIndex(h => h.uid === revived.uid), 1);
+      }
+    }
+
     // ── STEP 9 — Win check ────────────────────────────────────────────────
     const nightKilledUids = players.filter(p => !p.isAlive && aliveBeforeNight.has(p.uid)).map(p => p.uid);
     const winResult = checkWinCondition(players, newRoles, {
@@ -1599,6 +1614,75 @@ export function GamePlay({ gameId }: { gameId: string }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.phase, game?.roundNumber, game?.dayStartedAt]);
 
+  // ── Host: narrador IA interrumpe el debate en tiempo real ──────────────
+  useEffect(() => {
+    if (!game || !user || game.hostUid !== user.uid) return;
+    if (game.phase !== 'day') return;
+    const round = game.roundNumber ?? 1;
+    const dayStarted = game.dayStartedAt ?? Date.now();
+
+    const FIRST_INTERRUPT_DELAY = 50000;  // 50s después de iniciar el día
+    const REPEAT_INTERVAL = 75000;        // cada 75s
+
+    const schedule = () => {
+      const now = Date.now();
+      const sinceDay = now - dayStarted;
+      const sinceLastInterrupt = now - narratorInterruptAt.current;
+      const isFirstRound = narratorInterruptRound.current !== round;
+
+      const waitFirst = Math.max(0, FIRST_INTERRUPT_DELAY - sinceDay);
+      const waitRepeat = Math.max(0, REPEAT_INTERVAL - sinceLastInterrupt);
+      const waitMs = isFirstRound ? waitFirst : waitRepeat;
+
+      return setTimeout(async () => {
+        if (!game || game.phase !== 'day') return;
+        narratorInterruptAt.current = Date.now();
+        narratorInterruptRound.current = round;
+
+        const alivePlayers = (game.players ?? []).filter(p => p.isAlive);
+        const elapsed = Math.floor((Date.now() - dayStarted) / 1000);
+        const interruptTypes: Array<'warning' | 'suspicion' | 'chaos' | 'irony' | 'accusation'> =
+          ['warning', 'suspicion', 'chaos', 'irony', 'accusation'];
+        const interruptType = interruptTypes[Math.floor(Math.random() * interruptTypes.length)];
+
+        // Elegir jugadores silenciosos (muestra de jugadores vivos al azar)
+        const shuffled = [...alivePlayers].sort(() => Math.random() - 0.5);
+        const silentPlayers = shuffled.slice(0, 2).map(p => p.name);
+        const talkingMost = shuffled[shuffled.length - 1]?.name ?? '';
+
+        try {
+          const res = await fetch('/api/narrator', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              event: 'day_interrupt',
+              round,
+              survivors: alivePlayers.map(p => p.name),
+              interruptType,
+              silentPlayers,
+              talkingMost,
+              timeElapsedSeconds: elapsed,
+            }),
+          });
+          const data = await res.json();
+          if (data.narration) {
+            updateDoc(doc(db, 'games', gameId), {
+              narratorBroadcast: {
+                text: data.narration,
+                type: interruptType,
+                triggeredAt: Date.now(),
+              },
+            }).catch(() => {});
+          }
+        } catch { /* silencioso */ }
+      }, waitMs);
+    };
+
+    const timer = schedule();
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.phase, game?.roundNumber, game?.dayStartedAt, game?.narratorBroadcast?.triggeredAt]);
+
   // Host processes day votes when all eligible alive players have voted
   useEffect(() => {
     if (!game || !user || game.hostUid !== user.uid) return;
@@ -1696,8 +1780,17 @@ export function GamePlay({ gameId }: { gameId: string }) {
       if (isTie) eliminated = null;
     }
 
+    // Evento: Doble Ejecución — los 2 más votados son exiliados
+    let secondEliminated: string | null = null;
+    if (game.currentEvent?.mechanical === 'dobleEjecucion' && Object.keys(tally).length >= 2) {
+      const sorted = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+      if (sorted.length >= 2 && sorted[1][1] > 0) {
+        secondEliminated = sorted[1][0];
+      }
+    }
+
     // Evento: Tormenta — nadie puede ser exiliado hoy
-    if (game.noExileActive) eliminated = null;
+    if (game.noExileActive) { eliminated = null; secondEliminated = null; }
 
     // Chivo Expiatorio: dies on tie
     let chivoPendingChoice: string | null = null;
@@ -1757,6 +1850,18 @@ export function GamePlay({ gameId }: { gameId: string }) {
         // Fantasma pending
         if (newRoles[eliminated!] === 'Fantasma' && !fantasmaUsed.includes(eliminated!)) {
           fantasmaPending.push(eliminated!);
+        }
+      }
+    }
+
+    // Doble Ejecución: también eliminar al segundo más votado
+    if (secondEliminated && secondEliminated !== eliminated) {
+      const victim2 = players.find(p => p.uid === secondEliminated && p.isAlive);
+      if (victim2) {
+        players = players.map(p => p.uid === secondEliminated ? { ...p, isAlive: false } : p);
+        history.push({ uid: victim2.uid, name: victim2.name, role: newRoles[victim2.uid] ?? 'Aldeano', round });
+        if (newRoles[secondEliminated] === 'Fantasma' && !fantasmaUsed.includes(secondEliminated)) {
+          fantasmaPending.push(secondEliminated);
         }
       }
     }
@@ -2288,6 +2393,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }
     return (
       <div className="relative">
+        <NarratorBroadcast broadcast={game.narratorBroadcast ?? null} />
         {hostAbsent && (
           <div className="fixed top-0 inset-x-0 z-50 bg-red-900/90 border-b border-red-600 text-white text-sm text-center py-2 px-4">
             ⚠️ El anfitrión se ha desconectado. La partida avanzará automáticamente o se reasignará el anfitrión en breve.

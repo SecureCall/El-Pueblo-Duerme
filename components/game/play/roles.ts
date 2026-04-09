@@ -552,6 +552,27 @@ export const RANDOM_EVENTS: RandomEvent[] = [
     description: 'La IA narradora ha tomado el control. Ha estudiado los patrones y ha decidido eliminar a alguien esta misma noche. El pueblo elige, pero la IA también.',
     mechanical: 'aiEliminate',
   },
+  {
+    id: 'doble_ejecucion',
+    emoji: '⚖️',
+    name: 'Doble Ejecución',
+    description: '¡El pueblo exige sangre doble! Hoy serán exiliados los DOS jugadores más votados. Elegid bien, porque habrá dos sillas vacías esta tarde.',
+    mechanical: 'dobleEjecucion',
+  },
+  {
+    id: 'resurreccion_caotica',
+    emoji: '💀',
+    name: 'Resurrección Caótica',
+    description: 'Las reglas de la muerte no aplican hoy. Un alma perdida ha regresado al pueblo. Un jugador eliminado anteriormente vuelve a la vida... pero no sabe en quién confiar.',
+    mechanical: 'revive',
+  },
+  {
+    id: 'confesion_forzada',
+    emoji: '🎙️',
+    name: 'Confesión Forzada',
+    description: '¡La verdad sale a la luz! El Narrador ha elegido a un jugador al azar que debe hablar durante 20 segundos sin parar. El pueblo juzgará cada palabra.',
+    mechanical: 'forceConfession',
+  },
 ];
 
 export function drawRandomEvent(): RandomEvent | null {
