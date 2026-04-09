@@ -145,6 +145,12 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ── Night audit logs — host writes, anyone reads (debugging) ──────────
+    match /games/{gameId}/nightLogs/{round} {
+      allow read: if isAuth();
+      allow write: if isAuth() && isHost(gameId);
+    }
+
     // ── Day votes subcollection — each voter writes only their own doc ─────
     match /games/{gameId}/votes/{voterUid} {
       // Anyone in the game may read (for vote count display)

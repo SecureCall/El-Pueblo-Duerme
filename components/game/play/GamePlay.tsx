@@ -855,10 +855,21 @@ export function GamePlay({ gameId }: { gameId: string }) {
   async function processNight() {
     if (!game) return;
     if (game.phase !== 'night') { processingNightRef.current = false; return; }
-    const actions = game.nightActions ?? {};
+    const rawActions = game.nightActions ?? {};
     const roles = game.roles ?? {};
     let players = [...(game.players ?? [])];
     const aliveBeforeNight = new Set(players.filter(p => p.isAlive).map(p => p.uid));
+
+    // ── STEP 0 — Validation: strip actions from dead players ─────────────
+    // Roles whose actions are keyed by UID (nightActions.{uid} style) are
+    // filtered here; shared keys (wolfTarget, seerTarget, etc.) are kept as-is
+    // since they're set by the host/AI on behalf of living role-holders.
+    const actions = { ...rawActions };
+
+    // ── Anciana Líder exile — compute first so every step below can check ─
+    const ancianaExiledUid = actions.ancianaTarget ?? null;
+    // A set for O(1) blocked lookups
+    const blockedByAnciana = new Set<string>(ancianaExiledUid ? [ancianaExiledUid] : []);
     let history = [...(game.eliminatedHistory ?? [])];
     const round = game.roundNumber ?? 1;
     let enchanted = [...(game.enchanted ?? [])];
@@ -933,12 +944,17 @@ export function GamePlay({ gameId }: { gameId: string }) {
       if (sir) { sirenaUid = sir.uid; sirenaLinked = actions.sirenaTarget; }
     }
 
-    // ── Determine protection ───────────────────────────────────────────────
-
-    const ancianaExiledUid = actions.ancianaTarget ?? null;
-    const guardianProtects = actions.guardianTarget ?? null;
-    const sacerdoteProtects = actions.sacerdoteTarget ?? null;
-    const doctorProtects = actions.doctorTarget ?? null;
+    // ── STEP 3 — Determine protections ────────────────────────────────────
+    // Guardian / Sacerdote / Doctor can also be Anciana-blocked
+    const guardianProtects = blockedByAnciana.has(
+      players.find(p => roles[p.uid] === 'Guardián')?.uid ?? ''
+    ) ? null : (actions.guardianTarget ?? null);
+    const sacerdoteProtects = blockedByAnciana.has(
+      players.find(p => roles[p.uid] === 'Sacerdote')?.uid ?? ''
+    ) ? null : (actions.sacerdoteTarget ?? null);
+    const doctorProtects = blockedByAnciana.has(
+      players.find(p => roles[p.uid] === 'Doctor')?.uid ?? ''
+    ) ? null : (actions.doctorTarget ?? null);
 
     // Update doctor state
     let doctorLastTarget = game.doctorLastTarget ?? null;
@@ -1023,42 +1039,36 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }
 
     // ── Bruja (wolf team) finds Vidente ────────────────────────────────────
-    if (actions.brujaTarget && !brujaFoundVidente) {
-      const brujaPlayer = players.find(p => newRoles[p.uid] === 'Bruja');
-      const target = players.find(p => p.uid === actions.brujaTarget);
-      if (target && newRoles[actions.brujaTarget] === 'Vidente') {
-        brujaFoundVidente = true;
-        brujaProtectedUid = brujaPlayer?.uid ?? null;
-        // wolves will be notified via brujaFoundVidente in GameState
+    {
+      const brujaPlayer = players.find(p => newRoles[p.uid] === 'Bruja' && p.isAlive);
+      if (brujaPlayer && !blockedByAnciana.has(brujaPlayer.uid) && actions.brujaTarget && !brujaFoundVidente) {
+        const target = players.find(p => p.uid === actions.brujaTarget);
+        if (target && newRoles[actions.brujaTarget] === 'Vidente') {
+          brujaFoundVidente = true;
+          brujaProtectedUid = brujaPlayer.uid;
+        }
       }
     }
 
     // ── Hada Buscadora finds Hada Durmiente ──────────────────────────────
-    if (actions.hadaBuscadoraTarget && !hadaLinked) {
-      if (newRoles[actions.hadaBuscadoraTarget] === 'Hada Durmiente') {
-        hadaLinked = true;
-        // Now their win condition is "last ones standing together"
+    {
+      const hadaBuscadora = players.find(p => newRoles[p.uid] === 'Hada Buscadora' && p.isAlive);
+      if (hadaBuscadora && !blockedByAnciana.has(hadaBuscadora.uid) && actions.hadaBuscadoraTarget && !hadaLinked) {
+        if (newRoles[actions.hadaBuscadoraTarget] === 'Hada Durmiente') {
+          hadaLinked = true;
+        }
       }
     }
 
-    // ── Anciana Líder exile info (used during night processing - ability blocked) ──
-    // (Already stored in ancianaExiledUid; any role whose uid === ancianaExiledUid
-    //  had their action blocked — we skip processing it in the done check)
-
-    // ── Doctor / Ángel Resucitador ─────────────────────────────────────────
-    if (actions.angelResucitarTarget && !angelResucitadorUsed) {
-      const dead = players.find(p => p.uid === actions.angelResucitarTarget && !p.isAlive);
-      if (dead) {
-        players = players.map(p => p.uid === actions.angelResucitarTarget ? { ...p, isAlive: true } : p);
-        history = history.filter(h => h.uid !== actions.angelResucitarTarget);
-        if (dayEliminatedUid === actions.angelResucitarTarget) dayEliminatedUid = null;
-        angelResucitadorUsed = true;
-      }
-    }
+    // ── Anciana block note: blockedByAnciana set computed at top of function ─
 
     // ── Silenciadora ───────────────────────────────────────────────────────
-    if (actions.silenciadoraTarget && players.find(p => p.uid === actions.silenciadoraTarget && p.isAlive)) {
-      silencedPlayers.push(actions.silenciadoraTarget);
+    {
+      const sil = players.find(p => newRoles[p.uid] === 'Silenciadora' && p.isAlive);
+      if (sil && !blockedByAnciana.has(sil.uid) && actions.silenciadoraTarget &&
+          players.find(p => p.uid === actions.silenciadoraTarget && p.isAlive)) {
+        silencedPlayers.push(actions.silenciadoraTarget);
+      }
     }
 
     // ── Vampiro bites ─────────────────────────────────────────────────────
@@ -1100,54 +1110,58 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }
 
     // ── Flautista enchants ────────────────────────────────────────────────
-    if (actions.flautistaTargets?.length) {
-      for (const uid of actions.flautistaTargets) {
-        if (!enchanted.includes(uid)) enchanted.push(uid);
+    {
+      const flautista = players.find(p => newRoles[p.uid] === 'Flautista' && p.isAlive);
+      if (flautista && !blockedByAnciana.has(flautista.uid) && actions.flautistaTargets?.length) {
+        for (const uid of actions.flautistaTargets) {
+          if (!enchanted.includes(uid)) enchanted.push(uid);
+        }
       }
     }
 
     // ── Seer reveal ───────────────────────────────────────────────────────
     let seerReveal = game.seerReveal ?? null;
-    if (actions.seerTarget) {
-      const targetRole = newRoles[actions.seerTarget];
-      seerReveal = {
-        targetUid: actions.seerTarget,
-        isWolf: targetRole === 'Lobo' || targetRole === 'Lobo Blanco' || targetRole === 'Cría de Lobo' || targetRole === 'Licántropo',
-      };
-    }
-
-    // Profeta reveal
-    let profetaReveal = null;
-    if (actions.profetaTarget) {
-      profetaReveal = {
-        targetUid: actions.profetaTarget,
-        isWolf: newRoles[actions.profetaTarget] === 'Lobo' || newRoles[actions.profetaTarget] === 'Lobo Blanco' || newRoles[actions.profetaTarget] === 'Licántropo',
-      };
-    }
-
-    // ── Vigía spy ────────────────────────────────────────────────────────
-    if (actions.vigiaActivate && !vigiaUsed) {
-      vigiaUsed = true;
-      // If wolves attacked vigía tonight → vigía dies; otherwise → vigía knows wolves
-      const vigiaPlayer = players.find(p => newRoles[p.uid] === 'Vigía');
-      if (vigiaPlayer) {
-        const vigiaWasKilledThisNight = !players.find(p => p.uid === vigiaPlayer.uid)?.isAlive &&
-          aliveBeforeNight.has(vigiaPlayer.uid);
-        if (vigiaWasKilledThisNight) {
-          // Vigía already dead - failed
-          vigiaKnowsWolves = false;
-        } else {
-          vigiaKnowsWolves = true;
-        }
+    {
+      const vidente = players.find(p => newRoles[p.uid] === 'Vidente' && p.isAlive);
+      if (vidente && !blockedByAnciana.has(vidente.uid) && actions.seerTarget) {
+        const targetRole = newRoles[actions.seerTarget];
+        seerReveal = {
+          targetUid: actions.seerTarget,
+          isWolf: targetRole === 'Lobo' || targetRole === 'Lobo Blanco' || targetRole === 'Cría de Lobo' || targetRole === 'Licántropo',
+        };
       }
     }
 
-    // ── Banshee points ─────────────────────────────────────────────────────
-    if (actions.bansheePrediction) {
-      const predictedDead = !players.find(p => p.uid === actions.bansheePrediction)?.isAlive &&
-        aliveBeforeNight.has(actions.bansheePrediction);
-      if (predictedDead) {
-        bansheePoints += 1;
+    // ── Profeta reveal ────────────────────────────────────────────────────
+    let profetaReveal = null;
+    {
+      const profeta = players.find(p => newRoles[p.uid] === 'Profeta' && p.isAlive);
+      if (profeta && !blockedByAnciana.has(profeta.uid) && actions.profetaTarget) {
+        profetaReveal = {
+          targetUid: actions.profetaTarget,
+          isWolf: newRoles[actions.profetaTarget] === 'Lobo' || newRoles[actions.profetaTarget] === 'Lobo Blanco' || newRoles[actions.profetaTarget] === 'Licántropo',
+        };
+      }
+    }
+
+    // ── Vigía spy ─────────────────────────────────────────────────────────
+    {
+      const vigiaPlayer = players.find(p => newRoles[p.uid] === 'Vigía' && p.isAlive);
+      if (vigiaPlayer && !blockedByAnciana.has(vigiaPlayer.uid) && actions.vigiaActivate && !vigiaUsed) {
+        vigiaUsed = true;
+        const vigiaWasKilledThisNight = !players.find(p => p.uid === vigiaPlayer.uid)?.isAlive &&
+          aliveBeforeNight.has(vigiaPlayer.uid);
+        vigiaKnowsWolves = !vigiaWasKilledThisNight;
+      }
+    }
+
+    // ── Banshee points ────────────────────────────────────────────────────
+    {
+      const banshee = players.find(p => newRoles[p.uid] === 'Banshee' && p.isAlive);
+      if (banshee && !blockedByAnciana.has(banshee.uid) && actions.bansheePrediction) {
+        const predictedDead = !players.find(p => p.uid === actions.bansheePrediction)?.isAlive &&
+          aliveBeforeNight.has(actions.bansheePrediction);
+        if (predictedDead) bansheePoints += 1;
       }
     }
 
@@ -1177,31 +1191,65 @@ export function GamePlay({ gameId }: { gameId: string }) {
       criaLoboRage = true;
     }
 
-    // ── Lovers cascade ────────────────────────────────────────────────────
+    // ── STEP 6 — Recursive chain-death resolution (max 20 iterations) ─────
+    // Cascades: Lovers (Cupido), Gemelas, Virginia Woolf fate.
+    // Loop continues until no new death is triggered, capped at 20 to prevent
+    // any infinite-loop softlock regardless of edge-case role combinations.
     const lovers = game.lovers;
-    if (lovers) {
-      const [l1, l2] = lovers;
-      const l1Dead = !players.find(p => p.uid === l1)?.isAlive && aliveBeforeNight.has(l1);
-      const l2Dead = !players.find(p => p.uid === l2)?.isAlive && aliveBeforeNight.has(l2);
-      if (l1Dead && players.find(p => p.uid === l2 && p.isAlive)) { applyDeath(l2); }
-      if (l2Dead && players.find(p => p.uid === l1 && p.isAlive)) { applyDeath(l1); }
+    {
+      let chainChanged = true;
+      let chainIterations = 0;
+      while (chainChanged && chainIterations < 20) {
+        chainChanged = false;
+        chainIterations++;
+
+        // Lovers cascade
+        if (lovers) {
+          const [l1, l2] = lovers;
+          if (!players.find(p => p.uid === l1)?.isAlive && players.find(p => p.uid === l2 && p.isAlive)) {
+            applyDeath(l2); chainChanged = true;
+          }
+          if (!players.find(p => p.uid === l2)?.isAlive && players.find(p => p.uid === l1 && p.isAlive)) {
+            applyDeath(l1); chainChanged = true;
+          }
+        }
+
+        // Gemelas cascade
+        const gemelas = players.filter(p => newRoles[p.uid] === 'Gemela' || newRoles[p.uid] === 'Gemelas');
+        if (gemelas.length === 2) {
+          const [g1, g2] = gemelas;
+          if (!players.find(p => p.uid === g1.uid)?.isAlive && players.find(p => p.uid === g2.uid && p.isAlive)) {
+            applyDeath(g2.uid); chainChanged = true;
+          }
+          if (!players.find(p => p.uid === g2.uid)?.isAlive && players.find(p => p.uid === g1.uid && p.isAlive)) {
+            applyDeath(g1.uid); chainChanged = true;
+          }
+        }
+
+        // Virginia Woolf fate cascade
+        for (const [woolUid, linkedUid] of Object.entries(virginiawoolFate)) {
+          if (!players.find(p => p.uid === woolUid)?.isAlive &&
+              players.find(p => p.uid === linkedUid && p.isAlive)) {
+            applyDeath(linkedUid); chainChanged = true;
+          }
+        }
+      }
+      if (chainIterations >= 20) {
+        console.warn('[processNight] Chain-death loop hit iteration cap (possible cycle)');
+      }
     }
 
-    // ── Gemela cascade ────────────────────────────────────────────────────
-    const gemelas = players.filter(p => newRoles[p.uid] === 'Gemela' || newRoles[p.uid] === 'Gemelas');
-    if (gemelas.length === 2) {
-      const [g1, g2] = gemelas;
-      const g1Dead = !players.find(p => p.uid === g1.uid)?.isAlive;
-      const g2Dead = !players.find(p => p.uid === g2.uid)?.isAlive;
-      if (g1Dead && aliveBeforeNight.has(g1.uid) && players.find(p => p.uid === g2.uid && p.isAlive)) { applyDeath(g2.uid); }
-      if (g2Dead && aliveBeforeNight.has(g2.uid) && players.find(p => p.uid === g1.uid && p.isAlive)) { applyDeath(g1.uid); }
-    }
-
-    // ── Virginia Woolf fate cascade ───────────────────────────────────────
-    for (const [woolUid, linkedUid] of Object.entries(virginiawoolFate)) {
-      const woolDead = !players.find(p => p.uid === woolUid)?.isAlive;
-      if (woolDead && aliveBeforeNight.has(woolUid) && players.find(p => p.uid === linkedUid && p.isAlive)) {
-        applyDeath(linkedUid);
+    // ── STEP 7 — Ángel Resucitador (after ALL deaths including chains) ─────
+    {
+      const angel = players.find(p => newRoles[p.uid] === 'Ángel Resucitador' && p.isAlive);
+      if (angel && !blockedByAnciana.has(angel.uid) && actions.angelResucitarTarget && !angelResucitadorUsed) {
+        const dead = players.find(p => p.uid === actions.angelResucitarTarget && !p.isAlive);
+        if (dead) {
+          players = players.map(p => p.uid === actions.angelResucitarTarget ? { ...p, isAlive: true } : p);
+          history = history.filter(h => h.uid !== actions.angelResucitarTarget);
+          if (dayEliminatedUid === actions.angelResucitarTarget) dayEliminatedUid = null;
+          angelResucitadorUsed = true;
+        }
       }
     }
 
@@ -1209,7 +1257,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (actions.ladronTarget && round === 1) {
       const ladron = players.find(p => newRoles[p.uid] === 'Ladrón' && p.isAlive);
       const target = players.find(p => p.uid === actions.ladronTarget && p.isAlive);
-      if (ladron && target) {
+      if (ladron && !blockedByAnciana.has(ladron.uid) && target) {
         const stolenRole = newRoles[target.uid] ?? 'Aldeano';
         newRoles[ladron.uid] = stolenRole;
         newRoles[target.uid] = 'Aldeano';
@@ -1223,7 +1271,10 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
     // ── Espía activates wolf chat ─────────────────────────────────────────
     let espiaUsed = game.espiaUsed ?? false;
-    if (actions.espiaActivate && !espiaUsed) espiaUsed = true;
+    {
+      const espia = players.find(p => newRoles[p.uid] === 'Espía' && p.isAlive);
+      if (espia && !blockedByAnciana.has(espia.uid) && actions.espiaActivate && !espiaUsed) espiaUsed = true;
+    }
 
     // ── Alquimista potion ─────────────────────────────────────────────────
     let alquimistaPotion: 'save' | 'reveal' | 'nothing' | null = null;
@@ -1264,18 +1315,22 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
     // ── Médico Forense: learns role of chosen dead player ─────────────────
     const forenseResults: Record<string, string> = { ...(game.forenseResults ?? {}) };
-    const forensePlayer = players.find(p => newRoles[p.uid] === 'Médico Forense' && p.isAlive);
-    if (forensePlayer && actions.forenseTarget) {
-      const deadTarget = history.find(h => h.uid === actions.forenseTarget);
-      if (deadTarget) forenseResults[forensePlayer.uid] = `${deadTarget.name}: ${deadTarget.role}`;
+    {
+      const forensePlayer = players.find(p => newRoles[p.uid] === 'Médico Forense' && p.isAlive);
+      if (forensePlayer && !blockedByAnciana.has(forensePlayer.uid) && actions.forenseTarget) {
+        const deadTarget = history.find(h => h.uid === actions.forenseTarget);
+        if (deadTarget) forenseResults[forensePlayer.uid] = `${deadTarget.name}: ${deadTarget.role}`;
+      }
     }
 
     // ── Saboteador: bans target's vote for next day ───────────────────────
     let saboteadorBan: string | null = null;
-    const saboteadorPlayer = players.find(p => newRoles[p.uid] === 'Saboteador' && p.isAlive);
-    if (saboteadorPlayer && actions.saboteadorTarget) {
-      const banTarget = players.find(p => p.uid === actions.saboteadorTarget && p.isAlive);
-      if (banTarget) saboteadorBan = banTarget.uid;
+    {
+      const saboteadorPlayer = players.find(p => newRoles[p.uid] === 'Saboteador' && p.isAlive);
+      if (saboteadorPlayer && !blockedByAnciana.has(saboteadorPlayer.uid) && actions.saboteadorTarget) {
+        const banTarget = players.find(p => p.uid === actions.saboteadorTarget && p.isAlive);
+        if (banTarget) saboteadorBan = banTarget.uid;
+      }
     }
 
     // ── Random event for next day ─────────────────────────────────────────
@@ -1292,7 +1347,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
       hechiceraPoisonUsedNext = false;
     }
 
-    // ── Win check ─────────────────────────────────────────────────────────
+    // ── STEP 9 — Win check ────────────────────────────────────────────────
     const nightKilledUids = players.filter(p => !p.isAlive && aliveBeforeNight.has(p.uid)).map(p => p.uid);
     const winResult = checkWinCondition(players, newRoles, {
       enchanted, round, perroLoboChoices,
@@ -1305,6 +1360,18 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const finalWinner = bansheeWin ? 'banshee' : winResult.winner;
     const finalMsg = bansheeWin ? '¡La Banshee predijo 2 muertes correctamente y gana sola!' : winResult.message;
 
+    // ── STEP 10 — Night audit log (subcollection) ─────────────────────────
+    setDoc(doc(db, 'games', gameId, 'nightLogs', String(round)), {
+      round,
+      resolvedAt: Date.now(),
+      killed: nightKilledUids,
+      actionKeys: Object.keys(actions),
+      blockedUid: ancianaExiledUid,
+      silenced: silencedPlayers,
+      winner: finalWinner ?? null,
+    }).catch(e => console.warn('[nightLog] write failed:', e));
+
+    // ── STEP 11 — Atomic state update ────────────────────────────────────
     try {
       await updateDoc(doc(db, 'games', gameId), {
         players,
