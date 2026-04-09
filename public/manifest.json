@@ -14,6 +14,24 @@
   "scope": "/",
   "categories": ["games", "entertainment"],
   "prefer_related_applications": false,
+
+  "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
+
+  "launch_handler": {
+    "client_mode": ["focus-existing", "auto"]
+  },
+
+  "share_target": {
+    "action": "/share-target",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+
   "icons": [
     {
       "src": "/icons/16.png",
@@ -82,6 +100,7 @@
       "purpose": "maskable"
     }
   ],
+
   "shortcuts": [
     {
       "name": "Crear Nueva Partida",
@@ -98,6 +117,7 @@
       "icons": [{ "src": "/icons/72.png", "sizes": "72x72", "type": "image/png" }]
     }
   ],
+
   "screenshots": [
     {
       "src": "/screenshot1.png",

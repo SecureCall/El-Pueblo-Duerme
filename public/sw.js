@@ -1,4 +1,4 @@
-const CACHE_NAME = 'elpueblo-v1';
+const CACHE_NAME = 'elpueblo-v2';
 
 const PRECACHE_URLS = [
   '/',
@@ -12,6 +12,7 @@ const PRECACHE_URLS = [
   '/icons/512.png',
 ];
 
+// ─── Install ────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
@@ -19,6 +20,7 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
+// ─── Activate ───────────────────────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -28,6 +30,27 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// ─── launch_handler: focus existing client when navigating to same origin ───
+// When a user taps a share link or shortcut while the PWA is already open,
+// we post a message to the existing client so it can handle the navigation,
+// then navigate that client to the target URL.
+self.addEventListener('navigate', async (event) => {
+  const url = new URL(event.destination.url);
+  if (url.origin !== self.location.origin) return;
+
+  const allClients = await self.clients.matchAll({
+    includeUncontrolled: true,
+    type: 'window',
+  });
+
+  if (allClients.length > 0) {
+    const existing = allClients[0];
+    existing.postMessage({ type: 'NAVIGATE', url: url.href });
+    event.respondWith(existing.focus().then(() => Response.redirect(url.href)));
+  }
+});
+
+// ─── Fetch ───────────────────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
