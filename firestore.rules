@@ -145,7 +145,21 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // ── Lobby / public chat ────────────────────────────────────────────────
+    // ── Day votes subcollection — each voter writes only their own doc ─────
+    match /games/{gameId}/votes/{voterUid} {
+      // Anyone in the game may read (for vote count display)
+      allow read: if isAuth();
+      // Only the voter may create/update their own vote doc, and only during day phase
+      allow create, update: if isAuth()
+        && request.auth.uid == voterUid
+        && get(/databases/$(database)/documents/games/$(gameId)).data.phase == 'day'
+        && request.resource.data.keys().hasOnly(['target', 'round', 'submittedAt']);
+      // Host may also write (for AI players)
+      allow write: if isAuth() && isHost(gameId);
+      allow delete: if false;
+    }
+
+    // ── Lobby / public chat ───────────────────────────────────────────────
     match /games/{gameId}/lobbyChat/{messageId} {
       allow read: if isAuth();
       allow create: if isAuth() && request.auth.uid == request.resource.data.senderId;

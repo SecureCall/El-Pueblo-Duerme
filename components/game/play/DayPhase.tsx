@@ -29,6 +29,7 @@ interface Props {
   onVote: (targetUid: string) => Promise<void>;
   onJuezSecondVote: () => Promise<void>;
   onAlborotadoraFight: (p1: string, p2: string) => Promise<void>;
+  votesFromSub?: Record<string, string>;
   onTimerEnd: () => void;
 }
 
@@ -41,7 +42,7 @@ interface ChatMsg {
 
 type ChatTab = 'public' | 'ghost' | 'lovers';
 
-export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, onVote, onJuezSecondVote, onAlborotadoraFight, onTimerEnd }: Props) {
+export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, onVote, onJuezSecondVote, onAlborotadoraFight, votesFromSub = {}, onTimerEnd }: Props) {
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [ghostMsgs, setGhostMsgs] = useState<ChatMsg[]>([]);
   const [loversMsgs, setLoversMsgs] = useState<ChatMsg[]>([]);
@@ -65,7 +66,9 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
 
   useEffect(() => { onTimerEndRef.current = onTimerEnd; }, [onTimerEnd]);
 
-  const dayVotes = (game as any).dayVotes ?? {};
+  // Use votes passed from parent (subscribed at GamePlay level)
+  const dayVotes = votesFromSub;
+
   const meAlive = me?.isAlive ?? false;
   const alivePlayers = (game.players ?? []).filter(p => p.isAlive);
   const eliminatedNight = game.dayEliminatedUid

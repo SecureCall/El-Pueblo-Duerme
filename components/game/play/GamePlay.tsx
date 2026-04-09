@@ -6,7 +6,7 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { db } from '@/lib/firebase/config';
 import {
   doc, onSnapshot, updateDoc, addDoc, collection, serverTimestamp,
-  query, orderBy, limit, setDoc, getDoc,
+  query, orderBy, limit, setDoc, getDoc, writeBatch,
 } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
 import { assignRoles, checkWinCondition, ROLES, ROLE_SUBMISSION_KEY, drawRandomEvent } from './roles';
@@ -134,6 +134,7 @@ export interface GameState {
   malditoUid?: string | null;
   // New feature fields
   nightStartedAt?: number;
+  phaseEndsAt?: number;
   currentEvent?: { id: string; emoji: string; name: string; description: string; mechanical: string } | null;
   eventRound?: number;
   saboteadorBan?: string | null;
@@ -173,6 +174,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const [fantasmaMsg, setFantasmaMsg] = useState('');
   const [fantasmaTarget, setFantasmaTarget] = useState('');
   const [hostAbsent, setHostAbsent] = useState(false);
+  const [votesFromSub, setVotesFromSub] = useState<Record<string, string>>({});
   const aiChatSentRound = useRef<number>(-1);
   const aiNightSubmittedRound = useRef<number>(-1);
   const aiDayVotedRound = useRef<number>(-1);
@@ -238,6 +240,22 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const id = setInterval(writePresence, 60000);
     return () => clearInterval(id);
   }, [user?.uid, gameId]);
+
+  // ── Subscribe to votes subcollection during day phase ────────────────────
+  useEffect(() => {
+    if (!game || game.phase !== 'day') { setVotesFromSub({}); return; }
+    const round = game.roundNumber ?? 1;
+    const unsub = onSnapshot(collection(db, 'games', gameId, 'votes'), (snap) => {
+      const v: Record<string, string> = {};
+      snap.docs.forEach(d => {
+        const data = d.data();
+        if (data.round === round && data.target) v[d.id] = data.target;
+      });
+      setVotesFromSub(v);
+    });
+    return () => unsub();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.phase, game?.roundNumber, gameId]);
 
   // ── Host absence detection: check /presence every 30s, auto-claim after 5min ─
   useEffect(() => {
@@ -388,7 +406,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (game.hostUid !== user?.uid) return;
     if (!isValidTransition(game.phase, 'night')) { console.warn(`[FSM] Blocked roleReveal→night (current: ${game.phase})`); return; }
     try {
-      await updateDoc(doc(db, 'games', gameId), { phase: 'night', nightActions: {}, nightSubmissions: {}, nightStartedAt: Date.now() });
+      const now = Date.now();
+      await updateDoc(doc(db, 'games', gameId), { phase: 'night', nightActions: {}, nightSubmissions: {}, nightStartedAt: now, phaseEndsAt: now + 93000 });
     } catch (e) { console.error('advanceFromRoleReveal error:', e); }
   }, [game, user, gameId]);
 
@@ -1344,6 +1363,16 @@ export function GamePlay({ gameId }: { gameId: string }) {
         nightSubmissions: {},
         dayVotes: {},
         dayStartedAt: Date.now(),
+        phaseEndsAt: (() => {
+          if (finalWinner) return null;
+          const alive = players.filter(p => p.isAlive).length;
+          const base = Math.min(300, Math.max(60, alive * 20));
+          const mech = randomEvent?.mechanical;
+          const dur = mech === 'extraTime' ? Math.min(300, base + 30)
+            : mech === 'halfTime' ? Math.max(30, Math.floor(base / 2))
+            : base;
+          return Date.now() + dur * 1000 + 2000;
+        })(),
         bansheePredictionUid: null,
       });
     } catch (e) {
@@ -1361,13 +1390,17 @@ export function GamePlay({ gameId }: { gameId: string }) {
     // Sirena: if voter is sirena-linked, force vote to sirena's target
     let actualTarget = targetUid;
     if (game.sirenaLinked === user.uid && game.sirenaUid) {
-      // Sirena-linked player must vote same as Sirena
-      actualTarget = (game.dayVotes ?? {})[game.sirenaUid] ?? targetUid;
+      actualTarget = votesFromSub[game.sirenaUid] ?? targetUid;
     }
     try {
-      await updateDoc(doc(db, 'games', gameId), { [`dayVotes.${user.uid}`]: actualTarget });
+      // Write to votes/{uid} subcollection — Firestore rule enforces uid == voter
+      await setDoc(doc(db, 'games', gameId, 'votes', user.uid), {
+        target: actualTarget,
+        round: game.roundNumber ?? 1,
+        submittedAt: Date.now(),
+      });
     } catch (e) { console.error('submitDayVote error:', e); }
-  }, [user, game, gameId]);
+  }, [user, game, gameId, votesFromSub]);
 
   // Host triggers AI chat messages during day phase
   useEffect(() => {
@@ -1438,23 +1471,24 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
       const currentAlivePlayers = (game.players ?? []).filter(p => p.isAlive);
       const currentAiAlive = currentAlivePlayers.filter(p => p.isAI);
-      const currentDayVotes = (game.dayVotes ?? {}) as Record<string, string>;
       const voteBanned = game.voteBanned ?? [];
-      const updates: Record<string, unknown> = {};
       let needsUpdate = false;
-
+      const batch = writeBatch(db);
       for (const ai of currentAiAlive) {
-        if (currentDayVotes[ai.uid] || voteBanned.includes(ai.uid)) continue;
+        if (votesFromSub[ai.uid] || voteBanned.includes(ai.uid)) continue;
         const candidates = currentAlivePlayers.filter(p => p.uid !== ai.uid);
         if (candidates.length > 0) {
           const pick = candidates[Math.floor(Math.random() * candidates.length)];
-          updates[`dayVotes.${ai.uid}`] = pick.uid;
+          batch.set(doc(db, 'games', gameId, 'votes', ai.uid), {
+            target: pick.uid,
+            round: game.roundNumber ?? 1,
+            submittedAt: Date.now(),
+          });
           needsUpdate = true;
         }
       }
-
       if (needsUpdate) {
-        updateDoc(doc(db, 'games', gameId), updates).catch((e: any) => console.error('AI day vote error:', e));
+        batch.commit().catch((e: any) => console.error('AI day vote error:', e));
       }
     }, waitMs);
 
@@ -1462,43 +1496,43 @@ export function GamePlay({ gameId }: { gameId: string }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.phase, game?.roundNumber, game?.dayStartedAt]);
 
-  // Host processes day votes when all alive players voted
+  // Host processes day votes when all eligible alive players have voted
   useEffect(() => {
     if (!game || !user || game.hostUid !== user.uid) return;
     if (game.phase !== 'day') return;
-
-    const dayVotes = (game.dayVotes ?? {}) as Record<string, string>;
     const alivePlayers = (game.players ?? []).filter(p => p.isAlive);
     const voteBanned = game.voteBanned ?? [];
     const eligible = alivePlayers.filter(p => !voteBanned.includes(p.uid));
-    const votedCount = eligible.filter(p => !!dayVotes[p.uid]).length;
-
+    const votedCount = eligible.filter(p => !!votesFromSub[p.uid]).length;
     if (votedCount >= eligible.length && eligible.length > 0) {
-      processDayVotes(dayVotes);
+      processDayVotes(votesFromSub);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.dayVotes, game?.phase]);
+  }, [votesFromSub, game?.phase]);
 
   // ── Anti-softlock: force processDayVotes when day timer expires ───────────
   useEffect(() => {
     if (!game || !user || game.hostUid !== user.uid) return;
     if (game.phase !== 'day') return;
-    const alive = (game.players ?? []).filter(p => p.isAlive).length;
-    const base = Math.min(300, Math.max(60, alive * 20));
-    const mech = game.currentEvent?.mechanical;
-    const dayDuration = mech === 'extraTime' ? Math.min(300, base + 30)
-      : mech === 'halfTime' ? Math.max(30, Math.floor(base / 2))
-      : base;
-    const started = game.dayStartedAt ?? Date.now();
-    const remaining = Math.max(0, dayDuration * 1000 + 2000 - (Date.now() - started));
+    // Use server phaseEndsAt if available, else compute locally
+    const endsAt = game.phaseEndsAt ?? (() => {
+      const alive = (game.players ?? []).filter(p => p.isAlive).length;
+      const base = Math.min(300, Math.max(60, alive * 20));
+      const mech = game.currentEvent?.mechanical;
+      const dur = mech === 'extraTime' ? Math.min(300, base + 30)
+        : mech === 'halfTime' ? Math.max(30, Math.floor(base / 2))
+        : base;
+      return (game.dayStartedAt ?? Date.now()) + dur * 1000 + 2000;
+    })();
+    const remaining = Math.max(0, endsAt - Date.now());
     const t = setTimeout(() => {
       if (game.phase !== 'day' || processingDayRef.current) return;
       console.warn('[Anti-softlock] Day timer expired → forcing processDayVotes');
-      processDayVotes((game.dayVotes ?? {}) as Record<string, string>);
+      processDayVotes(votesFromSub);
     }, remaining);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.phase, game?.roundNumber, game?.dayStartedAt]);
+  }, [game?.phase, game?.roundNumber, game?.dayStartedAt, game?.phaseEndsAt]);
 
   async function processDayVotes(dayVotes: Record<string, string>) {
     if (!game) return;
@@ -1718,6 +1752,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
         nightSubmissions: {},
         bearGrowl: false,
         nightStartedAt: finalWinner ? null : Date.now(),
+        phaseEndsAt: finalWinner ? null : Date.now() + 93000,
         currentEvent: null,
         eclipseActive: false,
         doubleSeerActive: false,
@@ -2136,9 +2171,10 @@ export function GamePlay({ gameId }: { gameId: string }) {
           onVote={submitDayVote}
           onJuezSecondVote={juezCallSecondVote}
           onAlborotadoraFight={alborotadoraChooseFight}
+          votesFromSub={votesFromSub}
           onTimerEnd={() => {
             if (game.hostUid === user.uid) {
-              processDayVotes((game.dayVotes ?? {}) as Record<string, string>);
+              processDayVotes(votesFromSub);
             }
           }}
         />
