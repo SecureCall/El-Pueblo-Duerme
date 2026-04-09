@@ -9,6 +9,7 @@ import { db } from '@/lib/firebase/config';
 import { collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { useNarrator, waitForAudio } from '@/hooks/useNarrator';
 import { EmoteBar } from './EmoteBar';
+import { VoiceChat } from './VoiceChat';
 
 interface Props {
   game: GameState;
@@ -1522,6 +1523,15 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
 
         </div>
       </div>
+      <VoiceChat
+        gameId={gameId}
+        userId={userId}
+        userName={userName}
+        phase="night"
+        myRole={myRole}
+        isAlive={me?.isAlive ?? false}
+        wolfTeam={game.wolfTeam}
+      />
       <EmoteBar gameId={gameId} userId={userId} userName={userName} />
     </div>
   );
