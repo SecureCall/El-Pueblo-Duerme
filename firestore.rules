@@ -19,18 +19,40 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny(keys);
     }
 
-    // Fields that only the host is allowed to change — players must never touch these
+    // ── Fields exclusively controlled by the host ─────────────────────────
+    // A player triggering any of these in an updateDoc is REJECTED.
+    // ADD any new host-only field here.
     function touchesSensitiveFields() {
       return affectedAre([
-        'roles', 'phase', 'winners', 'status', 'wolfTeam',
+        // Identity & control
+        'hostUid', 'code',
+        // Phase machine — only host may advance phases
+        'roles', 'phase', 'status', 'winners', 'winMessage',
+        // Wolf team map (used for wolfChat Firestore rule)
+        'wolfTeam',
+        // Timeline & round tracking
         'eliminatedHistory', 'roundNumber', 'nightStartedAt', 'dayStartedAt',
-        'currentEvent', 'saboteadorBan', 'forenseResults', 'iluminadoReveal',
+        'dayDuration', 'dayEliminatedUid',
+        // Events & modifiers
+        'currentEvent', 'eventRound',
+        // Role-specific outcome fields written only during processNight
+        'seerReveal', 'profetaReveal',
+        'saboteadorBan', 'forenseResults', 'iluminadoReveal',
         'noExileActive', 'eclipseActive', 'anonymousVotesActive',
-        'seerReveal', 'profetaReveal', 'lovers', 'dayEliminatedUid',
-        'silencedPlayers', 'enchanted', 'bearGrowl', 'lobosBlocked',
+        'lovers', 'silencedPlayers', 'enchanted',
+        'bearGrowl', 'lobosBlocked',
         'brujaProtectedUid', 'hechiceraLifeUsed', 'hechiceraPoisonUsed',
         'vampiroBites', 'cultMembers', 'pescadorBoat', 'malditoUid',
-        'alborotadoraFight', 'alborotadoraUsed', 'juezUsed', 'voteBanned'
+        'alborotadoraFight', 'alborotadoraUsed', 'juezUsed', 'voteBanned',
+        'sirenaUid', 'sirenaLinked', 'cazadorPendingShot', 'chivoPendingChoice',
+        'perroLoboChoices', 'salvajeMentors', 'virginiawoolFate',
+        'verdugos', 'cambiaformasTargets', 'fantasmaPending', 'fantasmaUsed',
+        'doubleSeerActive', 'criaLoboRage', 'vigiaUsed', 'vigiaKnowsWolves',
+        'angelResucitadorUsed', 'bansheePoints', 'bansheePredictionUid',
+        'alquimistaPotion', 'alquimistaRevealUid',
+        'hadaLinked', 'principeUsed', 'espiaUsed',
+        'antiguoHit', 'brujaFoundVidente',
+        'guardianLastTarget', 'doctorLastTarget', 'doctorSelfUsed'
       ]);
     }
 
@@ -44,7 +66,7 @@ service cloud.firestore {
       );
     }
 
-    // ── Presence ───────────────────────────────────────────────────────────
+    // ── Presence (heartbeat during game) ───────────────────────────────────
     match /presence/{userId} {
       allow read: if isAuth();
       allow write: if isAuth() && request.auth.uid == userId;
@@ -62,41 +84,44 @@ service cloud.firestore {
       allow create: if isAuth() && request.auth.uid == request.resource.data.hostUid;
 
       allow update: if isAuth() && (
-        // Host can modify anything
+
+        // ① Host can modify anything
         request.auth.uid == resource.data.hostUid
 
-        // Players can join/leave lobby (only players + playerCount)
-        || onlyUpdating(['players', 'playerCount'])
-
-        // Players submit night actions — cannot touch any sensitive/host-only fields
+        // ② Players can join/leave — ONLY while game is in lobby
         || (
-          affectedAre(['nightActions', 'nightSubmissions']) &&
-          !touchesSensitiveFields() &&
-          !affectedAre(['dayVotes'])
+          resource.data.status == 'lobby' &&
+          onlyUpdating(['players', 'playerCount'])
         )
 
-        // Players cast day vote — only their own UID key in dayVotes can be set/changed
+        // ③ Players submit night actions — no sensitive fields, only nightActions/nightSubmissions
         || (
+          resource.data.phase == 'night' &&
+          affectedAre(['nightActions', 'nightSubmissions']) &&
+          !touchesSensitiveFields() &&
+          !affectedAre(['dayVotes', 'players'])
+        )
+
+        // ④ Players cast a day vote — only their own UID key, only during day phase
+        || (
+          (resource.data.phase == 'day' || resource.data.phase == 'voting') &&
           affectedAre(['dayVotes']) &&
           !touchesSensitiveFields() &&
-          !affectedAre(['nightActions', 'nightSubmissions']) &&
+          !affectedAre(['nightActions', 'nightSubmissions', 'players']) &&
           request.resource.data.dayVotes
             .diff(resource.data.dayVotes)
             .affectedKeys()
             .hasOnly([request.auth.uid])
         )
 
-        // Any authenticated player can update an ended game (new host assignment, etc.)
+        // ⑤ Ended games — allow minor updates (host reassignment after game ends)
         || resource.data.phase == 'ended'
       );
 
-      allow delete: if isAuth() && (
-        request.auth.uid == resource.data.hostUid
-        || resource.data.isPublic == true
-      );
+      allow delete: if isAuth() && request.auth.uid == resource.data.hostUid;
     }
 
-    // ── Private roles (only that player + host can read) ───────────────────
+    // ── Private roles (only that player + host can read/write) ────────────
     match /games/{gameId}/playerRoles/{uid} {
       allow read: if isAuth() && (
         request.auth.uid == uid
@@ -105,21 +130,21 @@ service cloud.firestore {
       allow write: if isAuth() && isHost(gameId);
     }
 
-    // ── Reports (only host can read; any authenticated user can file) ──────
+    // ── Reports (only host can read; any member can file) ─────────────────
     match /games/{gameId}/reports/{reportId} {
       allow read: if isAuth() && isHost(gameId);
       allow create: if isAuth();
       allow update, delete: if false;
     }
 
-    // ── Public / lobby chat ────────────────────────────────────────────────
-    match /games/{gameId}/publicChat/{messageId} {
+    // ── Lobby / public chat ────────────────────────────────────────────────
+    match /games/{gameId}/lobbyChat/{messageId} {
       allow read: if isAuth();
       allow create: if isAuth() && request.auth.uid == request.resource.data.senderId;
       allow update, delete: if false;
     }
 
-    match /games/{gameId}/lobbyChat/{messageId} {
+    match /games/{gameId}/publicChat/{messageId} {
       allow read: if isAuth();
       allow create: if isAuth() && request.auth.uid == request.resource.data.senderId;
       allow update, delete: if false;
@@ -132,7 +157,7 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // ── Wolf chat (restricted to wolf-team players via wolfTeam map) ───────
+    // ── Wolf chat — only wolf-team members (wolfTeam map enforced) ────────
     match /games/{gameId}/wolfChat/{messageId} {
       allow read: if isAuth() && (
         isHost(gameId) ||
@@ -146,7 +171,7 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // ── Lovers chat (restricted to the two lovers only) ───────────────────
+    // ── Lovers chat — only the two lovers ────────────────────────────────
     match /games/{gameId}/loversChat/{messageId} {
       allow read: if isAuth() && (
         isHost(gameId) ||

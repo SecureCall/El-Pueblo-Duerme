@@ -145,6 +145,21 @@ export interface GameState {
   noExileActive?: boolean;
 }
 
+// ── Finite-State Machine: only these transitions are legal ────────────────
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  lobby:      ['roleReveal'],
+  roleReveal: ['night'],
+  night:      ['day', 'ended'],
+  day:        ['voting', 'night', 'ended'],
+  voting:     ['night', 'day', 'ended'],
+  ended:      [],
+};
+
+function isValidTransition(from: string | undefined, to: string): boolean {
+  if (!from) return false;
+  return (VALID_TRANSITIONS[from] ?? []).includes(to);
+}
+
 export function GamePlay({ gameId }: { gameId: string }) {
   const router = useRouter();
   const { user } = useAuth();
@@ -324,6 +339,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (!game) return;
     setRoleRevealDone(true);
     if (game.hostUid !== user?.uid) return;
+    if (!isValidTransition(game.phase, 'night')) { console.warn(`[FSM] Blocked roleReveal→night (current: ${game.phase})`); return; }
     try {
       await updateDoc(doc(db, 'games', gameId), { phase: 'night', nightActions: {}, nightSubmissions: {}, nightStartedAt: Date.now() });
     } catch (e) { console.error('advanceFromRoleReveal error:', e); }
@@ -331,6 +347,9 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
   const submitNightAction = useCallback(async (action: Record<string, unknown>) => {
     if (!game || !user) return;
+    if (game.phase !== 'night') { console.warn('[FSM] submitNightAction rejected — not night phase'); return; }
+    const me = game.players?.find(p => p.uid === user.uid);
+    if (!me?.isAlive) { console.warn('[FSM] submitNightAction rejected — player not alive'); return; }
     const myRole = game.roles?.[user.uid] ?? 'Aldeano';
     const submissionKey = ROLE_SUBMISSION_KEY[myRole] ?? user.uid;
 
@@ -752,6 +771,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
   async function processNight() {
     if (!game) return;
+    if (game.phase !== 'night') { processingNightRef.current = false; return; }
     const actions = game.nightActions ?? {};
     const roles = game.roles ?? {};
     let players = [...(game.players ?? [])];
@@ -1271,6 +1291,9 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
   const submitDayVote = useCallback(async (targetUid: string) => {
     if (!user || !game) return;
+    if (game.phase !== 'day' && game.phase !== 'voting') { console.warn('[FSM] submitDayVote rejected — not day/voting phase'); return; }
+    const me = game.players?.find(p => p.uid === user.uid);
+    if (!me?.isAlive) { console.warn('[FSM] submitDayVote rejected — player not alive'); return; }
     // Sirena: if voter is sirena-linked, force vote to sirena's target
     let actualTarget = targetUid;
     if (game.sirenaLinked === user.uid && game.sirenaUid) {
@@ -1394,6 +1417,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
   async function processDayVotes(dayVotes: Record<string, string>) {
     if (!game) return;
+    if (game.phase !== 'day' && game.phase !== 'voting') { return; }
     if (processingDayRef.current) return;
     processingDayRef.current = true;
     const roles = game.roles ?? {};
