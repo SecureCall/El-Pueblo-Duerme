@@ -11,7 +11,6 @@ service cloud.firestore {
       return request.auth.uid == get(/databases/$(database)/documents/games/$(gameId)).data.hostUid;
     }
 
-    // Only the specific fields being changed (simplified check)
     function onlyUpdating(keys) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
@@ -20,13 +19,28 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny(keys);
     }
 
+    // Fields that only the host is allowed to change — players must never touch these
+    function touchesSensitiveFields() {
+      return affectedAre([
+        'roles', 'phase', 'winners', 'status', 'wolfTeam',
+        'eliminatedHistory', 'roundNumber', 'nightStartedAt', 'dayStartedAt',
+        'currentEvent', 'saboteadorBan', 'forenseResults', 'iluminadoReveal',
+        'noExileActive', 'eclipseActive', 'anonymousVotesActive',
+        'seerReveal', 'profetaReveal', 'lovers', 'dayEliminatedUid',
+        'silencedPlayers', 'enchanted', 'bearGrowl', 'lobosBlocked',
+        'brujaProtectedUid', 'hechiceraLifeUsed', 'hechiceraPoisonUsed',
+        'vampiroBites', 'cultMembers', 'pescadorBoat', 'malditoUid',
+        'alborotadoraFight', 'alborotadoraUsed', 'juezUsed', 'voteBanned'
+      ]);
+    }
+
     // ── Users ──────────────────────────────────────────────────────────────
     match /users/{userId} {
       allow read: if isAuth();
       allow create: if isAuth() && request.auth.uid == userId;
       allow update: if isAuth() && (
         request.auth.uid == userId
-        || affectedAre(['friendRequests'])
+        || request.resource.data.diff(resource.data).affectedKeys().hasAny(['friendRequests'])
       );
     }
 
@@ -44,21 +58,35 @@ service cloud.firestore {
 
     // ── Games ──────────────────────────────────────────────────────────────
     match /games/{gameId} {
-      // Any logged-in user can read games
       allow read: if isAuth();
-
-      // Any logged-in user can create a game they host
       allow create: if isAuth() && request.auth.uid == request.resource.data.hostUid;
 
-      // Host can update anything
-      // Players can join (players/playerCount only)
-      // Players can submit night actions and day votes
       allow update: if isAuth() && (
+        // Host can modify anything
         request.auth.uid == resource.data.hostUid
+
+        // Players can join/leave lobby (only players + playerCount)
         || onlyUpdating(['players', 'playerCount'])
-        || affectedAre(['nightActions', 'nightSubmissions'])
-        || affectedAre(['dayVotes'])
-        // Any authenticated player can reset a finished game (to become new host)
+
+        // Players submit night actions — cannot touch any sensitive/host-only fields
+        || (
+          affectedAre(['nightActions', 'nightSubmissions']) &&
+          !touchesSensitiveFields() &&
+          !affectedAre(['dayVotes'])
+        )
+
+        // Players cast day vote — only their own UID key in dayVotes can be set/changed
+        || (
+          affectedAre(['dayVotes']) &&
+          !touchesSensitiveFields() &&
+          !affectedAre(['nightActions', 'nightSubmissions']) &&
+          request.resource.data.dayVotes
+            .diff(resource.data.dayVotes)
+            .affectedKeys()
+            .hasOnly([request.auth.uid])
+        )
+
+        // Any authenticated player can update an ended game (new host assignment, etc.)
         || resource.data.phase == 'ended'
       );
 
@@ -68,7 +96,23 @@ service cloud.firestore {
       );
     }
 
-    // ── Chat channels ──────────────────────────────────────────────────────
+    // ── Private roles (only that player + host can read) ───────────────────
+    match /games/{gameId}/playerRoles/{uid} {
+      allow read: if isAuth() && (
+        request.auth.uid == uid
+        || isHost(gameId)
+      );
+      allow write: if isAuth() && isHost(gameId);
+    }
+
+    // ── Reports (only host can read; any authenticated user can file) ──────
+    match /games/{gameId}/reports/{reportId} {
+      allow read: if isAuth() && isHost(gameId);
+      allow create: if isAuth();
+      allow update, delete: if false;
+    }
+
+    // ── Public / lobby chat ────────────────────────────────────────────────
     match /games/{gameId}/publicChat/{messageId} {
       allow read: if isAuth();
       allow create: if isAuth() && request.auth.uid == request.resource.data.senderId;
@@ -81,21 +125,47 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ── Ghost chat ─────────────────────────────────────────────────────────
     match /games/{gameId}/ghostChat/{messageId} {
       allow read: if isAuth();
       allow create: if isAuth() && request.auth.uid == request.resource.data.senderId;
       allow update, delete: if false;
     }
 
+    // ── Wolf chat (restricted to wolf-team players via wolfTeam map) ───────
     match /games/{gameId}/wolfChat/{messageId} {
-      allow read: if isAuth();
-      allow create: if isAuth();
+      allow read: if isAuth() && (
+        isHost(gameId) ||
+        get(/databases/$(database)/documents/games/$(gameId)).data.wolfTeam[request.auth.uid] == true
+      );
+      allow create: if isAuth() &&
+        request.auth.uid == request.resource.data.senderId && (
+          isHost(gameId) ||
+          get(/databases/$(database)/documents/games/$(gameId)).data.wolfTeam[request.auth.uid] == true
+        );
       allow update, delete: if false;
     }
 
+    // ── Lovers chat (restricted to the two lovers only) ───────────────────
     match /games/{gameId}/loversChat/{messageId} {
-      allow read: if isAuth();
-      allow create: if isAuth() && request.auth.uid == request.resource.data.senderId;
+      allow read: if isAuth() && (
+        isHost(gameId) ||
+        (
+          get(/databases/$(database)/documents/games/$(gameId)).data.lovers != null &&
+          (
+            get(/databases/$(database)/documents/games/$(gameId)).data.lovers[0] == request.auth.uid ||
+            get(/databases/$(database)/documents/games/$(gameId)).data.lovers[1] == request.auth.uid
+          )
+        )
+      );
+      allow create: if isAuth() &&
+        request.auth.uid == request.resource.data.senderId && (
+          get(/databases/$(database)/documents/games/$(gameId)).data.lovers != null &&
+          (
+            get(/databases/$(database)/documents/games/$(gameId)).data.lovers[0] == request.auth.uid ||
+            get(/databases/$(database)/documents/games/$(gameId)).data.lovers[1] == request.auth.uid
+          )
+        );
       allow update, delete: if false;
     }
 

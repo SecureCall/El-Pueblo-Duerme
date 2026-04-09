@@ -6,7 +6,7 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { db } from '@/lib/firebase/config';
 import {
   doc, onSnapshot, updateDoc, addDoc, collection, serverTimestamp,
-  query, orderBy, limit,
+  query, orderBy, limit, setDoc,
 } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
 import { assignRoles, checkWinCondition, ROLES, ROLE_SUBMISSION_KEY, drawRandomEvent } from './roles';
@@ -40,6 +40,7 @@ export interface GameState {
   status: string;
   phase: string;
   roles?: Record<string, string>;
+  wolfTeam?: Record<string, boolean>;
   roundNumber?: number;
   nightActions?: {
     wolfTarget?: string;
@@ -241,8 +242,24 @@ export function GamePlay({ gameId }: { gameId: string }) {
       }
     }
 
+    // Build wolfTeam map (uid → true) for Firestore rule enforcement on wolfChat
+    const wolfTeam: Record<string, boolean> = {};
+    for (const [uid, role] of Object.entries(assigned)) {
+      if (['Lobo', 'Lobo Blanco', 'Cría de Lobo', 'Bruja', 'Lobo Bruja'].includes(role)) {
+        wolfTeam[uid] = true;
+      }
+    }
+
+    // Write each player's role to a private subcollection (only readable by that player + host)
+    await Promise.all(
+      Object.entries(assigned).map(([uid, role]) =>
+        setDoc(doc(db, 'games', gameId, 'playerRoles', uid), { role, assignedAt: Date.now() })
+      )
+    ).catch(() => {});
+
     updateDoc(doc(db, 'games', gameId), {
       roles: assigned,
+      wolfTeam,
       players: updatedPlayers,
       phase: 'roleReveal',
       roundNumber: 1,
