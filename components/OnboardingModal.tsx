@@ -70,7 +70,7 @@ export function OnboardingModal() {
       className={`fixed inset-0 z-[80] flex items-end justify-center pb-6 px-4 transition-all duration-400 ${
         exiting ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'
       }`}
-      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)' }}
+      style={{ background: 'rgba(0,0,0,0.96)' }}
     >
       <div className="w-full max-w-sm bg-gray-950 border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
         {/* Progress bar */}
