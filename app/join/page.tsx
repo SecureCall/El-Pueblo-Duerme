@@ -4,8 +4,8 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
 import { Loader2, Ticket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,8 +28,9 @@ const JoinGameSchema = z.object({
   gameId: z.string().trim().min(4, "El ID debe tener al menos 4 caracteres.").max(10, "El ID no puede tener más de 10 caracteres."),
 });
 
-function JoinGameForm() {
+function JoinGameFormInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -37,6 +38,20 @@ function JoinGameForm() {
     resolver: zodResolver(JoinGameSchema),
     defaultValues: { gameId: "" },
   });
+
+  // Auto-fill code from URL query param (share_target, protocol_handlers, direct links)
+  useEffect(() => {
+    const code = searchParams.get('code') ?? searchParams.get('gameId');
+    if (code) {
+      const cleaned = code.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+      form.setValue('gameId', cleaned);
+      // Auto-submit if the code looks complete (≥4 chars)
+      if (cleaned.length >= 4) {
+        form.handleSubmit(onSubmit)();
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function onSubmit(data: z.infer<typeof JoinGameSchema>) {
     setIsSubmitting(true);
@@ -122,7 +137,9 @@ export default function JoinGamePage() {
             <CardDescription>Introduce el ID de la sala para entrar.</CardDescription>
           </CardHeader>
           <CardContent>
-            <JoinGameForm />
+            <Suspense fallback={<div className="flex justify-center py-4"><Loader2 className="animate-spin text-amber-400" /></div>}>
+              <JoinGameFormInner />
+            </Suspense>
           </CardContent>
         </Card>
       </div>

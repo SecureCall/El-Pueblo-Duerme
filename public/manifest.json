@@ -5,7 +5,7 @@
   "start_url": "/?source=pwa",
   "id": "/?source=pwa",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "background_color": "#1c1917",
   "theme_color": "#1c1917",
   "orientation": "portrait-primary",
@@ -31,6 +31,13 @@
       "url": "url"
     }
   },
+
+  "protocol_handlers": [
+    {
+      "protocol": "web+pueblo",
+      "url": "/join?code=%s"
+    }
+  ],
 
   "icons": [
     {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'elpueblo-v2';
+const CACHE_NAME = 'elpueblo-v3';
 
 const PRECACHE_URLS = [
   '/',
@@ -30,10 +30,7 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// ─── launch_handler: focus existing client when navigating to same origin ───
-// When a user taps a share link or shortcut while the PWA is already open,
-// we post a message to the existing client so it can handle the navigation,
-// then navigate that client to the target URL.
+// ─── launch_handler: focus existing client ───────────────────────────────────
 self.addEventListener('navigate', async (event) => {
   const url = new URL(event.destination.url);
   if (url.origin !== self.location.origin) return;
@@ -50,12 +47,101 @@ self.addEventListener('navigate', async (event) => {
   }
 });
 
+// ─── Background Sync ─────────────────────────────────────────────────────────
+// Tags: 'sync-vote', 'sync-night-action'
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'sync-vote') {
+    event.waitUntil(flushPendingVotes());
+  } else if (event.tag === 'sync-night-action') {
+    event.waitUntil(flushPendingNightActions());
+  }
+});
+
+async function flushPendingVotes() {
+  const db = await openIDB();
+  const items = await idbGetAll(db, 'pending-votes');
+  for (const item of items) {
+    try {
+      await fetch('/api/sync-vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item),
+      });
+      await idbDelete(db, 'pending-votes', item.id);
+    } catch {
+      // Will retry on next sync event
+    }
+  }
+}
+
+async function flushPendingNightActions() {
+  const db = await openIDB();
+  const items = await idbGetAll(db, 'pending-night-actions');
+  for (const item of items) {
+    try {
+      await fetch('/api/sync-night-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item),
+      });
+      await idbDelete(db, 'pending-night-actions', item.id);
+    } catch {
+      // Will retry on next sync event
+    }
+  }
+}
+
+// ─── Web Push Notifications ──────────────────────────────────────────────────
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  let payload;
+  try {
+    payload = event.data.json();
+  } catch {
+    payload = { title: 'El Pueblo Duerme', body: event.data.text() };
+  }
+
+  const title = payload.title ?? 'El Pueblo Duerme';
+  const options = {
+    body: payload.body ?? '',
+    icon: payload.icon ?? '/icons/192.png',
+    badge: payload.badge ?? '/icons/72.png',
+    tag: payload.tag ?? 'elpueblo-default',
+    data: { url: payload.url ?? '/', ...(payload.data ?? {}) },
+    vibrate: [200, 100, 200],
+    requireInteraction: payload.requireInteraction ?? false,
+    actions: payload.actions ?? [],
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Open notification → navigate to URL stored in data
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const targetUrl = event.notification.data?.url ?? '/';
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ includeUncontrolled: true, type: 'window' })
+      .then((clientList) => {
+        for (const client of clientList) {
+          if (client.url === targetUrl && 'focus' in client) {
+            return client.focus();
+          }
+        }
+        return self.clients.openWindow(targetUrl);
+      })
+  );
+});
+
 // ─── Fetch ───────────────────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Never intercept Chrome-extension, non-http, or cross-origin requests
   if (!url.protocol.startsWith('http') || url.origin !== self.location.origin) return;
 
   // Network-only: API calls, Firestore, auth, analytics
@@ -71,7 +157,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first for static assets (_next/static, images, fonts, audio)
+  // Cache-first for static assets
   if (
     url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/icons/') ||
@@ -106,3 +192,39 @@ self.addEventListener('fetch', (event) => {
       .catch(() => caches.match(request).then((cached) => cached ?? caches.match('/')))
   );
 });
+
+// ─── IndexedDB helpers (for Background Sync queue) ───────────────────────────
+function openIDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('elpueblo-sync', 1);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('pending-votes')) {
+        db.createObjectStore('pending-votes', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('pending-night-actions')) {
+        db.createObjectStore('pending-night-actions', { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function idbGetAll(db, storeName) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readonly');
+    const req = tx.objectStore(storeName).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function idbDelete(db, storeName, id) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    const req = tx.objectStore(storeName).delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}

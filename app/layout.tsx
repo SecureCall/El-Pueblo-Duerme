@@ -6,6 +6,7 @@ import { AuthProvider } from './providers/AuthProvider';
 import { AudioProvider } from './providers/AudioProvider';
 import { ClientShell } from '@/components/friends/ClientShell';
 import { RegisterSW } from '@/components/pwa/RegisterSW';
+import { WindowControlsOverlay } from '@/components/pwa/WindowControlsOverlay';
 import { cn } from '@/lib/utils';
 
 const ptSans = PT_Sans({ 
@@ -75,8 +76,9 @@ export default function RootLayout({
         />
       </head>
       <body className={cn(ptSans.variable, playfair.variable, "font-sans")}>
-        <RegisterSW />
         <AuthProvider>
+          <RegisterSW />
+          <WindowControlsOverlay />
           <AudioProvider>
             <ClientShell>
               {children}

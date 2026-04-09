@@ -2,9 +2,12 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { subscribeToPush } from '@/lib/firebase/push';
+import { useAuth } from '@/app/providers/AuthProvider';
 
 export function RegisterSW() {
   const router = useRouter();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
@@ -15,7 +18,6 @@ export function RegisterSW() {
       .then((reg) => {
         console.log('[SW] Registrado:', reg.scope);
 
-        // Notify user when a new version is ready
         reg.addEventListener('updatefound', () => {
           const newWorker = reg.installing;
           if (newWorker) {
@@ -30,8 +32,6 @@ export function RegisterSW() {
       .catch((err) => console.warn('[SW] Error al registrar:', err));
 
     // launch_handler: listen for NAVIGATE messages from the SW (focus-existing behavior).
-    // When another tab/device sends a share link and this window is already open,
-    // the SW posts NAVIGATE so we route in-app without a full reload.
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'NAVIGATE' && typeof event.data.url === 'string') {
         try {
@@ -46,6 +46,28 @@ export function RegisterSW() {
     navigator.serviceWorker.addEventListener('message', handleMessage);
     return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
   }, [router]);
+
+  // ── Push subscription: subscribe once the user is logged in ──────────────
+  useEffect(() => {
+    if (!user?.uid) return;
+    if (!('Notification' in window)) return;
+    // Only attempt if permission is already granted (don't prompt automatically —
+    // the UI should call subscribeToPush() explicitly when the user opts in)
+    if (Notification.permission !== 'granted') return;
+
+    subscribeToPush().then(async (sub) => {
+      if (!sub) return;
+      try {
+        await fetch('/api/push-subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid: user.uid, subscription: sub.toJSON() }),
+        });
+      } catch {
+        // non-critical
+      }
+    });
+  }, [user?.uid]);
 
   return null;
 }
