@@ -24,44 +24,181 @@ interface Props {
 
 interface ChatMsg { id: string; senderId: string; senderName: string; text: string; }
 
+// ── Efecto máquina de escribir ────────────────────────────────────────────────
+function useTypewriter(text: string, speed = 28): { displayed: string; done: boolean } {
+  const [displayed, setDisplayed] = useState('');
+  const [done, setDone] = useState(false);
+  const idxRef = useRef(0);
+
+  useEffect(() => {
+    if (!text) return;
+    setDisplayed('');
+    setDone(false);
+    idxRef.current = 0;
+
+    const tick = () => {
+      idxRef.current += 1;
+      setDisplayed(text.slice(0, idxRef.current));
+      if (idxRef.current >= text.length) {
+        setDone(true);
+        return;
+      }
+      setTimeout(tick, speed);
+    };
+    const t = setTimeout(tick, 300);
+    return () => clearTimeout(t);
+  }, [text, speed]);
+
+  return { displayed, done };
+}
+
+// ── Pantalla cinemática de muerte ─────────────────────────────────────────────
+function DeathCinematic({
+  victimName,
+  victimRole,
+  narration,
+  onSkip,
+}: {
+  victimName: string;
+  victimRole: string | null;
+  narration: string;
+  onSkip: () => void;
+}) {
+  const { displayed, done } = useTypewriter(narration, 30);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    // Vibración en móvil
+    if ('vibrate' in navigator) navigator.vibrate([300, 100, 200, 100, 500]);
+    const t = setTimeout(() => setVisible(true), 80);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <div
+      className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-black transition-opacity duration-700 ${visible ? 'opacity-100' : 'opacity-0'}`}
+      onClick={done ? onSkip : undefined}
+    >
+      {/* Glow rojo de fondo */}
+      <div className="absolute inset-0 bg-red-950/30 animate-pulse pointer-events-none" />
+
+      {/* Partículas de sangre (CSS puro) */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {[...Array(6)].map((_, i) => (
+          <div
+            key={i}
+            className="absolute w-1 bg-red-700 rounded-full opacity-60"
+            style={{
+              left: `${15 + i * 14}%`,
+              top: '-4px',
+              height: `${60 + i * 30}px`,
+              animationDuration: `${1.2 + i * 0.3}s`,
+              animation: 'drip 2s ease-in forwards',
+              animationDelay: `${i * 0.15}s`,
+            }}
+          />
+        ))}
+      </div>
+
+      <div className="relative z-10 flex flex-col items-center gap-6 px-8 max-w-lg text-center">
+        {/* Skull con animación de entrada */}
+        <div className="relative">
+          <Skull className="h-20 w-20 text-red-500 animate-bounce" style={{ animationDuration: '3s' }} />
+          <div className="absolute inset-0 blur-xl bg-red-500/30 rounded-full" />
+        </div>
+
+        {/* Nombre de la víctima */}
+        <div>
+          <p className="text-red-400/70 text-xs uppercase tracking-[0.3em] mb-1">Ha muerto esta noche</p>
+          <h1 className="text-5xl font-bold text-red-100 font-headline drop-shadow-[0_0_20px_rgba(239,68,68,0.8)]">
+            {victimName}
+          </h1>
+          {victimRole && (
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <img
+                src={getRoleIcon(victimRole)}
+                alt={victimRole}
+                className="w-6 h-6 rounded-full object-cover opacity-70"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+              <span className="text-white/40 text-sm">Era {victimRole}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Narración del narrador IA */}
+        {narration && (
+          <div className="bg-black/60 border border-red-900/40 rounded-2xl p-5 w-full">
+            <p className="text-red-200/90 text-base leading-relaxed italic font-serif">
+              {displayed}
+              {!done && <span className="inline-block w-0.5 h-4 bg-red-400 ml-0.5 animate-pulse align-middle" />}
+            </p>
+          </div>
+        )}
+
+        {done && (
+          <button
+            onClick={onSkip}
+            className="text-white/30 hover:text-white/60 text-xs transition-colors animate-fade-in mt-2"
+          >
+            Toca para continuar →
+          </button>
+        )}
+      </div>
+
+      <style>{`
+        @keyframes drip {
+          0% { transform: translateY(0); opacity: 0.8; }
+          100% { transform: translateY(110vh); opacity: 0; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ── Componente principal ──────────────────────────────────────────────────────
 export function NightTransition({ game, gameId, userId, userName, victimName, victimRole, onDone, autoSeconds = 4 }: Props) {
+  const [cinemaPhase, setCinemaPhase] = useState(!!victimName);
   const [narratorDone, setNarratorDone] = useState(false);
   const [countdown, setCountdown] = useState(autoSeconds);
+  const [narration, setNarration] = useState('');
   const { interruptWith, AUDIO_FILES } = useNarrator();
   const played = useRef(false);
   const doneFired = useRef(false);
   const onDoneRef = useRef(onDone);
   useEffect(() => { onDoneRef.current = onDone; }, [onDone]);
 
-  // Chat state
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [msg, setMsg] = useState('');
   const [sending, setSending] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
-  // Subscribe to public chat
+  // ── Narrador IA ──────────────────────────────────────────────────
   useEffect(() => {
-    const q = query(collection(db, 'games', gameId, 'publicChat'), orderBy('createdAt', 'asc'), limit(40));
-    return onSnapshot(q, snap => {
-      setMsgs(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMsg)));
-      setTimeout(() => { chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: 'smooth' }); }, 50);
-    });
-  }, [gameId]);
+    const survivors = (game.players ?? [])
+      .filter((p: any) => p.isAlive)
+      .map((p: any) => p.name as string);
 
-  const sendMsg = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!msg.trim()) return;
-    setSending(true);
-    await addDoc(collection(db, 'games', gameId, 'publicChat'), {
-      senderId: userId,
-      senderName: userName,
-      text: msg.trim(),
-      createdAt: serverTimestamp(),
-    });
-    setMsg('');
-    setSending(false);
-  };
+    const event = victimName ? 'night_death' : 'night_safe';
 
+    fetch('/api/narrator', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event,
+        victimName,
+        victimRole,
+        round: game.roundNumber ?? 1,
+        survivors,
+      }),
+    })
+      .then(r => r.json())
+      .then(d => { if (d.narration) setNarration(d.narration); })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Audio ────────────────────────────────────────────────────────
   useEffect(() => {
     if (played.current) return;
     played.current = true;
@@ -74,22 +211,40 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Chat en tiempo real ──────────────────────────────────────────
   useEffect(() => {
-    if (!narratorDone) return;
+    const q = query(collection(db, 'games', gameId, 'publicChat'), orderBy('createdAt', 'asc'), limit(40));
+    return onSnapshot(q, (snap: any) => {
+      setMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg)));
+      setTimeout(() => { chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: 'smooth' }); }, 50);
+    });
+  }, [gameId]);
+
+  const sendMsg = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!msg.trim()) return;
+    setSending(true);
+    await addDoc(collection(db, 'games', gameId, 'publicChat'), {
+      senderId: userId, senderName: userName, text: msg.trim(), createdAt: serverTimestamp(),
+    });
+    setMsg(''); setSending(false);
+  };
+
+  // ── Countdown ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (!narratorDone || cinemaPhase) return;
     if (countdown <= 0) return;
-    const id = setInterval(() => {
-      setCountdown(c => Math.max(0, c - 1));
-    }, 1000);
+    const id = setInterval(() => setCountdown(c => Math.max(0, c - 1)), 1000);
     return () => clearInterval(id);
-  }, [narratorDone, countdown]);
+  }, [narratorDone, countdown, cinemaPhase]);
 
   useEffect(() => {
-    if (!narratorDone) return;
+    if (!narratorDone || cinemaPhase) return;
     if (countdown === 0 && !doneFired.current) {
       doneFired.current = true;
       onDoneRef.current();
     }
-  }, [countdown, narratorDone]);
+  }, [countdown, narratorDone, cinemaPhase]);
 
   const bearGrowl = (game as any).bearGrowl;
   const profetaReveal = (game as any).profetaReveal;
@@ -97,6 +252,19 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
     ? (game.players ?? []).find((p: any) => p.uid === profetaReveal.targetUid)
     : null;
 
+  // ── Fase cinemática ──────────────────────────────────────────────
+  if (cinemaPhase && victimName) {
+    return (
+      <DeathCinematic
+        victimName={victimName}
+        victimRole={victimRole}
+        narration={narration}
+        onSkip={() => setCinemaPhase(false)}
+      />
+    );
+  }
+
+  // ── Transición normal ────────────────────────────────────────────
   return (
     <div
       className="min-h-screen w-full text-white flex flex-col"
@@ -105,7 +273,7 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
       <div className="absolute inset-0 bg-black/80" />
       <div className="relative z-10 flex flex-col md:flex-row h-screen max-w-5xl mx-auto w-full p-4 gap-4">
 
-        {/* ── Left: transition info ── */}
+        {/* ── Info de transición ── */}
         <div className="flex flex-col items-center justify-center flex-1 gap-5 text-center">
           <div className="text-5xl animate-pulse">🌄</div>
           <h2 className="font-headline text-3xl font-bold">El pueblo despierta</h2>
@@ -134,6 +302,13 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
               <Shield className="h-10 w-10 text-green-400 mx-auto mb-3" />
               <p className="text-green-300 text-lg font-semibold">¡Nadie murió esta noche!</p>
               <p className="text-white/40 text-sm mt-1">El guardián o la bruja protegieron al pueblo</p>
+            </div>
+          )}
+
+          {/* Narración IA (modo compacto tras la cinemática) */}
+          {narration && !cinemaPhase && (
+            <div className="bg-black/50 border border-white/10 rounded-xl px-5 py-4 w-full max-w-sm">
+              <p className="text-white/70 text-sm italic leading-relaxed font-serif">"{narration}"</p>
             </div>
           )}
 
@@ -182,7 +357,7 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
           )}
         </div>
 
-        {/* ── Right: live chat ── */}
+        {/* ── Chat lateral ── */}
         <div className="w-full md:w-72 flex flex-col bg-black/60 border border-white/15 rounded-2xl overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
             <MessageCircle className="h-4 w-4 text-amber-400" />

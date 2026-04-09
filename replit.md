@@ -8,8 +8,14 @@ Un juego de deducción social multijugador en español, inspirado en Mafia/Werew
 - **Estilos**: Tailwind CSS + shadcn/ui
 - **Base de datos**: Firebase Firestore (tiempo real)
 - **Auth**: Firebase Authentication (email/password + Google + Facebook)
-- **IA**: Gemini API (generación de contenido)
+- **IA**: Gemini 2.0 Flash (narrador cinematográfico + chat de jugadores IA)
 - **Puerto**: 5000
+
+## Narrador IA
+
+- **`app/api/narrator/route.ts`**: POST endpoint con Gemini 2.0 Flash. Personalidad oscura/sardónica. 6 tipos de evento: `night_death`, `night_safe`, `night_multiple_deaths`, `day_exile`, `day_no_exile`, `game_start`, `final_duel`. Fallbacks dramáticos en español si Gemini no está disponible.
+- **`NightTransition.tsx`**: Pantalla cinemática de muerte (`DeathCinematic`) con fondo negro, gotas CSS, calavera animada, texto del narrador con efecto máquina de escribir, vibración en móvil, glow rojo. Toca para saltarla.
+- **`DayTransition.tsx`**: Pantalla cinemática de destierro (`ExileCinematic`) con tema naranja (lobo desterrado) o violeta (inocente exiliado), icono Gavel, mismo efecto typewriter. Ambas transiciones incluyen chat del pueblo en tiempo real durante la espera.
 
 ## Páginas
 

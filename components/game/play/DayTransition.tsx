@@ -5,7 +5,7 @@ import { GameState } from './GamePlay';
 import { getRoleIcon } from './roleIcons';
 import { ROLES } from './roles';
 import { useNarrator, waitForAudio } from '@/hooks/useNarrator';
-import { Moon, Volume2, UserX, Send, MessageCircle } from 'lucide-react';
+import { Moon, Volume2, UserX, Send, MessageCircle, Gavel } from 'lucide-react';
 import { db } from '@/lib/firebase/config';
 import {
   collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit,
@@ -24,44 +24,203 @@ interface Props {
 
 interface ChatMsg { id: string; senderId: string; senderName: string; text: string; }
 
+// ── Efecto máquina de escribir ────────────────────────────────────────────────
+function useTypewriter(text: string, speed = 28): { displayed: string; done: boolean } {
+  const [displayed, setDisplayed] = useState('');
+  const [done, setDone] = useState(false);
+  const idxRef = useRef(0);
+
+  useEffect(() => {
+    if (!text) return;
+    setDisplayed('');
+    setDone(false);
+    idxRef.current = 0;
+
+    const tick = () => {
+      idxRef.current += 1;
+      setDisplayed(text.slice(0, idxRef.current));
+      if (idxRef.current >= text.length) { setDone(true); return; }
+      setTimeout(tick, speed);
+    };
+    const t = setTimeout(tick, 300);
+    return () => clearTimeout(t);
+  }, [text, speed]);
+
+  return { displayed, done };
+}
+
+// ── Pantalla cinemática de destierro ──────────────────────────────────────────
+function ExileCinematic({
+  eliminatedName,
+  eliminatedRole,
+  eliminatedWasWolf,
+  narration,
+  onSkip,
+}: {
+  eliminatedName: string;
+  eliminatedRole: string | null;
+  eliminatedWasWolf?: boolean;
+  narration: string;
+  onSkip: () => void;
+}) {
+  const { displayed, done } = useTypewriter(narration, 30);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if ('vibrate' in navigator) navigator.vibrate([150, 80, 150]);
+    const t = setTimeout(() => setVisible(true), 80);
+    return () => clearTimeout(t);
+  }, []);
+
+  const wasWolf = eliminatedWasWolf ?? false;
+
+  return (
+    <div
+      className={`fixed inset-0 z-50 flex flex-col items-center justify-center transition-opacity duration-700 ${visible ? 'opacity-100' : 'opacity-0'}`}
+      style={{
+        background: wasWolf
+          ? 'radial-gradient(ellipse at center, #1a0a00 0%, #000 70%)'
+          : 'radial-gradient(ellipse at center, #0a0a1a 0%, #000 70%)',
+      }}
+      onClick={done ? onSkip : undefined}
+    >
+      {/* Glow temático */}
+      <div
+        className="absolute inset-0 pointer-events-none animate-pulse"
+        style={{ background: wasWolf ? 'rgba(180,60,0,0.12)' : 'rgba(60,100,200,0.10)' }}
+      />
+
+      <div className="relative z-10 flex flex-col items-center gap-6 px-8 max-w-lg text-center">
+
+        {/* Icono */}
+        <div className="relative">
+          <Gavel
+            className="h-16 w-16"
+            style={{ color: wasWolf ? '#f97316' : '#818cf8', filter: wasWolf ? 'drop-shadow(0 0 16px #f97316aa)' : 'drop-shadow(0 0 16px #818cf8aa)' }}
+          />
+        </div>
+
+        {/* Veredicto */}
+        <div>
+          <p
+            className="text-xs uppercase tracking-[0.3em] mb-1"
+            style={{ color: wasWolf ? '#f97316aa' : '#818cf8aa' }}
+          >
+            {wasWolf ? '¡El pueblo ha triunfado!' : 'El pueblo cometió un error'}
+          </p>
+          <h1
+            className="text-5xl font-bold font-headline"
+            style={{
+              color: wasWolf ? '#fed7aa' : '#c7d2fe',
+              textShadow: wasWolf ? '0 0 30px #f9731680' : '0 0 30px #818cf880',
+            }}
+          >
+            {eliminatedName}
+          </h1>
+          {eliminatedRole && (
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <img
+                src={getRoleIcon(eliminatedRole)}
+                alt={eliminatedRole}
+                className="w-6 h-6 rounded-full object-cover opacity-70"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+              <span className="text-white/40 text-sm">
+                Era {eliminatedRole}
+                {wasWolf ? ' — ¡Era un lobo! 🐺' : ' — Era inocente 💀'}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Narración del narrador IA */}
+        {narration && (
+          <div
+            className="rounded-2xl p-5 w-full border"
+            style={{
+              background: 'rgba(0,0,0,0.6)',
+              borderColor: wasWolf ? 'rgba(249,115,22,0.25)' : 'rgba(129,140,248,0.25)',
+            }}
+          >
+            <p
+              className="text-base leading-relaxed italic font-serif"
+              style={{ color: wasWolf ? '#fed7aa' : '#c7d2fe', opacity: 0.9 }}
+            >
+              {displayed}
+              {!done && <span className="inline-block w-0.5 h-4 ml-0.5 animate-pulse align-middle" style={{ background: wasWolf ? '#f97316' : '#818cf8' }} />}
+            </p>
+          </div>
+        )}
+
+        {done && (
+          <button
+            onClick={onSkip}
+            className="text-white/30 hover:text-white/60 text-xs transition-colors mt-2"
+          >
+            Toca para continuar →
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Componente principal ──────────────────────────────────────────────────────
 export function DayTransition({ game, gameId, userId, userName, eliminatedName, eliminatedRole, onDone, autoSeconds = 4 }: Props) {
+  const [cinemaPhase, setCinemaPhase] = useState(!!eliminatedName);
   const [narratorDone, setNarratorDone] = useState(false);
   const [countdown, setCountdown] = useState(autoSeconds);
+  const [narration, setNarration] = useState('');
+  const [eliminatedWasWolf, setEliminatedWasWolf] = useState(false);
   const { interruptWith, AUDIO_FILES } = useNarrator();
   const played = useRef(false);
   const doneFired = useRef(false);
   const onDoneRef = useRef(onDone);
   useEffect(() => { onDoneRef.current = onDone; }, [onDone]);
 
-  // Chat state
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [msg, setMsg] = useState('');
   const [sending, setSending] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
-  // Subscribe to public chat
+  // ── Detectar si eliminado era lobo ───────────────────────────────
   useEffect(() => {
-    const q = query(collection(db, 'games', gameId, 'publicChat'), orderBy('createdAt', 'asc'), limit(40));
-    return onSnapshot(q, snap => {
-      setMsgs(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMsg)));
-      setTimeout(() => { chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: 'smooth' }); }, 50);
-    });
-  }, [gameId]);
+    if (!eliminatedName) return;
+    const eliminated = (game.players ?? []).find((p: any) => p.name === eliminatedName);
+    if (eliminated) {
+      const wolfRoles = ['Lobo', 'Alfa', 'Lobo Solitario', 'Hechicera', 'Lobo Anciano'];
+      setEliminatedWasWolf(wolfRoles.includes(eliminated.role ?? '') || !!(game as any).wolfTeam?.[eliminated.uid]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eliminatedName]);
 
-  const sendMsg = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!msg.trim()) return;
-    setSending(true);
-    await addDoc(collection(db, 'games', gameId, 'publicChat'), {
-      senderId: userId,
-      senderName: userName,
-      text: msg.trim(),
-      createdAt: serverTimestamp(),
-    });
-    setMsg('');
-    setSending(false);
-  };
+  // ── Narrador IA ──────────────────────────────────────────────────
+  useEffect(() => {
+    const survivors = (game.players ?? [])
+      .filter((p: any) => p.isAlive)
+      .map((p: any) => p.name as string);
 
+    const event = eliminatedName ? 'day_exile' : 'day_no_exile';
+
+    fetch('/api/narrator', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event,
+        eliminatedName,
+        eliminatedRole,
+        eliminatedWasWolf,
+        round: game.roundNumber ?? 1,
+        survivors,
+      }),
+    })
+      .then(r => r.json())
+      .then(d => { if (d.narration) setNarration(d.narration); })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eliminatedWasWolf]);
+
+  // ── Audio ────────────────────────────────────────────────────────
   useEffect(() => {
     if (played.current) return;
     played.current = true;
@@ -74,23 +233,55 @@ export function DayTransition({ game, gameId, userId, userName, eliminatedName, 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Chat en tiempo real ──────────────────────────────────────────
   useEffect(() => {
-    if (!narratorDone) return;
+    const q = query(collection(db, 'games', gameId, 'publicChat'), orderBy('createdAt', 'asc'), limit(40));
+    return onSnapshot(q, (snap: any) => {
+      setMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg)));
+      setTimeout(() => { chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: 'smooth' }); }, 50);
+    });
+  }, [gameId]);
+
+  const sendMsg = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!msg.trim()) return;
+    setSending(true);
+    await addDoc(collection(db, 'games', gameId, 'publicChat'), {
+      senderId: userId, senderName: userName, text: msg.trim(), createdAt: serverTimestamp(),
+    });
+    setMsg(''); setSending(false);
+  };
+
+  // ── Countdown ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (!narratorDone || cinemaPhase) return;
     if (countdown <= 0) return;
-    const id = setInterval(() => {
-      setCountdown(c => Math.max(0, c - 1));
-    }, 1000);
+    const id = setInterval(() => setCountdown(c => Math.max(0, c - 1)), 1000);
     return () => clearInterval(id);
-  }, [narratorDone, countdown]);
+  }, [narratorDone, countdown, cinemaPhase]);
 
   useEffect(() => {
-    if (!narratorDone) return;
+    if (!narratorDone || cinemaPhase) return;
     if (countdown === 0 && !doneFired.current) {
       doneFired.current = true;
       onDoneRef.current();
     }
-  }, [countdown, narratorDone]);
+  }, [countdown, narratorDone, cinemaPhase]);
 
+  // ── Fase cinemática ──────────────────────────────────────────────
+  if (cinemaPhase && eliminatedName) {
+    return (
+      <ExileCinematic
+        eliminatedName={eliminatedName as string}
+        eliminatedRole={eliminatedRole}
+        eliminatedWasWolf={eliminatedWasWolf}
+        narration={narration}
+        onSkip={() => setCinemaPhase(false)}
+      />
+    );
+  }
+
+  // ── Transición normal ────────────────────────────────────────────
   return (
     <div
       className="min-h-screen w-full text-white flex flex-col"
@@ -99,7 +290,7 @@ export function DayTransition({ game, gameId, userId, userName, eliminatedName, 
       <div className="absolute inset-0 bg-black/85" />
       <div className="relative z-10 flex flex-col md:flex-row h-screen max-w-5xl mx-auto w-full p-4 gap-4">
 
-        {/* ── Left: transition info ── */}
+        {/* ── Info de transición ── */}
         <div className="flex flex-col items-center justify-center flex-1 gap-5 text-center">
           <div className="text-5xl animate-pulse">🌙</div>
           <h2 className="font-headline text-3xl font-bold">El pueblo duerme</h2>
@@ -128,6 +319,13 @@ export function DayTransition({ game, gameId, userId, userName, eliminatedName, 
               <Moon className="h-10 w-10 text-blue-300 mx-auto mb-3" />
               <p className="text-white/70 text-lg font-semibold">El pueblo no llegó a un acuerdo</p>
               <p className="text-white/30 text-sm mt-1">Nadie fue desterrado esta votación</p>
+            </div>
+          )}
+
+          {/* Narración compacta tras la cinemática */}
+          {narration && !cinemaPhase && (
+            <div className="bg-black/50 border border-white/10 rounded-xl px-5 py-4 w-full max-w-sm">
+              <p className="text-white/70 text-sm italic leading-relaxed font-serif">"{narration}"</p>
             </div>
           )}
 
@@ -160,7 +358,7 @@ export function DayTransition({ game, gameId, userId, userName, eliminatedName, 
           )}
         </div>
 
-        {/* ── Right: live chat ── */}
+        {/* ── Chat lateral ── */}
         <div className="w-full md:w-72 flex flex-col bg-black/60 border border-white/15 rounded-2xl overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
             <MessageCircle className="h-4 w-4 text-blue-400" />

@@ -1,0 +1,190 @@
+/**
+ * POST /api/narrator
+ * Genera narración dramática con IA (Gemini) para cada momento clave del juego.
+ * El narrador tiene personalidad propia: oscuro, sardónico, teatral.
+ */
+import { NextRequest, NextResponse } from 'next/server';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+
+export type NarratorEvent =
+  | 'night_death'
+  | 'night_safe'
+  | 'night_multiple_deaths'
+  | 'day_exile'
+  | 'day_no_exile'
+  | 'game_start'
+  | 'final_duel';
+
+interface NarratorRequest {
+  event: NarratorEvent;
+  victimName?: string;
+  victimRole?: string;
+  killedBy?: string;
+  eliminatedName?: string;
+  eliminatedRole?: string;
+  eliminatedWasWolf?: boolean;
+  secondVictimName?: string;
+  secondVictimRole?: string;
+  round: number;
+  survivors: string[];
+  totalPlayers?: number;
+}
+
+const NARRATOR_PERSONA = `Eres el Narrador de "El Pueblo Duerme", un juego de rol oscuro.
+Tu personalidad:
+- Dramático y teatral como un escritor gótico
+- Sardónico: disfrutas del caos y la traición
+- Usas los nombres reales de los jugadores
+- Hablas en español castellano con fluidez y elegancia oscura
+- Nunca usas emojis
+- Cada narración es única — nunca repites las mismas frases
+- Eres conciso: 2-3 frases cortas y poderosas (máx 60 palabras en total)
+- A veces añades una pulla irónica o una pregunta perturbadora al final`;
+
+function buildPrompt(req: NarratorRequest): string {
+  const survivorList = req.survivors.slice(0, 6).join(', ');
+  const roundInfo = `Ronda ${req.round}. Sobrevivientes: ${survivorList}.`;
+
+  switch (req.event) {
+    case 'night_death':
+      return `${NARRATOR_PERSONA}
+
+${roundInfo}
+Esta noche, ${req.victimName} ha muerto. Era ${req.victimRole ?? 'un aldeano'}.${req.killedBy ? ` Lo mató: ${req.killedBy}.` : ''}
+
+Narra este momento con drama y oscuridad. Menciona el nombre, el rol. Puedes insinuar traición, soledad, o ironía. 
+Puedes comentar si era inocente o si murió por una causa justa/injusta.
+NO empieces con "Esta noche". Empieza de otra forma.`;
+
+    case 'night_safe':
+      return `${NARRATOR_PERSONA}
+
+${roundInfo}
+Esta noche nadie murió. El pueblo se despertó entero... por ahora.
+
+Narra este respiro con tensión contenida. El alivio dura poco. Los lobos siguen ahí.
+Hazlo inquietante, no tranquilizador.`;
+
+    case 'night_multiple_deaths':
+      return `${NARRATOR_PERSONA}
+
+${roundInfo}
+Esta noche murieron DOS personas: ${req.victimName} (${req.victimRole ?? 'aldeano'}) y ${req.secondVictimName} (${req.secondVictimRole ?? 'aldeano'}).
+
+Narra esta carnicería con intensidad. Dos muertes en una noche es una masacre.`;
+
+    case 'day_exile':
+      return `${NARRATOR_PERSONA}
+
+${roundInfo}
+El pueblo ha votado y ha desterrado a ${req.eliminatedName}, que era ${req.eliminatedRole ?? 'aldeano'}.${req.eliminatedWasWolf ? ' Era un lobo. El pueblo acertó.' : ' Era inocente. El pueblo cometió un error terrible.'}
+
+Narra este destierro. ${req.eliminatedWasWolf
+        ? 'La justicia llega. Celebra la victoria del pueblo, pero con mesura: quedan lobos.'
+        : 'Una inocente ha sido sacrificada. El error pesa. Los lobos aplauden en silencio.'}
+Menciona el nombre. Añade ironía si era inocente.`;
+
+    case 'day_no_exile':
+      return `${NARRATOR_PERSONA}
+
+${roundInfo}
+El pueblo debatió pero no llegó a un acuerdo. Nadie fue desterrado hoy.
+
+Narra este fracaso con decepción oscura. Los lobos ganan tiempo. El pueblo desperdicia una oportunidad.`;
+
+    case 'game_start':
+      return `${NARRATOR_PERSONA}
+
+Una nueva partida comienza. ${req.totalPlayers ?? req.survivors.length} jugadores. Lobos ocultos entre el pueblo.
+Los jugadores: ${survivorList}.
+
+Narra el inicio del juego. Crea atmósfera de miedo e incertidumbre. 
+Advierte que entre estos nombres hay traidores. No reveles quiénes.
+Hazlo épico y perturbador.`;
+
+    case 'final_duel':
+      return `${NARRATOR_PERSONA}
+
+${roundInfo}
+Solo quedan ${req.survivors.length} jugadores: ${survivorList}.
+El final está cerca. La tensión es insoportable.
+
+Narra este momento final con toda la intensidad que merece. 
+Es la última oportunidad para descubrir la verdad.`;
+
+    default:
+      return `${NARRATOR_PERSONA}\n${roundInfo}\nNarra un momento dramático del juego.`;
+  }
+}
+
+// Frases de respaldo por si la API falla
+const FALLBACKS: Record<NarratorEvent, string[]> = {
+  night_death: [
+    'El amanecer descubrió lo que la noche ocultó. Otra víctima. Otro nombre borrado del mapa.',
+    'La oscuridad se lo llevó sin avisar. El pueblo despierta con una silla vacía.',
+    'Murió como vivió: sin saber en quién confiar.',
+  ],
+  night_safe: [
+    'Milagrosamente, el alba llegó sin sangre. Pero la calma nunca dura.',
+    'Esta noche, el pueblo tuvo suerte. Mañana puede que no.',
+    'Los lobos esperan. El pueblo respira. De momento.',
+  ],
+  night_multiple_deaths: [
+    'Dos sillas vacías. Dos nombres menos. Esta noche, el pueblo sangró doble.',
+    'La masacre no tiene justificación. Solo consecuencias.',
+  ],
+  day_exile: [
+    'El pueblo habló. La voz del pueblo rara vez se equivoca... o sí.',
+    'Destierro. La multitud decidió. Lo correcto es otra historia.',
+  ],
+  day_no_exile: [
+    'El debate terminó en nada. Los lobos agradecen la indecisión.',
+    'Sin acuerdo. Sin justicia. Sin esperanza esta tarde.',
+  ],
+  game_start: [
+    'Que comience el juego. Alguien aquí miente. La pregunta es quién.',
+    'El pueblo duerme... pero no todos duermen tranquilos esta noche.',
+  ],
+  final_duel: [
+    'El momento de la verdad. Solo quedan unos pocos. La mentira ya no tiene dónde esconderse.',
+  ],
+};
+
+function getFallback(event: NarratorEvent): string {
+  const list = FALLBACKS[event] ?? FALLBACKS.night_death;
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+export async function POST(req: NextRequest) {
+  let body: NarratorRequest = { event: 'night_death', round: 1, survivors: [] };
+  try {
+    body = await req.json();
+
+    if (!process.env.GEMINI_API_KEY) {
+      return NextResponse.json({ narration: getFallback(body.event) });
+    }
+
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.0-flash',
+      generationConfig: {
+        temperature: 1.1,
+        maxOutputTokens: 120,
+      },
+    });
+
+    const prompt = buildPrompt(body);
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+
+    if (!text || text.length < 10) {
+      return NextResponse.json({ narration: getFallback(body.event) });
+    }
+
+    return NextResponse.json({ narration: text });
+  } catch (err) {
+    console.error('[narrator]', err);
+    return NextResponse.json({ narration: getFallback(body.event ?? 'night_death') });
+  }
+}
