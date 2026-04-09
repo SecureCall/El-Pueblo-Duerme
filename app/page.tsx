@@ -12,7 +12,6 @@ import { JoinByCodeModal } from '@/components/JoinByCodeModal';
 import { PageAudio } from '@/components/audio/PageAudio';
 import { AudioControls } from '@/components/audio/AudioControls';
 import { AdBanner } from '@/components/ads/AdBanner';
-import { OnboardingModal } from '@/components/OnboardingModal';
 
 const ROLE_CARDS = [
   { icon: '🐺', name: 'Lobo', desc: 'Mata en silencio', color: 'from-red-900/60 to-black/60', border: 'border-red-800/40' },
@@ -226,7 +225,6 @@ export default function HomePage() {
       </div>
 
       {showJoinModal && <JoinByCodeModal onClose={() => setShowJoinModal(false)} />}
-      <OnboardingModal />
     </div>
   );
 }
