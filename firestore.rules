@@ -163,14 +163,14 @@ service cloud.firestore {
 
     // ── Day votes subcollection — each voter writes only their own doc ─────
     match /games/{gameId}/votes/{voterUid} {
-      // Anyone in the game may read (for vote count display)
       allow read: if isAuth();
-      // Only the voter may create/update their own vote doc, and only during day phase
       allow create, update: if isAuth()
         && request.auth.uid == voterUid
-        && get(/databases/$(database)/documents/games/$(gameId)).data.phase == 'day'
+        && (
+          get(/databases/$(database)/documents/games/$(gameId)).data.phase == 'day' ||
+          get(/databases/$(database)/documents/games/$(gameId)).data.phase == 'voting'
+        )
         && request.resource.data.keys().hasOnly(['target', 'round', 'submittedAt']);
-      // Host may also write (for AI players)
       allow write: if isAuth() && isHost(gameId);
       allow delete: if false;
     }
@@ -245,12 +245,6 @@ service cloud.firestore {
     }
 
     match /games/{gameId}/nightActions/{actionId} {
-      allow read: if isAuth();
-      allow create, update: if isAuth();
-      allow delete: if false;
-    }
-
-    match /games/{gameId}/votes/{voteId} {
       allow read: if isAuth();
       allow create, update: if isAuth();
       allow delete: if false;

@@ -1,5 +1,4 @@
 import {
-  signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
   GoogleAuthProvider,
@@ -35,35 +34,17 @@ export async function ensureUserDocument(cred: UserCredential) {
 
 const errorMessages: Record<string, string> = {
   'auth/account-exists-with-different-credential': 'Ya existe una cuenta con ese correo. Usa otro método de acceso.',
-  'auth/popup-blocked': 'El navegador bloqueó la ventana emergente. Permite los pop-ups e inténtalo de nuevo.',
-  'auth/popup-closed-by-user': '',
-  'auth/cancelled-popup-request': '',
   'auth/operation-not-allowed': 'Este método de acceso no está habilitado.',
   'auth/user-cancelled': '',
+  'auth/cancelled-popup-request': '',
 };
 
 async function signInWithProvider(provider: GoogleAuthProvider | FacebookAuthProvider): Promise<string | null> {
   try {
-    const result = await signInWithPopup(auth, provider);
-    await ensureUserDocument(result);
+    await signInWithRedirect(auth, provider);
     return null;
   } catch (err: any) {
-    console.error('[Auth popup error]', err?.code, err?.message);
-
-    if (
-      err?.code === 'auth/popup-blocked' ||
-      err?.code === 'auth/cancelled-popup-request' ||
-      err?.message?.includes('Cross-Origin-Opener-Policy')
-    ) {
-      try {
-        await signInWithRedirect(auth, provider);
-        return null;
-      } catch (redirectErr: any) {
-        console.error('[Auth redirect fallback error]', redirectErr?.code, redirectErr?.message);
-        return errorMessages[redirectErr?.code] ?? 'Error al iniciar sesión. Inténtalo de nuevo.';
-      }
-    }
-
+    console.error('[Auth redirect error]', err?.code, err?.message);
     const msg = errorMessages[err?.code];
     if (msg === undefined) {
       return err?.message ? `Error: ${err.message}` : 'Error al iniciar sesión. Inténtalo de nuevo.';
