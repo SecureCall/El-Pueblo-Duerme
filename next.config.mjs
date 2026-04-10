@@ -40,6 +40,15 @@ const nextConfig = {
   async headers() {
     return [
       {
+        // ads.txt — must be plain text, no cache so AdSense always reads fresh
+        source: '/ads.txt',
+        headers: [
+          { key: 'Content-Type', value: 'text/plain; charset=utf-8' },
+          { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
+          { key: 'X-Robots-Tag', value: 'noindex' },
+        ],
+      },
+      {
         // Service worker must not be cached by the browser or CDN
         source: '/sw.js',
         headers: [
