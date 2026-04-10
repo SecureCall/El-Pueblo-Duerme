@@ -10,6 +10,20 @@ import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
 
 let adminApp: App | null = null;
 
+/**
+ * Parses the service account JSON, handling Replit's double-encoded format
+ * where the env var contains literal backslash+newline (invalid JSON) and
+ * is itself a JSON string (outer quotes + inner JSON).
+ */
+function parseServiceAccount(raw: string): object {
+  // Fix literal \<newline> sequences (invalid in JSON) with proper \\n escapes
+  const fixed = raw.replace(/\\\n/g, '\\\\n');
+  const parsed = JSON.parse(fixed);
+  // If the result is a string (double-encoded), parse it once more
+  if (typeof parsed === 'string') return JSON.parse(parsed);
+  return parsed;
+}
+
 export function initAdminApp(): App {
   if (adminApp) return adminApp;
   if (getApps().length > 0) {
@@ -22,8 +36,8 @@ export function initAdminApp(): App {
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 
   if (credsJson) {
-    const serviceAccount = JSON.parse(credsJson);
-    adminApp = initializeApp({ credential: cert(serviceAccount) });
+    const serviceAccount = parseServiceAccount(credsJson);
+    adminApp = initializeApp({ credential: cert(serviceAccount as never) });
   } else if (privateKey && projectId) {
     adminApp = initializeApp({
       credential: cert({

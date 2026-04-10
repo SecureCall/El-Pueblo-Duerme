@@ -80,7 +80,11 @@ service cloud.firestore {
 
     // ── Games ──────────────────────────────────────────────────────────────
     match /games/{gameId} {
-      allow read: if isAuth();
+      // Public lobby games can be listed without login (for public-rooms page)
+      allow read: if isAuth() || (
+        resource.data.isPublic == true &&
+        resource.data.status == 'lobby'
+      );
       allow create: if isAuth() && request.auth.uid == request.resource.data.hostUid;
 
       allow update: if isAuth() && (
@@ -114,10 +118,16 @@ service cloud.firestore {
             .hasOnly([request.auth.uid])
         )
 
-        // ⑤ Ended games — allow minor updates (host reassignment after game ends)
+        // ⑤ Victim signature mechanics — cursed & narratorBroadcast (Últimas Palabras / Venganza)
+        || (
+          onlyUpdating(['cursed', 'narratorBroadcast']) &&
+          (resource.data.phase == 'night' || resource.data.phase == 'day')
+        )
+
+        // ⑥ Ended games — allow minor updates (host reassignment after game ends)
         || resource.data.phase == 'ended'
 
-        // ⑥ Host self-claim — any alive player can promote themselves to host
+        // ⑦ Host self-claim — any alive player can promote themselves to host
         //    (client-side enforces a 5-minute absence delay before triggering this)
         || (
           onlyUpdating(['hostUid', 'players']) &&

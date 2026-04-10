@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { collection, query, where, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
-import { Users, Lock, Globe, Loader2, Plus } from 'lucide-react';
+import { useAuth } from '@/app/providers/AuthProvider';
+import { Users, Globe, Loader2, Plus, LogIn } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { PageAudio } from '@/components/audio/PageAudio';
 
@@ -20,10 +21,14 @@ interface Room {
 
 export default function PublicRoomsPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Wait for auth to resolve before querying
+    if (authLoading) return;
+
     const q = query(
       collection(db, 'games'),
       where('isPublic', '==', true),
@@ -39,9 +44,12 @@ export default function PublicRoomsPage() {
       });
       setRooms(list);
       setLoading(false);
-    }, (err: any) => { console.error('public-rooms query error:', err); setLoading(false); });
+    }, (err: any) => {
+      console.warn('public-rooms query error:', err?.code);
+      setLoading(false);
+    });
     return () => unsub();
-  }, []);
+  }, [authLoading]);
 
   return (
     <div className="relative min-h-screen w-full text-white" style={{ backgroundImage: 'url(/noche.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
@@ -58,9 +66,19 @@ export default function PublicRoomsPage() {
         <h1 className="font-headline text-5xl font-bold text-center mb-2">Salas Públicas</h1>
         <p className="text-white/50 text-center mb-10">Únete a una partida en curso</p>
 
-        {loading ? (
+        {(loading || authLoading) ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-8 w-8 animate-spin text-white/50" />
+          </div>
+        ) : !user ? (
+          <div className="text-center py-20">
+            <p className="text-6xl mb-4">🔒</p>
+            <p className="text-white/60 text-lg mb-2">Inicia sesión para ver las salas públicas</p>
+            <p className="text-white/30 text-sm mb-6">Necesitas una cuenta para unirte a partidas</p>
+            <Link href="/login" className="inline-flex items-center gap-2 bg-white text-black font-bold px-6 py-3 rounded-xl hover:bg-white/90 transition-all">
+              <LogIn className="h-5 w-5" />
+              Iniciar Sesión
+            </Link>
           </div>
         ) : rooms.length === 0 ? (
           <div className="text-center py-20">
