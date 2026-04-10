@@ -16,8 +16,8 @@ import { EmoteBar } from './EmoteBar';
 import { VoiceChat } from './VoiceChat';
 
 function computeDayDuration(alivePlayers: number): number {
-  // 20s per alive player, min 60s, max 300s
-  return Math.min(300, Math.max(60, alivePlayers * 20));
+  // 10s per alive player, min 60s, max 120s  (noche dura 90s → proporcional)
+  return Math.min(120, Math.max(60, alivePlayers * 10));
 }
 
 interface Props {
