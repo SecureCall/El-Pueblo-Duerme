@@ -1,4 +1,4 @@
-const CACHE_NAME = 'elpueblo-v3';
+const CACHE_NAME = 'elpueblo-v4';
 
 const PRECACHE_URLS = [
   '/',
@@ -168,7 +168,7 @@ self.addEventListener('fetch', (event) => {
       caches.match(request).then((cached) => {
         if (cached) return cached;
         return fetch(request).then((response) => {
-          if (response.ok) {
+          if (response.ok && response.status === 200) {
             const clone = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
           }
@@ -183,7 +183,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(request)
       .then((response) => {
-        if (response.ok && request.method === 'GET') {
+        if (response.ok && response.status === 200 && request.method === 'GET') {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
         }
