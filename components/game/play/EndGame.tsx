@@ -8,7 +8,8 @@ import { Trophy, Skull, Home, RefreshCw, Clock, Star } from 'lucide-react';
 import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
 import { AdBanner } from '@/components/ads/AdBanner';
 import { RewardedAd } from '@/components/ads/RewardedAd';
-import { xpToLevel, levelEmoji, type XPResult } from '@/lib/firebase/xp';
+import { xpToLevel, levelEmoji, awardXP, type XPResult } from '@/lib/firebase/xp';
+import { recordGameResult } from '@/lib/bots/playerStats';
 
 interface Props {
   game: GameState;
@@ -71,23 +72,40 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [winners]);
 
-  // Award XP once per game end — via server API (Admin SDK, bypasses Firestore rules)
+  // Award XP once per game end — tries server API first, falls back to client SDK
   useEffect(() => {
     if (!myUid || xpAwarded.current) return;
     xpAwarded.current = true;
+
     const roleInfo = myRole ? ROLES[myRole] : null;
     const hasSpecialRole = !!roleInfo && roleInfo.team !== 'village' && myRole !== 'Aldeano' && myRole !== 'Lobo';
-    fetch('/api/award-xp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid: myUid, isWin: iWon, hasSpecialRole }),
-    })
-      .then(r => r.json())
-      .then((data: XPResult) => {
-        if (data.newTotalXp !== undefined) setXpResult(data);
-        else console.error('[EndGame] award-xp respuesta inválida:', data);
-      })
-      .catch(err => console.error('[EndGame] award-xp falló:', err));
+
+    // Also record game result for profile stats (playerBehavior collection)
+    if (myRole) recordGameResult(myUid, iWon, myRole).catch(() => {});
+
+    const tryServer = () =>
+      fetch('/api/award-xp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: myUid, isWin: iWon, hasSpecialRole }),
+      }).then(async r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data: XPResult = await r.json();
+        if (data.newTotalXp === undefined) throw new Error('respuesta inválida');
+        return data;
+      });
+
+    const tryClient = () =>
+      awardXP(myUid, { isWin: iWon, hasSpecialRole });
+
+    tryServer()
+      .then(data => setXpResult(data))
+      .catch(() => {
+        // Server API failed (Vercel credentials not set or network error) → fallback
+        tryClient()
+          .then(data => setXpResult(data))
+          .catch(err => console.error('[EndGame] award-xp client fallback falló:', err));
+      });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myUid]);
 
