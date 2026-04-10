@@ -849,6 +849,18 @@ export function GamePlay({ gameId }: { gameId: string }) {
       done('saboteador', has('Saboteador'));
 
     if (allDone && !processingNightRef.current) {
+      // Mínimo 45s de noche para que los lobos puedan coordinarse
+      const MIN_NIGHT_MS = 45000;
+      const elapsed = Date.now() - (game.nightStartedAt ?? Date.now());
+      const waitMs = Math.max(0, MIN_NIGHT_MS - elapsed);
+      if (waitMs > 0) {
+        const t = setTimeout(() => {
+          if (processingNightRef.current) return;
+          processingNightRef.current = true;
+          processNight();
+        }, waitMs);
+        return () => clearTimeout(t);
+      }
       processingNightRef.current = true;
       processNight();
     }
@@ -1501,9 +1513,9 @@ export function GamePlay({ gameId }: { gameId: string }) {
         phaseEndsAt: (() => {
           if (finalWinner) return null;
           const alive = players.filter(p => p.isAlive).length;
-          const base = Math.min(300, Math.max(60, alive * 20));
+          const base = Math.min(120, Math.max(60, alive * 10));
           const mech = randomEvent?.mechanical;
-          const dur = mech === 'extraTime' ? Math.min(300, base + 30)
+          const dur = mech === 'extraTime' ? Math.min(180, base + 30)
             : mech === 'halfTime' ? Math.max(30, Math.floor(base / 2))
             : base;
           return Date.now() + dur * 1000 + 2000;
