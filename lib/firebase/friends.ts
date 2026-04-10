@@ -34,9 +34,21 @@ export async function ensureUserProfile(uid: string, displayName: string, photoU
   const ref = doc(db, 'users', uid);
   const snap = await getDoc(ref);
   if (!snap.exists()) {
-    await setDoc(ref, { uid, displayName, photoURL, friends: [], friendRequests: [] });
+    await setDoc(ref, {
+      uid, displayName, photoURL,
+      friends: [], friendRequests: [],
+      xp: 0, gamesPlayed: 0, gamesWon: 0, consecutiveWins: 0,
+    });
   } else {
-    await updateDoc(ref, { displayName, photoURL });
+    // Actualiza nombre/foto; añade campos de stats si no existen (usuarios antiguos)
+    const data = snap.data();
+    await setDoc(ref, {
+      displayName, photoURL,
+      ...(data.xp === undefined ? { xp: 0 } : {}),
+      ...(data.gamesPlayed === undefined ? { gamesPlayed: 0 } : {}),
+      ...(data.gamesWon === undefined ? { gamesWon: 0 } : {}),
+      ...(data.consecutiveWins === undefined ? { consecutiveWins: 0 } : {}),
+    }, { merge: true });
   }
 }
 

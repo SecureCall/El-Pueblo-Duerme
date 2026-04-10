@@ -1,4 +1,4 @@
-import { doc, updateDoc, increment } from 'firebase/firestore';
+import { doc, getDoc, setDoc, increment, runTransaction } from 'firebase/firestore';
 import { db } from './config';
 
 export const XP_PER_GAME = 50;
@@ -85,17 +85,48 @@ export function getPlayerTitle(stats: {
   return null;
 }
 
+export interface XPResult {
+  xpGained: number;
+  newTotalXp: number;
+  newLevel: number;
+}
+
 export async function awardXP(
   uid: string,
   { isWin, hasSpecialRole, consecutiveWins }: { isWin: boolean; hasSpecialRole: boolean; consecutiveWins?: number }
-): Promise<number> {
+): Promise<XPResult> {
   const streak = consecutiveWins ?? 0;
   const streakBonus = isWin && streak > 1 ? XP_STREAK_BONUS * Math.min(streak, 5) : 0;
-  const total = XP_PER_GAME + (isWin ? XP_PER_WIN : 0) + (hasSpecialRole ? XP_SPECIAL_ROLE : 0) + streakBonus;
-  await updateDoc(doc(db, 'users', uid), {
-    xp: increment(total),
-    gamesPlayed: increment(1),
-    ...(isWin ? { gamesWon: increment(1) } : {}),
+  const xpGained = XP_PER_GAME + (isWin ? XP_PER_WIN : 0) + (hasSpecialRole ? XP_SPECIAL_ROLE : 0) + streakBonus;
+
+  const ref = doc(db, 'users', uid);
+
+  // Transacción: lee el XP actual, suma y escribe. Funciona aunque el doc no exista.
+  const newTotalXp = await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const current = snap.exists() ? (snap.data().xp ?? 0) : 0;
+    const currentPlayed = snap.exists() ? (snap.data().gamesPlayed ?? 0) : 0;
+    const currentWon = snap.exists() ? (snap.data().gamesWon ?? 0) : 0;
+    const newXp = current + xpGained;
+
+    if (!snap.exists()) {
+      // Primer documento del usuario — crear con todos los campos
+      tx.set(ref, {
+        xp: newXp,
+        gamesPlayed: 1,
+        gamesWon: isWin ? 1 : 0,
+        consecutiveWins: isWin ? 1 : 0,
+      }, { merge: true });
+    } else {
+      tx.set(ref, {
+        xp: newXp,
+        gamesPlayed: currentPlayed + 1,
+        gamesWon: isWin ? currentWon + 1 : currentWon,
+        consecutiveWins: isWin ? (snap.data().consecutiveWins ?? 0) + 1 : 0,
+      }, { merge: true });
+    }
+    return newXp;
   });
-  return total;
+
+  return { xpGained, newTotalXp, newLevel: xpToLevel(newTotalXp) };
 }

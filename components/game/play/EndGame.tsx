@@ -8,7 +8,7 @@ import { Trophy, Skull, Home, RefreshCw, Clock, Star } from 'lucide-react';
 import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
 import { AdBanner } from '@/components/ads/AdBanner';
 import { RewardedAd } from '@/components/ads/RewardedAd';
-import { awardXP, xpToLevel, levelEmoji } from '@/lib/firebase/xp';
+import { awardXP, xpToLevel, levelEmoji, type XPResult } from '@/lib/firebase/xp';
 
 interface Props {
   game: GameState;
@@ -61,7 +61,7 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
   const iWon = didIWin(winners, myRole);
   const { interruptWith } = useNarrator();
   const xpAwarded = useRef(false);
-  const [xpGained, setXpGained] = useState<number | null>(null);
+  const [xpResult, setXpResult] = useState<XPResult | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -77,7 +77,9 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
     xpAwarded.current = true;
     const roleInfo = myRole ? ROLES[myRole] : null;
     const hasSpecialRole = !!roleInfo && roleInfo.team !== 'village' && myRole !== 'Aldeano' && myRole !== 'Lobo';
-    awardXP(myUid, { isWin: iWon, hasSpecialRole }).then(gained => setXpGained(gained)).catch(() => {});
+    awardXP(myUid, { isWin: iWon, hasSpecialRole })
+      .then(result => setXpResult(result))
+      .catch(err => console.error('[EndGame] awardXP falló:', err));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myUid]);
 
@@ -108,15 +110,18 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
         </div>
 
         {/* XP gained */}
-        {xpGained !== null && (
-          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4 mb-4 text-center animate-pulse-once">
+        {xpResult !== null && (
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4 mb-4 text-center">
             <div className="flex items-center justify-center gap-2 mb-1">
               <Star className="h-5 w-5 text-yellow-400" />
-              <span className="text-yellow-300 font-bold text-lg">+{xpGained} XP</span>
+              <span className="text-yellow-300 font-bold text-lg">+{xpResult.xpGained} XP</span>
             </div>
             <p className="text-yellow-400/60 text-xs">
-              {iWon ? '🏆 Bonus de victoria incluido' : '🎮 XP por participar'}{' '}
-              · Nivel {xpToLevel(0)} {levelEmoji(xpToLevel(0))}
+              {iWon ? '🏆 Bonus de victoria incluido' : '🎮 XP por participar'}
+              {' · '}Nivel {xpResult.newLevel} {levelEmoji(xpResult.newLevel)}
+            </p>
+            <p className="text-yellow-400/40 text-[10px] mt-1">
+              {xpResult.newTotalXp.toLocaleString()} XP total
             </p>
           </div>
         )}
