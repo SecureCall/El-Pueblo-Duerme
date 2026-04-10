@@ -200,6 +200,7 @@ export function CreateGameForm() {
             value={playerCount}
             onChange={e => setPlayerCount(Number(e.target.value))}
             className="w-full accent-white"
+            suppressHydrationWarning
           />
           <p className="text-white/40 text-xs mt-1">
             Esto incluirá {wolfCount(playerCount)} Hombre(s) Lobo.
