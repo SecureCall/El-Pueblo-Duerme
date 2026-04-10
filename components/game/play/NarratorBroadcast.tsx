@@ -59,7 +59,6 @@ export function NarratorBroadcast({ broadcast }: Props) {
     if (broadcast.triggeredAt === lastSeenAt.current) return;
     lastSeenAt.current = broadcast.triggeredAt;
 
-    // Resetear y mostrar nuevo mensaje
     setExiting(false);
     setCurrentBroadcast(broadcast);
     setVisible(false);
@@ -74,10 +73,12 @@ export function NarratorBroadcast({ broadcast }: Props) {
     return () => { clearTimeout(tIn); clearTimeout(tOut); };
   }, [broadcast?.triggeredAt]);
 
+  // Hook must be called before any conditional return
+  const { displayed, done } = useTypewriter(currentBroadcast?.text ?? '');
+
   if (!currentBroadcast || !visible) return null;
 
   const style = TYPE_STYLE[currentBroadcast.type] ?? TYPE_STYLE.irony;
-  const { displayed, done } = useTypewriter(currentBroadcast.text);
 
   return (
     <div

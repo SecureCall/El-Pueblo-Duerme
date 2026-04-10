@@ -63,8 +63,8 @@ export function VenganzaModal({ gameId, victimName, victimUid, round, alivePlaye
         cursed: { uid: target.uid, byName: victimName, byUid: victimUid, round },
         narratorBroadcast: {
           text: `Con su último aliento, ${victimName} lanza su maldición sobre ${target.name}. El destino ya está escrito.`,
-          style: 'chaos',
-          ts: Date.now(),
+          type: 'chaos',
+          triggeredAt: Date.now(),
         },
       }, { merge: true }).catch(() => {});
     }
@@ -76,7 +76,7 @@ export function VenganzaModal({ gameId, victimName, victimUid, round, alivePlaye
 
   return (
     <div
-      className={`fixed inset-0 z-60 flex flex-col items-center justify-center bg-black/96 transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`}
+      className={`fixed inset-0 z-[60] flex flex-col items-center justify-center bg-black/96 transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`}
     >
       <div className="absolute inset-0 bg-purple-950/20 animate-pulse pointer-events-none" />
 

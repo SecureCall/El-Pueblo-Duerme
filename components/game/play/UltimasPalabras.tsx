@@ -67,12 +67,12 @@ export function UltimasPalabras({ isVictim, victimName, victimUid, gameId, userI
       createdAt: serverTimestamp(),
     }).catch(() => {});
 
-    // Escribir en narratorBroadcast para todos vean la notificación
+    // Escribir en narratorBroadcast para que todos vean la notificación
     await setDoc(doc(db, 'games', gameId), {
       narratorBroadcast: {
         text: `"${msg.trim()}" — ${victimName}, en sus últimas palabras.`,
-        style: 'death',
-        ts: Date.now(),
+        type: 'irony',
+        triggeredAt: Date.now(),
       },
     }, { merge: true }).catch(() => {});
 
@@ -83,7 +83,7 @@ export function UltimasPalabras({ isVictim, victimName, victimUid, gameId, userI
 
   return (
     <div
-      className={`fixed inset-0 z-60 flex flex-col items-center justify-center bg-black/95 transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`}
+      className={`fixed inset-0 z-[60] flex flex-col items-center justify-center bg-black/95 transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`}
     >
       {/* Glow oscuro */}
       <div className="absolute inset-0 bg-red-950/20 pointer-events-none" />
