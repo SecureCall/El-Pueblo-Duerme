@@ -11,6 +11,8 @@ import {
   collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit,
 } from 'firebase/firestore';
 import { ShareMomentCard } from './ShareMomentCard';
+import { UltimasPalabras } from './UltimasPalabras';
+import { VenganzaModal } from './VenganzaModal';
 
 interface Props {
   game: GameState;
@@ -19,6 +21,7 @@ interface Props {
   userName: string;
   eliminatedName: string | null;
   eliminatedRole: string | null;
+  eliminatedUid?: string | null;
   onDone: () => void;
   autoSeconds?: number;
 }
@@ -167,8 +170,11 @@ function ExileCinematic({
 }
 
 // ── Componente principal ──────────────────────────────────────────────────────
-export function DayTransition({ game, gameId, userId, userName, eliminatedName, eliminatedRole, onDone, autoSeconds = 4 }: Props) {
-  const [cinemaPhase, setCinemaPhase] = useState(!!eliminatedName);
+export function DayTransition({ game, gameId, userId, userName, eliminatedName, eliminatedRole, eliminatedUid, onDone, autoSeconds = 4 }: Props) {
+  const hasUltimas = !!eliminatedName && !!eliminatedUid;
+  const [showUltimas, setShowUltimas] = useState(hasUltimas);
+  const [showVenganza, setShowVenganza] = useState(false);
+  const [cinemaPhase, setCinemaPhase] = useState(!hasUltimas && !!eliminatedName);
   const [showShareCard, setShowShareCard] = useState(false);
   const [narratorDone, setNarratorDone] = useState(false);
   const [countdown, setCountdown] = useState(autoSeconds);
@@ -272,6 +278,47 @@ export function DayTransition({ game, gameId, userId, userName, eliminatedName, 
 
   const alivePlayers = (game.players ?? []).filter((p: any) => p.isAlive);
 
+  // ── Últimas palabras (antes de la cinemática de destierro) ──────
+  if (showUltimas && eliminatedName && eliminatedUid) {
+    const isEliminated = userId === eliminatedUid;
+    return (
+      <UltimasPalabras
+        isVictim={isEliminated}
+        victimName={eliminatedName}
+        victimUid={eliminatedUid}
+        gameId={gameId}
+        userId={userId}
+        round={game.roundNumber ?? 1}
+        onDone={() => {
+          setShowUltimas(false);
+          if (isEliminated) {
+            setShowVenganza(true);
+          } else {
+            if (eliminatedName) setCinemaPhase(true);
+          }
+        }}
+      />
+    );
+  }
+
+  // ── Venganza (solo el desterrado) ────────────────────────────────
+  if (showVenganza && eliminatedUid && userId === eliminatedUid) {
+    const players = (game.players ?? []) as { uid: string; name: string; isAlive: boolean; isBot?: boolean }[];
+    return (
+      <VenganzaModal
+        gameId={gameId}
+        victimName={eliminatedName ?? ''}
+        victimUid={eliminatedUid}
+        round={game.roundNumber ?? 1}
+        alivePlayers={players}
+        onDone={() => {
+          setShowVenganza(false);
+          if (eliminatedName) setCinemaPhase(true);
+        }}
+      />
+    );
+  }
+
   // ── Tarjeta de clip viral ────────────────────────────────────────
   if (showShareCard && eliminatedName) {
     return (
@@ -282,6 +329,7 @@ export function DayTransition({ game, gameId, userId, userName, eliminatedName, 
         wasWolf={eliminatedWasWolf}
         round={game.roundNumber ?? 1}
         survivorsCount={alivePlayers.length}
+        lastMessages={msgs.slice(-5).map((m: any) => ({ senderName: m.senderName, text: m.text, type: m.type }))}
         onContinue={() => { setShowShareCard(false); setCinemaPhase(false); }}
       />
     );

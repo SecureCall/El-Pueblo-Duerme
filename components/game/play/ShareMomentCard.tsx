@@ -8,6 +8,12 @@
 import { useEffect, useState } from 'react';
 import { getRoleIcon } from './roleIcons';
 
+interface ChatSnippet {
+  senderName: string;
+  text: string;
+  type?: string;
+}
+
 interface Props {
   type: 'death' | 'exile' | 'safe' | 'chaos';
   victimName?: string | null;
@@ -16,6 +22,7 @@ interface Props {
   round: number;
   survivorsCount: number;
   gameUrl?: string;
+  lastMessages?: ChatSnippet[];
   onContinue: () => void;
 }
 
@@ -59,7 +66,7 @@ const TYPE_CONFIG = {
 };
 
 export function ShareMomentCard({
-  type, victimName, victimRole, wasWolf, round, survivorsCount, gameUrl, onContinue,
+  type, victimName, victimRole, wasWolf, round, survivorsCount, gameUrl, lastMessages, onContinue,
 }: Props) {
   const [visible, setVisible] = useState(false);
   const [shared, setShared] = useState(false);
@@ -161,6 +168,23 @@ export function ShareMomentCard({
                     )}
                   </p>
                 )}
+              </div>
+            )}
+
+            {/* Últimas conversaciones del pueblo */}
+            {lastMessages && lastMessages.length > 0 && (
+              <div className="w-full mt-2 flex flex-col gap-1.5 px-1">
+                {lastMessages.slice(-3).map((m, i) => (
+                  <div key={i} className={`flex items-start gap-1.5 text-left rounded-lg px-2.5 py-1.5
+                    ${m.type === 'lastWords'
+                      ? 'bg-red-900/40 border border-red-600/30'
+                      : 'bg-white/5 border border-white/10'}`}>
+                    <span className="text-white/40 text-[9px] font-semibold shrink-0 pt-0.5">
+                      {m.type === 'lastWords' ? '⚰️' : '💬'} {m.senderName}:
+                    </span>
+                    <span className="text-white/70 text-[9px] italic leading-relaxed">{m.text.slice(0, 60)}{m.text.length > 60 ? '…' : ''}</span>
+                  </div>
+                ))}
               </div>
             )}
 

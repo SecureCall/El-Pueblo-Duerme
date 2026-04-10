@@ -11,6 +11,8 @@ import {
   collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit,
 } from 'firebase/firestore';
 import { ShareMomentCard } from './ShareMomentCard';
+import { UltimasPalabras } from './UltimasPalabras';
+import { VenganzaModal } from './VenganzaModal';
 
 interface Props {
   game: GameState;
@@ -19,6 +21,7 @@ interface Props {
   userName: string;
   victimName: string | null;
   victimRole: string | null;
+  victimUid?: string | null;
   onDone: () => void;
   autoSeconds?: number;
 }
@@ -158,8 +161,11 @@ function DeathCinematic({
 }
 
 // ── Componente principal ──────────────────────────────────────────────────────
-export function NightTransition({ game, gameId, userId, userName, victimName, victimRole, onDone, autoSeconds = 4 }: Props) {
-  const [cinemaPhase, setCinemaPhase] = useState(!!victimName);
+export function NightTransition({ game, gameId, userId, userName, victimName, victimRole, victimUid, onDone, autoSeconds = 4 }: Props) {
+  const hasUltimas = !!victimName && !!victimUid;
+  const [showUltimas, setShowUltimas] = useState(hasUltimas);
+  const [showVenganza, setShowVenganza] = useState(false);
+  const [cinemaPhase, setCinemaPhase] = useState(!hasUltimas && !!victimName);
   const [showShareCard, setShowShareCard] = useState(false);
   const [narratorDone, setNarratorDone] = useState(false);
   const [countdown, setCountdown] = useState(autoSeconds);
@@ -256,6 +262,47 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
 
   const alivePlayers = (game.players ?? []).filter((p: any) => p.isAlive);
 
+  // ── Últimas palabras (antes de la cinemática) ────────────────────
+  if (showUltimas && victimName && victimUid) {
+    const isVictim = userId === victimUid;
+    return (
+      <UltimasPalabras
+        isVictim={isVictim}
+        victimName={victimName}
+        victimUid={victimUid}
+        gameId={gameId}
+        userId={userId}
+        round={game.roundNumber ?? 1}
+        onDone={(didSend) => {
+          setShowUltimas(false);
+          if (isVictim) {
+            setShowVenganza(true);
+          } else {
+            if (victimName) setCinemaPhase(true);
+          }
+        }}
+      />
+    );
+  }
+
+  // ── Venganza (solo víctima, tras últimas palabras) ────────────────
+  if (showVenganza && victimUid && userId === victimUid) {
+    const players = (game.players ?? []) as { uid: string; name: string; isAlive: boolean; isBot?: boolean }[];
+    return (
+      <VenganzaModal
+        gameId={gameId}
+        victimName={victimName ?? ''}
+        victimUid={victimUid}
+        round={game.roundNumber ?? 1}
+        alivePlayers={players}
+        onDone={() => {
+          setShowVenganza(false);
+          if (victimName) setCinemaPhase(true);
+        }}
+      />
+    );
+  }
+
   // ── Tarjeta de clip viral ────────────────────────────────────────
   if (showShareCard && victimName) {
     return (
@@ -265,6 +312,7 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
         victimRole={victimRole}
         round={game.roundNumber ?? 1}
         survivorsCount={alivePlayers.length}
+        lastMessages={msgs.slice(-5).map((m: any) => ({ senderName: m.senderName, text: m.text, type: m.type }))}
         onContinue={() => { setShowShareCard(false); setCinemaPhase(false); }}
       />
     );
@@ -386,13 +434,18 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
             {msgs.length === 0 && (
               <p className="text-white/40 text-xs text-center mt-4">El pueblo no dice nada aún…</p>
             )}
-            {msgs.map(m => (
+            {msgs.map((m: any) => (
               <div key={m.id} className={`flex gap-2 ${m.senderId === userId ? 'flex-row-reverse' : ''}`}>
                 <div className={`max-w-[85%] flex flex-col ${m.senderId === userId ? 'items-end' : 'items-start'}`}>
                   {m.senderId !== userId && (
-                    <span className="text-[10px] text-white/60 mb-0.5 font-semibold">{m.senderName}</span>
+                    <span className="text-[10px] text-white/60 mb-0.5 font-semibold">
+                      {m.type === 'lastWords' ? '⚰️ ' : ''}{m.senderName}
+                    </span>
                   )}
-                  <div className={`px-2.5 py-1.5 rounded-xl text-xs text-white ${m.senderId === userId ? 'bg-amber-600 font-semibold' : 'bg-gray-700'}`}>
+                  <div className={`px-2.5 py-1.5 rounded-xl text-xs text-white
+                    ${m.type === 'lastWords'
+                      ? 'bg-red-900/70 border border-red-600/40 italic font-medium'
+                      : m.senderId === userId ? 'bg-amber-600 font-semibold' : 'bg-gray-700'}`}>
                     {m.text}
                   </div>
                 </div>

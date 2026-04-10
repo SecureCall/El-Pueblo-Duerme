@@ -159,6 +159,18 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
         ? { ...p, connected: state === 'connected' }
         : p
       ));
+      // Reconexión: limpiar el peer fallido para que el listener de presencia lo reinicie
+      if (state === 'failed' || state === 'disconnected') {
+        const reconnectDelay = state === 'failed' ? 2500 : 5000;
+        setTimeout(() => {
+          const current = peerConns.current.get(peerId);
+          if (current && (current.connectionState === 'failed' || current.connectionState === 'disconnected')) {
+            current.close();
+            peerConns.current.delete(peerId);
+            // El listener de presencia detectará la ausencia y reconectará automáticamente
+          }
+        }, reconnectDelay);
+      }
     };
 
     setPeers(prev => {

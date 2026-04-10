@@ -11,6 +11,41 @@ Un juego de deducción social multijugador en español, inspirado en Mafia/Werew
 - **IA**: Gemini 2.0 Flash (narrador cinematográfico + chat de jugadores IA)
 - **Puerto**: 5000
 
+## Mecánicas Firma (Signature Mechanics)
+
+### Últimas Palabras
+- **`UltimasPalabras.tsx`**: Cuando alguien muere, aparece pantalla de 7 segundos ANTES de la cinemática. La víctima puede escribir hasta 120 caracteres. Todos ven el countdown. El mensaje se envía a `publicChat` con `type: 'lastWords'` y se muestra con estilo especial (rojo/itálica). Se escribe en `narratorBroadcast` para notificación global.
+
+### Venganza
+- **`VenganzaModal.tsx`**: Después de Últimas Palabras, el jugador muerto elige a alguien para maldecir (10 segundos). La maldición se guarda en `games/{gameId}.cursed: { uid, byName, byUid, round }`. En `processDayVotes` (GamePlay.tsx), el jugador maldito recibe +1 voto automático. El ícono 🔱 aparece junto a su nombre en DayPhase.
+
+### Integración en Transiciones
+- `NightTransition.tsx` acepta `victimUid?` → flujo: UltimasPalabras → VenganzaModal (solo víctima) → DeathCinematic → ShareMomentCard
+- `DayTransition.tsx` acepta `eliminatedUid?` → mismo flujo para desterrados
+- `GamePlay.tsx` pasa `victimUid` y `eliminatedUid` con UID real desde `dayEliminatedUid` y `eliminatedHistory`
+
+## Progresión Adictiva
+
+### Títulos Únicos
+- **`lib/firebase/xp.ts`** añade `getPlayerTitle()` — 15+ títulos distintos: "Sin Derrota", "Invencible", "En Racha", "El Oráculo", "Estratega", "Alpha", "Profeta", "Carne de Cañón", "Veterano de Guerra"...
+- Basados en: rachas consecutivas, winRate, gamesPlayed, lastRole, level.
+- Se muestran en `app/profile/page.tsx` con badge de color temático.
+
+### Rachas de Victorias
+- **`lib/bots/playerStats.ts`** añade campo `consecutiveWins` — se incrementa al ganar, se resetea al perder.
+- **`lib/firebase/xp.ts`** añade `XP_STREAK_BONUS = 30` XP × min(racha, 5) por victoria en racha.
+- Página de perfil muestra banner naranja "Racha activa: N victorias seguidas" cuando ≥2.
+
+## Estabilidad
+
+### Reconexión Automática de Voz
+- **`hooks/useVoiceChat.ts`**: cuando un PeerConnection pasa a estado `failed` o `disconnected`, se limpia automáticamente tras 2.5-5s. El listener de presencia en Firestore detecta la ausencia y reconecta.
+
+## Viralidad
+
+### ShareMomentCard mejorado
+- **`ShareMomentCard.tsx`** acepta `lastMessages?: ChatSnippet[]` — muestra los últimos 3 mensajes del chat en la tarjeta viral, incluyendo Últimas Palabras con estilo especial (⚰️ + fondo rojo).
+
 ## Sistema Viral
 
 ### Narrador IA

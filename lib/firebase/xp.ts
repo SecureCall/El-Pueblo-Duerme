@@ -4,6 +4,7 @@ import { db } from './config';
 export const XP_PER_GAME = 50;
 export const XP_PER_WIN = 100;
 export const XP_SPECIAL_ROLE = 25;
+export const XP_STREAK_BONUS = 30;   // +30 XP por cada victoria en racha (×nRacha)
 export const XP_PER_LEVEL = 200;
 export const MAX_LEVEL = 50;
 
@@ -35,11 +36,62 @@ export function levelEmoji(level: number): string {
   return '🌱';
 }
 
+// ── Títulos únicos basados en historial ───────────────────────────────────────
+export interface TitleConfig {
+  title: string;
+  emoji: string;
+  color: string;   // clase Tailwind de color de texto
+  description: string;
+}
+
+export function getPlayerTitle(stats: {
+  gamesPlayed: number;
+  winRate: number;
+  consecutiveWins: number;
+  lastRole: string;
+  level: number;
+}): TitleConfig | null {
+  const { gamesPlayed, winRate, consecutiveWins, lastRole, level } = stats;
+  if (gamesPlayed === 0) return null;
+
+  // Racha primero — más urgente/viral
+  if (consecutiveWins >= 7) return { title: 'Sin Derrota', emoji: '🔥', color: 'text-orange-400', description: `${consecutiveWins} victorias consecutivas` };
+  if (consecutiveWins >= 5) return { title: 'Invencible', emoji: '⚡', color: 'text-yellow-400', description: `Racha de ${consecutiveWins}` };
+  if (consecutiveWins >= 3) return { title: 'En Racha', emoji: '🎯', color: 'text-green-400', description: `${consecutiveWins} seguidas` };
+
+  // Dominio por nivel
+  if (level >= 45) return { title: 'El Inmortal', emoji: '👑', color: 'text-amber-300', description: 'Leyenda del pueblo' };
+  if (level >= 35) return { title: 'El Maestro', emoji: '💎', color: 'text-cyan-300', description: 'Domina el tablero' };
+
+  // Dominio por winRate
+  if (winRate >= 0.85 && gamesPlayed >= 10) return { title: 'El Oráculo', emoji: '🧠', color: 'text-purple-400', description: 'Raramente se equivoca' };
+  if (winRate >= 0.70 && gamesPlayed >= 8) return { title: 'Estratega', emoji: '🎖️', color: 'text-indigo-300', description: 'Mente táctica' };
+
+  // Especialización por rol
+  if (lastRole === 'Lobo' && winRate >= 0.65 && gamesPlayed >= 5)
+    return { title: 'Alpha', emoji: '🐺', color: 'text-red-400', description: 'El lobo nunca pierde' };
+  if (lastRole === 'Vidente' && gamesPlayed >= 5)
+    return { title: 'Profeta', emoji: '🔮', color: 'text-violet-300', description: 'Ve lo que los demás no' };
+  if (lastRole === 'Médium' && gamesPlayed >= 5)
+    return { title: 'Entre Mundos', emoji: '👻', color: 'text-slate-300', description: 'Habla con los muertos' };
+
+  // Supervivencia extrema
+  if (winRate < 0.25 && gamesPlayed >= 8) return { title: 'Carne de Cañón', emoji: '💀', color: 'text-gray-400', description: 'Muere primero, siempre' };
+
+  // Veteranía sin titularlos "grandes"
+  if (gamesPlayed >= 50) return { title: 'Veterano de Guerra', emoji: '⚔️', color: 'text-amber-400', description: `${gamesPlayed} partidas` };
+  if (gamesPlayed >= 20) return { title: 'Habitué', emoji: '🏠', color: 'text-sky-300', description: 'El pueblo es su hogar' };
+
+  return null;
+}
+
 export async function awardXP(
   uid: string,
-  { isWin, hasSpecialRole }: { isWin: boolean; hasSpecialRole: boolean }
+  { isWin, hasSpecialRole, consecutiveWins }: { isWin: boolean; hasSpecialRole: boolean; consecutiveWins?: number }
 ): Promise<number> {
-  const total = XP_PER_GAME + (isWin ? XP_PER_WIN : 0) + (hasSpecialRole ? XP_SPECIAL_ROLE : 0);
+  const streak = consecutiveWins ?? 0;
+  const streakBonus = isWin && streak > 1 ? XP_STREAK_BONUS * Math.min(streak, 5) : 0;
+  const total = XP_PER_GAME + (isWin ? XP_PER_WIN : 0) + (hasSpecialRole ? XP_SPECIAL_ROLE : 0) + streakBonus;
   await updateDoc(doc(db, 'users', uid), {
     xp: increment(total),
     gamesPlayed: increment(1),

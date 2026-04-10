@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/app/providers/AuthProvider';
@@ -8,8 +7,8 @@ import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase/config';
 import { doc, getDoc } from 'firebase/firestore';
-import { Coins, LogOut, ShoppingBag, User, Trophy, Loader2, Star } from 'lucide-react';
-import { xpProgress, levelLabel, levelEmoji } from '@/lib/firebase/xp';
+import { Coins, LogOut, ShoppingBag, User, Trophy, Loader2, Star, Flame, Zap } from 'lucide-react';
+import { xpProgress, levelLabel, levelEmoji, getPlayerTitle } from '@/lib/firebase/xp';
 
 interface UserData {
   displayName: string;
@@ -22,17 +21,29 @@ interface UserData {
   createdAt: any;
 }
 
+interface BehaviorData {
+  consecutiveWins: number;
+  gamesPlayed: number;
+  gamesWon: number;
+  lastRole: string;
+}
+
 export default function ProfilePage() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const [userData, setUserData] = useState<UserData | null>(null);
+  const [behaviorData, setBehaviorData] = useState<BehaviorData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!isLoading && !user) { router.push('/login'); return; }
     if (!user) return;
-    getDoc(doc(db, 'users', user.uid)).then((snap: any) => {
-      if (snap.exists()) setUserData(snap.data() as UserData);
+    Promise.all([
+      getDoc(doc(db, 'users', user.uid)),
+      getDoc(doc(db, 'playerBehavior', user.uid)),
+    ]).then(([userSnap, behaviorSnap]) => {
+      if (userSnap.exists()) setUserData(userSnap.data() as UserData);
+      if (behaviorSnap.exists()) setBehaviorData(behaviorSnap.data() as BehaviorData);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [user, isLoading, router]);
@@ -57,10 +68,15 @@ export default function ProfilePage() {
   const gamesWon = userData?.gamesWon ?? 0;
   const avatar = userData?.photoURL ?? user?.photoURL ?? '';
   const initial = displayName.charAt(0).toUpperCase();
+  const consecutiveWins = behaviorData?.consecutiveWins ?? 0;
+  const lastRole = behaviorData?.lastRole ?? 'Aldeano';
 
   const { current: xpCurrent, needed: xpNeeded, pct: xpPct, level } = xpProgress(xp);
   const label = levelLabel(level);
   const lEmoji = levelEmoji(level);
+  const winRate = gamesPlayed > 0 ? gamesWon / gamesPlayed : 0;
+
+  const titleCfg = getPlayerTitle({ gamesPlayed, winRate, consecutiveWins, lastRole, level });
 
   return (
     <div className="relative min-h-screen w-full text-white" style={{ backgroundImage: 'url(/noche.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
@@ -80,15 +96,35 @@ export default function ProfilePage() {
                 {initial}
               </div>
             )}
-            <div>
-              <div className="flex items-center gap-2 mb-1">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <h1 className="font-headline text-3xl font-bold">{displayName}</h1>
                 <span className="text-lg">{lEmoji}</span>
               </div>
               <p className="text-white/40 text-sm">{user?.email}</p>
               <p className="text-white/60 text-sm font-semibold mt-0.5">{label} · Nivel {level}</p>
+
+              {/* Título único */}
+              {titleCfg && (
+                <div className={`inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 ${titleCfg.color}`}>
+                  <span className="text-sm">{titleCfg.emoji}</span>
+                  <span className="text-sm font-bold">{titleCfg.title}</span>
+                  <span className="text-[10px] text-white/40 ml-1">{titleCfg.description}</span>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Racha de victorias destacada */}
+          {consecutiveWins >= 2 && (
+            <div className="flex items-center gap-3 bg-orange-950/40 border border-orange-500/30 rounded-xl px-4 py-3 mb-5">
+              <Flame className="h-6 w-6 text-orange-400 animate-pulse" />
+              <div>
+                <p className="text-orange-300 font-bold text-sm">Racha activa: {consecutiveWins} victorias seguidas</p>
+                <p className="text-white/40 text-xs">+{Math.min(consecutiveWins, 5) * 30} XP de bonus por racha en la siguiente partida</p>
+              </div>
+            </div>
+          )}
 
           {/* XP bar */}
           <div className="mb-6">
@@ -118,6 +154,15 @@ export default function ProfilePage() {
               <p className="text-green-400/60 text-xs">victorias</p>
             </div>
           </div>
+
+          {/* Rol favorito */}
+          {lastRole && lastRole !== 'Aldeano' && (
+            <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-3 mb-5">
+              <Zap className="h-4 w-4 text-purple-400" />
+              <span className="text-white/50 text-sm">Último rol: </span>
+              <span className="text-purple-300 font-semibold text-sm">{lastRole}</span>
+            </div>
+          )}
 
           <div className="flex flex-col gap-3">
             <Link href="/store" className="flex items-center justify-center gap-2 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/30 text-yellow-300 font-bold py-3 rounded-xl transition-all">
@@ -149,12 +194,18 @@ export default function ProfilePage() {
             <div className="space-y-2">
               <div className="flex justify-between text-sm text-white/60 py-3 border-b border-white/10">
                 <span>Tasa de victorias</span>
-                <span className="font-bold text-white">{gamesPlayed > 0 ? Math.round((gamesWon / gamesPlayed) * 100) : 0}%</span>
+                <span className="font-bold text-white">{Math.round(winRate * 100)}%</span>
               </div>
-              <div className="flex justify-between text-sm text-white/60 py-3">
+              <div className="flex justify-between text-sm text-white/60 py-3 border-b border-white/10">
                 <span>Partidas ganadas</span>
                 <span className="font-bold text-green-400">{gamesWon} / {gamesPlayed}</span>
               </div>
+              {consecutiveWins > 0 && (
+                <div className="flex justify-between text-sm text-white/60 py-3">
+                  <span>Racha actual</span>
+                  <span className="font-bold text-orange-400">{consecutiveWins} seguidas 🔥</span>
+                </div>
+              )}
             </div>
           )}
         </div>

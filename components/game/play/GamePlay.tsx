@@ -174,9 +174,9 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const [loading, setLoading] = useState(true);
   const [roleRevealDone, setRoleRevealDone] = useState(false);
   const [showNightReveal, setShowNightReveal] = useState(false);
-  const [nightRevealData, setNightRevealData] = useState<{ victimName: string | null; victimRole: string | null }>({ victimName: null, victimRole: null });
+  const [nightRevealData, setNightRevealData] = useState<{ victimName: string | null; victimRole: string | null; victimUid: string | null }>({ victimName: null, victimRole: null, victimUid: null });
   const [showDayTransition, setShowDayTransition] = useState(false);
-  const [dayTransitionData, setDayTransitionData] = useState<{ eliminatedName: string | null; eliminatedRole: string | null }>({ eliminatedName: null, eliminatedRole: null });
+  const [dayTransitionData, setDayTransitionData] = useState<{ eliminatedName: string | null; eliminatedRole: string | null; eliminatedUid: string | null }>({ eliminatedName: null, eliminatedRole: null, eliminatedUid: null });
   const [showChaosEvent, setShowChaosEvent] = useState(false);
   const chaosShownForRound = useRef<number>(-1);
   const [fantasmaMsg, setFantasmaMsg] = useState('');
@@ -223,7 +223,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
       const victimUid = (game as any).dayEliminatedUid ?? null;
       const victim = victimUid ? (game.players ?? []).find((p: any) => p.uid === victimUid) : null;
       const victimRole = victim ? (game.roles?.[victim.uid] ?? null) : null;
-      setNightRevealData({ victimName: victim?.name ?? null, victimRole });
+      setNightRevealData({ victimName: victim?.name ?? null, victimRole, victimUid });
       setShowNightReveal(true);
       // Queue chaos event reveal (shown after NightTransition)
       const round = game.roundNumber ?? 1;
@@ -236,7 +236,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
       processingDayRef.current = false;
       const history = game.eliminatedHistory ?? [];
       const lastElim = history[history.length - 1];
-      setDayTransitionData({ eliminatedName: lastElim?.name ?? null, eliminatedRole: lastElim?.role ?? null });
+      const elimUid = lastElim?.uid ?? (lastElim ? (game.players ?? []).find((p: any) => p.name === lastElim.name)?.uid ?? null : null);
+      setDayTransitionData({ eliminatedName: lastElim?.name ?? null, eliminatedRole: lastElim?.role ?? null, eliminatedUid: elimUid });
       setShowDayTransition(true);
     }
     if (prevPhase.current === 'roleReveal' && phase === 'night') {
@@ -1797,6 +1798,14 @@ export function GamePlay({ gameId }: { gameId: string }) {
       tally[target] = (tally[target] ?? 0) + multiplier;
     }
 
+    // Maldición de Venganza: +1 voto al maldito si la maldición es de esta ronda
+    const cursed = (game as any).cursed;
+    if (cursed?.uid && (cursed.round === round || cursed.round === round - 1)) {
+      if (aliveBeforeDay.has(cursed.uid)) {
+        tally[cursed.uid] = (tally[cursed.uid] ?? 0) + 1;
+      }
+    }
+
     let maxVotes = 0;
     let eliminated: string | null = null;
     let isTie = false;
@@ -2379,6 +2388,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
           userName={user.displayName || user.email?.split('@')[0] || me?.name || 'Jugador'}
           eliminatedName={dayTransitionData.eliminatedName}
           eliminatedRole={dayTransitionData.eliminatedRole}
+          eliminatedUid={dayTransitionData.eliminatedUid}
           onDone={() => { setShowDayTransition(false); nightStartedAtRef.current = Date.now(); }}
         />
       );
@@ -2412,6 +2422,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
           userName={user.displayName || user.email?.split('@')[0] || me?.name || 'Jugador'}
           victimName={nightRevealData.victimName}
           victimRole={nightRevealData.victimRole}
+          victimUid={nightRevealData.victimUid}
           onDone={() => {
             setShowNightReveal(false);
             if (!game.currentEvent) {
