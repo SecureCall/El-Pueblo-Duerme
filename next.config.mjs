@@ -8,7 +8,7 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  devIndicators: false,
+  devIndicators: { appIsrStatus: false },
   images: {
     remotePatterns: [
       {

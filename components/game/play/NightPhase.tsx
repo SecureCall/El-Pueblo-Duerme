@@ -247,6 +247,8 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
     if (!wolfMsg.trim() || !canSeeWolfChat) return;
     setSendingMsg(true);
     await addDoc(collection(db, 'games', gameId, 'wolfChat'), {
+      senderId: userId,
+      senderName: userName,
       name: userName,
       text: wolfMsg.trim(),
       createdAt: serverTimestamp(),
