@@ -20,7 +20,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { db } from '@/lib/firebase/config';
 import {
   doc, setDoc, deleteDoc, onSnapshot, collection, addDoc,
-  serverTimestamp, query, where, getDocs, getDoc,
+  serverTimestamp,
 } from 'firebase/firestore';
 
 const ICE_SERVERS: RTCIceServer[] = [
@@ -55,12 +55,14 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
   const [isMuted, setIsMuted] = useState(false);
   const [peers, setPeers] = useState<PeerState[]>([]);
   const [permissionGranted, setPermissionGranted] = useState(false);
-  const [connecting, setConnecting] = useState(false);
+  const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const localStreamRef = useRef<MediaStream | null>(null);
   const peerConns = useRef<Map<string, RTCPeerConnection>>(new Map());
   const speakingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // Latest presence snapshot so we can re-process after joining
+  const lastPresenceSnap = useRef<SignalPresence[]>([]);
   const isMutedRef = useRef(isMuted);
   const channelRef = useRef(channel);
   const unsubscribeRef = useRef<(() => void)[]>([]);
@@ -87,7 +89,7 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
       setPermissionGranted(true);
       return stream;
     } catch (e) {
-      setError('Micrófono no disponible. Revisa los permisos.');
+      setError('Micrófono no disponible. Revisa los permisos del navegador.');
       return null;
     }
   }, [canSpeak]);
@@ -100,7 +102,7 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     peerConns.current.set(peerId, pc);
 
-    // Añadir tracks locales
+    // Añadir tracks locales si ya tenemos el stream
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(t => pc.addTrack(t, localStreamRef.current!));
     }
@@ -159,7 +161,6 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
         ? { ...p, connected: state === 'connected' }
         : p
       ));
-      // Reconexión: limpiar el peer fallido para que el listener de presencia lo reinicie
       if (state === 'failed' || state === 'disconnected') {
         const reconnectDelay = state === 'failed' ? 2500 : 5000;
         setTimeout(() => {
@@ -167,7 +168,6 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
           if (current && (current.connectionState === 'failed' || current.connectionState === 'disconnected')) {
             current.close();
             peerConns.current.delete(peerId);
-            // El listener de presencia detectará la ausencia y reconectará automáticamente
           }
         }, reconnectDelay);
       }
@@ -249,50 +249,65 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
   // ── Conectar: registrar presencia y escuchar peers ───────────
   useEffect(() => {
     if (!enabled) return;
-    setConnecting(true);
 
     const presence: SignalPresence = { uid: userId, name: userName, channel, joinedAt: Date.now() };
     setDoc(doc(db, 'games', gameId, 'voicePresence', userId), presence).catch(() => {});
 
     // Escuchar presencia de otros en el mismo canal
-    const presenceUnsub = onSnapshot(collection(db, 'games', gameId, 'voicePresence'), async (snap: any) => {
-      const others: SignalPresence[] = snap.docs
-        .map((d: any) => d.data() as SignalPresence)
-        .filter((p: SignalPresence) => p.uid !== userId && p.channel === channelRef.current);
+    const presenceUnsub = onSnapshot(
+      collection(db, 'games', gameId, 'voicePresence'),
+      async (snap: any) => {
+        const others: SignalPresence[] = snap.docs
+          .map((d: any) => d.data() as SignalPresence)
+          .filter((p: SignalPresence) => p.uid !== userId && p.channel === channelRef.current);
 
-      setConnecting(false);
+        // Guardar snapshot por si el usuario se une más tarde
+        lastPresenceSnap.current = others;
 
-      for (const peer of others) {
-        if (peerConns.current.has(peer.uid)) continue;
-        // El UID menor siempre inicia la oferta (evita doble oferta)
-        if (userId < peer.uid) {
-          await initiateOffer(peer.uid, peer.name);
+        // Solo iniciar ofertas si ya tenemos el micrófono
+        if (localStreamRef.current) {
+          for (const peer of others) {
+            if (peerConns.current.has(peer.uid)) continue;
+            if (userId < peer.uid) {
+              await initiateOffer(peer.uid, peer.name);
+            }
+          }
         }
+
+        // Eliminar peers que ya no están
+        const activeUids = new Set(others.map(o => o.uid));
+        setPeers(prev => prev.filter(p => activeUids.has(p.uid)));
+        peerConns.current.forEach((pc, uid) => {
+          if (!activeUids.has(uid)) {
+            pc.close();
+            peerConns.current.delete(uid);
+          }
+        });
+      },
+      (err: any) => {
+        // Error de permisos Firestore — silencioso, no rompe el UI
+        console.warn('[VoiceChat] presenceUnsub error:', err.code);
       }
-
-      // Eliminar peers que ya no están
-      const activeUids = new Set(others.map(o => o.uid));
-      setPeers(prev => prev.filter(p => activeUids.has(p.uid)));
-      peerConns.current.forEach((pc, uid) => {
-        if (!activeUids.has(uid)) {
-          pc.close();
-          peerConns.current.delete(uid);
-        }
-      });
-    });
+    );
     unsubscribeRef.current.push(presenceUnsub);
 
     // Escuchar ofertas dirigidas a mí
-    const offersUnsub = onSnapshot(collection(db, 'games', gameId, 'voiceOffers'), async (snap: any) => {
-      snap.docChanges().forEach(async (ch: any) => {
-        if (ch.type !== 'added') return;
-        const data = ch.doc.data();
-        if (data.to !== userId || data.channel !== channelRef.current) return;
-        if (!peerConns.current.has(data.from) || peerConns.current.get(data.from)!.connectionState === 'closed') {
-          await handleOffer(data.from, data.from, data.sdp, data.type as RTCSdpType);
-        }
-      });
-    });
+    const offersUnsub = onSnapshot(
+      collection(db, 'games', gameId, 'voiceOffers'),
+      async (snap: any) => {
+        snap.docChanges().forEach(async (ch: any) => {
+          if (ch.type !== 'added') return;
+          const data = ch.doc.data();
+          if (data.to !== userId || data.channel !== channelRef.current) return;
+          if (!peerConns.current.has(data.from) || peerConns.current.get(data.from)!.connectionState === 'closed') {
+            await handleOffer(data.from, data.from, data.sdp, data.type as RTCSdpType);
+          }
+        });
+      },
+      (err: any) => {
+        console.warn('[VoiceChat] offersUnsub error:', err.code);
+      }
+    );
     unsubscribeRef.current.push(offersUnsub);
 
     return () => {
@@ -307,9 +322,44 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
       }
       setPeers([]);
       setPermissionGranted(false);
+      lastPresenceSnap.current = [];
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, gameId, userId, channel]);
+
+  // ── Unirse al canal de voz (solicitar micrófono + conectar) ──
+  // Este es el único punto de entrada para pedir el permiso del mic.
+  // Se llama desde el botón "Unirte con voz".
+  const joinVoice = useCallback(async () => {
+    if (joining || permissionGranted) return;
+    setJoining(true);
+    try {
+      const stream = await getLocalStream();
+      if (!stream) { setJoining(false); return; }
+
+      // Añadir tracks a conexiones peer existentes (si ya había peers)
+      peerConns.current.forEach(pc => {
+        if (pc.connectionState !== 'closed') {
+          const senders = pc.getSenders();
+          stream.getTracks().forEach(t => {
+            if (!senders.some(s => s.track === t)) {
+              pc.addTrack(t, stream);
+            }
+          });
+        }
+      });
+
+      // Re-procesar peers presentes que esperaban a que tuviéramos micrófono
+      for (const peer of lastPresenceSnap.current) {
+        if (peerConns.current.has(peer.uid)) continue;
+        if (userId < peer.uid) {
+          await initiateOffer(peer.uid, peer.name);
+        }
+      }
+    } finally {
+      setJoining(false);
+    }
+  }, [joining, permissionGranted, getLocalStream, initiateOffer, userId]);
 
   // ── Mute/unmute ───────────────────────────────────────────────
   const toggleMute = useCallback(() => {
@@ -329,5 +379,5 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
     }
   }, [canSpeak, isMuted]);
 
-  return { isMuted, toggleMute, peers, permissionGranted, connecting, error };
+  return { isMuted, toggleMute, joinVoice, joining, peers, permissionGranted, error };
 }

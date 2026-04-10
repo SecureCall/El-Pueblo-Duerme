@@ -1,7 +1,7 @@
 'use client';
 
 import { useVoiceChat } from '@/hooks/useVoiceChat';
-import { Mic, MicOff, WifiOff, ChevronUp, ChevronDown } from 'lucide-react';
+import { Mic, MicOff, WifiOff, ChevronUp, ChevronDown, Radio } from 'lucide-react';
 import { useState } from 'react';
 
 interface Props {
@@ -20,7 +20,6 @@ export function VoiceChat({ gameId, userId, userName, phase, myRole, isAlive, wo
   const [collapsed, setCollapsed] = useState(false);
 
   const isWolf = WOLF_ROLES.has(myRole) || wolfTeam[userId];
-  const isDead = !isAlive;
 
   let channel: string;
   let canSpeak: boolean;
@@ -29,12 +28,12 @@ export function VoiceChat({ gameId, userId, userName, phase, myRole, isAlive, wo
     if (isWolf && isAlive) {
       channel = 'wolves';
       canSpeak = true;
-    } else if (isDead) {
+    } else if (!isAlive) {
       channel = 'ghost';
       canSpeak = false;
     } else {
-      channel = 'silent';
-      canSpeak = false;
+      // Aldeanos vivos en la noche: sin canal de voz
+      return null;
     }
   } else {
     if (isAlive) {
@@ -46,57 +45,37 @@ export function VoiceChat({ gameId, userId, userName, phase, myRole, isAlive, wo
     }
   }
 
-  const enabled = channel !== 'silent';
-
-  const { isMuted, toggleMute, peers, permissionGranted, connecting, error } = useVoiceChat({
+  const { isMuted, toggleMute, joinVoice, joining, peers, permissionGranted, error } = useVoiceChat({
     gameId,
     userId,
     userName,
     channel,
     canSpeak,
-    enabled,
+    enabled: true,
   });
-
-  if (channel === 'silent') return null;
 
   const connectedPeers = peers.filter(p => p.connected);
   const speakingNow = peers.find(p => p.speaking);
 
   const CHANNEL_CFG = {
-    wolves: { label: '🐺 Canal Lobos',    border: 'border-red-700/60',    bg: 'bg-red-950/80',    dot: 'bg-red-500' },
-    ghost:  { label: '👻 Solo escuchas',   border: 'border-purple-700/60', bg: 'bg-purple-950/80', dot: 'bg-purple-500' },
-    main:   { label: '🎙️ Chat de Voz',     border: 'border-blue-700/60',   bg: 'bg-blue-950/80',   dot: 'bg-blue-400' },
+    wolves: { label: '🐺 Canal Lobos',   border: 'border-red-700/60',    bg: 'bg-red-950/90',    dot: 'bg-red-500',    joinBtn: 'bg-red-700 hover:bg-red-600' },
+    ghost:  { label: '👻 Solo escuchas', border: 'border-purple-700/60', bg: 'bg-purple-950/90', dot: 'bg-purple-500', joinBtn: 'bg-purple-800 hover:bg-purple-700' },
+    main:   { label: '🎙️ Chat de Voz',   border: 'border-blue-700/60',   bg: 'bg-blue-950/90',   dot: 'bg-blue-400',   joinBtn: 'bg-blue-700 hover:bg-blue-600' },
   } as const;
 
   const cfg = CHANNEL_CFG[channel as keyof typeof CHANNEL_CFG] ?? CHANNEL_CFG.main;
 
-  // Si no tiene permiso de micrófono y puede hablar → botón de activación más prominente
-  if (canSpeak && !permissionGranted && !error) {
-    return (
-      <div className="fixed bottom-20 left-3 z-50">
-        <button
-          onClick={toggleMute}
-          className={`flex items-center gap-2 px-3 py-2 rounded-2xl border ${cfg.border} ${cfg.bg} backdrop-blur-sm shadow-xl text-white text-xs font-semibold animate-pulse`}
-        >
-          <Mic className="h-3.5 w-3.5 text-white/70" />
-          <span>Unirte con voz</span>
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <div className={`fixed bottom-20 left-3 z-50 w-48 rounded-2xl border ${cfg.border} ${cfg.bg} backdrop-blur-md shadow-2xl`}>
+    <div className={`fixed bottom-20 left-3 z-50 w-52 rounded-2xl border ${cfg.border} ${cfg.bg} backdrop-blur-md shadow-2xl`}>
 
-      {/* Header */}
+      {/* Header — siempre visible */}
       <button
         onClick={() => setCollapsed(c => !c)}
-        className="w-full flex items-center justify-between px-3 py-2 text-white hover:bg-white/5 rounded-t-2xl transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2.5 text-white hover:bg-white/5 rounded-t-2xl transition-colors"
       >
         <div className="flex items-center gap-2">
-          {/* Indicador de estado */}
-          <div className={`w-2 h-2 rounded-full ${cfg.dot} ${speakingNow ? 'animate-ping' : 'opacity-60'}`} />
-          <span className="text-[11px] font-semibold">{cfg.label}</span>
+          <div className={`w-2 h-2 rounded-full ${cfg.dot} ${speakingNow ? 'animate-ping' : permissionGranted ? 'opacity-80' : 'opacity-30 animate-pulse'}`} />
+          <span className="text-[11px] font-semibold tracking-wide">{cfg.label}</span>
         </div>
         {collapsed
           ? <ChevronUp className="h-3 w-3 text-white/40" />
@@ -109,18 +88,22 @@ export function VoiceChat({ gameId, userId, userName, phase, myRole, isAlive, wo
 
           {/* Error de micrófono */}
           {error && (
-            <p className="text-red-400 text-[10px] pt-2 text-center">{error}</p>
+            <p className="text-red-400 text-[10px] pt-2 text-center leading-snug">{error}</p>
           )}
 
-          {/* Conectando */}
-          {connecting && !error && (
-            <div className="flex items-center gap-1.5 text-white/50 text-[10px] pt-2">
-              <div className="w-1.5 h-1.5 bg-white/30 rounded-full animate-bounce" />
-              Conectando…
-            </div>
+          {/* Botón para unirse (cuando aún no se ha pedido el micrófono) */}
+          {!permissionGranted && !error && (
+            <button
+              onClick={joinVoice}
+              disabled={joining}
+              className={`w-full mt-2 flex items-center justify-center gap-2 py-2 rounded-xl ${cfg.joinBtn} text-white text-[11px] font-bold transition-all shadow ${joining ? 'opacity-60 cursor-wait' : 'hover:scale-[1.02]'}`}
+            >
+              <Radio className="h-3.5 w-3.5" />
+              {joining ? 'Conectando…' : canSpeak ? 'Unirte con voz' : 'Escuchar canal'}
+            </button>
           )}
 
-          {/* Tu micrófono */}
+          {/* Micrófono activo */}
           {canSpeak && permissionGranted && (
             <div className="flex items-center justify-between pt-2">
               <div className="flex items-center gap-1.5">
@@ -144,12 +127,14 @@ export function VoiceChat({ gameId, userId, userName, phase, myRole, isAlive, wo
             </div>
           )}
 
-          {/* Solo escucha (muerto) */}
+          {/* Solo escucha */}
           {!canSpeak && permissionGranted && (
-            <p className="text-white/30 text-[10px] pt-2">👂 Solo escuchas</p>
+            <p className="text-white/40 text-[10px] pt-2 flex items-center gap-1">
+              <span>👂</span> Solo escuchas
+            </p>
           )}
 
-          {/* Lista de compañeros */}
+          {/* Lista de peers */}
           {peers.length > 0 && (
             <div className="space-y-1.5 border-t border-white/10 pt-2">
               {peers.map(peer => (
@@ -158,27 +143,24 @@ export function VoiceChat({ gameId, userId, userName, phase, myRole, isAlive, wo
                     {peer.speaking ? '🔊' : peer.connected ? '🔈' : '⏳'}
                   </div>
                   <span className="text-[11px] text-white/70 truncate flex-1">{peer.name}</span>
-                  {!peer.connected && (
-                    <WifiOff className="h-2.5 w-2.5 text-white/30 flex-shrink-0" />
-                  )}
+                  {!peer.connected && <WifiOff className="h-2.5 w-2.5 text-white/30 flex-shrink-0" />}
                 </div>
               ))}
             </div>
           )}
 
-          {/* Nadie más */}
-          {peers.length === 0 && !connecting && permissionGranted && (
+          {peers.length === 0 && permissionGranted && (
             <p className="text-white/25 text-[10px] pt-1">Nadie más en el canal</p>
           )}
 
-          {/* Pie de estado */}
-          <div className="flex items-center gap-1 text-[9px] text-white/20 pt-1">
-            <div className={`w-1.5 h-1.5 rounded-full ${connectedPeers.length > 0 ? 'bg-green-500/60' : 'bg-white/20'}`} />
-            {connectedPeers.length} conectado{connectedPeers.length !== 1 ? 's' : ''}
-            {speakingNow && (
-              <span className="text-green-400/60 ml-1">· {speakingNow.name} habla</span>
-            )}
-          </div>
+          {/* Pie */}
+          {permissionGranted && (
+            <div className="flex items-center gap-1 text-[9px] text-white/20 pt-1">
+              <div className={`w-1.5 h-1.5 rounded-full ${connectedPeers.length > 0 ? 'bg-green-500/60' : 'bg-white/20'}`} />
+              {connectedPeers.length} conectado{connectedPeers.length !== 1 ? 's' : ''}
+              {speakingNow && <span className="text-green-400/60 ml-1">· {speakingNow.name} habla</span>}
+            </div>
+          )}
         </div>
       )}
     </div>
