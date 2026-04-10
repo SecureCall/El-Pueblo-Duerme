@@ -184,14 +184,20 @@ service cloud.firestore {
 
     match /games/{gameId}/publicChat/{messageId} {
       allow read: if isAuth();
-      allow create: if isAuth() && request.auth.uid == request.resource.data.senderId;
+      allow create: if isAuth() && (
+        request.auth.uid == request.resource.data.senderId
+        || isHost(gameId)
+      );
       allow update, delete: if false;
     }
 
     // ── Ghost chat ─────────────────────────────────────────────────────────
     match /games/{gameId}/ghostChat/{messageId} {
       allow read: if isAuth();
-      allow create: if isAuth() && request.auth.uid == request.resource.data.senderId;
+      allow create: if isAuth() && (
+        request.auth.uid == request.resource.data.senderId
+        || isHost(gameId)
+      );
       allow update, delete: if false;
     }
 
@@ -201,11 +207,12 @@ service cloud.firestore {
         isHost(gameId) ||
         get(/databases/$(database)/documents/games/$(gameId)).data.wolfTeam[request.auth.uid] == true
       );
-      allow create: if isAuth() &&
-        request.auth.uid == request.resource.data.senderId && (
-          isHost(gameId) ||
+      allow create: if isAuth() && (
+        isHost(gameId) || (
+          request.auth.uid == request.resource.data.senderId &&
           get(/databases/$(database)/documents/games/$(gameId)).data.wolfTeam[request.auth.uid] == true
-        );
+        )
+      );
       allow update, delete: if false;
     }
 
