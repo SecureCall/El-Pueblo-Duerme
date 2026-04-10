@@ -97,7 +97,8 @@ export function RegisterForm() {
         type="button"
         onClick={handleFacebook}
         disabled={busy}
-        className="w-full flex items-center justify-center gap-3 bg-[#1877F2] hover:bg-[#1565D8] active:scale-[0.98] text-white font-semibold text-sm rounded-xl py-3.5 transition-all shadow-lg disabled:opacity-50"
+        className="w-full flex items-center justify-center gap-3 text-white font-semibold text-sm rounded-xl py-3.5 transition-all shadow-lg disabled:opacity-50 active:scale-[0.98]"
+        style={{ backgroundColor: '#1877F2' }}
       >
         {fbLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
           <svg className="h-5 w-5 flex-shrink-0" viewBox="0 0 24 24" fill="white">
