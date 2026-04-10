@@ -8,7 +8,7 @@ import { Trophy, Skull, Home, RefreshCw, Clock, Star } from 'lucide-react';
 import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
 import { AdBanner } from '@/components/ads/AdBanner';
 import { RewardedAd } from '@/components/ads/RewardedAd';
-import { awardXP, xpToLevel, levelEmoji, type XPResult } from '@/lib/firebase/xp';
+import { xpToLevel, levelEmoji, type XPResult } from '@/lib/firebase/xp';
 
 interface Props {
   game: GameState;
@@ -71,15 +71,23 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [winners]);
 
-  // Award XP once per game end
+  // Award XP once per game end — via server API (Admin SDK, bypasses Firestore rules)
   useEffect(() => {
     if (!myUid || xpAwarded.current) return;
     xpAwarded.current = true;
     const roleInfo = myRole ? ROLES[myRole] : null;
     const hasSpecialRole = !!roleInfo && roleInfo.team !== 'village' && myRole !== 'Aldeano' && myRole !== 'Lobo';
-    awardXP(myUid, { isWin: iWon, hasSpecialRole })
-      .then(result => setXpResult(result))
-      .catch(err => console.error('[EndGame] awardXP falló:', err));
+    fetch('/api/award-xp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid: myUid, isWin: iWon, hasSpecialRole }),
+    })
+      .then(r => r.json())
+      .then((data: XPResult) => {
+        if (data.newTotalXp !== undefined) setXpResult(data);
+        else console.error('[EndGame] award-xp respuesta inválida:', data);
+      })
+      .catch(err => console.error('[EndGame] award-xp falló:', err));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myUid]);
 
