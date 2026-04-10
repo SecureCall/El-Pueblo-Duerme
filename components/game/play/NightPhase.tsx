@@ -100,10 +100,13 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
   useEffect(() => {
     if (!canSeeWolfChat) return;
     const q = query(collection(db, 'games', gameId, 'wolfChat'), orderBy('createdAt', 'asc'), limit(50));
-    const unsub = onSnapshot(q, (snap: any) => {
-      setWolfMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
-      setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
-    });
+    const unsub = onSnapshot(q,
+      (snap: any) => {
+        setWolfMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
+      },
+      () => {}
+    );
     return () => unsub();
   }, [canSeeWolfChat, gameId]);
 
@@ -111,9 +114,12 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
   useEffect(() => {
     if (!isEspia || !espiaViewActive) return;
     const q = query(collection(db, 'games', gameId, 'wolfChat'), orderBy('createdAt', 'asc'), limit(50));
-    const unsub = onSnapshot(q, (snap: any) => {
-      setWolfMsgsForEspia(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
-    });
+    const unsub = onSnapshot(q,
+      (snap: any) => {
+        setWolfMsgsForEspia(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+      },
+      () => {}
+    );
     return () => unsub();
   }, [isEspia, espiaViewActive, gameId]);
 
@@ -134,6 +140,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
   useEffect(() => {
     if (!narratorReady || submitted) return;
     if (isNightRole || isEspia) return;
+    if (!me?.isAlive) { setSubmitted(true); return; }
 
     let seconds = 8;
     setAutoSkipCountdown(seconds);
@@ -155,6 +162,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
   useEffect(() => {
     if (!narratorReady || submitted) return;
     if (!isNightRole && !isEspia) return;
+    if (!me?.isAlive) { setSubmitted(true); return; }
 
     const timer = setTimeout(() => {
       if (!submitted) {
