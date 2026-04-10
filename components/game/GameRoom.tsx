@@ -15,7 +15,8 @@ import { useAudio } from '@/app/providers/AudioProvider';
 import { FriendsPanel } from '@/components/friends/FriendsPanel';
 import { sendFriendRequest } from '@/lib/firebase/friends';
 import { xpToLevel, levelEmoji } from '@/lib/firebase/xp';
-import { BOT_NAMES, assignBotType } from '@/lib/bots/botSystem';
+import { BOT_NAMES, assignBotType, type BotType } from '@/lib/bots/botSystem';
+import { getBehaviorProfile } from '@/lib/bots/playerStats';
 
 interface Player {
   uid: string;
@@ -55,7 +56,21 @@ interface ChatMsg {
   createdAt: any;
 }
 
-function generateAIPlayers(current: Player[], maxPlayers: number): Player[] {
+// Bias de personalidad según perfil del host: complementar su estilo
+function biasedBotType(aggressionLevel: 'fast' | 'medium' | 'slow', i: number): BotType {
+  // Host agresivo → más bots callados y listos para crear contraste
+  // Host pasivo → más acusadores para animar el debate
+  // Host medio → mezcla variada
+  const pools: Record<string, BotType[]> = {
+    fast:   ['callado', 'callado', 'listo', 'acusador', 'caotico'],
+    slow:   ['acusador', 'acusador', 'caotico', 'listo', 'callado'],
+    medium: ['callado', 'acusador', 'listo', 'caotico', 'acusador'],
+  };
+  const pool = pools[aggressionLevel];
+  return pool[i % pool.length];
+}
+
+function generateAIPlayers(current: Player[], maxPlayers: number, aggressionLevel?: 'fast' | 'medium' | 'slow'): Player[] {
   const count = maxPlayers - current.length;
   if (count <= 0) return [];
   const used = new Set(current.map(p => p.name));
@@ -68,7 +83,7 @@ function generateAIPlayers(current: Player[], maxPlayers: number): Player[] {
     isAlive: true,
     role: null,
     isAI: true,
-    botType: assignBotType(),
+    botType: aggressionLevel ? biasedBotType(aggressionLevel, i) : assignBotType(),
   }));
 }
 
@@ -84,6 +99,8 @@ export function GameRoom({ gameId }: { gameId: string }) {
   const [starting, setStarting] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [retentionCountdown, setRetentionCountdown] = useState<number | null>(null);
+  const retentionFiredRef = useRef(false);
   const chatRef = useRef<HTMLDivElement>(null);
   const { play, stop, AUDIO_FILES } = useNarrator();
   const { playMusic } = useAudio();
@@ -187,6 +204,63 @@ export function GameRoom({ gameId }: { gameId: string }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid, gameId]);
 
+  // Auto-fill con bots (matchmaking retención)
+  const autoFillWithBots = async () => {
+    if (!user || !game || retentionFiredRef.current) return;
+    if (game.hostUid !== user.uid) return;
+    retentionFiredRef.current = true;
+    const realNow = (game.players ?? []).filter(p => !p.isAI);
+    if (realNow.length >= 4) return;
+    const targetTotal = Math.min(game.maxPlayers ?? 10, Math.max(6, realNow.length + 3));
+    const newBots = generateAIPlayers(realNow, targetTotal);
+    if (newBots.length === 0) return;
+    await updateDoc(doc(db, 'games', gameId), {
+      players: [...realNow, ...newBots],
+      playerCount: realNow.length + newBots.length,
+      fillWithAI: true,
+    }).catch(() => {});
+    setRetentionCountdown(null);
+  };
+
+  // Retención: si el host está solo < 4 jugadores por 45s, muestra aviso y rellena en 60s
+  useEffect(() => {
+    if (!user || !game || game.status !== 'lobby') return;
+    if (game.hostUid !== user.uid) return;
+    const realCount = (game.players ?? []).filter(p => !p.isAI).length;
+    if (realCount >= 4 || retentionFiredRef.current) return;
+
+    const WARN_AT = 40000;
+    const FILL_AT = 60000;
+    const COUNTDOWN_SECS = 20;
+
+    const warnTimer = setTimeout(() => {
+      setRetentionCountdown(COUNTDOWN_SECS);
+    }, WARN_AT);
+
+    const countdownInterval = setTimeout(() => {
+      let c = COUNTDOWN_SECS - 1;
+      const iv = setInterval(() => {
+        setRetentionCountdown(prev => {
+          if (prev === null || prev <= 1) { clearInterval(iv); return null; }
+          return prev - 1;
+        });
+        c--;
+        if (c <= 0) clearInterval(iv);
+      }, 1000);
+    }, WARN_AT + 1000);
+
+    const fillTimer = setTimeout(() => {
+      autoFillWithBots();
+    }, FILL_AT);
+
+    return () => {
+      clearTimeout(warnTimer);
+      clearTimeout(countdownInterval);
+      clearTimeout(fillTimer);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [(game?.players ?? []).filter(p => !p.isAI).length, game?.status, user?.uid]);
+
   const sendMsg = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!msg.trim() || !user) return;
@@ -271,14 +345,17 @@ export function GameRoom({ gameId }: { gameId: string }) {
 
   const startGame = async () => {
     if (!user || !game || game.hostUid !== user.uid) return;
-    stop(); // Corta salas.mp3 si sigue sonando
+    stop();
     setStarting(true);
     try {
       const realPlayers = game.players ?? [];
       let allPlayers = realPlayers;
 
       if (game.fillWithAI && realPlayers.length < game.maxPlayers) {
-        const aiPlayers = generateAIPlayers(realPlayers, game.maxPlayers);
+        // Leer perfil del host para ajustar personalidades de bots
+        const profile = await getBehaviorProfile(user.uid).catch(() => null);
+        const aggressionLevel = profile?.aggressionLevel ?? 'medium';
+        const aiPlayers = generateAIPlayers(realPlayers, game.maxPlayers, aggressionLevel);
         allPlayers = [...realPlayers, ...aiPlayers];
       }
 
@@ -545,6 +622,20 @@ export function GameRoom({ gameId }: { gameId: string }) {
                 <span>⏭</span>
                 <span>Saltar narración del narrador</span>
               </button>
+            )}
+
+            {/* Retención: aviso de auto-fill */}
+            {isHost && retentionCountdown !== null && realPlayers.length < 4 && (
+              <div className="bg-amber-900/30 border border-amber-500/30 rounded-xl p-3 text-center space-y-1.5 animate-pulse">
+                <p className="text-amber-400 text-xs font-medium">Pocos jugadores — añadiendo bots en</p>
+                <p className="text-amber-300 font-bold text-2xl">{retentionCountdown}s</p>
+                <button
+                  onClick={autoFillWithBots}
+                  className="text-amber-400/70 hover:text-amber-300 text-xs underline"
+                >
+                  Añadir ahora
+                </button>
+              </div>
             )}
 
             {isHost && (

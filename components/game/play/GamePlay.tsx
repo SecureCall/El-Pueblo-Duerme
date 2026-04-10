@@ -10,7 +10,8 @@ import {
 } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
 import { assignRoles, checkWinCondition, ROLES, ROLE_SUBMISSION_KEY, drawRandomEvent } from './roles';
-import { BOT_VOTE_CONFIG, pickBotVoteTarget, type BotType, FALLBACK_BOT_MESSAGES } from '@/lib/bots/botSystem';
+import { BOT_VOTE_CONFIG, pickBotVoteTarget, type BotType, FALLBACK_BOT_MESSAGES, BOT_NARRATOR_SPOTLIGHTS } from '@/lib/bots/botSystem';
+import { recordVote, recordGameResult } from '@/lib/bots/playerStats';
 import { RoleReveal } from './RoleReveal';
 import { NightPhase } from './NightPhase';
 import { DayPhase } from './DayPhase';
@@ -1415,6 +1416,17 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const finalWinner = bansheeWin ? 'banshee' : winResult.winner;
     const finalMsg = bansheeWin ? '¡La Banshee predijo 2 muertes correctamente y gana sola!' : winResult.message;
 
+    // Registrar estadísticas de jugadores reales al terminar partida
+    if (finalWinner) {
+      const wolfTeamUids = new Set(Object.keys(game.wolfTeam ?? {}));
+      (game.players ?? []).filter(p => !p.isAI).forEach(p => {
+        const role = newRoles[p.uid] ?? 'Aldeano';
+        const isWolfSide = wolfTeamUids.has(p.uid);
+        const playerWon = isWolfSide ? finalWinner === 'wolves' : finalWinner === 'village';
+        recordGameResult(p.uid, playerWon, role).catch(() => {});
+      });
+    }
+
     // ── STEP 10 — Night audit log (subcollection) ─────────────────────────
     setDoc(doc(db, 'games', gameId, 'nightLogs', String(round)), {
       round,
@@ -1509,18 +1521,18 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (game.phase !== 'day' && game.phase !== 'voting') { console.warn('[FSM] submitDayVote rejected — not day/voting phase'); return; }
     const me = game.players?.find(p => p.uid === user.uid);
     if (!me?.isAlive) { console.warn('[FSM] submitDayVote rejected — player not alive'); return; }
-    // Sirena: if voter is sirena-linked, force vote to sirena's target
     let actualTarget = targetUid;
     if (game.sirenaLinked === user.uid && game.sirenaUid) {
       actualTarget = votesFromSub[game.sirenaUid] ?? targetUid;
     }
     try {
-      // Write to votes/{uid} subcollection — Firestore rule enforces uid == voter
       await setDoc(doc(db, 'games', gameId, 'votes', user.uid), {
         target: actualTarget,
         round: game.roundNumber ?? 1,
         submittedAt: Date.now(),
       });
+      // Registro de comportamiento del jugador (fire-and-forget)
+      if (game.dayStartedAt) recordVote(user.uid, game.dayStartedAt).catch(() => {});
     } catch (e) { console.error('submitDayVote error:', e); }
   }, [user, game, gameId, votesFromSub]);
 
@@ -1615,6 +1627,20 @@ export function GamePlay({ gameId }: { gameId: string }) {
             round,
             submittedAt: Date.now(),
           });
+
+          // Narrador spotlight: 28% de probabilidad de mencionar al bot
+          if (Math.random() < 0.28) {
+            const botPlayer = aiAlive.find(p => p.uid === capturedUid);
+            if (botPlayer) {
+              const bTypeSpot = (botPlayer.botType ?? 'caotico') as BotType;
+              const spotlights = BOT_NARRATOR_SPOTLIGHTS[bTypeSpot];
+              const spot = spotlights[Math.floor(Math.random() * spotlights.length)];
+              const spotText = spot.text.replace(/\{name\}/g, botPlayer.name);
+              updateDoc(doc(db, 'games', gameId), {
+                narratorBroadcast: { text: spotText, type: spot.type, triggeredAt: Date.now() },
+              }).catch(() => {});
+            }
+          }
         } catch { /* ignore */ }
       }, waitMs);
       timers.push(t);
@@ -1953,6 +1979,17 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
     const finalWinner = verdugosWin ? 'verdugo' : winResult.winner;
     const finalMsg = verdugosWin ? verdugosWinMsg : winResult.message;
+
+    // Registrar estadísticas de jugadores reales al terminar partida
+    if (finalWinner) {
+      const wolfTeamUids = new Set(Object.keys(game.wolfTeam ?? {}));
+      (game.players ?? []).filter(p => !p.isAI).forEach(p => {
+        const role = newRoles[p.uid] ?? 'Aldeano';
+        const isWolfSide = wolfTeamUids.has(p.uid);
+        const playerWon = isWolfSide ? finalWinner === 'wolves' : finalWinner === 'village';
+        recordGameResult(p.uid, playerWon, role).catch(() => {});
+      });
+    }
 
     try {
       await updateDoc(doc(db, 'games', gameId), {

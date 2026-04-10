@@ -76,6 +76,31 @@ export function pickBotVoteTarget(
   }
 }
 
+export type NarratorBroadcastType = 'warning' | 'suspicion' | 'chaos' | 'irony' | 'accusation';
+
+export const BOT_NARRATOR_SPOTLIGHTS: Record<BotType, { text: string; type: NarratorBroadcastType }[]> = {
+  callado: [
+    { text: '{name} tardó mucho en votar... ¿calculaba algo que los demás no ven?', type: 'suspicion' },
+    { text: 'Silencio de {name}. Después, voto. Eso no es indecisión.', type: 'irony' },
+    { text: '{name} espera, observa, decide. Demasiado sereno para ser inocente.', type: 'suspicion' },
+  ],
+  acusador: [
+    { text: '{name} fue el primero en señalar. ¿Instinto... o necesidad de desviar?', type: 'accusation' },
+    { text: '¿Por qué tanta prisa, {name}? Los inocentes no suelen correr tanto.', type: 'warning' },
+    { text: '{name} acusa antes de pensar. O sabe más de lo que dice.', type: 'accusation' },
+  ],
+  listo: [
+    { text: '{name} siguió a la mayoría. Estrategia... o falta de información propia.', type: 'irony' },
+    { text: '{name} analizó. {name} calculó. {name} votó. Demasiado ordenado.', type: 'suspicion' },
+    { text: 'El voto de {name} llegó justo cuando era más conveniente. Casualidad curiosa.', type: 'irony' },
+  ],
+  caotico: [
+    { text: 'El voto de {name} no tiene lógica aparente... o tiene demasiada.', type: 'chaos' },
+    { text: '{name} juega a su propio juego. ¿Y si es el único que realmente sabe?', type: 'warning' },
+    { text: 'Caos. Solo {name} entiende por qué votó así. O eso dice.', type: 'chaos' },
+  ],
+};
+
 export const FALLBACK_BOT_MESSAGES: Record<BotType, string[]> = {
   callado: [
     'no sé... a mí me da mal rollo',
