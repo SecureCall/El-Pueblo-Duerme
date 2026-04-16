@@ -22,6 +22,7 @@ import { ChaosEventScreen } from './ChaosEventScreen';
 import { NarratorBroadcast } from './NarratorBroadcast';
 import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
 import { DeathOverlay } from './DeathOverlay';
+import { MomentBanner, buildMoment, type Moment } from './MomentBanner';
 import { playNightAmbience, playDayAmbience, stopAllAmbience, playDeathSting, playVoteAlarm, playGameStart, playVictory, playDefeat } from '@/lib/gameAudio';
 
 export interface Player {
@@ -187,6 +188,19 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const [votesFromSub, setVotesFromSub] = useState<Record<string, string>>({});
   const [deathQueue, setDeathQueue] = useState<{ uid: string; name: string; role: string }[]>([]);
   const prevElimCount = useRef<number>(0);
+  const [currentMoment, setCurrentMoment] = useState<Moment | null>(null);
+  const momentQueue = useRef<Moment[]>([]);
+  const momentPlaying = useRef(false);
+
+  const triggerMoment = (m: Moment) => {
+    momentQueue.current.push(m);
+    if (!momentPlaying.current) showNextMoment();
+  };
+  const showNextMoment = () => {
+    if (!momentQueue.current.length) { momentPlaying.current = false; return; }
+    momentPlaying.current = true;
+    setCurrentMoment(momentQueue.current.shift()!);
+  };
   const aiChatSentRound = useRef<number>(-1);
   const aiNightSubmittedRound = useRef<number>(-1);
   const aiDayVotedRound = useRef<number>(-1);
@@ -1455,6 +1469,25 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const finalWinner = bansheeWin ? 'banshee' : winResult.winner;
     const finalMsg = bansheeWin ? '¡La Banshee predijo 2 muertes correctamente y gana sola!' : winResult.message;
 
+    // ── Epic Moments triggers ─────────────────────────────────────────────
+    if (!finalWinner) {
+      const wolfTeamUidsNow = new Set(Object.keys(game.wolfTeam ?? {}));
+      const aliveAfter = players.filter(p => p.isAlive);
+      const aliveWolves = aliveAfter.filter(p => wolfTeamUidsNow.has(p.uid));
+      const aliveVillage = aliveAfter.filter(p => !wolfTeamUidsNow.has(p.uid));
+
+      nightKilledUids.forEach(uid => {
+        const role = newRoles[uid] ?? 'Aldeano';
+        const name = players.find(p => p.uid === uid)?.name ?? '???';
+        if (['Vidente', 'Hechicera', 'Doctor', 'Cazador', 'Príncipe'].includes(role))
+          triggerMoment(buildMoment('unexpected_death', { name, role }));
+      });
+      if (alquimistaPotion === 'save') triggerMoment(buildMoment('witch_save'));
+      if (aliveWolves.length === 1) triggerMoment(buildMoment('last_wolf', { name: aliveWolves[0].name }));
+      if (aliveWolves.length > 0 && aliveVillage.length <= aliveWolves.length + 1)
+        triggerMoment(buildMoment('wolves_winning'));
+    }
+
     // Registrar estadísticas de jugadores reales al terminar partida
     if (finalWinner) {
       const wolfTeamUids = new Set(Object.keys(game.wolfTeam ?? {}));
@@ -2027,6 +2060,27 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const finalWinner = verdugosWin ? 'verdugo' : winResult.winner;
     const finalMsg = verdugosWin ? verdugosWinMsg : winResult.message;
 
+    // ── Epic Moments: trigger narrative banners ───────────────────────────
+    if (!finalWinner) {
+      const alivePlayers = players.filter(p => p.isAlive);
+      const wolfTeamUidsNow = new Set(Object.keys(game.wolfTeam ?? {}));
+      const aliveWolves = alivePlayers.filter(p => wolfTeamUidsNow.has(p.uid));
+      const aliveVillage = alivePlayers.filter(p => !wolfTeamUidsNow.has(p.uid));
+
+      if (eliminated) {
+        const elimRole = newRoles[eliminated] ?? 'Aldeano';
+        const elimName = players.find(p => p.uid === eliminated)?.name ?? '???';
+        const wasWolf = wolfTeamUidsNow.has(eliminated);
+        if (wasWolf) triggerMoment(buildMoment('wolf_eliminated', { name: elimName, role: elimRole }));
+        else if (['Vidente', 'Hechicera', 'Doctor', 'Cazador'].includes(elimRole))
+          triggerMoment(buildMoment('unexpected_death', { name: elimName, role: elimRole }));
+      }
+      if (isTie) triggerMoment(buildMoment('tie_vote'));
+      if (aliveWolves.length === 1) triggerMoment(buildMoment('last_wolf', { name: aliveWolves[0].name }));
+      if (aliveWolves.length > 0 && aliveVillage.length <= aliveWolves.length + 1)
+        triggerMoment(buildMoment('final_battle'));
+    }
+
     // Registrar estadísticas de jugadores reales al terminar partida
     if (finalWinner) {
       const wolfTeamUids = new Set(Object.keys(game.wolfTeam ?? {}));
@@ -2494,6 +2548,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
         {deathQueue.length > 0 && (
           <DeathOverlay deaths={deathQueue} onDone={() => setDeathQueue([])} />
         )}
+        <MomentBanner moment={currentMoment} onDone={() => { setCurrentMoment(null); showNextMoment(); }} />
         {hostAbsent && (
           <div className="fixed top-0 inset-x-0 z-50 bg-red-900/90 border-b border-red-600 text-white text-sm text-center py-2 px-4">
             ⚠️ El anfitrión se ha desconectado. La partida avanzará automáticamente o se reasignará el anfitrión en breve.
