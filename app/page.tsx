@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/app/providers/AuthProvider';
-import { ShoppingBag, LogOut, Zap, Users, Shield, Sword } from 'lucide-react';
+import { ShoppingBag, LogOut, Zap, Users, Shield, Sword, Bell, BellOff } from 'lucide-react';
 import { auth } from '@/lib/firebase/config';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
@@ -12,6 +12,8 @@ import { JoinByCodeModal } from '@/components/JoinByCodeModal';
 import { PageAudio } from '@/components/audio/PageAudio';
 import { AudioControls } from '@/components/audio/AudioControls';
 import { AdBanner } from '@/components/ads/AdBanner';
+import { TutorialOverlay, shouldShowTutorial } from '@/components/game/TutorialOverlay';
+import { subscribeAndSave } from '@/lib/firebase/push';
 
 const ROLE_CARDS = [
   { icon: '🐺', name: 'Lobo', desc: 'Mata en silencio', color: 'from-red-900/60 to-black/60', border: 'border-red-800/40' },
@@ -63,6 +65,22 @@ export default function HomePage() {
   const { user } = useAuth();
   const router = useRouter();
   const [showJoinModal, setShowJoinModal] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [pushGranted, setPushGranted] = useState<boolean | null>(null);
+  const [pushLoading, setPushLoading] = useState(false);
+
+  useEffect(() => {
+    if (shouldShowTutorial()) setShowTutorial(true);
+    if ('Notification' in window) setPushGranted(Notification.permission === 'granted');
+  }, []);
+
+  const handleEnablePush = async () => {
+    if (!user) return;
+    setPushLoading(true);
+    const ok = await subscribeAndSave(user.uid);
+    setPushGranted(ok);
+    setPushLoading(false);
+  };
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -182,9 +200,12 @@ export default function HomePage() {
 
         {/* Links secundarios */}
         <div className="flex items-center gap-5 mt-6 text-xs text-white/30">
-          <Link href="/how-to-play" className="hover:text-white/60 transition-colors flex items-center gap-1">
+          <button
+            onClick={() => setShowTutorial(true)}
+            className="hover:text-white/60 transition-colors flex items-center gap-1"
+          >
             <Shield className="h-3 w-3" /> Cómo jugar
-          </Link>
+          </button>
           <Link href={user ? '/profile' : '/login'} className="hover:text-white/60 transition-colors">
             Mi Perfil
           </Link>
@@ -192,6 +213,24 @@ export default function HomePage() {
             <ShoppingBag className="h-3 w-3" /> Tienda
           </Link>
         </div>
+
+        {/* Notificaciones push */}
+        {user && pushGranted === false && (
+          <button
+            onClick={handleEnablePush}
+            disabled={pushLoading}
+            className="mt-4 flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-950/60 border border-indigo-700/40 text-indigo-300 text-xs font-semibold hover:bg-indigo-900/60 transition-all disabled:opacity-50"
+          >
+            <Bell className="h-3.5 w-3.5 animate-pulse" />
+            {pushLoading ? 'Activando…' : 'Activar notificaciones de partida'}
+          </button>
+        )}
+        {user && pushGranted === true && (
+          <div className="mt-4 flex items-center gap-2 text-xs text-white/25">
+            <Bell className="h-3 w-3 text-green-500" />
+            Notificaciones activas
+          </div>
+        )}
 
         {/* Carrusel de roles */}
         <RoleCarousel />
@@ -225,6 +264,7 @@ export default function HomePage() {
       </div>
 
       {showJoinModal && <JoinByCodeModal onClose={() => setShowJoinModal(false)} />}
+      {showTutorial && <TutorialOverlay onClose={() => setShowTutorial(false)} />}
     </div>
   );
 }

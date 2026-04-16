@@ -111,40 +111,52 @@ function didIWin(winners: string | null, myRole?: string): boolean {
   return false;
 }
 
-function buildShareText(game: GameState, winners: string | null, winMessage: string): string {
+function buildShareText(
+  game: GameState,
+  winners: string | null,
+  winMessage: string,
+  myUid?: string,
+  myRole?: string,
+  iWon?: boolean,
+): string {
   const { title } = getWinnerDisplay(winners);
   const players = game.players ?? [];
   const eliminated = game.eliminatedHistory ?? [];
   const rounds = game.roundNumber ?? eliminated.length;
-
   const wolfTeamUids = new Set(Object.keys(game.wolfTeam ?? {}));
   const wolves = players.filter(p => wolfTeamUids.has(p.uid));
-  const village = players.filter(p => !wolfTeamUids.has(p.uid));
+  const villageCount = players.filter(p => !wolfTeamUids.has(p.uid)).length;
+  const myPlayer = players.find(p => p.uid === myUid);
+  const survived = myPlayer?.isAlive ?? false;
+  const isWolfSide = myUid ? wolfTeamUids.has(myUid) : false;
 
-  let text = `🌙 El Pueblo Duerme\n`;
-  text += `${title}\n`;
-  text += `"${winMessage}"\n\n`;
+  // ── Gancho viral personalizado ──────────────────────────────────────────
+  let hook = '';
+  if (myRole && iWon !== undefined) {
+    if (isWolfSide && iWon && survived) {
+      hook = `Engañé a ${villageCount} personas y no se dieron cuenta 🐺\n`;
+    } else if (isWolfSide && iWon && !survived) {
+      hook = `Me eliminaron, pero mis lobos ganaron igual 🐺 No lo ven venir.\n`;
+    } else if (isWolfSide && !iWon) {
+      hook = `El pueblo me descubrió como ${myRole}... necesito revancha 😤\n`;
+    } else if (!isWolfSide && iWon && survived) {
+      hook = `Sobreviví ${rounds} rondas como ${myRole} y el pueblo ganó 🏆\n`;
+    } else if (!isWolfSide && iWon && !survived) {
+      hook = `Me mataron, pero voté bien antes de caer 💀 El pueblo ganó.\n`;
+    } else if (!isWolfSide && !iWon) {
+      hook = `Los lobos nos engañaron a todos. ${wolves.map(w => w.name).join(' y ')} eran lobos y nadie lo sospechó 😱\n`;
+    }
+  }
+  if (!hook) hook = `${title}\n`;
+
+  let text = `🌙 El Pueblo Duerme\n${hook}\n`;
 
   if (wolves.length) {
-    text += `🐺 Lobos:\n`;
-    wolves.forEach(p => {
-      const role = game.roles?.[p.uid] ?? 'Lobo';
-      text += `  ${p.isAlive ? '✅' : '💀'} ${p.name} (${role})\n`;
-    });
-    text += `\n`;
+    text += `🐺 Equipo lobo: ${wolves.map(w => `${w.name} (${game.roles?.[w.uid] ?? 'Lobo'})`).join(', ')}\n`;
   }
 
-  text += `👥 Pueblo:\n`;
-  village.forEach(p => {
-    const role = game.roles?.[p.uid] ?? 'Aldeano';
-    text += `  ${p.isAlive ? '✅' : '💀'} ${p.name} (${role})\n`;
-  });
-
   if (eliminated.length) {
-    text += `\n📜 Eliminados:\n`;
-    eliminated.forEach((e, i) => {
-      text += `  ${i + 1}. ${e.name} (${e.role}) — Ronda ${e.round}\n`;
-    });
+    text += `💀 Caídos: ${eliminated.map(e => e.name).join(' → ')}\n`;
   }
 
   text += `\n📊 ${rounds} rondas · ${players.length} jugadores\n`;
@@ -248,7 +260,7 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
   const rounds = game.roundNumber ?? eliminated.length;
 
   const handleShare = async () => {
-    const text = buildShareText(game, winners, winMessage);
+    const text = buildShareText(game, winners, winMessage, myUid, myRole, iWon);
     try {
       if (navigator.share) {
         await navigator.share({ title: '🌙 El Pueblo Duerme', text });

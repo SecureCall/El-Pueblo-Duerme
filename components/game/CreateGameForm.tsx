@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { db } from '@/lib/firebase/config';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { Loader2, Copy } from 'lucide-react';
+import { Loader2, Copy, RefreshCw } from 'lucide-react';
+import { generateRoomName } from '@/lib/roomNames';
 
 // Roles match exactly the keys in components/game/play/roles.ts
 const SPECIAL_ROLES: { id: string; name: string; icon: string; team: 'village' | 'wolves' | 'solo' }[] = [
@@ -82,7 +83,7 @@ export function CreateGameForm() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const [gameName, setGameName] = useState('Partida de Pueblo Duerme');
+  const [gameName, setGameName] = useState(() => generateRoomName());
   const [playerName, setPlayerName] = useState(user?.displayName ?? '');
   const [playerCount, setPlayerCount] = useState(10);
   const [isPublic, setIsPublic] = useState(false);
@@ -189,14 +190,24 @@ export function CreateGameForm() {
     <form onSubmit={handleCreate} className="space-y-4 max-w-lg mx-auto">
       <div className="bg-black/40 border border-white/10 rounded-xl p-5 space-y-4">
         <div>
-          <label className="block text-sm text-white/60 mb-1">Nombre de la Partida</label>
-          <input
-            type="text"
-            value={gameName}
-            onChange={e => setGameName(e.target.value)}
-            maxLength={50}
-            className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2.5 text-white placeholder:text-white/30 focus:outline-none focus:border-white/40 transition-colors"
-          />
+          <label className="block text-sm text-white/60 mb-1">Nombre de la Sala</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={gameName}
+              onChange={e => setGameName(e.target.value)}
+              maxLength={50}
+              className="flex-1 bg-white/5 border border-white/15 rounded-lg px-3 py-2.5 text-white placeholder:text-white/30 focus:outline-none focus:border-white/40 transition-colors"
+            />
+            <button
+              type="button"
+              onClick={() => setGameName(generateRoomName())}
+              className="flex items-center gap-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-white/50 hover:text-white/80 hover:border-white/30 transition-all text-xs"
+              title="Generar nombre aleatorio"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
         <div>
           <label className="block text-sm text-white/60 mb-1">Tu Nombre</label>

@@ -12,6 +12,7 @@ import { Loader2 } from 'lucide-react';
 import { assignRoles, checkWinCondition, ROLES, ROLE_SUBMISSION_KEY, drawRandomEvent } from './roles';
 import { BOT_VOTE_CONFIG, pickBotVoteTarget, type BotType, FALLBACK_BOT_MESSAGES, BOT_NARRATOR_SPOTLIGHTS } from '@/lib/bots/botSystem';
 import { recordVote, recordGameResult } from '@/lib/bots/playerStats';
+import { sendPushToMany } from '@/lib/firebase/push';
 import { RoleReveal } from './RoleReveal';
 import { NightPhase } from './NightPhase';
 import { DayPhase } from './DayPhase';
@@ -1830,6 +1831,39 @@ export function GamePlay({ gameId }: { gameId: string }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.phase, game?.roundNumber, game?.dayStartedAt, game?.phaseEndsAt]);
 
+  // ── Micro-momento: duda en votación ──────────────────────────────────────
+  const hesitationFiredRef = useRef(false);
+  useEffect(() => {
+    if (!game || game.phase !== 'day') { hesitationFiredRef.current = false; return; }
+    const t = setTimeout(() => {
+      if (hesitationFiredRef.current) return;
+      const alivePlayers = (game.players ?? []).filter(p => p.isAlive && !p.isAI);
+      const voteBanned = game.voteBanned ?? [];
+      const eligible = alivePlayers.filter(p => !voteBanned.includes(p.uid));
+      const pending = eligible.filter(p => !votesFromSub[p.uid]);
+      if (pending.length === 0 || pending.length === eligible.length) return;
+      const target = pending[Math.floor(Math.random() * pending.length)];
+      hesitationFiredRef.current = true;
+      const phrases = [
+        `${target.name} no ha votado aún…`,
+        `¿Qué oculta ${target.name}?`,
+        `${target.name} duda demasiado…`,
+      ];
+      const subPhrases = [
+        '¿Indecisión o cálculo?',
+        'El silencio también acusa.',
+        'Cada segundo cuenta en el pueblo.',
+      ];
+      const i = Math.floor(Math.random() * phrases.length);
+      triggerMoment(buildMoment('hesitation', {
+        headline: phrases[i],
+        subtext: subPhrases[i],
+      }));
+    }, 32_000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.phase, game?.roundNumber]);
+
   async function processDayVotes(dayVotes: Record<string, string>) {
     if (!game) return;
     if (game.phase !== 'day' && game.phase !== 'voting') { return; }
@@ -2465,6 +2499,19 @@ export function GamePlay({ gameId }: { gameId: string }) {
             profetaReveal: null,
             players: resetPlayers,
           });
+
+          // Push notification to all non-host real players
+          const playerUids = (game.players ?? [])
+            .filter((p: Player) => !p.isAI && p.uid !== newHostUid)
+            .map((p: Player) => p.uid);
+          if (playerUids.length > 0) {
+            sendPushToMany(playerUids, {
+              title: '⚔️ ¡Revancha en El Pueblo Duerme!',
+              body: `${newHostName} ha iniciado una nueva partida. ¡Vuelve y venga!`,
+              url: `/game/${gameId}`,
+              tag: `rematch-${gameId}`,
+            }).catch(() => {});
+          }
         }}
       />
     );

@@ -72,3 +72,42 @@ export function buildNotificationOptions(payload: PushPayload): NotificationOpti
     vibrate: [200, 100, 200],
   };
 }
+
+/**
+ * Subscribe this device and immediately save to /api/push-subscribe.
+ * Returns true if the user is now subscribed.
+ */
+export async function subscribeAndSave(uid: string): Promise<boolean> {
+  const sub = await subscribeToPush();
+  if (!sub) return false;
+  try {
+    const subJson = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string }; expirationTime?: number | null };
+    await fetch('/api/push-subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, subscription: subJson }),
+    });
+    return true;
+  } catch (err) {
+    console.warn('[push] subscribeAndSave error:', err);
+    return false;
+  }
+}
+
+/** Send a push notification to a specific user via /api/push-send. */
+export async function sendPushToUser(uid: string, payload: PushPayload): Promise<void> {
+  try {
+    await fetch('/api/push-send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, payload }),
+    });
+  } catch (err) {
+    console.warn('[push] sendPushToUser error:', err);
+  }
+}
+
+/** Send a push notification to multiple users (batch). */
+export async function sendPushToMany(uids: string[], payload: PushPayload): Promise<void> {
+  await Promise.allSettled(uids.map(uid => sendPushToUser(uid, payload)));
+}
