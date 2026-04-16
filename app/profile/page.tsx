@@ -26,6 +26,11 @@ interface BehaviorData {
   gamesPlayed: number;
   gamesWon: number;
   lastRole: string;
+  winsAsWolf?: number;
+  winsAsVillage?: number;
+  survivedGames?: number;
+  rolePlayCount?: Record<string, number>;
+  lastGameDrama?: string;
 }
 
 export default function ProfilePage() {
@@ -70,13 +75,18 @@ export default function ProfilePage() {
   const initial = displayName.charAt(0).toUpperCase();
   const consecutiveWins = behaviorData?.consecutiveWins ?? 0;
   const lastRole = behaviorData?.lastRole ?? 'Aldeano';
+  const winsAsWolf = behaviorData?.winsAsWolf ?? 0;
+  const winsAsVillage = behaviorData?.winsAsVillage ?? 0;
+  const survivedGames = behaviorData?.survivedGames ?? 0;
+  const rolePlayCount = behaviorData?.rolePlayCount ?? {};
+  const lastGameDrama = behaviorData?.lastGameDrama ?? '';
 
   const { current: xpCurrent, needed: xpNeeded, pct: xpPct, level } = xpProgress(xp);
   const label = levelLabel(level);
   const lEmoji = levelEmoji(level);
   const winRate = gamesPlayed > 0 ? gamesWon / gamesPlayed : 0;
 
-  const titleCfg = getPlayerTitle({ gamesPlayed, winRate, consecutiveWins, lastRole, level });
+  const titleCfg = getPlayerTitle({ gamesPlayed, winRate, consecutiveWins, lastRole, level, winsAsWolf, winsAsVillage, survivedGames, rolePlayCount });
 
   return (
     <div className="relative min-h-screen w-full text-white" style={{ backgroundImage: 'url(/noche.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
@@ -157,10 +167,42 @@ export default function ProfilePage() {
 
           {/* Rol favorito */}
           {lastRole && lastRole !== 'Aldeano' && (
-            <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-3 mb-5">
+            <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-3 mb-3">
               <Zap className="h-4 w-4 text-purple-400" />
               <span className="text-white/50 text-sm">Último rol: </span>
               <span className="text-purple-300 font-semibold text-sm">{lastRole}</span>
+            </div>
+          )}
+
+          {/* Stats adicionales */}
+          {(winsAsWolf > 0 || survivedGames > 0) && (
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {winsAsWolf > 0 && (
+                <div className="bg-red-950/30 border border-red-700/30 rounded-xl px-3 py-2.5 flex items-center gap-2">
+                  <span className="text-lg">🐺</span>
+                  <div>
+                    <p className="text-red-300 font-bold text-base">{winsAsWolf}</p>
+                    <p className="text-red-400/60 text-[10px]">victorias como lobo</p>
+                  </div>
+                </div>
+              )}
+              {survivedGames > 0 && (
+                <div className="bg-teal-950/30 border border-teal-700/30 rounded-xl px-3 py-2.5 flex items-center gap-2">
+                  <span className="text-lg">🛡️</span>
+                  <div>
+                    <p className="text-teal-300 font-bold text-base">{survivedGames}</p>
+                    <p className="text-teal-400/60 text-[10px]">veces sobrevivido</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Drama de la última partida */}
+          {lastGameDrama && (
+            <div className="flex items-start gap-2 bg-purple-950/30 border border-purple-700/30 rounded-xl px-4 py-3 mb-3">
+              <span className="text-purple-400 mt-0.5">💬</span>
+              <p className="text-purple-200 text-sm italic">"{lastGameDrama}"</p>
             </div>
           )}
 

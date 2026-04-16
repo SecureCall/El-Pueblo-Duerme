@@ -10,6 +10,11 @@ export interface PlayerStats {
   consecutiveWins: number;
   lastRole: string;
   lastUpdated: number;
+  winsAsWolf: number;
+  winsAsVillage: number;
+  survivedGames: number;
+  rolePlayCount: Record<string, number>;
+  lastGameDrama: string;
 }
 
 export interface PlayerBehaviorProfile {
@@ -40,13 +45,23 @@ export async function recordVote(uid: string, dayStartedAt: number): Promise<voi
   } catch { /* silencioso */ }
 }
 
-export async function recordGameResult(uid: string, won: boolean, role: string): Promise<void> {
+const WOLF_ROLES = new Set(['Lobo', 'Alfa', 'Lobo Solitario', 'Traidor', 'Perro Lobo', 'Lobo Blanco', 'Gran Lobo Malo']);
+
+export async function recordGameResult(
+  uid: string,
+  won: boolean,
+  role: string,
+  survived = false,
+  dramaMemo = '',
+): Promise<void> {
   try {
     const ref = doc(db, 'playerBehavior', uid);
     const snap = await getDoc(ref);
     const current = snap.exists() ? (snap.data() as PlayerStats) : null;
     const prevStreak = current?.consecutiveWins ?? 0;
     const newStreak = won ? prevStreak + 1 : 0;
+    const isWolfRole = WOLF_ROLES.has(role);
+    const prevRoleCount: Record<string, number> = current?.rolePlayCount ?? {};
 
     await setDoc(ref, {
       uid,
@@ -57,6 +72,11 @@ export async function recordGameResult(uid: string, won: boolean, role: string):
       consecutiveWins: newStreak,
       lastRole: role,
       lastUpdated: Date.now(),
+      winsAsWolf: (current?.winsAsWolf ?? 0) + (won && isWolfRole ? 1 : 0),
+      winsAsVillage: (current?.winsAsVillage ?? 0) + (won && !isWolfRole ? 1 : 0),
+      survivedGames: (current?.survivedGames ?? 0) + (survived ? 1 : 0),
+      rolePlayCount: { ...prevRoleCount, [role]: (prevRoleCount[role] ?? 0) + 1 },
+      lastGameDrama: dramaMemo || (current?.lastGameDrama ?? ''),
     }, { merge: true });
   } catch { /* silencioso */ }
 }

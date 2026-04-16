@@ -1,15 +1,70 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { GameState } from './GamePlay';
 import { ROLES } from './roles';
 import { getRoleIcon } from './roleIcons';
-import { Trophy, Skull, Home, RefreshCw, Clock, Star, Share2, Users, BookOpen, Swords } from 'lucide-react';
+import { Trophy, Skull, Home, RefreshCw, Clock, Star, Share2, Users, BookOpen, Swords, Flame } from 'lucide-react';
 import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
 import { AdBanner } from '@/components/ads/AdBanner';
 import { RewardedAd } from '@/components/ads/RewardedAd';
-import { xpToLevel, levelEmoji, awardXP, type XPResult } from '@/lib/firebase/xp';
+import { xpToLevel, levelEmoji, awardXP, getPlayerTitle, type XPResult } from '@/lib/firebase/xp';
 import { recordGameResult } from '@/lib/bots/playerStats';
+
+/** Genera un mensaje de drama personalizado al terminar la partida */
+function buildDramaMessage(
+  myUid: string | undefined,
+  myRole: string | undefined,
+  winners: string | null,
+  game: GameState,
+  iWon: boolean,
+): string {
+  if (!myUid || !myRole) return '';
+  const players = game.players ?? [];
+  const wolfTeamUids = new Set(Object.keys(game.wolfTeam ?? {}));
+  const eliminated = game.eliminatedHistory ?? [];
+  const isWolfSide = wolfTeamUids.has(myUid);
+  const myPlayer = players.find(p => p.uid === myUid);
+  const survived = myPlayer?.isAlive ?? false;
+  const elim = eliminated.find(e => e.uid === myUid);
+  const elimPos = elim ? eliminated.indexOf(elim) + 1 : null;
+
+  // Lobo ganador
+  if (isWolfSide && iWon) {
+    if (survived) return `Sobreviviste como ${myRole} y llevaste al equipo lobo a la victoria. El pueblo nunca lo vio venir.`;
+    return `Caíste como ${myRole}, pero los lobos terminaron ganando. Tu sacrificio no fue en vano.`;
+  }
+  // Lobo perdedor
+  if (isWolfSide && !iWon) {
+    if (elimPos === 1) return `Te eliminaron primero. El pueblo olía al lobo desde el principio.`;
+    return `El pueblo te descubrió y venció. La próxima vez, menos sospechoso.`;
+  }
+  // Pueblo: vidente/doctor/cazador que ganó
+  if (!isWolfSide && iWon && survived) {
+    if (myRole === 'Vidente') return `Tu clarividencia fue clave. Sobreviviste y guiaste al pueblo a la victoria.`;
+    if (myRole === 'Cazador') return `Tu disparo final fue lo que necesitaba el pueblo. Sobreviviste.`;
+    if (myRole === 'Doctor') return `Tus curas salvaron vidas. El pueblo no habría ganado sin ti.`;
+    return `Sobreviviste hasta el final y el pueblo ganó. Eres un pilar del pueblo.`;
+  }
+  // Pueblo: ganó pero murió
+  if (!isWolfSide && iWon && !survived) {
+    return `Caíste en el camino, pero el pueblo terminó venciendo. Tu voto importó.`;
+  }
+  // Pueblo: perdió y murió temprano
+  if (!isWolfSide && !iWon && elimPos !== null && elimPos <= 2) {
+    const wolfNames = players.filter(p => wolfTeamUids.has(p.uid)).map(p => p.name).join(' y ');
+    return `Fuiste eliminado demasiado pronto. ${wolfNames ? `Los lobos (${wolfNames}) te tenían en el punto de mira.` : 'El lobo te tenía en el punto de mira.'}`;
+  }
+  // Pueblo: perdió sobreviviendo
+  if (!isWolfSide && !iWon && survived) {
+    return `Sobreviviste, pero los lobos ganaron de todas formas. Algo salió mal en las votaciones.`;
+  }
+  // Default pueblo perdedor
+  if (!isWolfSide && !iWon) {
+    return `Los lobos os engañaron perfectamente. La próxima vez, confía menos en los demás.`;
+  }
+  return '';
+}
 
 interface Props {
   game: GameState;
@@ -99,6 +154,8 @@ function buildShareText(game: GameState, winners: string | null, winMessage: str
 
 type Tab = 'resumen' | 'roles' | 'historia';
 
+const REMATCH_SECS = 15;
+
 export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winners, winMessage, onPlayAgain, onPlayAgainSameRoom }: Props) {
   const { emoji, title, bg } = getWinnerDisplay(winners);
   const iWon = didIWin(winners, myRole);
@@ -108,6 +165,13 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
   const [tab, setTab] = useState<Tab>('resumen');
   const [entered, setEntered] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [countdown, setCountdown] = useState(REMATCH_SECS);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Drama message derived from current game data
+  const dramaMsg = buildDramaMessage(myUid, myRole, winners, game, iWon);
+  const myPlayer = game.players?.find(p => p.uid === myUid);
+  const survived = myPlayer?.isAlive ?? false;
 
   useEffect(() => {
     const t = setTimeout(() => setEntered(true), 120);
@@ -122,6 +186,28 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [winners]);
 
+  // Countdown to auto-rematch for host
+  useEffect(() => {
+    if (!isHost || !onPlayAgainSameRoom) return;
+    countdownRef.current = setInterval(() => {
+      setCountdown(c => {
+        if (c <= 1) {
+          clearInterval(countdownRef.current!);
+          onPlayAgainSameRoom();
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => { if (countdownRef.current) clearInterval(countdownRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHost, !!onPlayAgainSameRoom]);
+
+  const handleRematch = useCallback(() => {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    onPlayAgainSameRoom?.();
+  }, [onPlayAgainSameRoom]);
+
   useEffect(() => {
     if (!myUid || xpAwarded.current) return;
     xpAwarded.current = true;
@@ -129,7 +215,7 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
     const roleInfo = myRole ? ROLES[myRole] : null;
     const hasSpecialRole = !!roleInfo && roleInfo.team !== 'village' && myRole !== 'Aldeano' && myRole !== 'Lobo';
 
-    if (myRole) recordGameResult(myUid, iWon, myRole).catch(() => {});
+    if (myRole) recordGameResult(myUid, iWon, myRole, survived, dramaMsg).catch(() => {});
 
     const tryServer = () =>
       fetch('/api/award-xp', {
@@ -236,12 +322,22 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
           transition: 'opacity 0.6s ease-out 0.3s',
         }}
       >
-        {/* XP gained */}
+        {/* XP gained + título de ego */}
         {xpResult !== null && (
-          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4 mt-4 text-center">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <Star className="h-5 w-5 text-yellow-400" />
-              <span className="text-yellow-300 font-bold text-lg">+{xpResult.xpGained} XP</span>
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4 mt-4">
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <div className="flex items-center gap-2">
+                <Star className="h-5 w-5 text-yellow-400 flex-shrink-0" />
+                <span className="text-yellow-300 font-bold text-lg">+{xpResult.xpGained} XP</span>
+              </div>
+              {(() => {
+                const t = getPlayerTitle({ gamesPlayed: 1, winRate: iWon ? 1 : 0, consecutiveWins: iWon ? 1 : 0, lastRole: myRole ?? 'Aldeano', level: xpResult.newLevel });
+                return t ? (
+                  <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-white/10 border border-white/15 ${t.color}`}>
+                    {t.emoji} {t.title}
+                  </span>
+                ) : null;
+              })()}
             </div>
             <p className="text-yellow-400/60 text-xs">
               {iWon ? '🏆 Bonus de victoria incluido' : '🎮 XP por participar'}
@@ -389,6 +485,14 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
           </div>
         )}
 
+        {/* Drama personal */}
+        {dramaMsg && (
+          <div className="mt-4 px-4 py-3 rounded-2xl border border-white/10 bg-white/5 flex items-start gap-2">
+            <span className="text-white/40 mt-0.5 text-base">💬</span>
+            <p className="text-white/70 text-sm italic leading-relaxed">{dramaMsg}</p>
+          </div>
+        )}
+
         {/* Share button */}
         <button
           onClick={handleShare}
@@ -408,42 +512,59 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
         {/* AdSense banner */}
         <AdBanner format="horizontal" className="mt-3" />
 
-        {/* Play again buttons */}
+        {/* ── REVANCHA ─────────────────────────────────────────────── */}
         <div className="mt-4 space-y-3">
           {onPlayAgainSameRoom && (
             <>
               {isHost && (
-                <button
-                  onClick={onPlayAgainSameRoom}
-                  className="w-full flex items-center justify-center gap-2 bg-yellow-500 hover:bg-yellow-400 active:bg-yellow-400 text-black font-bold py-4 rounded-xl transition-all text-lg shadow-lg shadow-yellow-900/30"
-                >
-                  <RefreshCw className="h-5 w-5" />
-                  Volver a jugar en esta sala
-                </button>
+                <div className="relative">
+                  {/* Countdown ring */}
+                  <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+                    <div
+                      className="h-full bg-orange-500/20 transition-all duration-1000"
+                      style={{ width: `${(countdown / REMATCH_SECS) * 100}%` }}
+                    />
+                  </div>
+                  <button
+                    onClick={handleRematch}
+                    className="relative w-full flex items-center justify-between gap-3 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white font-black py-5 px-5 rounded-2xl transition-all text-xl shadow-xl shadow-red-900/40 border border-orange-400/30"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Flame className="h-6 w-6 text-orange-200 animate-pulse" />
+                      <div className="text-left">
+                        <p className="text-lg font-black leading-tight">⚔️ Revancha</p>
+                        <p className="text-orange-200/70 text-xs font-normal">Mismos jugadores · Nueva partida</p>
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-black/30 flex items-center justify-center border border-white/20">
+                      <span className="text-white font-black text-lg tabular-nums">{countdown}</span>
+                    </div>
+                  </button>
+                </div>
               )}
               {!isHost && hostInGame && (
-                <div className="w-full flex items-center justify-center gap-2 bg-white/10 border border-white/15 text-white/50 py-4 rounded-xl text-sm">
-                  <Clock className="h-4 w-4" />
-                  Esperando al anfitrión para jugar de nuevo…
+                <div className="w-full flex items-center justify-center gap-3 bg-orange-950/30 border border-orange-700/30 text-orange-300/70 py-4 rounded-2xl text-sm">
+                  <Clock className="h-4 w-4 animate-pulse" />
+                  El anfitrión puede iniciar la revancha en cualquier momento…
                 </div>
               )}
               {!isHost && !hostInGame && (
                 <button
-                  onClick={onPlayAgainSameRoom}
-                  className="w-full flex items-center justify-center gap-2 bg-yellow-500 hover:bg-yellow-400 active:bg-yellow-400 text-black font-bold py-4 rounded-xl transition-all text-lg shadow-lg shadow-yellow-900/30"
+                  onClick={handleRematch}
+                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white font-black py-5 rounded-2xl transition-all text-xl shadow-xl shadow-red-900/40"
                 >
-                  <RefreshCw className="h-5 w-5" />
-                  👑 Ser anfitrión y volver a jugar
+                  <Flame className="h-6 w-6 animate-pulse" />
+                  ⚔️ Ser anfitrión y pedir revancha
                 </button>
               )}
             </>
           )}
           <button
             onClick={onPlayAgain}
-            className="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 active:bg-white/20 text-white font-semibold py-3 rounded-xl transition-all border border-white/20"
+            className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 active:bg-white/10 text-white/50 hover:text-white font-medium py-3 rounded-xl transition-all border border-white/10 text-sm"
           >
-            <Home className="h-5 w-5" />
-            Volver al inicio
+            <Home className="h-4 w-4" />
+            Salir al inicio
           </button>
         </div>
       </div>
