@@ -1,6 +1,13 @@
 import { db } from '@/lib/firebase/config';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
+export interface GameHistoryEntry {
+  won: boolean;
+  role: string;
+  survived: boolean;
+  ts: number;
+}
+
 export interface PlayerStats {
   uid: string;
   totalVoteTimeMs: number;
@@ -15,6 +22,7 @@ export interface PlayerStats {
   survivedGames: number;
   rolePlayCount: Record<string, number>;
   lastGameDrama: string;
+  gameHistory?: GameHistoryEntry[];
 }
 
 export interface PlayerBehaviorProfile {
@@ -63,6 +71,10 @@ export async function recordGameResult(
     const isWolfRole = WOLF_ROLES.has(role);
     const prevRoleCount: Record<string, number> = current?.rolePlayCount ?? {};
 
+    const newEntry: GameHistoryEntry = { won, role, survived, ts: Date.now() };
+    const prevHistory: GameHistoryEntry[] = current?.gameHistory ?? [];
+    const gameHistory = [...prevHistory, newEntry].slice(-10);
+
     await setDoc(ref, {
       uid,
       totalVoteTimeMs: current?.totalVoteTimeMs ?? 0,
@@ -77,6 +89,7 @@ export async function recordGameResult(
       survivedGames: (current?.survivedGames ?? 0) + (survived ? 1 : 0),
       rolePlayCount: { ...prevRoleCount, [role]: (prevRoleCount[role] ?? 0) + 1 },
       lastGameDrama: dramaMemo || (current?.lastGameDrama ?? ''),
+      gameHistory,
     }, { merge: true });
   } catch { /* silencioso */ }
 }

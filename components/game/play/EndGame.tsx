@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { GameState } from './GamePlay';
 import { ROLES } from './roles';
 import { getRoleIcon } from './roleIcons';
-import { Trophy, Skull, Home, RefreshCw, Clock, Star, Share2, Users, BookOpen, Swords, Flame } from 'lucide-react';
+import { Trophy, Skull, Home, RefreshCw, Clock, Star, Share2, Users, BookOpen, Swords, Flame, ImageIcon } from 'lucide-react';
 import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
 import { AdBanner } from '@/components/ads/AdBanner';
 import { RewardedAd } from '@/components/ads/RewardedAd';
@@ -178,7 +178,9 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
   const [entered, setEntered] = useState(false);
   const [copied, setCopied] = useState(false);
   const [countdown, setCountdown] = useState(REMATCH_SECS);
+  const [sharingImg, setSharingImg] = useState(false);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const shareCardRef = useRef<HTMLDivElement>(null);
 
   // Drama message derived from current game data
   const dramaMsg = buildDramaMessage(myUid, myRole, winners, game, iWon);
@@ -270,6 +272,26 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
         setTimeout(() => setCopied(false), 2500);
       }
     } catch { /* cancelled */ }
+  };
+
+  const handleShareImage = async () => {
+    if (!shareCardRef.current || sharingImg) return;
+    setSharingImg(true);
+    try {
+      const { toPng } = await import('html-to-image');
+      const dataUrl = await toPng(shareCardRef.current, { cacheBust: true, pixelRatio: 2 });
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], 'el-pueblo-duerme.png', { type: 'image/png' });
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: '🌙 El Pueblo Duerme' });
+      } else {
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = 'el-pueblo-duerme.png';
+        a.click();
+      }
+    } catch { /* cancelled */ }
+    setSharingImg(false);
   };
 
   const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
@@ -505,14 +527,89 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
           </div>
         )}
 
-        {/* Share button */}
-        <button
-          onClick={handleShare}
-          className="w-full mt-4 flex items-center justify-center gap-2 bg-white/8 border border-white/20 text-white/80 font-semibold py-3 rounded-xl hover:bg-white/15 active:bg-white/20 transition-all"
-        >
-          <Share2 className="h-4 w-4" />
-          {copied ? '¡Copiado al portapapeles! ✓' : 'Compartir resultado'}
-        </button>
+        {/* Share buttons */}
+        <div className="flex gap-2 mt-4">
+          <button
+            onClick={handleShare}
+            className="flex-1 flex items-center justify-center gap-2 bg-white/8 border border-white/20 text-white/80 font-semibold py-3 rounded-xl hover:bg-white/15 active:bg-white/20 transition-all text-sm"
+          >
+            <Share2 className="h-4 w-4" />
+            {copied ? '¡Copiado! ✓' : 'Texto'}
+          </button>
+          <button
+            onClick={handleShareImage}
+            disabled={sharingImg}
+            className="flex-1 flex items-center justify-center gap-2 bg-indigo-900/40 border border-indigo-500/40 text-indigo-200 font-semibold py-3 rounded-xl hover:bg-indigo-900/60 active:bg-indigo-800/60 transition-all text-sm disabled:opacity-50"
+          >
+            <ImageIcon className="h-4 w-4" />
+            {sharingImg ? 'Generando…' : 'Imagen 📸'}
+          </button>
+        </div>
+
+        {/* Hidden share card for image generation */}
+        <div style={{ position: 'fixed', left: '-9999px', top: 0, width: 400 }} aria-hidden>
+          <div
+            ref={shareCardRef}
+            style={{
+              width: 400,
+              background: 'linear-gradient(135deg, #0d0018 0%, #1a0030 50%, #0d0018 100%)',
+              padding: 32,
+              fontFamily: 'system-ui, sans-serif',
+              borderRadius: 20,
+              border: '1px solid rgba(255,255,255,0.1)',
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+              <div style={{ fontSize: 40 }}>{emoji}</div>
+              <div>
+                <div style={{ color: '#fff', fontSize: 18, fontWeight: 800 }}>{title}</div>
+                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>El Pueblo Duerme</div>
+              </div>
+            </div>
+            {/* My result */}
+            {myRole && (
+              <div style={{
+                background: iWon ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                border: `1px solid ${iWon ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)'}`,
+                borderRadius: 12,
+                padding: '12px 16px',
+                marginBottom: 16,
+                color: iWon ? '#86efac' : '#fca5a5',
+                fontWeight: 700,
+                fontSize: 15,
+              }}>
+                {iWon ? '🏆' : '💀'} {iWon ? 'Victoria' : 'Derrota'} · {myRole}
+              </div>
+            )}
+            {/* Stats */}
+            <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
+              {[
+                { val: allPlayers.length, label: 'Jugadores' },
+                { val: rounds, label: 'Rondas' },
+                { val: survivors.length, label: 'Supervivientes' },
+              ].map(s => (
+                <div key={s.label} style={{ flex: 1, textAlign: 'center', background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: '10px 0' }}>
+                  <div style={{ color: '#fff', fontSize: 22, fontWeight: 900 }}>{s.val}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+            {/* Wolf team */}
+            {allPlayers.filter(p => wolfTeamUids.has(p.uid)).length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ color: '#f87171', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>🐺 Equipo Lobo</div>
+                <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
+                  {allPlayers.filter(p => wolfTeamUids.has(p.uid)).map(p => `${p.name} (${game.roles?.[p.uid] ?? 'Lobo'})`).join(' · ')}
+                </div>
+              </div>
+            )}
+            {/* Footer */}
+            <div style={{ color: 'rgba(255,255,255,0.2)', fontSize: 10, marginTop: 16, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 12, textAlign: 'center' }}>
+              elpuebloduermevercel.app
+            </div>
+          </div>
+        </div>
 
         {/* Rewarded Ad */}
         {myUid && (

@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/app/providers/AuthProvider';
-import { ShoppingBag, LogOut, Zap, Users, Shield, Sword, Bell, BellOff } from 'lucide-react';
+import { ShoppingBag, LogOut, Zap, Users, Shield, Sword, Bell, Sun, Moon, Loader2 } from 'lucide-react';
 import { auth } from '@/lib/firebase/config';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
@@ -14,6 +14,7 @@ import { AudioControls } from '@/components/audio/AudioControls';
 import { AdBanner } from '@/components/ads/AdBanner';
 import { TutorialOverlay, shouldShowTutorial } from '@/components/game/TutorialOverlay';
 import { subscribeAndSave } from '@/lib/firebase/push';
+import { createQuickMatch } from '@/lib/game/quickMatch';
 
 const ROLE_CARDS = [
   { icon: '🐺', name: 'Lobo', desc: 'Mata en silencio', color: 'from-red-900/60 to-black/60', border: 'border-red-800/40' },
@@ -68,11 +69,22 @@ export default function HomePage() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [pushGranted, setPushGranted] = useState<boolean | null>(null);
   const [pushLoading, setPushLoading] = useState(false);
+  const [lightMode, setLightMode] = useState(false);
+  const [quickMatchLoading, setQuickMatchLoading] = useState(false);
 
   useEffect(() => {
     if (shouldShowTutorial()) setShowTutorial(true);
     if ('Notification' in window) setPushGranted(Notification.permission === 'granted');
+    const stored = localStorage.getItem('theme');
+    if (stored === 'light') setLightMode(true);
+    else if (!stored && window.matchMedia?.('(prefers-color-scheme: light)').matches) setLightMode(true);
   }, []);
+
+  const toggleTheme = () => {
+    const next = !lightMode;
+    setLightMode(next);
+    localStorage.setItem('theme', next ? 'light' : 'dark');
+  };
 
   const handleEnablePush = async () => {
     if (!user) return;
@@ -82,10 +94,23 @@ export default function HomePage() {
     setPushLoading(false);
   };
 
+  const handleQuickMatch = async () => {
+    if (!user) { router.push('/login'); return; }
+    setQuickMatchLoading(true);
+    try {
+      const gameId = await createQuickMatch(user);
+      router.push(`/game/${gameId}`);
+    } catch {
+      setQuickMatchLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     await signOut(auth);
     router.refresh();
   };
+
+  const overlayOpacity = lightMode ? 0.45 : 0.88;
 
   return (
     <div
@@ -99,8 +124,11 @@ export default function HomePage() {
     >
       <PageAudio track="menu" />
 
-      {/* Capa oscura base */}
-      <div className="absolute inset-0" style={{ backgroundColor: 'rgba(3, 6, 14, 0.75)' }} />
+      {/* Capa oscura/clara base */}
+      <div
+        className="absolute inset-0 transition-all duration-700"
+        style={{ backgroundColor: lightMode ? `rgba(240,235,220,${overlayOpacity})` : `rgba(3,6,14,${overlayOpacity})` }}
+      />
 
       {/* Glow rojo sutil en el centro */}
       <div className="absolute inset-0 pointer-events-none" style={{
@@ -117,16 +145,23 @@ export default function HomePage() {
           <span className="text-red-400/60 text-[10px] uppercase tracking-widest font-mono">En vivo</span>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={toggleTheme}
+            title={lightMode ? 'Modo noche' : 'Modo día'}
+            className={`p-1.5 rounded-full transition-all ${lightMode ? 'bg-amber-400/20 text-amber-500' : 'bg-white/10 text-white/40 hover:text-white/70'}`}
+          >
+            {lightMode ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+          </button>
           <AudioControls />
           {user ? (
             <>
-              <span className="text-white/50 text-xs hidden sm:block">{user.displayName || user.email}</span>
-              <button onClick={handleLogout} className="text-white/40 hover:text-white/70 text-xs flex items-center gap-1 transition-colors">
+              <span className={`text-xs hidden sm:block ${lightMode ? 'text-gray-600' : 'text-white/50'}`}>{user.displayName || user.email}</span>
+              <button onClick={handleLogout} className={`text-xs flex items-center gap-1 transition-colors ${lightMode ? 'text-gray-500 hover:text-gray-700' : 'text-white/40 hover:text-white/70'}`}>
                 <LogOut className="h-3.5 w-3.5" /> Salir
               </button>
             </>
           ) : (
-            <Link href="/login" className="text-white/50 hover:text-white/80 text-xs transition-colors">
+            <Link href="/login" className={`text-xs transition-colors ${lightMode ? 'text-gray-600 hover:text-gray-900' : 'text-white/50 hover:text-white/80'}`}>
               Iniciar Sesión
             </Link>
           )}
@@ -173,25 +208,35 @@ export default function HomePage() {
 
         {/* CTA principal */}
         <div className="flex flex-col items-center gap-3 w-full max-w-xs">
+          {/* Botón Jugar Ahora (quick match) */}
+          <button
+            onClick={handleQuickMatch}
+            disabled={quickMatchLoading}
+            className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 text-white font-black px-6 py-4 rounded-2xl text-base transition-all active:scale-95 shadow-xl flex items-center justify-center gap-2 disabled:opacity-70"
+            style={{ boxShadow: '0 8px 30px rgba(220,50,30,0.35)' }}
+          >
+            {quickMatchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+            {quickMatchLoading ? 'Buscando partida…' : '⚡ Jugar Ahora'}
+          </button>
+          <p className="text-white/25 text-[10px] -mt-1">Con bots IA · Sin espera · Empieza solo</p>
           <Link
             href="/create"
-            className="w-full bg-white text-black font-bold px-6 py-4 rounded-2xl text-base transition-all active:scale-95 shadow-xl flex items-center justify-center gap-2"
-            style={{ boxShadow: '0 8px 30px rgba(255,255,255,0.15)' }}
+            className="w-full bg-white/10 border border-white/20 text-white font-bold px-6 py-3 rounded-xl text-sm transition-all active:scale-95 shadow-xl flex items-center justify-center gap-2"
           >
             <Sword className="h-4 w-4" />
-            Crear Partida
+            Crear Partida con Amigos
           </Link>
           <div className="flex gap-2 w-full">
             <Link
               href="/public-rooms"
-              className="flex-1 bg-white/10 border border-white/15 text-white font-semibold px-4 py-3 rounded-xl text-sm transition-all active:scale-95 flex items-center justify-center gap-1.5"
+              className="flex-1 bg-white/8 border border-white/12 text-white font-semibold px-4 py-3 rounded-xl text-sm transition-all active:scale-95 flex items-center justify-center gap-1.5"
             >
               <Users className="h-3.5 w-3.5 text-white/60" />
-              Salas públicas
+              Públicas
             </Link>
             <button
               onClick={() => setShowJoinModal(true)}
-              className="flex-1 bg-white/10 border border-white/15 text-white font-semibold px-4 py-3 rounded-xl text-sm transition-all active:scale-95"
+              className="flex-1 bg-white/8 border border-white/12 text-white font-semibold px-4 py-3 rounded-xl text-sm transition-all active:scale-95"
             >
               Código
             </button>

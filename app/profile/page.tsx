@@ -21,6 +21,13 @@ interface UserData {
   createdAt: any;
 }
 
+interface GameHistoryEntry {
+  won: boolean;
+  role: string;
+  survived: boolean;
+  ts: number;
+}
+
 interface BehaviorData {
   consecutiveWins: number;
   gamesPlayed: number;
@@ -31,6 +38,7 @@ interface BehaviorData {
   survivedGames?: number;
   rolePlayCount?: Record<string, number>;
   lastGameDrama?: string;
+  gameHistory?: GameHistoryEntry[];
 }
 
 export default function ProfilePage() {
@@ -80,6 +88,7 @@ export default function ProfilePage() {
   const survivedGames = behaviorData?.survivedGames ?? 0;
   const rolePlayCount = behaviorData?.rolePlayCount ?? {};
   const lastGameDrama = behaviorData?.lastGameDrama ?? '';
+  const gameHistory = behaviorData?.gameHistory ?? [];
 
   const { current: xpCurrent, needed: xpNeeded, pct: xpPct, level } = xpProgress(xp);
   const label = levelLabel(level);
@@ -222,9 +231,11 @@ export default function ProfilePage() {
         </div>
 
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-          <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
+          <h2 className="font-bold text-lg mb-1 flex items-center gap-2">
             <User className="h-4 w-4 text-white/40" /> Historial de partidas
           </h2>
+          <p className="text-white/30 text-xs mb-4">{gamesPlayed} partida{gamesPlayed !== 1 ? 's' : ''} jugada{gamesPlayed !== 1 ? 's' : ''} en total</p>
+
           {gamesPlayed === 0 ? (
             <>
               <p className="text-white/30 text-sm text-center py-8">No has jugado ninguna partida todavía.<br />¡Crea o únete a una!</p>
@@ -233,21 +244,54 @@ export default function ProfilePage() {
               </Link>
             </>
           ) : (
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm text-white/60 py-3 border-b border-white/10">
-                <span>Tasa de victorias</span>
-                <span className="font-bold text-white">{Math.round(winRate * 100)}%</span>
-              </div>
-              <div className="flex justify-between text-sm text-white/60 py-3 border-b border-white/10">
-                <span>Partidas ganadas</span>
-                <span className="font-bold text-green-400">{gamesWon} / {gamesPlayed}</span>
-              </div>
-              {consecutiveWins > 0 && (
-                <div className="flex justify-between text-sm text-white/60 py-3">
-                  <span>Racha actual</span>
-                  <span className="font-bold text-orange-400">{consecutiveWins} seguidas 🔥</span>
+            <div className="space-y-4">
+              {/* Gráfico de últimas 10 partidas */}
+              {gameHistory.length > 0 && (
+                <div>
+                  <p className="text-white/40 text-xs mb-2">Últimas {gameHistory.length} partidas</p>
+                  <div className="flex gap-1.5 items-center">
+                    {gameHistory.map((g, i) => (
+                      <div
+                        key={i}
+                        title={`${g.won ? '✅ Victoria' : '❌ Derrota'} · ${g.role}${g.survived ? ' · Sobrevivió' : ''}`}
+                        className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border transition-all cursor-default ${
+                          g.won
+                            ? 'bg-green-500/30 border-green-500/60 text-green-300'
+                            : 'bg-red-500/20 border-red-500/40 text-red-400'
+                        }`}
+                      >
+                        {g.won ? '🟢' : '🔴'}
+                      </div>
+                    ))}
+                    {gameHistory.length < 10 && Array.from({ length: 10 - gameHistory.length }).map((_, i) => (
+                      <div key={`empty-${i}`} className="w-6 h-6 rounded-full bg-white/5 border border-white/10" />
+                    ))}
+                  </div>
+                  {/* Último rol jugado de la historia */}
+                  {gameHistory.length > 0 && (
+                    <p className="text-white/25 text-[10px] mt-2">
+                      Última partida: <span className="text-white/50">{gameHistory[gameHistory.length - 1].role}</span>
+                    </p>
+                  )}
                 </div>
               )}
+
+              <div className="space-y-0">
+                <div className="flex justify-between text-sm text-white/60 py-3 border-b border-white/10">
+                  <span>Tasa de victorias</span>
+                  <span className="font-bold text-white">{Math.round(winRate * 100)}%</span>
+                </div>
+                <div className="flex justify-between text-sm text-white/60 py-3 border-b border-white/10">
+                  <span>Partidas ganadas</span>
+                  <span className="font-bold text-green-400">{gamesWon} / {gamesPlayed}</span>
+                </div>
+                {consecutiveWins > 0 && (
+                  <div className="flex justify-between text-sm text-white/60 py-3">
+                    <span>Racha actual</span>
+                    <span className="font-bold text-orange-400">{consecutiveWins} seguidas 🔥</span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
