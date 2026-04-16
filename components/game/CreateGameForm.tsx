@@ -68,6 +68,16 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   );
 }
 
+type GameMode = 'casual' | 'normal' | 'chaos';
+
+const CASUAL_ROLES = new Set(['Vidente', 'Doctor', 'Hechicera', 'Cazador', 'Cupido', 'Guardián', 'Príncipe', 'Sheriff']);
+
+const MODE_INFO: Record<GameMode, { emoji: string; label: string; desc: string; color: string }> = {
+  casual:  { emoji: '🌙', label: 'Casual',  desc: '8 roles básicos. Perfecto para empezar.',       color: 'border-blue-400/60 bg-blue-500/10 text-blue-300' },
+  normal:  { emoji: '⚔️', label: 'Normal',  desc: 'Elige los roles que quieras.',                   color: 'border-white/40 bg-white/5 text-white' },
+  chaos:   { emoji: '💀', label: 'Caos',    desc: 'Todos los roles activos. Para expertos.',       color: 'border-red-400/60 bg-red-500/10 text-red-300' },
+};
+
 export function CreateGameForm() {
   const router = useRouter();
   const { user } = useAuth();
@@ -78,17 +88,26 @@ export function CreateGameForm() {
   const [isPublic, setIsPublic] = useState(false);
   const [fillWithAI, setFillWithAI] = useState(false);
   const [juryVote, setJuryVote] = useState(true);
+  const [gameMode, setGameMode] = useState<GameMode>('normal');
   const [selectedRoles, setSelectedRoles] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [created, setCreated] = useState<{ code: string } | null>(null);
 
   const toggleRole = (id: string) => {
+    if (gameMode !== 'normal') return;
     setSelectedRoles(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+  };
+
+  const handleModeChange = (m: GameMode) => {
+    setGameMode(m);
+    if (m === 'casual') setSelectedRoles(new Set(SPECIAL_ROLES.filter(r => CASUAL_ROLES.has(r.id)).map(r => r.id)));
+    else if (m === 'chaos') setSelectedRoles(new Set(SPECIAL_ROLES.map(r => r.id)));
+    else setSelectedRoles(new Set());
   };
 
   const selectAll = () => setSelectedRoles(new Set(SPECIAL_ROLES.map(r => r.id)));
@@ -113,6 +132,7 @@ export function CreateGameForm() {
         isPublic,
         fillWithAI,
         juryVote,
+        gameMode,
         specialRoles: Array.from(selectedRoles),
         playerCount: 1,
         status: 'lobby',
@@ -200,7 +220,7 @@ export function CreateGameForm() {
             value={playerCount}
             onChange={e => setPlayerCount(Number(e.target.value))}
             className="w-full accent-white"
-            suppressHydrationWarning
+            suppressHydrationWarning={true}
           />
           <p className="text-white/40 text-xs mt-1">
             Esto incluirá {wolfCount(playerCount)} Hombre(s) Lobo.
@@ -225,41 +245,72 @@ export function CreateGameForm() {
         ))}
       </div>
 
+      <div className="bg-black/40 border border-white/10 rounded-xl p-5 space-y-3">
+        <h3 className="font-semibold text-white/80">Modo de Juego</h3>
+        <div className="grid grid-cols-3 gap-2">
+          {(Object.keys(MODE_INFO) as GameMode[]).map(m => {
+            const info = MODE_INFO[m];
+            const active = gameMode === m;
+            return (
+              <button
+                key={m}
+                type="button"
+                onClick={() => handleModeChange(m)}
+                className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center ${active ? info.color + ' border-opacity-100' : 'border-white/10 bg-white/5 text-white/50 hover:border-white/20'}`}
+              >
+                <span className="text-2xl">{info.emoji}</span>
+                <span className="text-sm font-bold">{info.label}</span>
+                <span className="text-xs opacity-70 leading-tight">{info.desc}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="bg-black/40 border border-white/10 rounded-xl p-5 space-y-4">
         <div>
           <h3 className="font-semibold text-white/80">Roles Especiales</h3>
-          <p className="text-white/40 text-xs mt-0.5">Selecciona los roles que quieres incluir en la partida.</p>
+          <p className="text-white/40 text-xs mt-0.5">
+            {gameMode === 'casual' ? '8 roles básicos seleccionados automáticamente.' : gameMode === 'chaos' ? 'Todos los roles activos en modo Caos.' : 'Selecciona los roles que quieres incluir.'}
+          </p>
         </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={selectAll} className="text-xs border border-white/20 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors">
-            Seleccionar Todos
-          </button>
-          <button type="button" onClick={deselectAll} className="text-xs border border-white/20 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors">
-            Deseleccionar Todos
-          </button>
-        </div>
+        {gameMode === 'normal' && (
+          <div className="flex gap-2">
+            <button type="button" onClick={selectAll} className="text-xs border border-white/20 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors">
+              Seleccionar Todos
+            </button>
+            <button type="button" onClick={deselectAll} className="text-xs border border-white/20 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors">
+              Deseleccionar Todos
+            </button>
+          </div>
+        )}
         <div className="grid grid-cols-3 gap-x-3 gap-y-3">
-          {SPECIAL_ROLES.map(role => (
-            <label key={role.id} className="flex items-center gap-2 cursor-pointer group">
-              <input
-                type="checkbox"
-                checked={selectedRoles.has(role.id)}
-                onChange={() => toggleRole(role.id)}
-                className="sr-only"
-              />
-              <div className={`w-4 h-4 flex-shrink-0 rounded border transition-colors ${selectedRoles.has(role.id) ? 'bg-white border-white' : 'border-white/30 group-hover:border-white/60'}`}>
-                {selectedRoles.has(role.id) && (
-                  <svg viewBox="0 0 12 12" className="w-full h-full text-black fill-current">
-                    <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 min-w-0">
-                <img src={role.icon} alt={role.name} className="w-5 h-5 rounded object-cover flex-shrink-0" />
-                <span className={`text-xs truncate ${TEAM_COLOR[role.team]}`}>{role.name}</span>
-              </div>
-            </label>
-          ))}
+          {SPECIAL_ROLES.map(role => {
+            const isChecked = selectedRoles.has(role.id);
+            const isLocked = gameMode !== 'normal';
+            return (
+              <label key={role.id} className={`flex items-center gap-2 ${isLocked ? 'cursor-default' : 'cursor-pointer group'}`}>
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={() => toggleRole(role.id)}
+                  disabled={isLocked}
+                  className="sr-only"
+                />
+                <div className={`w-4 h-4 flex-shrink-0 rounded border transition-colors ${isChecked ? 'bg-white border-white' : 'border-white/30 group-hover:border-white/60'} ${isLocked ? 'opacity-50' : ''}`}>
+                  {isChecked && (
+                    <svg viewBox="0 0 12 12" className="w-full h-full text-black fill-current">
+                      <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
+                </div>
+                <div className={`flex items-center gap-1.5 min-w-0 ${isLocked ? 'opacity-50' : ''}`}>
+                  <img src={role.icon} alt={role.name} className="w-5 h-5 rounded object-cover flex-shrink-0" />
+                  <span className={`text-xs truncate ${TEAM_COLOR[role.team]}`}>{role.name}</span>
+                </div>
+              </label>
+            );
+          })}
         </div>
       </div>
 

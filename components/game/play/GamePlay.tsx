@@ -21,6 +21,8 @@ import { DayTransition } from './DayTransition';
 import { ChaosEventScreen } from './ChaosEventScreen';
 import { NarratorBroadcast } from './NarratorBroadcast';
 import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
+import { DeathOverlay } from './DeathOverlay';
+import { playNightAmbience, playDayAmbience, stopAllAmbience, playDeathSting, playVoteAlarm, playGameStart, playVictory, playDefeat } from '@/lib/gameAudio';
 
 export interface Player {
   uid: string;
@@ -183,6 +185,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const [fantasmaTarget, setFantasmaTarget] = useState('');
   const [hostAbsent, setHostAbsent] = useState(false);
   const [votesFromSub, setVotesFromSub] = useState<Record<string, string>>({});
+  const [deathQueue, setDeathQueue] = useState<{ uid: string; name: string; role: string }[]>([]);
+  const prevElimCount = useRef<number>(0);
   const aiChatSentRound = useRef<number>(-1);
   const aiNightSubmittedRound = useRef<number>(-1);
   const aiDayVotedRound = useRef<number>(-1);
@@ -205,7 +209,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
       },
       (_err: any) => { router.push('/'); }
     );
-    return () => unsub();
+    return () => { unsub(); stopAllAmbience(); };
   }, [gameId, router]);
 
   useEffect(() => {
@@ -214,31 +218,53 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
     if (prevPhase.current === null && phase === 'roleReveal') {
       play(AUDIO_FILES.introEpic);
+      playGameStart();
     }
     if (prevPhase.current === 'roleReveal' && phase === 'night') {
       interruptWith(AUDIO_FILES.gameStart, AUDIO_FILES.nightStart);
+      playNightAmbience();
     }
     if (prevPhase.current === 'night' && phase === 'day') {
       processingNightRef.current = false;
+      stopAllAmbience();
       const victimUid = (game as any).dayEliminatedUid ?? null;
       const victim = victimUid ? (game.players ?? []).find((p: any) => p.uid === victimUid) : null;
       const victimRole = victim ? (game.roles?.[victim.uid] ?? null) : null;
+      if (victim) {
+        playDeathSting();
+        setDeathQueue([{ uid: victim.uid, name: victim.name, role: victimRole ?? '???' }]);
+      }
       setNightRevealData({ victimName: victim?.name ?? null, victimRole, victimUid });
       setShowNightReveal(true);
-      // Queue chaos event reveal (shown after NightTransition)
+      setTimeout(() => playDayAmbience(), 3500);
       const round = game.roundNumber ?? 1;
       if (game.currentEvent && chaosShownForRound.current !== round) {
         chaosShownForRound.current = round;
         setShowChaosEvent(true);
       }
     }
+    if (prevPhase.current === 'day' && phase === 'voting') {
+      playVoteAlarm();
+    }
     if (prevPhase.current === 'day' && phase === 'night') {
       processingDayRef.current = false;
+      stopAllAmbience();
       const history = game.eliminatedHistory ?? [];
       const lastElim = history[history.length - 1];
+      if (lastElim) {
+        playDeathSting();
+        setDeathQueue([{ uid: lastElim.uid ?? '', name: lastElim.name ?? '???', role: lastElim.role ?? '???' }]);
+      }
       const elimUid = lastElim?.uid ?? (lastElim ? (game.players ?? []).find((p: any) => p.name === lastElim.name)?.uid ?? null : null);
       setDayTransitionData({ eliminatedName: lastElim?.name ?? null, eliminatedRole: lastElim?.role ?? null, eliminatedUid: elimUid });
       setShowDayTransition(true);
+      setTimeout(() => playNightAmbience(), 3500);
+    }
+    if (phase === 'ended') {
+      stopAllAmbience();
+      const myUid = user?.uid;
+      const iWon = myUid && (game.winners ?? []).includes(myUid);
+      setTimeout(() => { if (iWon) playVictory(); else playDefeat(); }, 800);
     }
     if (prevPhase.current === 'roleReveal' && phase === 'night') {
       nightStartedAtRef.current = Date.now();
@@ -280,7 +306,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (game.hostUid === user.uid) { setHostAbsent(false); return; }
     if (game.phase === 'ended' || game.phase === 'lobby' || !game.phase) return;
 
-    const HOST_ABSENT_MS = 5 * 60 * 1000;
+    const HOST_ABSENT_MS = 90 * 1000;
     const check = async () => {
       try {
         const presSnap = await getDoc(doc(db, 'presence', game.hostUid));
@@ -2465,6 +2491,9 @@ export function GamePlay({ gameId }: { gameId: string }) {
     return (
       <div className="relative">
         <NarratorBroadcast broadcast={game.narratorBroadcast ?? null} />
+        {deathQueue.length > 0 && (
+          <DeathOverlay deaths={deathQueue} onDone={() => setDeathQueue([])} />
+        )}
         {hostAbsent && (
           <div className="fixed top-0 inset-x-0 z-50 bg-red-900/90 border-b border-red-600 text-white text-sm text-center py-2 px-4">
             ⚠️ El anfitrión se ha desconectado. La partida avanzará automáticamente o se reasignará el anfitrión en breve.
