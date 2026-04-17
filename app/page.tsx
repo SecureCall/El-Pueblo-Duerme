@@ -12,7 +12,7 @@ import { JoinByCodeModal } from '@/components/JoinByCodeModal';
 import { PageAudio } from '@/components/audio/PageAudio';
 import { AudioControls } from '@/components/audio/AudioControls';
 import { AdBanner } from '@/components/ads/AdBanner';
-import { TutorialOverlay, shouldShowTutorial } from '@/components/game/TutorialOverlay';
+import { TutorialOverlay } from '@/components/game/TutorialOverlay';
 import { subscribeAndSave } from '@/lib/firebase/push';
 import { createQuickMatch } from '@/lib/game/quickMatch';
 
@@ -73,7 +73,6 @@ export default function HomePage() {
   const [quickMatchLoading, setQuickMatchLoading] = useState(false);
 
   useEffect(() => {
-    if (shouldShowTutorial()) setShowTutorial(true);
     if ('Notification' in window) setPushGranted(Notification.permission === 'granted');
     const stored = localStorage.getItem('theme');
     if (stored === 'light') setLightMode(true);

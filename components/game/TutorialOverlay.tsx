@@ -88,9 +88,11 @@ export function TutorialOverlay({ onClose }: Props) {
         opacity: visible ? 1 : 0,
         transition: 'opacity 0.3s ease',
       }}
+      onClick={handleClose}
     >
       <div
         className={`relative w-full max-w-sm bg-gradient-to-b ${current.bg} border border-white/15 rounded-3xl overflow-hidden`}
+        onClick={e => e.stopPropagation()}
         style={{
           transform: visible ? 'scale(1)' : 'scale(0.92)',
           transition: 'transform 0.35s cubic-bezier(0.34,1.56,0.64,1)',
