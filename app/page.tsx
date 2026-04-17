@@ -74,9 +74,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if ('Notification' in window) setPushGranted(Notification.permission === 'granted');
-    const stored = localStorage.getItem('theme');
-    if (stored === 'light') setLightMode(true);
-    else if (!stored && window.matchMedia?.('(prefers-color-scheme: light)').matches) setLightMode(true);
+    if (localStorage.getItem('theme') === 'light') setLightMode(true);
   }, []);
 
   const toggleTheme = () => {
