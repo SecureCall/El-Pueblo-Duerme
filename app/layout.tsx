@@ -21,8 +21,26 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: 'El Pueblo Duerme',
-  description: 'Un juego multijugador de misterio, engaño y supervivencia. Descubre a los lobos antes de que sea tarde.',
+  title: 'El Pueblo Duerme — Juego de Lobos Multijugador',
+  description: 'Un juego multijugador de misterio, engaño y supervivencia. 35 roles, narrador IA, chat de voz y eventos de caos. ¡Descubre a los lobos antes de que sea tarde!',
+  keywords: ['juego lobos', 'mafia game', 'werewolf', 'juego multijugador', 'el pueblo duerme', 'deducción social', 'juego navegador', 'lobos hombre'],
+  authors: [{ name: 'El Pueblo Duerme' }],
+  metadataBase: new URL('https://elpuebloduerme.vercel.app'),
+  openGraph: {
+    title: 'El Pueblo Duerme — Juego de Lobos Multijugador',
+    description: 'Un juego multijugador de misterio, engaño y supervivencia. 35 roles, narrador IA, chat de voz y eventos de caos.',
+    url: 'https://elpuebloduerme.vercel.app',
+    siteName: 'El Pueblo Duerme',
+    locale: 'es_ES',
+    type: 'website',
+    images: [{ url: '/icons/512.png', width: 512, height: 512, alt: 'El Pueblo Duerme' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'El Pueblo Duerme — Juego de Lobos Multijugador',
+    description: 'Juego de deducción social en español. ¡Descubre a los lobos antes de que sea tarde!',
+    images: ['/icons/512.png'],
+  },
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
