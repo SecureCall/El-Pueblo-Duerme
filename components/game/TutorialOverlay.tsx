@@ -82,8 +82,9 @@ export function TutorialOverlay({ onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center px-4"
+      className="fixed inset-0 flex items-center justify-center px-4"
       style={{
+        zIndex: 99999,
         backgroundColor: 'rgba(0,0,0,0.85)',
         opacity: visible ? 1 : 0,
         transition: 'opacity 0.3s ease',
