@@ -6,25 +6,25 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { addCoins, canWatchVideo } from '@/lib/firebase/coins';
 import { useToast } from '@/app/hooks/use-toast';
 
-const PROMO_VIDEOS = [
-  'oO1GZYuUCrg',
-  'UXBYb3bYjFw',
-  'W0yDHKV3JGQ',
-  'tITuokBPr2A',
-];
+declare global { interface Window { adsbygoogle: unknown[] } }
 
-function VideoPlayer() {
-  const videoId = PROMO_VIDEOS[Math.floor(Math.random() * PROMO_VIDEOS.length)];
+function AdSlot() {
+  const ref = useRef<HTMLModElement>(null);
+  const pushed = useRef(false);
+  useEffect(() => {
+    if (pushed.current) return;
+    pushed.current = true;
+    try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (_) {}
+  }, []);
   return (
-    <div className="w-full rounded-xl overflow-hidden" style={{ aspectRatio: '16/9' }}>
-      <iframe
-        width="100%"
-        height="100%"
-        src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0`}
-        title="Vídeo promocional"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowFullScreen
-        style={{ border: 'none', display: 'block', width: '100%', minHeight: 200 }}
+    <div className="w-full bg-black/30 rounded-xl overflow-hidden min-h-[160px] flex items-center justify-center">
+      <ins
+        ref={ref}
+        className="adsbygoogle"
+        style={{ display: 'block', width: '100%', minHeight: 160 }}
+        data-ad-client="ca-pub-4807272408824742"
+        data-ad-format="auto"
+        data-full-width-responsive="true"
       />
     </div>
   );
@@ -114,8 +114,8 @@ export function VideoReward({ onCoinsEarned }: VideoRewardProps) {
 
       {phase === 'watching' && (
         <div className="space-y-3">
-          <VideoPlayer />
-          <div className="flex items-center justify-between text-sm mt-2">
+          <AdSlot />
+          <div className="flex items-center justify-between text-sm">
             <p className="text-white/50">Espera {seconds}s para recibir tus monedas...</p>
             <span className="text-yellow-400 font-bold text-xl">{seconds}s</span>
           </div>
@@ -125,7 +125,7 @@ export function VideoReward({ onCoinsEarned }: VideoRewardProps) {
               style={{ width: `${progress}%` }}
             />
           </div>
-          <p className="text-center text-white/50 text-xs">¡Ya casi tienes tus monedas!</p>
+          <p className="text-center text-white/50 text-xs">No cierres esta página — ¡ya casi tienes tus monedas!</p>
         </div>
       )}
 
