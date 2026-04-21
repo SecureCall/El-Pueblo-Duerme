@@ -26,6 +26,9 @@ export const metadata: Metadata = {
   keywords: ['juego lobos', 'mafia game', 'werewolf', 'juego multijugador', 'el pueblo duerme', 'deducción social', 'juego navegador', 'lobos hombre'],
   authors: [{ name: 'El Pueblo Duerme' }],
   metadataBase: new URL('https://elpuebloduerme.vercel.app'),
+  verification: {
+    google: 'q_mi5SAeR9A9s8RTjXT3HRoVgmu3xKevCijp8kA0e6g',
+  },
   openGraph: {
     title: 'El Pueblo Duerme — Juego de Lobos Multijugador',
     description: 'Un juego multijugador de misterio, engaño y supervivencia. 35 roles, narrador IA, chat de voz y eventos de caos.',
