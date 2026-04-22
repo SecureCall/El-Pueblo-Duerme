@@ -66,6 +66,18 @@ service cloud.firestore {
       );
     }
 
+    // ── Coin history (vídeos vistos, recompensas) ──────────────────────────
+    match /users/{userId}/coinHistory/{historyId} {
+      allow read: if isAuth() && request.auth.uid == userId;
+      allow create: if isAuth() && request.auth.uid == userId;
+    }
+
+    // ── Purchases (artículos comprados en tienda) ──────────────────────────
+    match /users/{userId}/purchases/{purchaseId} {
+      allow read: if isAuth() && request.auth.uid == userId;
+      allow create: if isAuth() && request.auth.uid == userId;
+    }
+
     // ── Presence (heartbeat during game) ───────────────────────────────────
     match /presence/{userId} {
       allow read: if isAuth();

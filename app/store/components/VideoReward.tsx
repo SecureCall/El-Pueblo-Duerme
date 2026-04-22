@@ -41,9 +41,9 @@ export function VideoReward({ onCoinsEarned }: VideoRewardProps) {
 
   useEffect(() => {
     if (!user) return;
-    canWatchVideo(user.uid).then(ok => {
-      if (!ok) setPhase('unavailable');
-    });
+    canWatchVideo(user.uid)
+      .then(ok => { if (!ok) setPhase('unavailable'); })
+      .catch(() => { /* si falla la consulta, dejar en idle */ });
   }, [user]);
 
   const startVideo = async () => {
@@ -51,8 +51,12 @@ export function VideoReward({ onCoinsEarned }: VideoRewardProps) {
       toast({ variant: 'destructive', title: 'Inicia sesión', description: 'Necesitas una cuenta para ganar monedas.' });
       return;
     }
-    const ok = await canWatchVideo(user.uid);
-    if (!ok) { setPhase('unavailable'); return; }
+    try {
+      const ok = await canWatchVideo(user.uid);
+      if (!ok) { setPhase('unavailable'); return; }
+    } catch {
+      // Si falla la verificación, permitir igualmente (fallo gracioso)
+    }
 
     setPhase('watching');
     setSeconds(30);
