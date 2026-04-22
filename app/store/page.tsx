@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Coins, ShoppingBag, Palette, Gamepad2, Users, Gift, UserCircle } from 'lucide-react';
 import { VideoReward } from './components/VideoReward';
 import { StoreItem, StoreItemData } from './components/StoreItem';
+import { AdBanner } from '@/components/ads/AdBanner';
 import { useCoins } from '@/app/hooks/use-coins';
 import { useAuth } from '@/app/providers/AuthProvider';
 
@@ -97,28 +98,41 @@ export default function StorePage() {
         </div>
 
         {/* Video Reward */}
-        <div className="mb-12">
+        <div className="mb-8">
           <VideoReward onCoinsEarned={refresh} />
         </div>
 
+        {/* Banner horizontal bajo VideoReward */}
+        <div className="mb-10 flex justify-center">
+          <AdBanner format="horizontal" />
+        </div>
+
         {/* Store Categories */}
-        {CATEGORIES.map(cat => {
+        {CATEGORIES.map((cat, idx) => {
           const items = ALL_ITEMS.filter(i => i.category === cat.id);
           const Icon = cat.icon;
           return (
-            <div key={cat.id} className="mb-14">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="bg-white/10 rounded-lg p-2">
-                  <Icon className="h-5 w-5 text-yellow-400" />
+            <div key={cat.id}>
+              <div className="mb-14">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="bg-white/10 rounded-lg p-2">
+                    <Icon className="h-5 w-5 text-yellow-400" />
+                  </div>
+                  <h2 className="text-2xl font-bold font-headline">{cat.label}</h2>
+                  <span className="text-white/30 text-sm">{items.length} artículos</span>
                 </div>
-                <h2 className="text-2xl font-bold font-headline">{cat.label}</h2>
-                <span className="text-white/30 text-sm">{items.length} artículos</span>
+                <div className={`grid ${cat.cols} gap-3`}>
+                  {items.map(item => (
+                    <StoreItem key={item.id} item={item} userCoins={coins} onPurchase={refresh} />
+                  ))}
+                </div>
               </div>
-              <div className={`grid ${cat.cols} gap-3`}>
-                {items.map(item => (
-                  <StoreItem key={item.id} item={item} userCoins={coins} onPurchase={refresh} />
-                ))}
-              </div>
+              {/* Banner 300x250 después de avatares y cosméticos */}
+              {(idx === 0 || idx === 2) && (
+                <div className="mb-10 flex justify-center">
+                  <AdBanner format="rectangle" />
+                </div>
+              )}
             </div>
           );
         })}
