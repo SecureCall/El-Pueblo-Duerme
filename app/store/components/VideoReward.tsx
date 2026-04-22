@@ -6,26 +6,24 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { addCoins, canWatchVideo } from '@/lib/firebase/coins';
 import { useToast } from '@/app/hooks/use-toast';
 
-declare global { interface Window { adsbygoogle: unknown[] } }
+const BANNER_KEY = '62e20b1b19b6fefc4b9795ed79a64fab';
 
 function AdSlot() {
-  const ref = useRef<HTMLModElement>(null);
-  const pushed = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const injected = useRef(false);
   useEffect(() => {
-    if (pushed.current) return;
-    pushed.current = true;
-    try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (_) {}
+    if (injected.current || !containerRef.current) return;
+    injected.current = true;
+    const opt = document.createElement('script');
+    opt.innerHTML = `atOptions = { 'key': '${BANNER_KEY}', 'format': 'iframe', 'height': 250, 'width': 300, 'params': {} };`;
+    containerRef.current.appendChild(opt);
+    const inv = document.createElement('script');
+    inv.src = `https://www.highperformanceformat.com/${BANNER_KEY}/invoke.js`;
+    containerRef.current.appendChild(inv);
   }, []);
   return (
-    <div className="w-full bg-black/30 rounded-xl overflow-hidden min-h-[160px] flex items-center justify-center">
-      <ins
-        ref={ref}
-        className="adsbygoogle"
-        style={{ display: 'block', width: '100%', minHeight: 160 }}
-        data-ad-client="ca-pub-4807272408824742"
-        data-ad-format="auto"
-        data-full-width-responsive="true"
-      />
+    <div className="w-full bg-black/30 rounded-xl overflow-hidden flex items-center justify-center" style={{ minHeight: 160 }}>
+      <div ref={containerRef} style={{ width: 300, minHeight: 250 }} />
     </div>
   );
 }

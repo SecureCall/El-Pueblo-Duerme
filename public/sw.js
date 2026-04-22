@@ -151,6 +151,8 @@ self.addEventListener('fetch', (event) => {
     url.hostname.includes('googleapis') ||
     url.hostname.includes('google-analytics') ||
     url.hostname.includes('googlesyndication') ||
+    url.hostname.includes('highperformanceformat') ||
+    url.hostname.includes('profitablecpmratenetwork') ||
     url.hostname.includes('firebaseapp')
   ) {
     event.respondWith(fetch(request));

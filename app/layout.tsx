@@ -88,14 +88,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es" className="dark">
-      <head>
-        {/* Google AdSense */}
-        <script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4807272408824742"
-          crossOrigin="anonymous"
-        />
-      </head>
+      <head />
       <body className={cn(ptSans.variable, playfair.variable, "font-sans")}>
         <AuthProvider>
           <RegisterSW />

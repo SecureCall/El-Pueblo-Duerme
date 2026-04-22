@@ -1,14 +1,32 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Coins, Play } from 'lucide-react';
 import { db } from '@/lib/firebase/config';
 import { doc, updateDoc, increment } from 'firebase/firestore';
+
+const BANNER_KEY = '62e20b1b19b6fefc4b9795ed79a64fab';
 
 interface Props {
   userId: string;
   coinsReward?: number;
   onRewarded?: () => void;
+}
+
+function AdSlot() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const injected = useRef(false);
+  useEffect(() => {
+    if (injected.current || !containerRef.current) return;
+    injected.current = true;
+    const opt = document.createElement('script');
+    opt.innerHTML = `atOptions = { 'key': '${BANNER_KEY}', 'format': 'iframe', 'height': 250, 'width': 300, 'params': {} };`;
+    containerRef.current.appendChild(opt);
+    const inv = document.createElement('script');
+    inv.src = `https://www.highperformanceformat.com/${BANNER_KEY}/invoke.js`;
+    containerRef.current.appendChild(inv);
+  }, []);
+  return <div ref={containerRef} style={{ minHeight: 250, width: '100%', maxWidth: 300, margin: '0 auto' }} />;
 }
 
 export function RewardedAd({ userId, coinsReward = 50, onRewarded }: Props) {
@@ -18,29 +36,17 @@ export function RewardedAd({ userId, coinsReward = 50, onRewarded }: Props) {
   const startAd = () => {
     setState('watching');
     setSeconds(15);
-
     const interval = setInterval(() => {
       setSeconds(prev => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          giveReward();
-          return 0;
-        }
+        if (prev <= 1) { clearInterval(interval); giveReward(); return 0; }
         return prev - 1;
       });
     }, 1000);
-
-    // Push rewarded ad to Google AdSense
-    try {
-      (window.adsbygoogle = window.adsbygoogle || []).push({});
-    } catch (_) {}
   };
 
   const giveReward = async () => {
     try {
-      await updateDoc(doc(db, 'users', userId), {
-        coins: increment(coinsReward),
-      });
+      await updateDoc(doc(db, 'users', userId), { coins: increment(coinsReward) });
     } catch (_) {}
     setState('done');
     onRewarded?.();
@@ -58,13 +64,7 @@ export function RewardedAd({ userId, coinsReward = 50, onRewarded }: Props) {
   if (state === 'watching') {
     return (
       <div className="w-full bg-black/60 border border-white/10 rounded-xl p-4 text-center">
-        <ins
-          className="adsbygoogle block w-full"
-          style={{ display: 'block', minHeight: 90 }}
-          data-ad-client="ca-pub-4807272408824742"
-          data-ad-format="auto"
-          data-full-width-responsive="true"
-        />
+        <AdSlot />
         <p className="text-white/50 text-xs mt-2">
           Cierra en {seconds}s... 🪙 +{coinsReward} monedas al terminar
         </p>
