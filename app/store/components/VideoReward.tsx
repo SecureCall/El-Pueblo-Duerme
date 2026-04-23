@@ -9,21 +9,19 @@ import { useToast } from '@/app/hooks/use-toast';
 const BANNER_KEY = '62e20b1b19b6fefc4b9795ed79a64fab';
 
 function AdSlot() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const injected = useRef(false);
-  useEffect(() => {
-    if (injected.current || !containerRef.current) return;
-    injected.current = true;
-    const opt = document.createElement('script');
-    opt.innerHTML = `atOptions = { 'key': '${BANNER_KEY}', 'format': 'iframe', 'height': 250, 'width': 300, 'params': {} };`;
-    containerRef.current.appendChild(opt);
-    const inv = document.createElement('script');
-    inv.src = `https://www.highperformanceformat.com/${BANNER_KEY}/invoke.js`;
-    containerRef.current.appendChild(inv);
-  }, []);
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;padding:0;overflow:hidden;}</style><script>atOptions={'key':'${BANNER_KEY}','format':'iframe','height':250,'width':300,'params':{}};</script><script src="https://www.highperformanceformat.com/${BANNER_KEY}/invoke.js"></script></head><body></body></html>`;
   return (
     <div className="w-full bg-black/30 rounded-xl overflow-hidden flex items-center justify-center" style={{ minHeight: 160 }}>
-      <div ref={containerRef} style={{ width: 300, minHeight: 250 }} />
+      <iframe
+        srcDoc={html}
+        width={300}
+        height={250}
+        scrolling="no"
+        frameBorder="0"
+        sandbox="allow-scripts"
+        style={{ border: 'none', display: 'block' }}
+        title="Publicidad"
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { Coins, Play } from 'lucide-react';
 import { db } from '@/lib/firebase/config';
 import { doc, updateDoc, increment } from 'firebase/firestore';
@@ -14,19 +14,19 @@ interface Props {
 }
 
 function AdSlot() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const injected = useRef(false);
-  useEffect(() => {
-    if (injected.current || !containerRef.current) return;
-    injected.current = true;
-    const opt = document.createElement('script');
-    opt.innerHTML = `atOptions = { 'key': '${BANNER_KEY}', 'format': 'iframe', 'height': 250, 'width': 300, 'params': {} };`;
-    containerRef.current.appendChild(opt);
-    const inv = document.createElement('script');
-    inv.src = `https://www.highperformanceformat.com/${BANNER_KEY}/invoke.js`;
-    containerRef.current.appendChild(inv);
-  }, []);
-  return <div ref={containerRef} style={{ minHeight: 250, width: '100%', maxWidth: 300, margin: '0 auto' }} />;
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;padding:0;overflow:hidden;}</style><script>atOptions={'key':'${BANNER_KEY}','format':'iframe','height':250,'width':300,'params':{}};</script><script src="https://www.highperformanceformat.com/${BANNER_KEY}/invoke.js"></script></head><body></body></html>`;
+  return (
+    <iframe
+      srcDoc={html}
+      width={300}
+      height={250}
+      scrolling="no"
+      frameBorder="0"
+      sandbox="allow-scripts"
+      style={{ border: 'none', display: 'block', margin: '0 auto' }}
+      title="Publicidad"
+    />
+  );
 }
 
 export function RewardedAd({ userId, coinsReward = 50, onRewarded }: Props) {
