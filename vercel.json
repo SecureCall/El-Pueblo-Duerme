@@ -18,6 +18,14 @@
       ]
     },
     {
+      "source": "/.well-known/web-app-origin-association",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=3600" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" }
+      ]
+    },
+    {
       "source": "/offline.html",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=86400" },
@@ -28,6 +36,14 @@
       "source": "/screenshot1.jpg",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=86400" }
+      ]
+    },
+    {
+      "source": "/widget-template.json",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=3600" },
+        { "key": "Content-Type", "value": "application/json; charset=utf-8" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" }
       ]
     }
   ]

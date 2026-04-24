@@ -1,4 +1,4 @@
-const CACHE_NAME = 'elpueblo-v8';
+const CACHE_NAME = 'elpueblo-v9';
 
 // Critical URLs — must be cached for offline to work. addAll fails if any fails,
 // so we split into critical (fetched individually, errors ignored) vs optional.
@@ -207,30 +207,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Start URL ("/") — cache-first so PWABuilder offline check always passes
-  if (url.pathname === '/' || url.pathname === '') {
-    event.respondWith(
-      caches.match('/').then((cached) => {
-        if (cached) {
-          // Background refresh
-          fetch(request).then((res) => {
-            if (res.ok) caches.open(CACHE_NAME).then((c) => c.put('/', res));
-          }).catch(() => {});
-          return cached;
-        }
-        return fetch(request).then((res) => {
-          if (res.ok) {
-            const clone = res.clone();
-            caches.open(CACHE_NAME).then((c) => c.put('/', clone));
-          }
-          return res;
-        }).catch(() => caches.match('/offline.html'));
-      })
-    );
-    return;
-  }
-
-  // Network-first with cache fallback for all other HTML pages
+  // Network-first with cache fallback for all HTML pages
   event.respondWith(
     fetch(request)
       .then((response) => {
