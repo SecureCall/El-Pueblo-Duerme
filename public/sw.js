@@ -1,4 +1,4 @@
-const CACHE_NAME = 'elpueblo-v6';
+const CACHE_NAME = 'elpueblo-v7';
 
 const PRECACHE_URLS = [
   '/',
@@ -197,7 +197,10 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(request).then((cached) => cached ?? caches.match('/offline.html')))
+      .catch(() =>
+        caches.match(request, { ignoreSearch: true })
+          .then((cached) => cached ?? caches.match('/offline.html'))
+      )
 
   );
 });
