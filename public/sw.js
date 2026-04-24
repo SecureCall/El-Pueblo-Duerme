@@ -1,8 +1,13 @@
-const CACHE_NAME = 'elpueblo-v7';
+const CACHE_NAME = 'elpueblo-v8';
 
-const PRECACHE_URLS = [
+// Critical URLs — must be cached for offline to work. addAll fails if any fails,
+// so we split into critical (fetched individually, errors ignored) vs optional.
+const CRITICAL_URLS = [
   '/',
   '/offline.html',
+];
+
+const OPTIONAL_URLS = [
   '/widget.html',
   '/how-to-play',
   '/manifest.json',
@@ -21,7 +26,22 @@ const PRECACHE_URLS = [
 // ─── Install ────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
+    caches.open(CACHE_NAME).then((cache) =>
+      // Cache critical URLs first (fail-fast individually so errors don't block each other)
+      Promise.all([
+        ...CRITICAL_URLS.map((url) =>
+          fetch(url)
+            .then((res) => { if (res.ok) return cache.put(url, res); })
+            .catch(() => { /* ignore — offline.html & / cached best-effort */ })
+        ),
+        // Optional URLs: cache silently, never block install
+        ...OPTIONAL_URLS.map((url) =>
+          fetch(url)
+            .then((res) => { if (res.ok) return cache.put(url, res); })
+            .catch(() => {})
+        ),
+      ])
+    )
   );
   self.skipWaiting();
 });
@@ -187,7 +207,30 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-first with cache fallback for HTML pages
+  // Start URL ("/") — cache-first so PWABuilder offline check always passes
+  if (url.pathname === '/' || url.pathname === '') {
+    event.respondWith(
+      caches.match('/').then((cached) => {
+        if (cached) {
+          // Background refresh
+          fetch(request).then((res) => {
+            if (res.ok) caches.open(CACHE_NAME).then((c) => c.put('/', res));
+          }).catch(() => {});
+          return cached;
+        }
+        return fetch(request).then((res) => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then((c) => c.put('/', clone));
+          }
+          return res;
+        }).catch(() => caches.match('/offline.html'));
+      })
+    );
+    return;
+  }
+
+  // Network-first with cache fallback for all other HTML pages
   event.respondWith(
     fetch(request)
       .then((response) => {
