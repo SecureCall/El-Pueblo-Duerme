@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sin conexión — El Pueblo Duerme</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      background: #0f0d0b;
+      color: #fff;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      padding: 2rem;
+      text-align: center;
+    }
+    img { width: 96px; height: 96px; border-radius: 50%; opacity: 0.8; }
+    h1 { font-size: 1.75rem; font-weight: 900; }
+    p { color: rgba(255,255,255,0.55); max-width: 320px; line-height: 1.6; }
+    button {
+      margin-top: 0.5rem;
+      background: #ef4444;
+      color: #fff;
+      border: none;
+      border-radius: 0.75rem;
+      padding: 0.875rem 2rem;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button:hover { background: #dc2626; }
+  </style>
+</head>
+<body>
+  <img src="/icons/192.png" alt="El Pueblo Duerme" />
+  <h1>Sin conexión</h1>
+  <p>El pueblo duerme, pero tu conexión también. Vuelve cuando tengas internet para seguir jugando.</p>
+  <button onclick="location.reload()">Reintentar</button>
+</body>
+</html>

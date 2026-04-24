@@ -21,6 +21,18 @@
     "client_mode": ["focus-existing", "auto"]
   },
 
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "https://elpuebloduerme.vercel.app/manifest.json",
+      "id": "elpuebloduerme.vercel.app"
+    }
+  ],
+
+  "scope_extensions": [
+    { "origin": "https://elpuebloduerme.vercel.app" }
+  ],
+
   "share_target": {
     "action": "/share-target",
     "method": "GET",
@@ -108,6 +120,23 @@
     }
   ],
 
+  "screenshots": [
+    {
+      "src": "/screenshot1.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "Pantalla principal de El Pueblo Duerme"
+    },
+    {
+      "src": "/icons/512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Logo de El Pueblo Duerme"
+    }
+  ],
+
   "shortcuts": [
     {
       "name": "Crear Nueva Partida",
@@ -123,7 +152,5 @@
       "url": "/how-to-play",
       "icons": [{ "src": "/icons/72.png", "sizes": "72x72", "type": "image/png" }]
     }
-  ],
-
-  "screenshots": []
+  ]
 }
