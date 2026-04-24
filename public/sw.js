@@ -1,46 +1,12 @@
-const CACHE_NAME = 'elpueblo-v9';
+const CACHE_NAME = 'elpueblo-v10';
 
-// Critical URLs — must be cached for offline to work. addAll fails if any fails,
-// so we split into critical (fetched individually, errors ignored) vs optional.
-const CRITICAL_URLS = [
-  '/',
-  '/offline.html',
-];
-
-const OPTIONAL_URLS = [
-  '/widget.html',
-  '/how-to-play',
-  '/manifest.json',
-  '/widget-data.json',
-  '/widget-template.json',
-  '/favicon.ico',
-  '/logo.png',
-  '/noche.png',
-  '/dia.png',
-  '/icons/192.png',
-  '/icons/512.png',
-  '/icons/android-launchericon-192-192.png',
-  '/screenshot1.jpg',
-];
-
-// ─── Install ────────────────────────────────────────────────────────────────
+// ─── Install ─────────────────────────────────────────────────────────────────
+// Only cache offline.html synchronously — it's tiny and guaranteed to exist.
+// Everything else is cached lazily on first fetch (see fetch handler below).
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
-      // Cache critical URLs first (fail-fast individually so errors don't block each other)
-      Promise.all([
-        ...CRITICAL_URLS.map((url) =>
-          fetch(url)
-            .then((res) => { if (res.ok) return cache.put(url, res); })
-            .catch(() => { /* ignore — offline.html & / cached best-effort */ })
-        ),
-        // Optional URLs: cache silently, never block install
-        ...OPTIONAL_URLS.map((url) =>
-          fetch(url)
-            .then((res) => { if (res.ok) return cache.put(url, res); })
-            .catch(() => {})
-        ),
-      ])
+      cache.addAll(['/offline.html', '/icons/192.png'])
     )
   );
   self.skipWaiting();
@@ -54,6 +20,23 @@ self.addEventListener('activate', (event) => {
     )
   );
   self.clients.claim();
+});
+
+// ─── Message handler ─────────────────────────────────────────────────────────
+// Pages send CACHE_PAGE to pre-warm the cache after first load.
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'CACHE_PAGE') {
+    const urlToCache = event.data.url || '/';
+    caches.open(CACHE_NAME).then((cache) =>
+      cache.match(urlToCache).then((existing) => {
+        if (!existing) {
+          fetch(urlToCache).then((res) => {
+            if (res.ok) cache.put(urlToCache, res);
+          }).catch(() => {});
+        }
+      })
+    );
+  }
 });
 
 // ─── launch_handler: focus existing client ───────────────────────────────────

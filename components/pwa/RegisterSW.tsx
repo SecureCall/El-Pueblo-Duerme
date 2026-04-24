@@ -29,6 +29,22 @@ export function RegisterSW() {
           }
         });
 
+        // Tell SW to pre-warm cache for this page (ensures offline works)
+        if (navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: 'CACHE_PAGE',
+            url: '/',
+          });
+        } else {
+          // Wait for SW to take control, then send the message
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            navigator.serviceWorker.controller?.postMessage({
+              type: 'CACHE_PAGE',
+              url: '/',
+            });
+          }, { once: true });
+        }
+
         // Register Periodic Background Sync if supported
         if ('periodicSync' in reg) {
           try {
