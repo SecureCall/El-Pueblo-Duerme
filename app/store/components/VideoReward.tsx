@@ -18,7 +18,7 @@ function AdSlot() {
         height={250}
         scrolling="no"
         frameBorder="0"
-        sandbox="allow-scripts"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
         style={{ border: 'none', display: 'block' }}
         title="Publicidad"
       />

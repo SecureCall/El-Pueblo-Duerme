@@ -30,7 +30,7 @@ function SandboxedBanner({ adKey, width, height }: { adKey: string; width: numbe
       height={height}
       scrolling="no"
       frameBorder="0"
-      sandbox="allow-scripts"
+      sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
       style={{ border: 'none', display: 'block', maxWidth: '100%' }}
       title="Publicidad"
     />
