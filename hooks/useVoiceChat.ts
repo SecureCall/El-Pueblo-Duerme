@@ -61,14 +61,57 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
   const localStreamRef = useRef<MediaStream | null>(null);
   const peerConns = useRef<Map<string, RTCPeerConnection>>(new Map());
   const speakingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // Listeners de señalización por peerId — limpiados individualmente cuando el peer se va
+  const peerListeners = useRef<Map<string, (() => void)[]>>(new Map());
+  // VAD intervals por peerId — limpiados al desmontar y al cerrar peer
+  const vadIntervals = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
+  // AudioContexts por peerId — cerrados al limpiar el VAD
+  const audioContexts = useRef<Map<string, AudioContext>>(new Map());
+  // Listeners globales (presencia + ofertas)
+  const globalUnsubscribe = useRef<(() => void)[]>([]);
   // Latest presence snapshot so we can re-process after joining
   const lastPresenceSnap = useRef<SignalPresence[]>([]);
   const isMutedRef = useRef(isMuted);
   const channelRef = useRef(channel);
-  const unsubscribeRef = useRef<(() => void)[]>([]);
 
   useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
   useEffect(() => { channelRef.current = channel; }, [channel]);
+
+  // ── Limpiar listeners y recursos de un peer específico ──────
+  const cleanupPeer = useCallback((peerId: string) => {
+    // Limpiar listeners de señalización de este peer
+    const listeners = peerListeners.current.get(peerId) ?? [];
+    listeners.forEach(u => u());
+    peerListeners.current.delete(peerId);
+
+    // Limpiar VAD interval
+    const vad = vadIntervals.current.get(peerId);
+    if (vad !== undefined) {
+      clearInterval(vad);
+      vadIntervals.current.delete(peerId);
+    }
+
+    // Cerrar AudioContext
+    const ctx = audioContexts.current.get(peerId);
+    if (ctx) {
+      ctx.close().catch(() => {});
+      audioContexts.current.delete(peerId);
+    }
+
+    // Cerrar PeerConnection
+    const pc = peerConns.current.get(peerId);
+    if (pc) {
+      pc.close();
+      peerConns.current.delete(peerId);
+    }
+
+    // Limpiar speaking timer
+    const spTimer = speakingTimers.current.get(peerId);
+    if (spTimer !== undefined) {
+      clearTimeout(spTimer);
+      speakingTimers.current.delete(peerId);
+    }
+  }, []);
 
   // ── Obtener micrófono ─────────────────────────────────────────────
   const getLocalStream = useCallback(async (): Promise<MediaStream | null> => {
@@ -116,6 +159,7 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
 
       // Detector de voz (VAD básico)
       const ctx = new AudioContext();
+      audioContexts.current.set(peerId, ctx);
       const src = ctx.createMediaStreamSource(ev.streams[0]);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
@@ -136,12 +180,8 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
         }
       }, 150);
 
-      pc.addEventListener('connectionstatechange', () => {
-        if (pc.connectionState === 'closed' || pc.connectionState === 'failed') {
-          clearInterval(vadInterval);
-          ctx.close().catch(() => {});
-        }
-      });
+      // Guardar el interval para poder limpiarlo individualmente
+      vadIntervals.current.set(peerId, vadInterval);
     };
 
     // ICE candidates → Firestore
@@ -166,10 +206,13 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
         setTimeout(() => {
           const current = peerConns.current.get(peerId);
           if (current && (current.connectionState === 'failed' || current.connectionState === 'disconnected')) {
-            current.close();
-            peerConns.current.delete(peerId);
+            // Limpiar todos los recursos asociados a este peer
+            cleanupPeer(peerId);
           }
         }, reconnectDelay);
+      }
+      if (state === 'closed') {
+        cleanupPeer(peerId);
       }
     };
 
@@ -179,7 +222,13 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
     });
 
     return pc;
-  }, [gameId, userId]);
+  }, [gameId, userId, cleanupPeer]);
+
+  // ── Añadir listener de señalización vinculado a un peer ─────
+  const addPeerListener = useCallback((peerId: string, unsub: () => void) => {
+    const current = peerListeners.current.get(peerId) ?? [];
+    peerListeners.current.set(peerId, [...current, unsub]);
+  }, []);
 
   // ── Iniciar oferta hacia un peer ──────────────────────────────
   const initiateOffer = useCallback(async (peerId: string, peerName: string) => {
@@ -197,17 +246,17 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
       createdAt: serverTimestamp(),
     });
 
-    // Escuchar answer
-    const unsub = onSnapshot(doc(db, 'games', gameId, 'voiceAnswers', `${peerId}_${userId}`), async (snap: any) => {
+    // Escuchar answer — listener vinculado a este peer
+    const answerUnsub = onSnapshot(doc(db, 'games', gameId, 'voiceAnswers', `${peerId}_${userId}`), async (snap: any) => {
       if (!snap.exists()) return;
       const data = snap.data();
       if (pc.signalingState === 'have-local-offer') {
         await pc.setRemoteDescription({ type: data.type, sdp: data.sdp }).catch(() => {});
       }
     });
-    unsubscribeRef.current.push(unsub);
+    addPeerListener(peerId, answerUnsub);
 
-    // Escuchar ICE del peer hacia mí
+    // Escuchar ICE del peer hacia mí — listener vinculado a este peer
     const iceUnsub = onSnapshot(collection(db, 'games', gameId, 'voiceIce', `${peerId}_${userId}`, 'candidates'), (snap: any) => {
       snap.docChanges().forEach((ch: any) => {
         if (ch.type !== 'added') return;
@@ -215,8 +264,8 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
         pc.addIceCandidate(new RTCIceCandidate({ candidate: d.candidate, sdpMid: d.sdpMid, sdpMLineIndex: d.sdpMLineIndex })).catch(() => {});
       });
     });
-    unsubscribeRef.current.push(iceUnsub);
-  }, [gameId, userId, channel, getLocalStream, createPeer]);
+    addPeerListener(peerId, iceUnsub);
+  }, [gameId, userId, channel, getLocalStream, createPeer, addPeerListener]);
 
   // ── Responder una oferta ───────────────────────────────────────
   const handleOffer = useCallback(async (peerId: string, peerName: string, offerSdp: string, offerType: RTCSdpType) => {
@@ -235,7 +284,7 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
       createdAt: serverTimestamp(),
     });
 
-    // Escuchar ICE del peer hacia mí
+    // Escuchar ICE del peer hacia mí — listener vinculado a este peer
     const iceUnsub = onSnapshot(collection(db, 'games', gameId, 'voiceIce', `${peerId}_${userId}`, 'candidates'), (snap: any) => {
       snap.docChanges().forEach((ch: any) => {
         if (ch.type !== 'added') return;
@@ -243,8 +292,8 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
         pc.addIceCandidate(new RTCIceCandidate({ candidate: d.candidate, sdpMid: d.sdpMid, sdpMLineIndex: d.sdpMLineIndex })).catch(() => {});
       });
     });
-    unsubscribeRef.current.push(iceUnsub);
-  }, [gameId, userId, getLocalStream, createPeer]);
+    addPeerListener(peerId, iceUnsub);
+  }, [gameId, userId, getLocalStream, createPeer, addPeerListener]);
 
   // ── Conectar: registrar presencia y escuchar peers ───────────
   useEffect(() => {
@@ -274,22 +323,20 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
           }
         }
 
-        // Eliminar peers que ya no están
+        // Eliminar peers que ya no están — limpiar sus recursos individualmente
         const activeUids = new Set(others.map(o => o.uid));
         setPeers(prev => prev.filter(p => activeUids.has(p.uid)));
         peerConns.current.forEach((pc, uid) => {
           if (!activeUids.has(uid)) {
-            pc.close();
-            peerConns.current.delete(uid);
+            cleanupPeer(uid);
           }
         });
       },
       (err: any) => {
-        // Error de permisos Firestore — silencioso, no rompe el UI
         console.warn('[VoiceChat] presenceUnsub error:', err.code);
       }
     );
-    unsubscribeRef.current.push(presenceUnsub);
+    globalUnsubscribe.current.push(presenceUnsub);
 
     // Escuchar ofertas dirigidas a mí
     const offersUnsub = onSnapshot(
@@ -308,14 +355,25 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
         console.warn('[VoiceChat] offersUnsub error:', err.code);
       }
     );
-    unsubscribeRef.current.push(offersUnsub);
+    globalUnsubscribe.current.push(offersUnsub);
 
     return () => {
       deleteDoc(doc(db, 'games', gameId, 'voicePresence', userId)).catch(() => {});
-      unsubscribeRef.current.forEach(u => u());
-      unsubscribeRef.current = [];
-      peerConns.current.forEach(pc => pc.close());
-      peerConns.current.clear();
+
+      // Limpiar listeners globales
+      globalUnsubscribe.current.forEach(u => u());
+      globalUnsubscribe.current = [];
+
+      // Limpiar todos los peers y sus recursos individuales
+      const peerIds = Array.from(peerConns.current.keys());
+      peerIds.forEach(pid => cleanupPeer(pid));
+
+      // Limpiar cualquier VAD o AudioContext huérfano que cleanupPeer no haya cubierto
+      vadIntervals.current.forEach(id => clearInterval(id));
+      vadIntervals.current.clear();
+      audioContexts.current.forEach(ctx => ctx.close().catch(() => {}));
+      audioContexts.current.clear();
+
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(t => t.stop());
         localStreamRef.current = null;
@@ -328,8 +386,6 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
   }, [enabled, gameId, userId, channel]);
 
   // ── Unirse al canal de voz (solicitar micrófono + conectar) ──
-  // Este es el único punto de entrada para pedir el permiso del mic.
-  // Se llama desde el botón "Unirte con voz".
   const joinVoice = useCallback(async () => {
     if (joining || permissionGranted) return;
     setJoining(true);

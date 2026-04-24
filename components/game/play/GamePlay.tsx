@@ -1791,7 +1791,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const timer = schedule();
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.phase, game?.roundNumber, game?.dayStartedAt, game?.narratorBroadcast?.triggeredAt]);
+  }, [game?.phase, game?.roundNumber, game?.dayStartedAt]);
 
   // Host processes day votes when all eligible alive players have voted
   useEffect(() => {
@@ -2279,17 +2279,20 @@ export function GamePlay({ gameId }: { gameId: string }) {
   useEffect(() => {
     if (!game || !user || game.hostUid !== user.uid) return;
     const pending = game.fantasmaPending ?? [];
+    const timers: ReturnType<typeof setTimeout>[] = [];
     for (const ghostUid of pending) {
       const ghostPlayer = (game.players ?? []).find(p => p.uid === ghostUid);
       if (!ghostPlayer?.isAI) continue;
       const alive = (game.players ?? []).filter(p => p.isAlive);
       if (alive.length > 0) {
         const target = alive[Math.floor(Math.random() * alive.length)];
-        setTimeout(() => {
+        const t = setTimeout(() => {
           fantasmaSendMessage(ghostUid, target.uid, 'Soy un fantasma. Confiad en el pueblo y eliminad a los lobos.');
         }, 3000);
+        timers.push(t);
       }
     }
+    return () => timers.forEach(clearTimeout);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.fantasmaPending?.length]);
 
