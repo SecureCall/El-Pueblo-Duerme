@@ -25,6 +25,10 @@
     "preferred_width": 400
   },
 
+  "note_taking": {
+    "new_note_url": "/create"
+  },
+
   "related_applications": [
     {
       "platform": "webapp",

@@ -15,7 +15,7 @@ export function RegisterSW() {
     // Register the service worker
     navigator.serviceWorker
       .register('/sw.js', { scope: '/' })
-      .then((reg) => {
+      .then(async (reg) => {
         console.log('[SW] Registrado:', reg.scope);
 
         reg.addEventListener('updatefound', () => {
@@ -28,6 +28,25 @@ export function RegisterSW() {
             });
           }
         });
+
+        // Register Periodic Background Sync if supported
+        if ('periodicSync' in reg) {
+          try {
+            const status = await navigator.permissions.query({
+              name: 'periodic-background-sync' as PermissionName,
+            });
+            if (status.state === 'granted') {
+              await (reg as unknown as { periodicSync: { register: (tag: string, opts: object) => Promise<void> } }).periodicSync.register('refresh-content', {
+                minInterval: 24 * 60 * 60 * 1000, // 24h
+              });
+              await (reg as unknown as { periodicSync: { register: (tag: string, opts: object) => Promise<void> } }).periodicSync.register('update-widget-data', {
+                minInterval: 5 * 60 * 1000, // 5 min
+              });
+            }
+          } catch {
+            // periodic sync not available — non-critical
+          }
+        }
       })
       .catch((err) => console.warn('[SW] Error al registrar:', err));
 

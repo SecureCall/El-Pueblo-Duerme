@@ -1,16 +1,21 @@
-const CACHE_NAME = 'elpueblo-v5';
+const CACHE_NAME = 'elpueblo-v6';
 
 const PRECACHE_URLS = [
   '/',
   '/offline.html',
+  '/widget.html',
   '/how-to-play',
   '/manifest.json',
+  '/widget-data.json',
+  '/widget-template.json',
   '/favicon.ico',
   '/logo.png',
   '/noche.png',
   '/dia.png',
   '/icons/192.png',
   '/icons/512.png',
+  '/icons/android-launchericon-192-192.png',
+  '/screenshot1.jpg',
 ];
 
 // ─── Install ────────────────────────────────────────────────────────────────
@@ -195,6 +200,40 @@ self.addEventListener('fetch', (event) => {
       .catch(() => caches.match(request).then((cached) => cached ?? caches.match('/offline.html')))
 
   );
+});
+
+// ─── Periodic Background Sync ─────────────────────────────────────────────────
+self.addEventListener('periodicsync', (event) => {
+  if (event.tag === 'update-widget-data') {
+    event.waitUntil(
+      caches.open(CACHE_NAME).then(async (cache) => {
+        try {
+          const res = await fetch('/widget-data.json');
+          if (res.ok) await cache.put('/widget-data.json', res);
+        } catch {
+          // offline — keep cached version
+        }
+      })
+    );
+  }
+
+  if (event.tag === 'refresh-content') {
+    event.waitUntil(
+      Promise.all(
+        ['/', '/how-to-play', '/manifest.json'].map(async (url) => {
+          try {
+            const res = await fetch(url);
+            if (res.ok) {
+              const cache = await caches.open(CACHE_NAME);
+              await cache.put(url, res);
+            }
+          } catch {
+            // offline — keep cached version
+          }
+        })
+      )
+    );
+  }
 });
 
 // ─── IndexedDB helpers (for Background Sync queue) ───────────────────────────
