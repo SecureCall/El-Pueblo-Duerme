@@ -25,6 +25,17 @@
     "preferred_width": 400
   },
 
+  "tab_strip": {
+    "home_tab": {
+      "url": "/",
+      "icons": [{ "src": "/icons/32.png", "sizes": "32x32", "type": "image/png" }]
+    },
+    "new_tab_button": {
+      "url": "/create",
+      "icons": [{ "src": "/icons/32.png", "sizes": "32x32", "type": "image/png" }]
+    }
+  },
+
   "note_taking": {
     "new_note_url": "/create"
   },
