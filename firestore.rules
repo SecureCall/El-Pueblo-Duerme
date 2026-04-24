@@ -20,22 +20,14 @@ service cloud.firestore {
     }
 
     // ── Fields exclusively controlled by the host ─────────────────────────
-    // A player triggering any of these in an updateDoc is REJECTED.
-    // ADD any new host-only field here.
     function touchesSensitiveFields() {
       return affectedAre([
-        // Identity & control
         'hostUid', 'code',
-        // Phase machine — only host may advance phases
         'roles', 'phase', 'status', 'winners', 'winMessage',
-        // Wolf team map (used for wolfChat Firestore rule)
         'wolfTeam',
-        // Timeline & round tracking
         'eliminatedHistory', 'roundNumber', 'nightStartedAt', 'dayStartedAt',
         'dayDuration', 'dayEliminatedUid',
-        // Events & modifiers
         'currentEvent', 'eventRound',
-        // Role-specific outcome fields written only during processNight
         'seerReveal', 'profetaReveal',
         'saboteadorBan', 'forenseResults', 'iluminadoReveal',
         'noExileActive', 'eclipseActive', 'anonymousVotesActive',
@@ -56,26 +48,50 @@ service cloud.firestore {
       ]);
     }
 
+    // ── Campos de progresión — sólo escritura via Admin SDK (servidor) ────
+    // xp, gamesPlayed, gamesWon, consecutiveWins nunca se escriben desde el cliente.
+    function touchesProgressionFields() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'xp', 'gamesPlayed', 'gamesWon', 'consecutiveWins'
+      ]);
+    }
+
     // ── Users ──────────────────────────────────────────────────────────────
     match /users/{userId} {
       allow read: if isAuth();
       allow create: if isAuth() && request.auth.uid == userId;
       allow update: if isAuth() && (
-        request.auth.uid == userId
-        || request.resource.data.diff(resource.data).affectedKeys().hasAny(['friendRequests'])
+        // El propietario puede actualizar su perfil, EXCEPTO:
+        //   • campos de progresión (XP, partidas jugadas/ganadas) → sólo servidor
+        //   • coins sólo pueden decrementarse (gasto en tienda), nunca incrementarse desde cliente
+        (
+          request.auth.uid == userId
+          && !touchesProgressionFields()
+          && (
+            !affectedAre(['coins'])
+            || request.resource.data.coins <= resource.data.coins
+          )
+        )
+        // Cualquier usuario autenticado puede añadir solicitudes de amistad al perfil ajeno
+        || onlyUpdating(['friendRequests'])
       );
     }
 
-    // ── Coin history (vídeos vistos, recompensas) ──────────────────────────
+    // ── Coin history ────────────────────────────────────────────────────────
+    // Sólo el servidor (Admin SDK) puede registrar entradas — el cliente sólo puede leer.
     match /users/{userId}/coinHistory/{historyId} {
       allow read: if isAuth() && request.auth.uid == userId;
-      allow create: if isAuth() && request.auth.uid == userId;
+      allow create, update, delete: if false;
     }
 
     // ── Purchases (artículos comprados en tienda) ──────────────────────────
+    // El cliente crea el registro al gastar monedas. Sólo los campos esperados.
     match /users/{userId}/purchases/{purchaseId} {
       allow read: if isAuth() && request.auth.uid == userId;
-      allow create: if isAuth() && request.auth.uid == userId;
+      allow create: if isAuth()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['itemId', 'itemName', 'amount', 'purchasedAt']);
+      allow update, delete: if false;
     }
 
     // ── Presence (heartbeat during game) ───────────────────────────────────
@@ -84,7 +100,8 @@ service cloud.firestore {
       allow write: if isAuth() && request.auth.uid == userId;
     }
 
-    // ── Player behavior & stats (host writes for all players at end of game) ─
+    // ── Player behavior & stats ────────────────────────────────────────────
+    // El host registra estadísticas de todos los jugadores al final de la partida.
     match /playerBehavior/{userId} {
       allow read: if isAuth();
       allow write: if isAuth();
@@ -98,7 +115,6 @@ service cloud.firestore {
 
     // ── Games ──────────────────────────────────────────────────────────────
     match /games/{gameId} {
-      // Public lobby games can be listed without login (for public-rooms page)
       allow read: if isAuth() || (
         resource.data.isPublic == true &&
         resource.data.status == 'lobby'
@@ -107,16 +123,16 @@ service cloud.firestore {
 
       allow update: if isAuth() && (
 
-        // ① Host can modify anything
+        // ① Host puede modificar cualquier campo
         request.auth.uid == resource.data.hostUid
 
-        // ② Players can join/leave — ONLY while game is in lobby
+        // ② Unirse al lobby — sólo mientras está en estado lobby
         || (
           resource.data.status == 'lobby' &&
           onlyUpdating(['players', 'playerCount'])
         )
 
-        // ③ Players submit night actions — no sensitive fields, only nightActions/nightSubmissions
+        // ③ Enviar acción nocturna — sólo nightActions/nightSubmissions, sin campos sensibles
         || (
           resource.data.phase == 'night' &&
           affectedAre(['nightActions', 'nightSubmissions']) &&
@@ -124,7 +140,7 @@ service cloud.firestore {
           !affectedAre(['dayVotes', 'players'])
         )
 
-        // ④ Players cast a day vote — only their own UID key, only during day phase
+        // ④ Votar de día — sólo la propia clave del uid votante, sólo en fase de día/votación
         || (
           (resource.data.phase == 'day' || resource.data.phase == 'voting') &&
           affectedAre(['dayVotes']) &&
@@ -136,28 +152,29 @@ service cloud.firestore {
             .hasOnly([request.auth.uid])
         )
 
-        // ⑤ Victim signature mechanics — cursed & narratorBroadcast (Últimas Palabras / Venganza)
+        // ⑤ Narrador y maldición (cursed/narratorBroadcast) durante la partida
         || (
           onlyUpdating(['cursed', 'narratorBroadcast']) &&
           (resource.data.phase == 'night' || resource.data.phase == 'day')
         )
 
-        // ⑥ Ended games — allow minor updates (host reassignment after game ends)
+        // ⑥ Partida terminada — permite actualizaciones menores (revancha, etc.)
         || resource.data.phase == 'ended'
 
-        // ⑦ Host self-claim — any alive player can promote themselves to host
-        //    (client-side enforces a 5-minute absence delay before triggering this)
+        // ⑦ Traspaso de host — el reclamante debe ser un jugador real ya en la partida
+        //    (el cliente aplica además un retardo de 90 s de inactividad del host)
         || (
           onlyUpdating(['hostUid', 'players']) &&
           request.resource.data.hostUid == request.auth.uid &&
-          resource.data.phase != 'lobby'
+          resource.data.phase != 'lobby' &&
+          resource.data.players.exists(p, p.uid == request.auth.uid)
         )
       );
 
       allow delete: if isAuth() && request.auth.uid == resource.data.hostUid;
     }
 
-    // ── Private roles (only that player + host can read/write) ────────────
+    // ── Private roles (only that player + host) ────────────────────────────
     match /games/{gameId}/playerRoles/{uid} {
       allow read: if isAuth() && (
         request.auth.uid == uid
@@ -166,20 +183,18 @@ service cloud.firestore {
       allow write: if isAuth() && isHost(gameId);
     }
 
-    // ── Reports (only host can read; any member can file) ─────────────────
     match /games/{gameId}/reports/{reportId} {
       allow read: if isAuth() && isHost(gameId);
       allow create: if isAuth();
       allow update, delete: if false;
     }
 
-    // ── Night audit logs — host writes, anyone reads (debugging) ──────────
     match /games/{gameId}/nightLogs/{round} {
       allow read: if isAuth();
       allow write: if isAuth() && isHost(gameId);
     }
 
-    // ── Day votes subcollection — each voter writes only their own doc ─────
+    // ── Votos de día — cada jugador sólo escribe su propio documento ───────
     match /games/{gameId}/votes/{voterUid} {
       allow read: if isAuth();
       allow create, update: if isAuth()
@@ -193,7 +208,6 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ── Lobby / public chat ───────────────────────────────────────────────
     match /games/{gameId}/lobbyChat/{messageId} {
       allow read: if isAuth();
       allow create: if isAuth() && request.auth.uid == request.resource.data.senderId;
@@ -209,7 +223,6 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // ── Ghost chat ─────────────────────────────────────────────────────────
     match /games/{gameId}/ghostChat/{messageId} {
       allow read: if isAuth();
       allow create: if isAuth() && (
@@ -219,7 +232,7 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // ── Wolf chat — only wolf-team members (wolfTeam map enforced) ────────
+    // ── Wolf chat — sólo miembros del equipo lobo ─────────────────────────
     match /games/{gameId}/wolfChat/{messageId} {
       allow read: if isAuth() && (
         isHost(gameId) ||
@@ -234,7 +247,7 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // ── Lovers chat — only the two lovers ────────────────────────────────
+    // ── Lovers chat — sólo los dos enamorados ─────────────────────────────
     match /games/{gameId}/loversChat/{messageId} {
       allow read: if isAuth() && (
         isHost(gameId) ||
@@ -257,25 +270,40 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ── Twin chat — sólo jugadores de la partida ───────────────────────────
     match /games/{gameId}/twinChat/{messageId} {
-      allow read: if isAuth();
-      allow create: if isAuth() && request.auth.uid == request.resource.data.senderId;
+      allow read: if isAuth() && (
+        isHost(gameId) ||
+        get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid)
+      );
+      allow create: if isAuth()
+        && request.auth.uid == request.resource.data.senderId
+        && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid);
       allow update, delete: if false;
     }
 
+    // ── Fairy chat — sólo jugadores de la partida ─────────────────────────
     match /games/{gameId}/fairyChat/{messageId} {
-      allow read: if isAuth();
-      allow create: if isAuth() && request.auth.uid == request.resource.data.senderId;
+      allow read: if isAuth() && (
+        isHost(gameId) ||
+        get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid)
+      );
+      allow create: if isAuth()
+        && request.auth.uid == request.resource.data.senderId
+        && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid);
       allow update, delete: if false;
     }
 
+    // ── Night actions subcollection — host o el propio jugador ────────────
     match /games/{gameId}/nightActions/{actionId} {
       allow read: if isAuth();
-      allow create, update: if isAuth();
+      allow create, update: if isAuth() && (
+        isHost(gameId) || request.auth.uid == actionId
+      );
       allow delete: if false;
     }
 
-    // ── Chat de voz WebRTC — señalización ─────────────────────────────
+    // ── Chat de voz WebRTC — señalización ─────────────────────────────────
     match /games/{gameId}/voicePresence/{uid} {
       allow read: if isAuth();
       allow write: if isAuth() && request.auth.uid == uid;
