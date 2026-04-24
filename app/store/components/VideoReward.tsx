@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Play, CheckCircle, Coins } from 'lucide-react';
 import { useAuth } from '@/app/providers/AuthProvider';
-import { addCoins, canWatchVideo } from '@/lib/firebase/coins';
 import { useToast } from '@/app/hooks/use-toast';
 
 const BANNER_KEY = '62e20b1b19b6fefc4b9795ed79a64fab';
@@ -39,9 +38,16 @@ export function VideoReward({ onCoinsEarned }: VideoRewardProps) {
 
   useEffect(() => {
     if (!user) return;
-    canWatchVideo(user.uid)
-      .then(ok => { if (!ok) setPhase('unavailable'); })
-      .catch(() => { /* si falla la consulta, dejar en idle */ });
+    // Verificar disponibilidad via servidor (no bypassable desde el cliente)
+    user.getIdToken().then(token =>
+      fetch('/api/award-coins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        // POST sin body — solo consulta si quedan videos disponibles
+      })
+    ).then(async r => {
+      if (r.status === 429) setPhase('unavailable');
+    }).catch(() => {});
   }, [user]);
 
   const startVideo = async () => {
@@ -49,13 +55,6 @@ export function VideoReward({ onCoinsEarned }: VideoRewardProps) {
       toast({ variant: 'destructive', title: 'Inicia sesión', description: 'Necesitas una cuenta para ganar monedas.' });
       return;
     }
-    try {
-      const ok = await canWatchVideo(user.uid);
-      if (!ok) { setPhase('unavailable'); return; }
-    } catch {
-      // Si falla la verificación, permitir igualmente (fallo gracioso)
-    }
-
     setPhase('watching');
     setSeconds(30);
     intervalRef.current = setInterval(() => {
@@ -73,7 +72,18 @@ export function VideoReward({ onCoinsEarned }: VideoRewardProps) {
   const rewardUser = async () => {
     if (!user) return;
     try {
-      await addCoins(user.uid, 50, 'video');
+      const token = await user.getIdToken();
+      const res = await fetch('/api/award-coins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.status === 429 || data.limitReached) {
+        setPhase('unavailable');
+        toast({ variant: 'destructive', title: 'Límite alcanzado', description: 'Ya viste 5 vídeos hoy. Vuelve mañana.' });
+        return;
+      }
+      if (!res.ok) throw new Error(data.error ?? 'Error desconocido');
       setPhase('done');
       onCoinsEarned();
       toast({ title: '¡+50 monedas!', description: 'Has ganado 50 monedas por ver el vídeo.' });

@@ -36,7 +36,9 @@ export default function PublicRoomsPage() {
       limit(30)
     );
     const unsub = onSnapshot(q, (snap: any) => {
-      const list: Room[] = snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as Room));
+      const list: Room[] = snap.docs
+        .map((d: any) => ({ id: d.id, ...d.data() } as Room))
+        .filter((r: Room) => (r.playerCount ?? 1) < (r.maxPlayers ?? 8));
       list.sort((a, b) => {
         const ta = a.createdAt?.seconds ?? 0;
         const tb = b.createdAt?.seconds ?? 0;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initAdminApp } from '@/lib/firebase/admin';
+import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { getFirestore } from 'firebase-admin/firestore';
 
 const XP_PER_GAME = 50;
@@ -14,9 +15,14 @@ function xpToLevel(xp: number): number {
 }
 
 export async function POST(req: NextRequest) {
+  // Verificar token — el uid se obtiene del token, no del body
+  const uid = await verifyAuthToken(req);
+  if (!uid) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  }
+
   try {
-    const { uid, isWin, hasSpecialRole, consecutiveWins: prevStreak } = await req.json();
-    if (!uid) return NextResponse.json({ error: 'uid required' }, { status: 400 });
+    const { isWin, hasSpecialRole, consecutiveWins: prevStreak } = await req.json();
 
     const streak = prevStreak ?? 0;
     const streakBonus = isWin && streak > 1 ? XP_STREAK_BONUS * Math.min(streak, 5) : 0;

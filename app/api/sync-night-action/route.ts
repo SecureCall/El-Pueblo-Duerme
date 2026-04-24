@@ -2,6 +2,8 @@
  * POST /api/sync-night-action
  * Called by the service worker Background Sync handler when connectivity is restored.
  * Body matches PendingNightAction shape from lib/firebase/backgroundSync.ts
+ *
+ * Security: validates that uid is a player in the game and the game is in night phase.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { initAdminApp } from '@/lib/firebase/admin';
@@ -25,12 +27,34 @@ export async function POST(req: NextRequest) {
     initAdminApp();
     const db = getFirestore();
 
-    // Merge into nightSubmissions — same structure the client writes
+    // Validar que el juego existe, está en fase de noche y uid es un jugador
+    const gameSnap = await db.collection('games').doc(gameId).get();
+    if (!gameSnap.exists) {
+      return NextResponse.json({ error: 'Partida no encontrada' }, { status: 404 });
+    }
+    const gameData = gameSnap.data()!;
+    if (gameData.phase !== 'night') {
+      return NextResponse.json({ error: 'No es fase de noche' }, { status: 409 });
+    }
+    const players: { uid: string; isAlive: boolean }[] = gameData.players ?? [];
+    const isValidPlayer = players.some(p => p.uid === uid);
+    if (!isValidPlayer) {
+      return NextResponse.json({ error: 'Jugador no válido' }, { status: 403 });
+    }
+
+    // Sanitizar payload: solo tipos primitivos permitidos
+    const safePayload: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(payload ?? {})) {
+      if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' || v === null) {
+        safePayload[k] = v;
+      }
+    }
+
     await db
       .collection('games')
       .doc(gameId)
       .set(
-        { nightSubmissions: { [role]: { ...payload, syncedAt: Date.now() } } },
+        { nightSubmissions: { [role]: { ...safePayload, syncedAt: Date.now() } } },
         { merge: true }
       );
 

@@ -1692,7 +1692,13 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
           const freshAlive = (freshGame.players ?? []).filter(p => p.isAlive);
           const allCurrentVotes: Record<string, string> = freshGame.dayVotes ?? {};
-          const targetUid = pickBotVoteTarget(bType, capturedUid, freshAlive, allCurrentVotes);
+
+          // Verdugo AI: 80% de probabilidad de votar a su objetivo secreto si sigue vivo
+          const verdugoTarget = freshGame.verdugos?.[capturedUid];
+          const verdugoTargetAlive = verdugoTarget && freshAlive.some(p => p.uid === verdugoTarget);
+          const targetUid = (verdugoTargetAlive && Math.random() < 0.8)
+            ? verdugoTarget!
+            : pickBotVoteTarget(bType, capturedUid, freshAlive, allCurrentVotes);
           if (!targetUid) return;
 
           await setDoc(doc(db, 'games', gameId, 'votes', capturedUid), {
