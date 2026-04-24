@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Playfair_Display, PT_Sans } from 'next/font/google';
+import Script from 'next/script';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from './providers/AuthProvider';
@@ -88,7 +89,23 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es" className="dark">
-      <head />
+      <head>
+        {/* SW registration inline — executes before React hydrates so crawlers & PWABuilder detect it */}
+        <Script
+          id="sw-register"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                    .catch(function(e) { console.warn('[SW] registro fallido:', e); });
+                });
+              }
+            `,
+          }}
+        />
+      </head>
       <body className={cn(ptSans.variable, playfair.variable, "font-sans")}>
         <AuthProvider>
           <RegisterSW />
