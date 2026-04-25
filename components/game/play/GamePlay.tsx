@@ -154,6 +154,7 @@ export interface GameState {
   anonymousVotesActive?: boolean;
   noExileActive?: boolean;
   narratorBroadcast?: { text: string; type: 'warning' | 'suspicion' | 'chaos' | 'irony' | 'accusation'; triggeredAt: number } | null;
+  confessionUid?: string | null;
 }
 
 // ── Finite-State Machine: only these transitions are legal ────────────────
@@ -1408,6 +1409,13 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
     // ── Random event for next day ─────────────────────────────────────────
     const randomEvent = drawRandomEvent();
+    // Si el evento es Confesión Forzada, elegir un jugador vivo al azar
+    const confessionUid: string | null = randomEvent?.mechanical === 'forceConfession'
+      ? (() => {
+          const cands = players.filter(p => p.isAlive);
+          return cands.length > 0 ? cands[Math.floor(Math.random() * cands.length)].uid : null;
+        })()
+      : null;
     const eclipseActiveNext = false; // reset after night
     const doubleSeerActiveNext = randomEvent?.mechanical === 'doubleSeer';
     const anonymousVotesActiveNext = randomEvent?.mechanical === 'anonymousVotes';
@@ -1559,6 +1567,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
         forenseResults,
         saboteadorBan,
         currentEvent: randomEvent ?? null,
+        confessionUid: confessionUid ?? null,
         eventRound: randomEvent ? round : (game.eventRound ?? 0),
         eclipseActive: randomEvent?.mechanical === 'eclipse' ? true : eclipseActiveNext,
         doubleSeerActive: doubleSeerActiveNext,

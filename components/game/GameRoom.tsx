@@ -553,11 +553,15 @@ export function GameRoom({ gameId }: { gameId: string }) {
                     </div>
                     {p.uid !== user?.uid && (
                       <div className="flex items-center gap-1">
-                        {isHost && inactive && (
+                        {isHost && (
                           <button
                             onClick={() => kickPlayer(p.uid)}
                             title={`Expulsar a ${p.name}`}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-red-400 hover:text-red-300 font-medium"
+                            className={`opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-medium ${
+                              inactive
+                                ? 'text-red-400 hover:text-red-300'
+                                : 'text-orange-400 hover:text-orange-300'
+                            }`}
                           >
                             Kick
                           </button>

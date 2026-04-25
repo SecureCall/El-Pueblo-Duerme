@@ -88,6 +88,16 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
   const voteBanned = game.voteBanned ?? [];
   const myVoteBanned = voteBanned.includes(userId) || game.saboteadorBan === userId;
   const isSilenced = (game.silencedPlayers ?? []).includes(userId);
+
+  // ── Confesión Forzada ────────────────────────────────────────────────────
+  const elapsed = dayDurationRef.current - secondsLeft;
+  const isForzadaActive = game.currentEvent?.mechanical === 'forceConfession'
+    && elapsed >= 0 && elapsed < 20;
+  const confessorPlayer = isForzadaActive
+    ? (game.players ?? []).find(p => p.uid === game.confessionUid) ?? null
+    : null;
+  const amIConfessor = isForzadaActive && game.confessionUid === userId;
+  const confessionCountdown = Math.max(0, 20 - elapsed);
   const isAlborotadora = myRole === 'Alborotadora' && meAlive && !game.alborotadoraUsed;
   const [alborotadoraStep, setAlborotadoraStep] = useState<0 | 1>(0);
   const [sentFriendReqs, setSentFriendReqs] = useState<Set<string>>(new Set());
@@ -189,7 +199,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
 
   const sendMsg = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!msg.trim() || isSilenced) return;
+    if (!msg.trim() || isSilenced || (isForzadaActive && !amIConfessor)) return;
     setSending(true);
     await addDoc(collection(db, 'games', gameId, 'publicChat'), {
       senderId: userId,
@@ -363,19 +373,55 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
             </div>
           ))}
         </div>
-        {meAlive && !isSilenced && (
+        {/* ── Confesión Forzada banner ─────────────────────────────────── */}
+        {isForzadaActive && (
+          <div className={`px-4 py-2 border-t flex items-center gap-3 ${
+            amIConfessor
+              ? 'border-purple-500/50 bg-purple-950/60'
+              : 'border-purple-900/40 bg-purple-950/30'
+          }`}>
+            <span className="text-xl flex-shrink-0">🎙️</span>
+            <div className="flex-1 min-w-0">
+              {amIConfessor ? (
+                <p className="text-purple-200 text-sm font-bold animate-pulse truncate">
+                  ¡Debes hablar ahora mismo! El pueblo escucha.
+                </p>
+              ) : (
+                <p className="text-purple-400 text-xs truncate">
+                  <strong className="text-purple-300">{confessorPlayer?.name ?? '???'}</strong> debe confesar. Escucha en silencio.
+                </p>
+              )}
+            </div>
+            <span className={`text-xs font-mono font-bold flex-shrink-0 ${
+              confessionCountdown <= 5 ? 'text-red-400 animate-pulse' : 'text-purple-400'
+            }`}>
+              {confessionCountdown}s
+            </span>
+          </div>
+        )}
+
+        {meAlive && !isSilenced && (!isForzadaActive || amIConfessor) && (
           <form onSubmit={sendMsg} className="p-3 border-t border-white/10 flex gap-2">
             <input
               value={msg}
               onChange={e => setMsg(e.target.value)}
-              placeholder="Defiéndete o acusa..."
+              placeholder={amIConfessor ? '🎙️ ¡Habla! El pueblo escucha...' : 'Defiéndete o acusa...'}
               maxLength={200}
-              className="flex-1 bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-white/40"
+              className={`flex-1 bg-white/5 border rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none ${
+                amIConfessor
+                  ? 'border-purple-500/50 focus:border-purple-400'
+                  : 'border-white/15 focus:border-white/40'
+              }`}
             />
             <button type="submit" disabled={!msg.trim() || sending} className="bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 p-2 rounded-lg disabled:opacity-40">
               <Send className="h-4 w-4 text-amber-400" />
             </button>
           </form>
+        )}
+        {meAlive && !isSilenced && isForzadaActive && !amIConfessor && (
+          <div className="p-3 border-t border-purple-900/30 text-center">
+            <p className="text-purple-400/60 text-xs">🤫 Silencio hasta que termine la confesión.</p>
+          </div>
         )}
         {meAlive && isSilenced && (
           <div className="p-3 border-t border-slate-700/30 text-center">

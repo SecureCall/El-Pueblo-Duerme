@@ -3,10 +3,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { db } from '@/lib/firebase/config';
 import {
-  collection, addDoc, serverTimestamp, onSnapshot, query, limit,
+  collection, addDoc, serverTimestamp, onSnapshot, query, limit, getDocs,
 } from 'firebase/firestore';
 
-const EMOTES = [
+const BASE_EMOTES = [
   { emoji: '😱', label: 'Shock' },
   { emoji: '😡', label: 'Traición' },
   { emoji: '🤡', label: 'Tonto' },
@@ -15,6 +15,11 @@ const EMOTES = [
   { emoji: '🎭', label: 'Actor' },
   { emoji: '🤥', label: 'Mentiroso' },
   { emoji: '🎉', label: 'Victoria' },
+];
+
+const PREMIUM_EMOTES = [
+  { emoji: '🐺', label: 'Aullido',  itemId: 'emote-aullido' },
+  { emoji: '🔪', label: 'Cuchillo', itemId: 'emote-cuchillo' },
 ];
 
 interface FloatingEmote {
@@ -38,6 +43,16 @@ export function EmoteBar({ gameId, userId, userName }: Props) {
   const [floaters, setFloaters] = useState<FloatingEmote[]>([]);
   const [lastSent, setLastSent] = useState(0);
   const [open, setOpen] = useState(false);
+  const [unlockedItemIds, setUnlockedItemIds] = useState<Set<string>>(new Set());
+
+  // ── Cargar compras del usuario ────────────────────────────────────
+  useEffect(() => {
+    if (!userId) return;
+    getDocs(collection(db, 'users', userId, 'purchases')).then(snap => {
+      const ids = new Set<string>(snap.docs.map(d => d.data().itemId as string));
+      setUnlockedItemIds(ids);
+    }).catch(() => {});
+  }, [userId]);
 
   // ── Escuchar emotes en tiempo real ──────────────────────────────
   useEffect(() => {
@@ -51,7 +66,7 @@ export function EmoteBar({ gameId, userId, userName }: Props) {
         if (change.type !== 'added') return;
         const data = change.doc.data();
         const ts: number = data.createdAt?.toMillis?.() ?? Date.now();
-        if (ts < cutoff) return; // ignorar histórico
+        if (ts < cutoff) return;
         setFloaters(prev => {
           const id = change.doc.id;
           if (prev.find(f => f.id === id)) return prev;
@@ -122,17 +137,53 @@ export function EmoteBar({ gameId, userId, userName }: Props) {
       {/* ── Botón principal ────────────────────────────────── */}
       <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
         {open && (
-          <div className="bg-gray-900/95 border border-white/15 rounded-2xl p-3 flex flex-wrap gap-2 max-w-[200px] shadow-2xl animate-fade-in">
-            {EMOTES.map(e => (
-              <button
-                key={e.emoji}
-                onClick={() => sendEmote(e.emoji)}
-                title={e.label}
-                className="text-2xl hover:scale-125 active:scale-95 transition-transform p-1 rounded-xl hover:bg-white/10"
-              >
-                {e.emoji}
-              </button>
-            ))}
+          <div className="bg-gray-900/95 border border-white/15 rounded-2xl p-3 shadow-2xl animate-fade-in">
+            {/* Emotes base */}
+            <div className="flex flex-wrap gap-2 max-w-[200px] mb-2">
+              {BASE_EMOTES.map(e => (
+                <button
+                  key={e.emoji}
+                  onClick={() => sendEmote(e.emoji)}
+                  title={e.label}
+                  className="text-2xl hover:scale-125 active:scale-95 transition-transform p-1 rounded-xl hover:bg-white/10"
+                >
+                  {e.emoji}
+                </button>
+              ))}
+            </div>
+
+            {/* Emotes premium */}
+            {PREMIUM_EMOTES.length > 0 && (
+              <>
+                <div className="border-t border-white/10 pt-2 mb-1">
+                  <p className="text-[9px] text-amber-400/70 font-semibold mb-1.5 px-1">✨ Premium</p>
+                  <div className="flex flex-wrap gap-2">
+                    {PREMIUM_EMOTES.map(e => {
+                      const unlocked = unlockedItemIds.has(e.itemId);
+                      return (
+                        <button
+                          key={e.emoji}
+                          onClick={() => unlocked && sendEmote(e.emoji)}
+                          title={unlocked ? e.label : `${e.label} — Cómpralo en la tienda`}
+                          className={`relative text-2xl p-1 rounded-xl transition-transform ${
+                            unlocked
+                              ? 'hover:scale-125 active:scale-95 hover:bg-white/10'
+                              : 'opacity-40 cursor-not-allowed grayscale'
+                          }`}
+                        >
+                          {e.emoji}
+                          {!unlocked && (
+                            <span className="absolute -top-1 -right-1 text-[9px] bg-amber-500 text-black rounded-full w-3.5 h-3.5 flex items-center justify-center font-bold leading-none">
+                              🔒
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
