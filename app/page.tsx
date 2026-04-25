@@ -154,7 +154,7 @@ export default function HomePage() {
           {user ? (
             <>
               <span className={`text-xs hidden sm:block ${lightMode ? 'text-gray-600' : 'text-white/50'}`}>{user.displayName || user.email}</span>
-              <button onClick={handleLogout} className={`text-xs flex items-center gap-1 transition-colors ${lightMode ? 'text-gray-500 hover:text-gray-700' : 'text-white/40 hover:text-white/70'}`}>
+              <button onClick={handleLogout} className={`text-xs flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all ${lightMode ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' : 'bg-white/15 text-white/90 hover:bg-white/25'}`}>
                 <LogOut className="h-3.5 w-3.5" /> Salir
               </button>
             </>
