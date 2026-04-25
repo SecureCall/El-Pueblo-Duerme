@@ -243,11 +243,15 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // ── Wolf chat — sólo miembros del equipo lobo ─────────────────────────
+    // ── Wolf chat — sólo miembros del equipo lobo o Espía con poder activo ─
     match /games/{gameId}/wolfChat/{messageId} {
       allow read: if isAuth() && (
         isHost(gameId) ||
-        get(/databases/$(database)/documents/games/$(gameId)).data.wolfTeam[request.auth.uid] == true
+        get(/databases/$(database)/documents/games/$(gameId)).data.wolfTeam[request.auth.uid] == true ||
+        (
+          get(/databases/$(database)/documents/games/$(gameId)).data.roles[request.auth.uid] == 'Espía' &&
+          get(/databases/$(database)/documents/games/$(gameId)).data.espiaUsed == true
+        )
       );
       allow create: if isAuth() && (
         isHost(gameId) || (

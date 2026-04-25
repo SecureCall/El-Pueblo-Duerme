@@ -1176,10 +1176,17 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
                   <p className="text-white/30 text-sm text-center py-3">No hay cadáveres que examinar aún.</p>
                 )}
               </div>
-              <button onClick={handleSubmit} disabled={!canSubmit}
-                className="w-full bg-teal-700 hover:bg-teal-600 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-colors">
-                Examinar cadáver
-              </button>
+              {(game.eliminatedHistory ?? []).length === 0 ? (
+                <button onClick={handleAutoSkip}
+                  className="w-full bg-teal-700/50 hover:bg-teal-600/50 text-white font-bold py-3 rounded-xl transition-colors">
+                  Pasar (sin muertos aún)
+                </button>
+              ) : (
+                <button onClick={handleSubmit} disabled={!canSubmit}
+                  className="w-full bg-teal-700 hover:bg-teal-600 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-colors">
+                  Examinar cadáver
+                </button>
+              )}
             </div>
           )}
 
@@ -1240,7 +1247,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
               <p className="text-pink-300/70 text-sm mb-4">Has espiado a la manada. Esta noche los lobos son:</p>
               <div className="space-y-2 mb-4">
                 {(game.players ?? [])
-                  .filter(p => p.isAlive && (game.roles?.[p.uid] === 'Lobo' || game.roles?.[p.uid] === 'Lobo Blanco'))
+                  .filter(p => p.isAlive && (game.roles?.[p.uid] === 'Lobo' || game.roles?.[p.uid] === 'Lobo Blanco' || game.roles?.[p.uid] === 'Cría de Lobo'))
                   .map(p => (
                     <div key={p.uid} className="flex items-center gap-3 p-3 rounded-xl bg-red-900/20 border border-red-500/30">
                       <span className="text-xl">🐺</span>
