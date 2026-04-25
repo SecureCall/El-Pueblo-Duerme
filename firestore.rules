@@ -243,8 +243,12 @@ service cloud.firestore {
     match /games/{gameId}/ghostChat/{messageId} {
       allow read: if isAuth();
       allow create: if isAuth() && (
-        request.auth.uid == request.resource.data.senderId
-        || isHost(gameId)
+        isHost(gameId)
+        || (
+          request.auth.uid == request.resource.data.senderId &&
+          get(/databases/$(database)/documents/games/$(gameId)).data.players
+            .exists(p, p.uid == request.auth.uid && p.isAlive == false)
+        )
       );
       allow update, delete: if false;
     }

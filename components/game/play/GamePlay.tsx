@@ -2498,6 +2498,39 @@ export function GamePlay({ gameId }: { gameId: string }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.cazadorPendingShot]);
 
+  // Anti-softlock: Cazador humano desconectado → auto-disparo al azar tras 90s
+  useEffect(() => {
+    if (!game || !user || game.hostUid !== user.uid) return;
+    if (!game.cazadorPendingShot) return;
+    const cazadorUid = game.cazadorPendingShot;
+    const cazador = (game.players ?? []).find(p => p.uid === cazadorUid);
+    if (cazador?.isAI) return; // los AI ya tienen su propio handler
+    const timer = setTimeout(() => {
+      const alive = (game.players ?? []).filter(p => p.isAlive && p.uid !== cazadorUid);
+      if (alive.length > 0) {
+        applyCazadorShot(alive[Math.floor(Math.random() * alive.length)].uid);
+      } else {
+        updateDoc(doc(db, 'games', gameId), { cazadorPendingShot: null }).catch(() => {});
+      }
+    }, 90_000);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.cazadorPendingShot]);
+
+  // Anti-softlock: Chivo Expiatorio humano desconectado → auto-resuelve sin banear a nadie tras 60s
+  useEffect(() => {
+    if (!game || !user || game.hostUid !== user.uid) return;
+    if (!game.chivoPendingChoice) return;
+    const chivoUid = game.chivoPendingChoice;
+    const chivo = (game.players ?? []).find(p => p.uid === chivoUid);
+    if (chivo?.isAI) return; // los AI ya tienen su propio handler
+    const timer = setTimeout(() => {
+      applyChivoChoice(null);
+    }, 60_000);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.chivoPendingChoice]);
+
   // AI auto-sends fantasma message
   useEffect(() => {
     if (!game || !user || game.hostUid !== user.uid) return;
