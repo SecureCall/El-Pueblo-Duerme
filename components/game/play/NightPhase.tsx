@@ -824,7 +824,10 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
               </p>
               <div className="space-y-2 mb-4">
                 {allAlivePlayers
-                  .filter(p => p.uid !== game.doctorLastTarget)
+                  .filter(p =>
+                    p.uid !== game.doctorLastTarget &&
+                    !(game.doctorSelfUsed && p.uid === userId)
+                  )
                   .map(p => playerCard(p, selectedTarget === p.uid, () => setSelectedTarget(p.uid), 'border-teal-500 bg-teal-900/30'))}
               </div>
               <button onClick={handleSubmit} disabled={!canSubmit}

@@ -40,7 +40,7 @@ service cloud.firestore {
         'perroLoboChoices', 'salvajeMentors', 'virginiawoolFate',
         'verdugos', 'cambiaformasTargets', 'fantasmaPending', 'fantasmaUsed',
         'doubleSeerActive', 'criaLoboRage', 'vigiaUsed', 'vigiaKnowsWolves',
-        'angelResucitadorUsed', 'bansheePoints', 'bansheePredictionUid',
+        'angelResucitadorUsed', 'bansheePoints',
         'alquimistaPotion', 'alquimistaRevealUid',
         'hadaLinked', 'principeUsed', 'espiaUsed',
         'antiguoHit', 'brujaFoundVidente',
@@ -171,6 +171,13 @@ service cloud.firestore {
           onlyUpdating(['hostUid', 'players']) &&
           request.resource.data.hostUid == request.auth.uid &&
           resource.data.phase != 'lobby' &&
+          resource.data.players.exists(p, p.uid == request.auth.uid)
+        )
+
+        // ⑧ Banshee day prediction — el jugador Banshee puede escribir su predicción durante el día
+        || (
+          resource.data.phase == 'day' &&
+          onlyUpdating(['bansheePredictionUid']) &&
           resource.data.players.exists(p, p.uid == request.auth.uid)
         )
       );

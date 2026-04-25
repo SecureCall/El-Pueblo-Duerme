@@ -285,13 +285,18 @@ export function GameRoom({ gameId }: { gameId: string }) {
       await deleteDoc(doc(db, 'games', gameId)).catch(() => {});
     } else if (me) {
       const updates: Record<string, unknown> = {
-        players: arrayRemove(me),
         playerCount: Math.max(0, (game.playerCount ?? 1) - 1),
       };
       if (me.isHost && remainingHumans.length > 0) {
         const newHost = remainingHumans[0];
         updates['hostUid'] = newHost.uid;
         updates['hostName'] = newHost.name;
+        // Rebuild players array: remove leaver, mark new host isHost:true
+        updates['players'] = (game.players ?? [])
+          .filter(p => p.uid !== user.uid)
+          .map(p => ({ ...p, isHost: p.uid === newHost.uid }));
+      } else {
+        updates['players'] = arrayRemove(me);
       }
       await updateDoc(doc(db, 'games', gameId), updates).catch(() => {});
     }

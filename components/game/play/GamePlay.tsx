@@ -359,7 +359,10 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (game.roles && Object.keys(game.roles).length > 0) return;
     if (game.status !== 'playing') return;
 
-    const assigned = assignRoles(game.players, game.wolves, game.specialRoles ?? []);
+    const scaledWolves = (game.maxPlayers && game.maxPlayers > 0)
+      ? Math.max(1, Math.round((game.wolves / game.maxPlayers) * game.players.length))
+      : Math.max(1, game.wolves);
+    const assigned = assignRoles(game.players, scaledWolves, game.specialRoles ?? []);
     const updatedPlayers = game.players.map(p => ({ ...p, role: assigned[p.uid] ?? 'Aldeano' }));
 
     // Assign secret targets for Verdugos

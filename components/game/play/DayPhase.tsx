@@ -6,6 +6,7 @@ import { Sun, Send, Vote, Skull, Bot, Timer, Scale, UserPlus, Check } from 'luci
 import { db } from '@/lib/firebase/config';
 import {
   collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit,
+  updateDoc, doc,
 } from 'firebase/firestore';
 import { ROLES } from './roles';
 import { getRoleIcon } from './roleIcons';
@@ -111,6 +112,20 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
   const [alborotadoraFighters, setAlborotadoraFighters] = useState<string[]>([]);
   const isVerdugo = myRole === 'Verdugo';
   const verdugoTarget = isVerdugo ? (game.players ?? []).find(p => p.uid === game.verdugos?.[userId]) : null;
+  const isBanshee = myRole === 'Banshee' && meAlive;
+  const [bansheePick, setBansheePick] = useState<string | null>(null);
+  const [bansheeSubmitted, setBansheeSubmitted] = useState(false);
+
+  const submitBansheePrediction = async (targetUid: string) => {
+    if (bansheeSubmitted) return;
+    setBansheeSubmitted(true);
+    try {
+      await updateDoc(doc(db, 'games', gameId), { bansheePredictionUid: targetUid });
+    } catch (e) {
+      console.error('[Banshee] prediction write failed:', e);
+      setBansheeSubmitted(false);
+    }
+  };
 
   // Tabs available
   const availableTabs: ChatTab[] = ['public'];
@@ -156,6 +171,20 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
   useEffect(() => {
     setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
   }, [chatTab]);
+
+  // Reset Banshee prediction state on new round
+  useEffect(() => {
+    setBansheePick(null);
+    setBansheeSubmitted(false);
+  }, [game.roundNumber]);
+
+  // Sync submitted state with Firestore (if prediction already written)
+  useEffect(() => {
+    if (game.bansheePredictionUid) {
+      setBansheePick(game.bansheePredictionUid);
+      setBansheeSubmitted(true);
+    }
+  }, [game.bansheePredictionUid]);
 
   // Timer
   useEffect(() => {
@@ -539,6 +568,49 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
         {myVoteBanned && meAlive && (
           <div className="bg-orange-900/30 border border-orange-500/40 rounded-xl p-3 text-center">
             <p className="text-orange-300 text-sm">🐐 El Chivo Expiatorio te excluyó — <strong>no puedes votar esta ronda</strong>.</p>
+          </div>
+        )}
+
+        {/* ── BANSHEE: predicción de día ───────────────────────────────── */}
+        {isBanshee && (
+          <div className="bg-violet-900/20 border border-violet-500/40 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg">👻</span>
+              <p className="text-sm font-semibold text-violet-300">Banshee — predice al ejecutado</p>
+              <span className="ml-auto text-xs text-violet-400/60">{game.bansheePoints ?? 0}/2 pts</span>
+            </div>
+            {bansheeSubmitted ? (
+              <div className="flex items-center gap-2 mt-2 p-2 bg-violet-900/30 border border-violet-500/30 rounded-lg">
+                <Check className="h-4 w-4 text-violet-400 flex-shrink-0" />
+                <p className="text-violet-300 text-xs">
+                  Predicción enviada: <strong>{(game.players ?? []).find(p => p.uid === bansheePick)?.name ?? '—'}</strong>
+                </p>
+              </div>
+            ) : (
+              <>
+                <p className="text-white/40 text-xs mb-3">¿Quién crees que el pueblo ejecutará hoy? Si aciertas 2 veces, ¡ganas!</p>
+                <div className="flex flex-wrap gap-2">
+                  {alivePlayers.filter(p => p.uid !== userId).map(p => (
+                    <button
+                      key={p.uid}
+                      onClick={() => setBansheePick(bansheePick === p.uid ? null : p.uid)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-all ${bansheePick === p.uid ? 'border-violet-500 bg-violet-900/40 text-violet-200' : 'border-white/15 bg-white/5 text-white/60 hover:border-violet-400/50'}`}
+                    >
+                      <span>{p.name}</span>
+                      {p.isAI && <Bot className="h-3 w-3 text-cyan-400/60" />}
+                    </button>
+                  ))}
+                </div>
+                {bansheePick && (
+                  <button
+                    onClick={() => submitBansheePrediction(bansheePick)}
+                    className="mt-3 w-full bg-violet-700 hover:bg-violet-600 text-white text-xs font-bold py-2 rounded-lg transition-colors"
+                  >
+                    Confirmar predicción
+                  </button>
+                )}
+              </>
+            )}
           </div>
         )}
 
