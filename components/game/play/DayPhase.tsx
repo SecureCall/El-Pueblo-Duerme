@@ -43,18 +43,21 @@ interface ChatMsg {
   text: string;
 }
 
-type ChatTab = 'public' | 'ghost' | 'lovers';
+type ChatTab = 'public' | 'ghost' | 'lovers' | 'hermanos';
 
 export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, onVote, onJuezSecondVote, onAlborotadoraFight, votesFromSub = {}, onTimerEnd }: Props) {
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [ghostMsgs, setGhostMsgs] = useState<ChatMsg[]>([]);
   const [loversMsgs, setLoversMsgs] = useState<ChatMsg[]>([]);
+  const [hermanosMsgs, setHermanosMsgs] = useState<ChatMsg[]>([]);
   const [msg, setMsg] = useState('');
   const [ghostMsg, setGhostMsg] = useState('');
   const [loversMsg, setLoversMsg] = useState('');
+  const [hermanosMsg, setHermanosMsg] = useState('');
   const [sending, setSending] = useState(false);
   const [sendingGhost, setSendingGhost] = useState(false);
   const [sendingLovers, setSendingLovers] = useState(false);
+  const [sendingHermanos, setSendingHermanos] = useState(false);
   const [myVote, setMyVote] = useState<string | null>(null);
   const [voted, setVoted] = useState(false);
   const dayDurationRef = useRef(60);
@@ -84,6 +87,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
   const canSeeGhostChat = isMedium || isDead;
   const lovers = game.lovers ?? null;
   const isLover = lovers ? (lovers[0] === userId || lovers[1] === userId) : false;
+  const isHermanos = myRole === 'Hermanos';
   const isJuez = myRole === 'Juez' && meAlive;
   const isAlquimista = myRole === 'Alquimista';
   const voteBanned = game.voteBanned ?? [];
@@ -127,10 +131,23 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
     }
   };
 
+  // Hermanos chat
+  useEffect(() => {
+    if (!isHermanos) return;
+    const q = query(collection(db, 'games', gameId, 'hermanosChat'), orderBy('createdAt', 'asc'), limit(100));
+    const unsub = onSnapshot(q, (snap: any) => {
+      setHermanosMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg)));
+      if (chatTab === 'hermanos') setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
+    });
+    return () => unsub();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameId, isHermanos]);
+
   // Tabs available
   const availableTabs: ChatTab[] = ['public'];
   if (canSeeGhostChat) availableTabs.push('ghost');
   if (isLover) availableTabs.push('lovers');
+  if (isHermanos) availableTabs.push('hermanos');
 
   // Public chat
   useEffect(() => {
@@ -268,6 +285,20 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
     setSendingLovers(false);
   };
 
+  const sendHermanosMsg = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!hermanosMsg.trim() || !isHermanos || !meAlive) return;
+    setSendingHermanos(true);
+    await addDoc(collection(db, 'games', gameId, 'hermanosChat'), {
+      senderId: userId,
+      senderName: userName,
+      text: hermanosMsg.trim(),
+      createdAt: serverTimestamp(),
+    });
+    setHermanosMsg('');
+    setSendingHermanos(false);
+  };
+
   const handleVote = async () => {
     if (!myVote || voted || !meAlive || myVoteBanned) return;
     await onVote(myVote);
@@ -287,6 +318,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
     public: '💬 Pueblo',
     ghost: '👻 Muertos',
     lovers: '💕 Privado',
+    hermanos: '👬 Hermanos',
   };
 
   const renderChatContent = () => {
@@ -329,6 +361,52 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
           {isMedium && !isDead && (
             <div className="p-3 border-t border-white/5 text-center">
               <p className="text-white/20 text-xs">👻 Solo los muertos pueden escribir aquí. Tú puedes leer.</p>
+            </div>
+          )}
+        </>
+      );
+    }
+
+    if (chatTab === 'hermanos') {
+      const siblings = (game.players ?? []).filter(p => p.uid !== userId && game.roles?.[p.uid] === 'Hermanos');
+      return (
+        <>
+          <div className="px-4 py-2 border-b border-white/10">
+            <p className="text-xs text-orange-400/70">👬 Chat secreto de Hermanos — solo vosotros podéis leer esto</p>
+          </div>
+          <div ref={chatRef} className="flex-1 overflow-y-auto p-4 space-y-2">
+            {hermanosMsgs.length === 0 && (
+              <p className="text-white/60 text-sm text-center mt-8">Habla con tus hermanos en secreto...</p>
+            )}
+            {hermanosMsgs.map(m => (
+              <div key={m.id} className={`flex gap-2 ${m.senderId === userId ? 'flex-row-reverse' : ''}`}>
+                <div className={`max-w-[80%] flex flex-col ${m.senderId === userId ? 'items-end' : 'items-start'}`}>
+                  {m.senderId !== userId && (
+                    <span className="text-[10px] text-white/70 mb-0.5 font-semibold">{m.senderName}</span>
+                  )}
+                  <div className={`px-3 py-1.5 rounded-xl text-sm text-white font-medium ${m.senderId === userId ? 'bg-orange-700' : 'bg-orange-900'}`}>
+                    {m.text}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {meAlive ? (
+            <form onSubmit={sendHermanosMsg} className="p-3 border-t border-white/10 flex gap-2">
+              <input
+                value={hermanosMsg}
+                onChange={e => setHermanosMsg(e.target.value)}
+                placeholder={`Solo ${siblings.map(s => s.name).join(' y ') || 'tus hermanos'} lo ven...`}
+                maxLength={200}
+                className="flex-1 bg-white/5 border border-orange-500/30 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-orange-500/50"
+              />
+              <button type="submit" disabled={!hermanosMsg.trim() || sendingHermanos} className="bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 p-2 rounded-lg disabled:opacity-40">
+                <Send className="h-4 w-4 text-orange-400" />
+              </button>
+            </form>
+          ) : (
+            <div className="p-3 border-t border-white/5 text-center">
+              <p className="text-white/20 text-xs">💀 Estás muerto/a. Solo podéis leer.</p>
             </div>
           )}
         </>
@@ -553,6 +631,19 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
             <div>
               <p className="text-purple-300 font-semibold text-sm">{game.currentEvent.name}</p>
               <p className="text-purple-400/70 text-xs">{game.currentEvent.description}</p>
+            </div>
+          </div>
+        )}
+
+        {/* revealDead event: muestra el rol de un muerto */}
+        {game.revealDeadResult && (
+          <div className="bg-slate-900/50 border border-slate-400/40 rounded-xl p-3 flex items-center gap-3">
+            <span className="text-2xl flex-shrink-0">💀</span>
+            <div>
+              <p className="text-slate-300 font-semibold text-sm">El narrador revela un secreto del más allá</p>
+              <p className="text-slate-400 text-xs">
+                <strong className="text-slate-200">{game.revealDeadResult.name}</strong> era <strong className="text-slate-200">{game.revealDeadResult.role}</strong>
+              </p>
             </div>
           </div>
         )}

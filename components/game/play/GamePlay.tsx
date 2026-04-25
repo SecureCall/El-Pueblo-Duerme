@@ -55,6 +55,7 @@ export interface GameState {
     wolfTarget?: string;
     wolfTarget2?: string;
     seerTarget?: string;
+    seerTarget2?: string;
     witchSave?: boolean;
     witchPoison?: string;
     cupidTargets?: string[];
@@ -90,6 +91,7 @@ export interface GameState {
   dayStartedAt?: number;
   dayDuration?: number;
   seerReveal?: { targetUid: string; isWolf: boolean } | null;
+  seerReveal2?: { targetUid: string; isWolf: boolean } | null;
   profetaReveal?: { targetUid: string; isWolf: boolean } | null;
   lovers?: [string, string] | null;
   winners?: string | null;
@@ -157,6 +159,7 @@ export interface GameState {
   confessionUid?: string | null;
   cursed?: { uid: string; round: number } | null;
   lastXpAwardedAt?: number;
+  revealDeadResult?: { uid: string; name: string; role: string } | null;
 }
 
 // ── Finite-State Machine: only these transitions are legal ────────────────
@@ -281,7 +284,27 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (phase === 'ended') {
       stopAllAmbience();
       const myUid = user?.uid;
-      const iWon = myUid && (game.winners ?? []).includes(myUid);
+      const myRole = game.roles?.[myUid ?? ''];
+      const wolfTeamUids = new Set(Object.keys(game.wolfTeam ?? {}));
+      const isWolfSide = myUid ? wolfTeamUids.has(myUid) : false;
+      const w = game.winners ?? null;
+      const iWon = myUid && myRole && w ? (() => {
+        if (w === 'village') return !isWolfSide;
+        if (w === 'wolves') return isWolfSide;
+        if (w === 'flautista') return myRole === 'Flautista';
+        if (w === 'angel') return myRole === 'Ángel';
+        if (w === 'picaro') return myRole === 'Pícaro';
+        if (w === 'vampiro') return myRole === 'Vampiro';
+        if (w === 'ebrio') return myRole === 'Hombre Ebrio';
+        if (w === 'verdugo') return myRole === 'Verdugo';
+        if (w === 'lider_culto') return myRole === 'Líder del Culto';
+        if (w === 'pescador') return myRole === 'Pescador';
+        if (w === 'lobo_blanco') return myRole === 'Lobo Blanco';
+        if (w === 'banshee') return myRole === 'Banshee';
+        if (w === 'hadas') return myRole === 'Hada Buscadora' || myRole === 'Hada Durmiente';
+        if (w === 'lovers') return (game.lovers ?? []).includes(myUid);
+        return false;
+      })() : false;
       setTimeout(() => { if (iWon) playVictory(); else playDefeat(); }, 800);
     }
     if (prevPhase.current === 'roleReveal' && phase === 'night') {
@@ -1112,7 +1135,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     // Lobo Blanco kills a wolf
     if (actions.loboBlancoCide && round % 2 === 0) {
       const target = players.find(p => p.uid === actions.loboBlancoCide && p.isAlive);
-      if (target && (newRoles[target.uid] === 'Lobo' || newRoles[target.uid] === 'Lobo Blanco')) {
+      if (target && (newRoles[target.uid] === 'Lobo' || newRoles[target.uid] === 'Lobo Blanco' || newRoles[target.uid] === 'Cría de Lobo')) {
         applyDeath(target.uid);
       }
     }
@@ -1200,6 +1223,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
     // ── Seer reveal ───────────────────────────────────────────────────────
     let seerReveal = game.seerReveal ?? null;
+    let seerReveal2: { targetUid: string; isWolf: boolean } | null = null;
     {
       const vidente = players.find(p => newRoles[p.uid] === 'Vidente' && p.isAlive);
       if (vidente && !blockedByAnciana.has(vidente.uid) && actions.seerTarget) {
@@ -1208,6 +1232,14 @@ export function GamePlay({ gameId }: { gameId: string }) {
           targetUid: actions.seerTarget,
           isWolf: targetRole === 'Lobo' || targetRole === 'Lobo Blanco' || targetRole === 'Cría de Lobo' || targetRole === 'Licántropo',
         };
+        // doubleSeer event: investigate a second player
+        if (game.doubleSeerActive && actions.seerTarget2 && actions.seerTarget2 !== actions.seerTarget) {
+          const targetRole2 = newRoles[actions.seerTarget2];
+          seerReveal2 = {
+            targetUid: actions.seerTarget2,
+            isWolf: targetRole2 === 'Lobo' || targetRole2 === 'Lobo Blanco' || targetRole2 === 'Cría de Lobo' || targetRole2 === 'Licántropo',
+          };
+        }
       }
     }
 
@@ -1218,7 +1250,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
       if (profeta && !blockedByAnciana.has(profeta.uid) && actions.profetaTarget) {
         profetaReveal = {
           targetUid: actions.profetaTarget,
-          isWolf: newRoles[actions.profetaTarget] === 'Lobo' || newRoles[actions.profetaTarget] === 'Lobo Blanco' || newRoles[actions.profetaTarget] === 'Licántropo',
+          isWolf: newRoles[actions.profetaTarget] === 'Lobo' || newRoles[actions.profetaTarget] === 'Lobo Blanco' || newRoles[actions.profetaTarget] === 'Cría de Lobo' || newRoles[actions.profetaTarget] === 'Licántropo',
         };
       }
     }
@@ -1244,6 +1276,9 @@ export function GamePlay({ gameId }: { gameId: string }) {
       }
     }
 
+    // Track new wolf team members (Niño Salvaje / Cambiaformas transformations)
+    const newWolfTeamEntries: Record<string, boolean> = {};
+
     // ── Cambiaformas: adopt role if followed player died ──────────────────
     for (const [cfUid, targetUid] of Object.entries(cambiaformasTargets)) {
       const cf = players.find(p => p.uid === cfUid && p.isAlive);
@@ -1251,6 +1286,10 @@ export function GamePlay({ gameId }: { gameId: string }) {
       if (cf && target && !target.isAlive && aliveBeforeNight.has(targetUid)) {
         newRoles[cfUid] = roles[targetUid] ?? 'Aldeano';
         players = players.map(p => p.uid === cfUid ? { ...p, role: newRoles[cfUid] } : p);
+        // If adopted a wolf role, join wolfTeam so wolf chat becomes visible
+        if (['Lobo', 'Lobo Blanco', 'Cría de Lobo'].includes(newRoles[cfUid])) {
+          newWolfTeamEntries[cfUid] = true;
+        }
         delete cambiaformasTargets[cfUid]; // one-time transform
       }
     }
@@ -1261,6 +1300,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
       if (mentor && !mentor.isAlive && newRoles[salvajeUid] === 'Niño Salvaje') {
         newRoles[salvajeUid] = 'Lobo';
         players = players.map(p => p.uid === salvajeUid ? { ...p, role: 'Lobo' } : p);
+        // Join wolfTeam so wolf chat becomes visible
+        newWolfTeamEntries[salvajeUid] = true;
       }
     }
 
@@ -1328,6 +1369,21 @@ export function GamePlay({ gameId }: { gameId: string }) {
           history = history.filter(h => h.uid !== actions.angelResucitarTarget);
           if (dayEliminatedUid === actions.angelResucitarTarget) dayEliminatedUid = null;
           angelResucitadorUsed = true;
+        }
+      }
+    }
+
+    // ── STEP 7b — Aprendiz de Vidente: inherit if Vidente died ───────────
+    {
+      const videnteDied = players.some(
+        p => (newRoles[p.uid] === 'Vidente' || roles[p.uid] === 'Vidente') &&
+          !p.isAlive && aliveBeforeNight.has(p.uid)
+      );
+      if (videnteDied) {
+        const aprendiz = players.find(p => newRoles[p.uid] === 'Aprendiz de Vidente' && p.isAlive);
+        if (aprendiz) {
+          newRoles[aprendiz.uid] = 'Vidente';
+          players = players.map(p => p.uid === aprendiz.uid ? { ...p, role: 'Vidente' } : p);
         }
       }
     }
@@ -1533,6 +1589,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
         eliminatedHistory: history,
         dayEliminatedUid,
         seerReveal,
+        seerReveal2,
         profetaReveal,
         enchanted,
         antiguoHit,
@@ -1596,6 +1653,17 @@ export function GamePlay({ gameId }: { gameId: string }) {
           return Date.now() + dur * 1000 + 2000;
         })(),
         bansheePredictionUid: null,
+        wolfTeam: Object.keys(newWolfTeamEntries).length > 0
+          ? { ...(game.wolfTeam ?? {}), ...newWolfTeamEntries }
+          : (game.wolfTeam ?? {}),
+        revealDeadResult: randomEvent?.mechanical === 'revealDead'
+          ? (() => {
+              const dead = history.filter(h => h.uid !== undefined);
+              if (dead.length === 0) return null;
+              const pick = dead[Math.floor(Math.random() * dead.length)];
+              return { uid: pick.uid, name: pick.name, role: pick.role };
+            })()
+          : null,
       });
     } catch (e) {
       console.error('processNight updateDoc error:', e);
@@ -2050,12 +2118,16 @@ export function GamePlay({ gameId }: { gameId: string }) {
       }
     }
 
+    // Track new wolf team members added during day phase
+    const newWolfTeamEntriesDay: Record<string, boolean> = {};
+
     // Niño Salvaje: if mentor eliminated, convert to wolf
     for (const [salvajeUid, mentorUid] of Object.entries(salvajeMentors)) {
       const mentor = players.find(p => p.uid === mentorUid);
       if (mentor && !mentor.isAlive && newRoles[salvajeUid] === 'Niño Salvaje') {
         newRoles[salvajeUid] = 'Lobo';
         players = players.map(p => p.uid === salvajeUid ? { ...p, role: 'Lobo' } : p);
+        newWolfTeamEntriesDay[salvajeUid] = true;
       }
     }
 
@@ -2091,6 +2163,21 @@ export function GamePlay({ gameId }: { gameId: string }) {
             players = players.map(p => p.uid === linkedUid ? { ...p, isAlive: false } : p);
             history.push({ uid: linkedUid, name: linked.name, role: newRoles[linkedUid] ?? 'Aldeano', round });
           }
+        }
+      }
+    }
+
+    // ── Aprendiz de Vidente: inherit if Vidente was lynched ──────────────
+    {
+      const videnteDiedDay = players.some(
+        p => (newRoles[p.uid] === 'Vidente' || roles[p.uid] === 'Vidente') &&
+          !p.isAlive && aliveBeforeDay.has(p.uid)
+      );
+      if (videnteDiedDay) {
+        const aprendiz = players.find(p => newRoles[p.uid] === 'Aprendiz de Vidente' && p.isAlive);
+        if (aprendiz) {
+          newRoles[aprendiz.uid] = 'Vidente';
+          players = players.map(p => p.uid === aprendiz.uid ? { ...p, role: 'Vidente' } : p);
         }
       }
     }
@@ -2195,6 +2282,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
         dayVotes: {},
         dayEliminatedUid: null,
         seerReveal: null,
+        seerReveal2: null,
         profetaReveal: null,
         nightActions: {},
         nightSubmissions: {},
@@ -2207,6 +2295,10 @@ export function GamePlay({ gameId }: { gameId: string }) {
         anonymousVotesActive: false,
         noExileActive: false,
         saboteadorBan: null,
+        wolfTeam: Object.keys(newWolfTeamEntriesDay).length > 0
+          ? { ...(game.wolfTeam ?? {}), ...newWolfTeamEntriesDay }
+          : (game.wolfTeam ?? {}),
+        revealDeadResult: null,
       });
     } catch (e) {
       console.error('processDayVotes updateDoc error:', e);

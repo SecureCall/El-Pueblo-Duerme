@@ -46,6 +46,14 @@ export const ROLES: Record<string, RoleInfo> = {
     description: 'Eres un aldeano normal, pero si la Vidente muere, heredas su poder y te conviertes en la nueva Vidente a partir de la noche siguiente.',
     nightAction: false,
   },
+  'Ladrón': {
+    name: 'Ladrón',
+    team: 'village',
+    emoji: '🦹',
+    description: 'La primera noche, antes que nadie, eliges a otro jugador y robas su rol en secreto. Ese jugador pasa a ser un Aldeano. Luego actúas con el rol robado. Si no robas nada, eres un Aldeano.',
+    nightAction: true,
+    actionLabel: 'Robar rol',
+  },
   'Doctor': {
     name: 'Doctor',
     team: 'village',
@@ -652,10 +660,6 @@ export function checkWinCondition(
   // Hombre Ebrio: wins if lynched by village vote OR killed by wolves at night
   if (eliminatedByVote && lynched.some(uid => effectiveRoles[uid] === 'Hombre Ebrio')) {
     return { winner: 'ebrio', message: '¡El Hombre Ebrio lo logró! Consiguió que el pueblo lo linchara y gana en solitario. ¡Era su plan desde el principio!' };
-  }
-  // Night kill (wolves / poison / etc.)
-  if (nightKilledUids.some(uid => effectiveRoles[uid] === 'Hombre Ebrio')) {
-    return { winner: 'ebrio', message: '¡El Hombre Ebrio consiguió que lo eliminaran esta noche y gana en solitario. ¡Era exactamente lo que buscaba!' };
   }
 
   const aliveWolves = alive.filter(p =>

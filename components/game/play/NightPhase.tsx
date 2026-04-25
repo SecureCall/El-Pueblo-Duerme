@@ -41,6 +41,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
   const [vigiaActivated, setVigiaActivated] = useState(false);
   const [bansheeTarget, setBansheeTarget] = useState<string | null>(null);
   const [secondWolfTarget, setSecondWolfTarget] = useState<string | null>(null);
+  const [seerTarget2, setSeerTarget2] = useState<string | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const { play, AUDIO_FILES } = useNarrator();
   const isEspia = myRole === 'Espía';
@@ -197,7 +198,10 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
       if (loboBlancoCide && round % 2 === 0) action.loboBlancoCide = loboBlancoCide;
     }
     if (game.criaLoboRage && isWolfTeam && secondWolfTarget) action.wolfTarget2 = secondWolfTarget;
-    if (isSeer && selectedTarget) action.seerTarget = selectedTarget;
+    if (isSeer && selectedTarget) {
+      action.seerTarget = selectedTarget;
+      if (game.doubleSeerActive && seerTarget2 && seerTarget2 !== selectedTarget) action.seerTarget2 = seerTarget2;
+    }
     if (isProfeta && selectedTarget) action.profetaTarget = selectedTarget;
     if (isWitch) {
       if (witchChoice === 'save') action.witchSave = true;
@@ -279,6 +283,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
     if ((isWolf || isCriaLobo) && !selectedTarget) return false;
     if (isLoboBlanco && !selectedTarget) return false;
     if (isSeer && !selectedTarget) return false;
+    if (isSeer && game.doubleSeerActive && (!seerTarget2 || seerTarget2 === selectedTarget)) return false;
     if (isProfeta && !selectedTarget) return false;
     if (isWitch && witchChoice === null) return false;
     if (isWitch && witchChoice === 'poison' && !selectedTarget) return false;
@@ -440,7 +445,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
                   <p className="text-white/50 text-xs mb-2">🤍 Acción especial: elimina un lobo aliado (opcional)</p>
                   <div className="space-y-1">
                     {allAlivePlayers
-                      .filter(p => p.uid !== userId && (game.roles?.[p.uid] === 'Lobo' || game.roles?.[p.uid] === 'Lobo Blanco'))
+                      .filter(p => p.uid !== userId && (game.roles?.[p.uid] === 'Lobo' || game.roles?.[p.uid] === 'Lobo Blanco' || game.roles?.[p.uid] === 'Cría de Lobo'))
                       .map(p => (
                         <button
                           key={p.uid}
@@ -511,19 +516,44 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
             <div className="bg-purple-900/20 border border-purple-500/30 rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Eye className="h-5 w-5 text-purple-400" />
-                <h3 className="font-semibold text-purple-300">¿A quién investigas esta noche?</h3>
+                <h3 className="font-semibold text-purple-300">
+                  {game.doubleSeerActive ? '✨ Visión Doble — investiga 2 jugadores' : '¿A quién investigas esta noche?'}
+                </h3>
               </div>
+              {game.doubleSeerActive && (
+                <div className="mb-3 p-2 rounded-xl bg-purple-800/30 border border-purple-600/30 text-xs text-purple-300">
+                  🌟 Evento especial: esta noche puedes investigar a <strong>dos jugadores</strong>.
+                </div>
+              )}
+              <p className="text-white/40 text-xs mb-2">
+                {game.doubleSeerActive ? '1ª investigación:' : 'Elige jugador:'}
+              </p>
               {game.seerReveal && (
-                <div className={`mb-4 p-3 rounded-xl text-sm ${game.seerReveal.isWolf ? 'bg-red-900/30 text-red-300' : 'bg-green-900/30 text-green-300'}`}>
+                <div className={`mb-2 p-3 rounded-xl text-sm ${game.seerReveal.isWolf ? 'bg-red-900/30 text-red-300' : 'bg-green-900/30 text-green-300'}`}>
                   Noche anterior: {game.players?.find(p => p.uid === game.seerReveal?.targetUid)?.name} es {game.seerReveal.isWolf ? '🐺 un LOBO' : '🌾 inocente'}
+                </div>
+              )}
+              {game.seerReveal2 && (
+                <div className={`mb-4 p-3 rounded-xl text-sm ${game.seerReveal2.isWolf ? 'bg-red-900/30 text-red-300' : 'bg-green-900/30 text-green-300'}`}>
+                  2ª visión: {game.players?.find(p => p.uid === game.seerReveal2?.targetUid)?.name} es {game.seerReveal2.isWolf ? '🐺 un LOBO' : '🌾 inocente'}
                 </div>
               )}
               <div className="space-y-2 mb-4">
                 {alivePlayers.map(p => playerCard(p, selectedTarget === p.uid, () => setSelectedTarget(p.uid), 'border-purple-500 bg-purple-900/30'))}
               </div>
+              {game.doubleSeerActive && (
+                <>
+                  <p className="text-white/40 text-xs mb-2">2ª investigación (diferente al primero):</p>
+                  <div className="space-y-2 mb-4">
+                    {alivePlayers
+                      .filter(p => p.uid !== selectedTarget)
+                      .map(p => playerCard(p, seerTarget2 === p.uid, () => setSeerTarget2(p.uid), 'border-pink-500 bg-pink-900/30'))}
+                  </div>
+                </>
+              )}
               <button onClick={handleSubmit} disabled={!canSubmit}
                 className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-colors">
-                Usar visión
+                {game.doubleSeerActive ? 'Usar visión doble' : 'Usar visión'}
               </button>
             </div>
           )}

@@ -305,6 +305,18 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ── Hermanos chat — sólo jugadores con rol Hermanos ───────────────────
+    match /games/{gameId}/hermanosChat/{messageId} {
+      allow read: if isAuth() && (
+        isHost(gameId) ||
+        get(/databases/$(database)/documents/games/$(gameId)).data.roles[request.auth.uid] == 'Hermanos'
+      );
+      allow create: if isAuth()
+        && request.auth.uid == request.resource.data.senderId
+        && get(/databases/$(database)/documents/games/$(gameId)).data.roles[request.auth.uid] == 'Hermanos';
+      allow update, delete: if false;
+    }
+
     // ── Night actions subcollection — host o el propio jugador ────────────
     match /games/{gameId}/nightActions/{actionId} {
       allow read: if isAuth();
