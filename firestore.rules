@@ -61,15 +61,19 @@ service cloud.firestore {
       allow read: if isAuth();
       allow create: if isAuth() && request.auth.uid == userId;
       allow update: if isAuth() && (
-        // El propietario puede actualizar su perfil, EXCEPTO:
-        //   • campos de progresión (XP, partidas jugadas/ganadas) → sólo servidor
-        //   • coins sólo pueden decrementarse (gasto en tienda), nunca incrementarse desde cliente
+        // El propietario puede actualizar su perfil, EXCEPTO campos de progresión (sólo servidor)
         (
           request.auth.uid == userId
           && !touchesProgressionFields()
           && (
             !affectedAre(['coins'])
+            // Gasto en tienda: monedas solo pueden decrementarse
             || request.resource.data.coins <= resource.data.coins
+            // Premio por vídeo: solo se permiten incrementos de exactamente 50 monedas
+            || (
+              request.resource.data.coins - resource.data.coins == 50
+              && onlyUpdating(['coins'])
+            )
           )
         )
         // Cualquier usuario autenticado puede añadir solicitudes de amistad al perfil ajeno
@@ -78,10 +82,15 @@ service cloud.firestore {
     }
 
     // ── Coin history ────────────────────────────────────────────────────────
-    // Sólo el servidor (Admin SDK) puede registrar entradas — el cliente sólo puede leer.
+    // El servidor puede escribir siempre. El cliente solo puede crear entradas de vídeo (50 monedas).
     match /users/{userId}/coinHistory/{historyId} {
       allow read: if isAuth() && request.auth.uid == userId;
-      allow create, update, delete: if false;
+      allow create: if isAuth()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['amount', 'reason', 'createdAt'])
+        && request.resource.data.amount == 50
+        && request.resource.data.reason == 'video';
+      allow update, delete: if false;
     }
 
     // ── Purchases (artículos comprados en tienda) ──────────────────────────
