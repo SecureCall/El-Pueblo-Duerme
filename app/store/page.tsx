@@ -5,6 +5,7 @@ import { Coins, ShoppingBag, Palette, Gamepad2, Users, Gift, UserCircle } from '
 import { VideoReward } from './components/VideoReward';
 import { StoreItem, StoreItemData } from './components/StoreItem';
 import { AdBanner } from '@/components/ads/AdBanner';
+import { NativeBanner } from '@/components/ads/NativeBanner';
 import { useCoins } from '@/app/hooks/use-coins';
 import { useAuth } from '@/app/providers/AuthProvider';
 
@@ -102,9 +103,12 @@ export default function StorePage() {
           <VideoReward onCoinsEarned={refresh} />
         </div>
 
-        {/* Banner horizontal bajo VideoReward */}
-        <div className="mb-10 flex justify-center">
-          <AdBanner format="horizontal" />
+        {/* Banners Adsterra */}
+        <div className="mb-10 space-y-4">
+          <div className="flex justify-center">
+            <AdBanner format="horizontal" />
+          </div>
+          <NativeBanner />
         </div>
 
         {/* Store Categories */}

@@ -12,6 +12,7 @@ import { JoinByCodeModal } from '@/components/JoinByCodeModal';
 import { PageAudio } from '@/components/audio/PageAudio';
 import { AudioControls } from '@/components/audio/AudioControls';
 import { AdBanner } from '@/components/ads/AdBanner';
+import { NativeBanner } from '@/components/ads/NativeBanner';
 import { TutorialOverlay } from '@/components/game/TutorialOverlay';
 import { subscribeAndSave } from '@/lib/firebase/push';
 import { createQuickMatch } from '@/lib/game/quickMatch';
@@ -292,9 +293,10 @@ export default function HomePage() {
           ))}
         </div>
 
-        {/* Banner publicitario */}
-        <div className="mt-8 w-full">
+        {/* Banners publicitarios Adsterra */}
+        <div className="mt-8 w-full space-y-4">
           <AdBanner format="horizontal" />
+          <NativeBanner />
         </div>
 
         {/* Footer */}

@@ -7,6 +7,7 @@ import { getRoleIcon } from './roleIcons';
 import { Trophy, Skull, Home, RefreshCw, Clock, Star, Share2, Users, BookOpen, Swords, Flame, ImageIcon } from 'lucide-react';
 import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
 import { AdBanner } from '@/components/ads/AdBanner';
+import { NativeBanner } from '@/components/ads/NativeBanner';
 import { RewardedAd } from '@/components/ads/RewardedAd';
 import { xpToLevel, levelEmoji, getPlayerTitle, type XPResult } from '@/lib/firebase/xp';
 import { recordGameResult } from '@/lib/bots/playerStats';
@@ -629,8 +630,9 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
           </div>
         )}
 
-        {/* AdSense banner */}
+        {/* Adsterra banners */}
         <AdBanner format="horizontal" className="mt-3" />
+        <NativeBanner className="mt-3" />
 
         {/* ── REVANCHA ─────────────────────────────────────────────── */}
         <div className="mt-4 space-y-3">

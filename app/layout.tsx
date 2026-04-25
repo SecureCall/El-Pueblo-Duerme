@@ -105,6 +105,12 @@ export default function RootLayout({
             `,
           }}
         />
+        {/* Adsterra pop-under — una vez por página */}
+        <Script
+          id="adsterra-popunder"
+          strategy="afterInteractive"
+          src="https://pl29226128.profitablecpmratenetwork.com/9a/2f/1c/9a2f1c60a1c0e205676fe6d02b7a4b9a.js"
+        />
       </head>
       <body className={cn(ptSans.variable, playfair.variable, "font-sans")}>
         <AuthProvider>
