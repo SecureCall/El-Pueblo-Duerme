@@ -1570,6 +1570,16 @@ export function GamePlay({ gameId }: { gameId: string }) {
       });
     }
 
+    // ── Catch-all wolfTeam sync: Maldito, Perro Lobo, Ladrón (wolf role) ──
+    for (const [uid, role] of Object.entries(newRoles)) {
+      if (['Lobo', 'Lobo Blanco', 'Cría de Lobo', 'Bruja'].includes(role)) {
+        const wasWolfBefore = ['Lobo', 'Lobo Blanco', 'Cría de Lobo', 'Bruja'].includes(roles[uid]);
+        if (!wasWolfBefore && !(game.wolfTeam ?? {})[uid] && !newWolfTeamEntries[uid]) {
+          newWolfTeamEntries[uid] = true;
+        }
+      }
+    }
+
     // ── STEP 10 — Night audit log (subcollection) ─────────────────────────
     setDoc(doc(db, 'games', gameId, 'nightLogs', String(round)), {
       round,
@@ -2131,6 +2141,21 @@ export function GamePlay({ gameId }: { gameId: string }) {
       }
     }
 
+    // Cambiaformas: adopt role if followed player was lynched/killed during day
+    const cambiaformasTargetsDay = { ...(game.cambiaformasTargets ?? {}) };
+    for (const [cfUid, targetUid] of Object.entries(cambiaformasTargetsDay)) {
+      const cf = players.find(p => p.uid === cfUid && p.isAlive);
+      const target = players.find(p => p.uid === targetUid);
+      if (cf && target && !target.isAlive && aliveBeforeDay.has(targetUid)) {
+        newRoles[cfUid] = roles[targetUid] ?? 'Aldeano';
+        players = players.map(p => p.uid === cfUid ? { ...p, role: newRoles[cfUid] } : p);
+        if (['Lobo', 'Lobo Blanco', 'Cría de Lobo'].includes(newRoles[cfUid])) {
+          newWolfTeamEntriesDay[cfUid] = true;
+        }
+        delete cambiaformasTargetsDay[cfUid];
+      }
+    }
+
     // Lovers cascade
     const lovers = game.lovers;
     if (lovers && eliminated) {
@@ -2295,6 +2320,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
         anonymousVotesActive: false,
         noExileActive: false,
         saboteadorBan: null,
+        cambiaformasTargets: cambiaformasTargetsDay,
         wolfTeam: Object.keys(newWolfTeamEntriesDay).length > 0
           ? { ...(game.wolfTeam ?? {}), ...newWolfTeamEntriesDay }
           : (game.wolfTeam ?? {}),
