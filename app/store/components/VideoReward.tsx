@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Play, CheckCircle, Coins } from 'lucide-react';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { useToast } from '@/app/hooks/use-toast';
+import { canWatchVideo, addCoins } from '@/lib/firebase/coins';
 
 const BANNER_KEY = '62e20b1b19b6fefc4b9795ed79a64fab';
 
@@ -36,17 +37,11 @@ export function VideoReward({ onCoinsEarned }: VideoRewardProps) {
   const [seconds, setSeconds] = useState(30);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Comprobación de disponibilidad al montar — usa el cliente, sin POST al servidor
   useEffect(() => {
     if (!user) return;
-    // Verificar disponibilidad via servidor (no bypassable desde el cliente)
-    user.getIdToken().then(token =>
-      fetch('/api/award-coins', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        // POST sin body — solo consulta si quedan videos disponibles
-      })
-    ).then(async r => {
-      if (r.status === 429) setPhase('unavailable');
+    canWatchVideo(user.uid).then(can => {
+      if (!can) setPhase('unavailable');
     }).catch(() => {});
   }, [user]);
 
@@ -72,23 +67,49 @@ export function VideoReward({ onCoinsEarned }: VideoRewardProps) {
   const rewardUser = async () => {
     if (!user) return;
     try {
+      // Intento primario: servidor con Admin SDK (rate-limit garantizado server-side)
       const token = await user.getIdToken();
       const res = await fetch('/api/award-coins', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+
       if (res.status === 429 || data.limitReached) {
         setPhase('unavailable');
         toast({ variant: 'destructive', title: 'Límite alcanzado', description: 'Ya viste 5 vídeos hoy. Vuelve mañana.' });
         return;
       }
-      if (!res.ok) throw new Error(data.error ?? 'Error desconocido');
+
+      if (res.ok) {
+        setPhase('done');
+        onCoinsEarned();
+        toast({ title: '¡+50 monedas!', description: 'Has ganado 50 monedas por ver el vídeo.' });
+        return;
+      }
+
+      // Fallback cliente si el servidor no está disponible
+      await clientFallback();
+    } catch {
+      await clientFallback();
+    }
+  };
+
+  const clientFallback = async () => {
+    if (!user) return;
+    try {
+      const can = await canWatchVideo(user.uid);
+      if (!can) {
+        setPhase('unavailable');
+        toast({ variant: 'destructive', title: 'Límite alcanzado', description: 'Ya viste 5 vídeos hoy. Vuelve mañana.' });
+        return;
+      }
+      await addCoins(user.uid, 50, 'video');
       setPhase('done');
       onCoinsEarned();
       toast({ title: '¡+50 monedas!', description: 'Has ganado 50 monedas por ver el vídeo.' });
     } catch {
-      toast({ variant: 'destructive', title: 'Error', description: 'No se pudieron añadir las monedas.' });
+      toast({ variant: 'destructive', title: 'Error', description: 'No se pudieron añadir las monedas. Inténtalo de nuevo.' });
       setPhase('idle');
     }
   };
