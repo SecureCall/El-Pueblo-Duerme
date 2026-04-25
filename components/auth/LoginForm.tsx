@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
 import { signInWithGoogle, signInWithFacebook } from '@/lib/firebase/auth-social';
@@ -10,11 +10,14 @@ import { useAuth } from '@/app/providers/AuthProvider';
 
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, isLoading, redirectError } = useAuth();
 
+  const isLogout = searchParams.get('logout') === 'true';
+
   useEffect(() => {
-    if (!isLoading && user) router.push('/');
-  }, [user, isLoading, router]);
+    if (!isLoading && user && !isLogout) router.push('/');
+  }, [user, isLoading, router, isLogout]);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

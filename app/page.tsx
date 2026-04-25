@@ -105,7 +105,7 @@ export default function HomePage() {
 
   const handleLogout = async () => {
     await signOut(auth);
-    router.push('/login');
+    window.location.href = '/login?logout=true';
   };
 
   const overlayOpacity = lightMode ? 0.45 : 0.88;
