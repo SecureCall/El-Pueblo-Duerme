@@ -495,7 +495,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (!isValidTransition(game.phase, 'night')) { console.warn(`[FSM] Blocked roleReveal→night (current: ${game.phase})`); return; }
     try {
       const now = Date.now();
-      await updateDoc(doc(db, 'games', gameId), { phase: 'night', nightActions: {}, nightSubmissions: {}, nightStartedAt: now, phaseEndsAt: now + 93000 });
+      await updateDoc(doc(db, 'games', gameId), { phase: 'night', nightActions: {}, nightSubmissions: {}, nightStartedAt: now, phaseEndsAt: now + 60000 });
     } catch (e) { console.error('advanceFromRoleReveal error:', e); }
   }, [game, user, gameId]);
 
@@ -919,8 +919,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
       done('saboteador', has('Saboteador'));
 
     if (allDone && !processingNightRef.current) {
-      // Mínimo 45s de noche para que los lobos puedan coordinarse
-      const MIN_NIGHT_MS = 45000;
+      // Mínimo 20s de noche desde nightStartedAt (los lobos tienen el chat para coordinarse)
+      const MIN_NIGHT_MS = 20000;
       const elapsed = Date.now() - (game.nightStartedAt ?? Date.now());
       const waitMs = Math.max(0, MIN_NIGHT_MS - elapsed);
       if (waitMs > 0) {
@@ -937,11 +937,11 @@ export function GamePlay({ gameId }: { gameId: string }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.nightSubmissions, game?.phase]);
 
-  // ── Anti-softlock: force processNight when 90s night timer expires ────────
+  // ── Anti-softlock: force processNight when 55s night timer expires ────────
   useEffect(() => {
     if (!game || !user || game.hostUid !== user.uid) return;
     if (game.phase !== 'night') return;
-    const NIGHT_MS = 93000; // 90s night + 3s grace
+    const NIGHT_MS = 58000; // 55s night + 3s grace
     const started = game.nightStartedAt ?? Date.now();
     const remaining = Math.max(0, NIGHT_MS - (Date.now() - started));
     const t = setTimeout(() => {
@@ -2366,7 +2366,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
         nightSubmissions: {},
         bearGrowl: false,
         nightStartedAt: finalWinner ? null : Date.now(),
-        phaseEndsAt: finalWinner ? null : Date.now() + 93000,
+        phaseEndsAt: finalWinner ? null : Date.now() + 60000,
         currentEvent: null,
         eclipseActive: false,
         doubleSeerActive: false,

@@ -143,7 +143,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
     if (isNightRole || isEspia) return;
     if (!me?.isAlive) { setSubmitted(true); return; }
 
-    let seconds = 8;
+    let seconds = 5;
     setAutoSkipCountdown(seconds);
     const interval = setInterval(() => {
       seconds--;
@@ -159,7 +159,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [round, submitted, narratorReady]);
 
-  // 35-second auto-submit for night roles — starts AFTER narrator finishes
+  // 20-second auto-submit for night roles — starts AFTER narrator finishes
   useEffect(() => {
     if (!narratorReady || submitted) return;
     if (!isNightRole && !isEspia) return;
@@ -169,13 +169,13 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
       if (!submitted) {
         onSubmitAction({ _skip: true }).then(() => setSubmitted(true)).catch(() => {});
       }
-    }, 35000);
+    }, 20000);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [round, submitted, narratorReady]);
 
-  // Visible night countdown based on nightStartedAt (90s max)
-  const NIGHT_DURATION = 90;
+  // Visible night countdown based on nightStartedAt (55s max)
+  const NIGHT_DURATION = 55;
   useEffect(() => {
     if (!game.nightStartedAt) return;
     const startedAt = game.nightStartedAt;
@@ -347,13 +347,13 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
           <div className="w-full max-w-lg mb-5">
             <div className="flex justify-between text-xs text-white/40 mb-1">
               <span>⏱ Tiempo de noche</span>
-              <span className={nightSecondsLeft <= 15 ? 'text-red-400 font-bold' : ''}>{nightSecondsLeft}s</span>
+              <span className={nightSecondsLeft <= 10 ? 'text-red-400 font-bold' : ''}>{nightSecondsLeft}s</span>
             </div>
             <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
               <div className="h-full rounded-full transition-all duration-1000"
                 style={{
-                  width: `${(nightSecondsLeft / 90) * 100}%`,
-                  backgroundColor: nightSecondsLeft <= 15 ? '#ef4444' : nightSecondsLeft <= 30 ? '#f59e0b' : '#3b82f6',
+                  width: `${(nightSecondsLeft / 55) * 100}%`,
+                  backgroundColor: nightSecondsLeft <= 10 ? '#ef4444' : nightSecondsLeft <= 20 ? '#f59e0b' : '#3b82f6',
                 }} />
             </div>
           </div>
