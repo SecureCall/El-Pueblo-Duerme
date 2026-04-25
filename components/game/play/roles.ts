@@ -658,8 +658,11 @@ export function checkWinCondition(
   }
 
   // Hombre Ebrio: wins if lynched by village vote OR killed by wolves at night
-  if (eliminatedByVote && lynched.some(uid => effectiveRoles[uid] === 'Hombre Ebrio')) {
-    return { winner: 'ebrio', message: '¡El Hombre Ebrio lo logró! Consiguió que el pueblo lo linchara y gana en solitario. ¡Era su plan desde el principio!' };
+  if (
+    (eliminatedByVote && lynched.some(uid => effectiveRoles[uid] === 'Hombre Ebrio')) ||
+    nightKilledUids.some(uid => effectiveRoles[uid] === 'Hombre Ebrio')
+  ) {
+    return { winner: 'ebrio', message: '¡El Hombre Ebrio lo logró! Consiguió morir como quería y gana en solitario. ¡Era su plan desde el principio!' };
   }
 
   const aliveWolves = alive.filter(p =>

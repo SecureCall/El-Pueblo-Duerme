@@ -180,6 +180,12 @@ service cloud.firestore {
           onlyUpdating(['bansheePredictionUid']) &&
           resource.data.players.exists(p, p.uid == request.auth.uid)
         )
+
+        // ⑨ Fantasma: el jugador Fantasma muerto puede marcar su mensaje como enviado
+        || (
+          onlyUpdating(['fantasmaUsed', 'fantasmaPending']) &&
+          resource.data.players.exists(p, p.uid == request.auth.uid)
+        )
       );
 
       allow delete: if isAuth() && request.auth.uid == resource.data.hostUid;

@@ -2048,7 +2048,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const history = [...(game.eliminatedHistory ?? [])];
     const enchanted = [...(game.enchanted ?? [])];
 
-    if (isTie) {
+    if (isTie && !game.noExileActive) {
       const chivoPlayer = players.find(p => p.isAlive && newRoles[p.uid] === 'Chivo Expiatorio');
       if (chivoPlayer) { eliminated = chivoPlayer.uid; chivoPendingChoice = chivoPlayer.uid; }
     }
@@ -2068,6 +2068,39 @@ export function GamePlay({ gameId }: { gameId: string }) {
           history.push({ uid: fighter.uid, name: fighter.name, role: newRoles[fighter.uid] ?? 'Aldeano', round });
           if (newRoles[fightUid] === 'Fantasma' && !fantasmaUsed.includes(fightUid)) {
             fantasmaPending.push(fightUid);
+          }
+        }
+      }
+    }
+
+    // Cascada Enamorados / Gemelas / Virginia Woolf para muertes de Alborotadora
+    if (alborotadoraFight) {
+      for (const fightUid of alborotadoraFight) {
+        if (!players.find(p => p.uid === fightUid)?.isAlive && aliveBeforeDay.has(fightUid)) {
+          if (lovers) {
+            const [l1, l2] = lovers;
+            const partnerUid = fightUid === l1 ? l2 : fightUid === l2 ? l1 : null;
+            if (partnerUid && players.find(p => p.uid === partnerUid && p.isAlive)) {
+              players = players.map(p => p.uid === partnerUid ? { ...p, isAlive: false } : p);
+              const partner = players.find(p => p.uid === partnerUid);
+              if (partner) history.push({ uid: partnerUid, name: partner.name, role: newRoles[partnerUid] ?? 'Aldeano', round });
+            }
+          }
+          const gemelas = players.filter(p => newRoles[p.uid] === 'Gemela' || newRoles[p.uid] === 'Gemelas');
+          if (gemelas.length === 2) {
+            const [g1, g2] = gemelas;
+            const partnerGemela = fightUid === g1.uid ? g2 : fightUid === g2.uid ? g1 : null;
+            if (partnerGemela && players.find(p => p.uid === partnerGemela.uid && p.isAlive)) {
+              players = players.map(p => p.uid === partnerGemela.uid ? { ...p, isAlive: false } : p);
+              history.push({ uid: partnerGemela.uid, name: partnerGemela.name, role: newRoles[partnerGemela.uid] ?? 'Aldeano', round });
+            }
+          }
+          for (const [woolUid, linkedUid] of Object.entries(virginiawoolFate)) {
+            if (fightUid === woolUid && players.find(p => p.uid === linkedUid && p.isAlive)) {
+              players = players.map(p => p.uid === linkedUid ? { ...p, isAlive: false } : p);
+              const linked = players.find(p => p.uid === linkedUid);
+              if (linked) history.push({ uid: linkedUid, name: linked.name, role: newRoles[linkedUid] ?? 'Aldeano', round });
+            }
           }
         }
       }
@@ -2124,6 +2157,26 @@ export function GamePlay({ gameId }: { gameId: string }) {
         history.push({ uid: victim2.uid, name: victim2.name, role: newRoles[victim2.uid] ?? 'Aldeano', round });
         if (newRoles[secondEliminated] === 'Fantasma' && !fantasmaUsed.includes(secondEliminated)) {
           fantasmaPending.push(secondEliminated);
+        }
+        // Cascada Enamorados para secondEliminated
+        if (lovers) {
+          const [l1, l2] = lovers;
+          const partnerUid2 = secondEliminated === l1 ? l2 : secondEliminated === l2 ? l1 : null;
+          if (partnerUid2 && players.find(p => p.uid === partnerUid2 && p.isAlive)) {
+            players = players.map(p => p.uid === partnerUid2 ? { ...p, isAlive: false } : p);
+            const partner2 = players.find(p => p.uid === partnerUid2);
+            if (partner2) history.push({ uid: partnerUid2, name: partner2.name, role: newRoles[partnerUid2] ?? 'Aldeano', round });
+          }
+        }
+        // Cascada Gemelas para secondEliminated
+        const gemelas2 = players.filter(p => newRoles[p.uid] === 'Gemela' || newRoles[p.uid] === 'Gemelas');
+        if (gemelas2.length === 2) {
+          const [g1, g2] = gemelas2;
+          const partnerGemela2 = secondEliminated === g1.uid ? g2 : secondEliminated === g2.uid ? g1 : null;
+          if (partnerGemela2 && players.find(p => p.uid === partnerGemela2.uid && p.isAlive)) {
+            players = players.map(p => p.uid === partnerGemela2.uid ? { ...p, isAlive: false } : p);
+            history.push({ uid: partnerGemela2.uid, name: partnerGemela2.name, role: newRoles[partnerGemela2.uid] ?? 'Aldeano', round });
+          }
         }
       }
     }
@@ -2522,6 +2575,16 @@ export function GamePlay({ gameId }: { gameId: string }) {
             className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-colors"
           >
             Enviar mensaje anónimo
+          </button>
+          <button
+            onClick={async () => {
+              const newUsed = [...(game.fantasmaUsed ?? []), user.uid];
+              const newPending = (game.fantasmaPending ?? []).filter(uid => uid !== user.uid);
+              await updateDoc(doc(db, 'games', gameId), { fantasmaUsed: newUsed, fantasmaPending: newPending }).catch(() => {});
+            }}
+            className="mt-2 w-full bg-transparent border border-white/15 text-white/40 hover:text-white/60 text-sm py-2 rounded-xl transition-colors"
+          >
+            Pasar (no enviar mensaje)
           </button>
         </div>
       </div>
