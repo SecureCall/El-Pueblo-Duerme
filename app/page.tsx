@@ -16,6 +16,8 @@ import { NativeBanner } from '@/components/ads/NativeBanner';
 import { TutorialOverlay } from '@/components/game/TutorialOverlay';
 import { subscribeAndSave } from '@/lib/firebase/push';
 import { createQuickMatch } from '@/lib/game/quickMatch';
+import { DailyRewardModal } from '@/components/DailyRewardModal';
+import { getDailyRewardStatus, claimDailyReward, type DailyRewardStatus } from '@/lib/firebase/dailyReward';
 
 const ROLE_CARDS = [
   { icon: '🐺', name: 'Lobo', desc: 'Mata en silencio', color: 'from-red-900/60 to-black/60', border: 'border-red-800/40' },
@@ -72,11 +74,23 @@ export default function HomePage() {
   const [pushLoading, setPushLoading] = useState(false);
   const [lightMode, setLightMode] = useState(false);
   const [quickMatchLoading, setQuickMatchLoading] = useState(false);
+  const [dailyReward, setDailyReward] = useState<DailyRewardStatus | null>(null);
+  const [showDailyReward, setShowDailyReward] = useState(false);
 
   useEffect(() => {
     if ('Notification' in window) setPushGranted(Notification.permission === 'granted');
     if (localStorage.getItem('theme') === 'light') setLightMode(true);
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    getDailyRewardStatus(user.uid).then(status => {
+      if (status.canClaim) {
+        setDailyReward(status);
+        setTimeout(() => setShowDailyReward(true), 1200);
+      }
+    }).catch(() => {});
+  }, [user]);
 
   const toggleTheme = () => {
     const next = !lightMode;
@@ -309,6 +323,16 @@ export default function HomePage() {
 
       {showJoinModal && <JoinByCodeModal onClose={() => setShowJoinModal(false)} />}
       {showTutorial && <TutorialOverlay onClose={() => setShowTutorial(false)} />}
+      {showDailyReward && dailyReward && (
+        <DailyRewardModal
+          streak={dailyReward.streak}
+          todayReward={dailyReward.todayReward}
+          onClaim={async () => {
+            if (user) await claimDailyReward(user.uid);
+          }}
+          onClose={() => setShowDailyReward(false)}
+        />
+      )}
     </div>
   );
 }
