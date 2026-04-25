@@ -719,7 +719,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
                       <span className="font-medium flex-1 text-left">{p.name}</span>
                       {sel && game.roles?.[p.uid] && (
                         <span className="text-xs bg-black/50 border border-zinc-500/40 px-2 py-1 rounded-lg text-zinc-200">
-                          {ROLES[game.roles[p.uid]]?.emoji} {game.roles[p.uid]}
+                          {ROLES[game.roles?.[p.uid] ?? '']?.emoji} {game.roles?.[p.uid]}
                         </span>
                       )}
                       {p.isAI && <Bot className="h-3.5 w-3.5 text-cyan-400" />}

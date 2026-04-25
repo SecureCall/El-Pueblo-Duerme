@@ -1,15 +1,19 @@
 /**
  * POST /api/push-subscribe
- * Body: { uid: string, subscription: PushSubscription (JSON) }
- *
- * Stores the subscription in Firestore under users/{uid}/pushSubscriptions/{endpoint-hash}.
- * The server can later iterate these docs to send Web Push messages.
+ * Stores a push subscription for the authenticated user.
+ * Security: requires Firebase Auth token; uid must match the authenticated user.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from 'firebase-admin/firestore';
 import { initAdminApp } from '@/lib/firebase/admin';
+import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 
 export async function POST(req: NextRequest) {
+  const tokenUid = await verifyAuthToken(req);
+  if (!tokenUid) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
     const { uid, subscription } = body as {
@@ -25,17 +29,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'uid and subscription required' }, { status: 400 });
     }
 
+    if (tokenUid !== uid) {
+      return NextResponse.json({ error: 'UID no coincide con el token' }, { status: 403 });
+    }
+
     initAdminApp();
     const db = getFirestore();
-
-    // Use a hash of the endpoint as doc ID so we can upsert safely
     const hash = Buffer.from(subscription.endpoint).toString('base64url').slice(0, 40);
 
     await db
-      .collection('users')
-      .doc(uid)
-      .collection('pushSubscriptions')
-      .doc(hash)
+      .collection('users').doc(uid)
+      .collection('pushSubscriptions').doc(hash)
       .set({
         endpoint: subscription.endpoint,
         keys: subscription.keys,
@@ -47,6 +51,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error('[push-subscribe]', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Error interno' }, { status: 500 });
   }
 }

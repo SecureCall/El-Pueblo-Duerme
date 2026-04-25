@@ -152,14 +152,18 @@ service cloud.firestore {
             .hasOnly([request.auth.uid])
         )
 
-        // ⑤ Narrador y maldición (cursed/narratorBroadcast) durante la partida
+        // ⑤ Narrador y maldición (cursed/narratorBroadcast) — sólo el host durante la partida
         || (
+          request.auth.uid == resource.data.hostUid &&
           onlyUpdating(['cursed', 'narratorBroadcast']) &&
           (resource.data.phase == 'night' || resource.data.phase == 'day')
         )
 
-        // ⑥ Partida terminada — permite actualizaciones menores (revancha, etc.)
-        || resource.data.phase == 'ended'
+        // ⑥ Partida terminada — sólo participantes de la partida (revancha, etc.)
+        || (
+          resource.data.phase == 'ended' &&
+          resource.data.players.exists(p, p.uid == request.auth.uid)
+        )
 
         // ⑦ Traspaso de host — el reclamante debe ser un jugador real ya en la partida
         //    (el cliente aplica además un retardo de 90 s de inactividad del host)

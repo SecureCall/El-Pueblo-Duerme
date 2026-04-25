@@ -1,21 +1,20 @@
 /**
  * POST /api/push-send
- * Body: { uid: string, payload: PushPayload }
- *
- * Fetches all push subscriptions for the given uid from Firestore,
- * then sends a Web Push notification to each one using the VAPID keys.
- *
- * Environment variables required (server-side only):
- *   VAPID_PUBLIC_KEY   – base64url VAPID public key
- *   VAPID_PRIVATE_KEY  – base64url VAPID private key
- *   VAPID_SUBJECT      – mailto: or https: contact URI
+ * Sends a push notification to the given uid on behalf of the authenticated caller.
+ * Security: requires Firebase Auth token (prevents unauthenticated spam).
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from 'firebase-admin/firestore';
 import { initAdminApp } from '@/lib/firebase/admin';
+import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import webpush from 'web-push';
 
 export async function POST(req: NextRequest) {
+  const tokenUid = await verifyAuthToken(req);
+  if (!tokenUid) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  }
+
   try {
     const { uid, payload } = await req.json() as {
       uid: string;
@@ -46,18 +45,16 @@ export async function POST(req: NextRequest) {
     initAdminApp();
     const db = getFirestore();
     const subsSnapshot = await db
-      .collection('users')
-      .doc(uid)
-      .collection('pushSubscriptions')
-      .get();
+      .collection('users').doc(uid)
+      .collection('pushSubscriptions').get();
 
     if (subsSnapshot.empty) {
       return NextResponse.json({ ok: true, sent: 0, reason: 'no subscriptions' });
     }
 
     const results = await Promise.allSettled(
-      subsSnapshot.docs.map((doc) => {
-        const sub = doc.data();
+      subsSnapshot.docs.map((docSnap) => {
+        const sub = docSnap.data();
         return webpush.sendNotification(
           {
             endpoint: sub.endpoint,
@@ -78,10 +75,9 @@ export async function POST(req: NextRequest) {
 
     const sent = results.filter((r) => r.status === 'fulfilled').length;
     const failed = results.filter((r) => r.status === 'rejected').length;
-
     return NextResponse.json({ ok: true, sent, failed });
   } catch (err: any) {
     console.error('[push-send]', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Error interno' }, { status: 500 });
   }
 }

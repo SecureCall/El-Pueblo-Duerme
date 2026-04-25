@@ -116,7 +116,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
   };
 
   const kickPlayer = async (targetUid: string) => {
-    if (!isHost || !game) return;
+    if (!isHost || !game || targetUid === user?.uid) return;
     const target = game.players?.find(p => p.uid === targetUid);
     if (!target) return;
     await updateDoc(doc(db, 'games', gameId), {

@@ -155,6 +155,8 @@ export interface GameState {
   noExileActive?: boolean;
   narratorBroadcast?: { text: string; type: 'warning' | 'suspicion' | 'chaos' | 'irony' | 'accusation'; triggeredAt: number } | null;
   confessionUid?: string | null;
+  cursed?: { uid: string; round: number } | null;
+  lastXpAwardedAt?: number;
 }
 
 // ── Finite-State Machine: only these transitions are legal ────────────────
@@ -1920,7 +1922,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }
 
     // Maldición de Venganza: +1 voto al maldito si la maldición es de esta ronda
-    const cursed = (game as any).cursed;
+    const cursed = game.cursed;
     if (cursed?.uid && (cursed.round === round || cursed.round === round - 1)) {
       if (aliveBeforeDay.has(cursed.uid)) {
         tally[cursed.uid] = (tally[cursed.uid] ?? 0) + 1;
@@ -1970,18 +1972,30 @@ export function GamePlay({ gameId }: { gameId: string }) {
       if (chivoPlayer) { eliminated = chivoPlayer.uid; chivoPendingChoice = chivoPlayer.uid; }
     }
 
-    // Alborotadora fight: both fighters die
+    // Alborotadora fight: both fighters die (Prince check applies to fighters too)
     const alborotadoraFight = game.alborotadoraFight;
     if (alborotadoraFight) {
       for (const fightUid of alborotadoraFight) {
         const fighter = players.find(p => p.uid === fightUid && p.isAlive);
         if (fighter) {
+          // Príncipe sobrevive la pelea si no ha usado su poder
+          if (newRoles[fightUid] === 'Príncipe' && !game.principeUsed) {
+            await updateDoc(doc(db, 'games', gameId), { principeUsed: true }).catch(() => {});
+            continue; // El Príncipe no muere en la pelea
+          }
           players = players.map(p => p.uid === fightUid ? { ...p, isAlive: false } : p);
           history.push({ uid: fighter.uid, name: fighter.name, role: newRoles[fighter.uid] ?? 'Aldeano', round });
           if (newRoles[fightUid] === 'Fantasma' && !fantasmaUsed.includes(fightUid)) {
             fantasmaPending.push(fightUid);
           }
         }
+      }
+    }
+
+    // Si el más votado murió en la pelea de la Alborotadora, cancelar eliminación normal (evitar doble historia y cascada)
+    if (eliminated && alborotadoraFight?.includes(eliminated)) {
+      if (!players.find(p => p.uid === eliminated && p.isAlive)) {
+        eliminated = null;
       }
     }
 
@@ -2109,8 +2123,18 @@ export function GamePlay({ gameId }: { gameId: string }) {
       }
     }
 
-    const finalWinner = verdugosWin ? 'verdugo' : winResult.winner;
-    const finalMsg = verdugosWin ? verdugosWinMsg : winResult.message;
+    // Banshee: check day-phase prediction (predicted the lynched player)
+    let bansheePoints = game.bansheePoints ?? 0;
+    if (game.bansheePredictionUid && game.bansheePredictionUid === eliminated) {
+      bansheePoints += 1;
+    }
+    const bansheePlayer = players.find(p => newRoles[p.uid] === 'Banshee' && p.isAlive);
+    const bansheeWinDay = bansheePoints >= 2 && !!bansheePlayer;
+
+    const finalWinner = bansheeWinDay ? 'banshee' : verdugosWin ? 'verdugo' : winResult.winner;
+    const finalMsg = bansheeWinDay
+      ? `¡La Banshee predijo correctamente al ejecutado del pueblo y alcanza 2 predicciones! ¡Gana sola!`
+      : verdugosWin ? verdugosWinMsg : winResult.message;
 
     // ── Epic Moments: trigger narrative banners ───────────────────────────
     if (!finalWinner) {
@@ -2160,6 +2184,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
         fantasmaPending,
         silencedPlayers: [],
         bansheePredictionUid: null,
+        bansheePoints,
         phase: finalWinner ? 'ended' : 'night',
         winners: finalWinner ?? null,
         winMessage: finalMsg ?? null,
@@ -2223,11 +2248,16 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }).catch((e: unknown) => console.error('chivoChoice error:', e));
   }, [gameId]);
 
-  // Juez: calls a second vote during day phase
+  // Juez: calls a second vote during day phase (reset timer to give 30s to re-vote)
   const juezCallSecondVote = useCallback(async () => {
     if (!game) return;
-    await updateDoc(doc(db, 'games', gameId), { dayVotes: {}, juezUsed: true })
-      .catch((e: unknown) => console.error('juezSecondVote error:', e));
+    const now = Date.now();
+    await updateDoc(doc(db, 'games', gameId), {
+      dayVotes: {},
+      juezUsed: true,
+      dayStartedAt: now,
+      phaseEndsAt: now + 35000,
+    }).catch((e: unknown) => console.error('juezSecondVote error:', e));
   }, [game, gameId]);
 
   // Alborotadora: choose 2 players to fight
