@@ -1463,6 +1463,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
       enchanted, round, perroLoboChoices,
       cultMembers, vampiroKills, pescadorBoat, hadaLinked,
       nightKilledUids,
+      lovers: game.lovers ?? [],
     });
 
     // Banshee wins at 2 points
@@ -2077,12 +2078,14 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const winResult = checkWinCondition(players, newRoles, {
       enchanted, round,
       dayEliminatedUid: eliminated,
+      secondEliminatedUid: secondEliminated,
       eliminatedByVote: true,
       perroLoboChoices,
       cultMembers: game.cultMembers ?? [],
       vampiroKills: game.vampiroKills ?? 0,
       pescadorBoat: game.pescadorBoat ?? [],
       hadaLinked: game.hadaLinked ?? false,
+      lovers: game.lovers ?? [],
     });
 
     // Verdugo win check: if their secret target was lynched
@@ -2194,6 +2197,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
       vampiroKills: game.vampiroKills ?? 0,
       pescadorBoat: game.pescadorBoat ?? [],
       hadaLinked: game.hadaLinked ?? false,
+      lovers: game.lovers ?? [],
     });
     interruptWith(AUDIO_FILES.lastBullet);
     await updateDoc(doc(db, 'games', gameId), {

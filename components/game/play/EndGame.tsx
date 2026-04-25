@@ -89,12 +89,17 @@ function getWinnerDisplay(winners: string | null): { emoji: string; title: strin
     case 'ebrio':     return { emoji: '🍺', title: '¡El Ebrio Se Ha Llevado la Victoria!', bg: 'from-orange-900/60 to-black' };
     case 'verdugo':   return { emoji: '🪓', title: '¡El Verdugo Ha Triunfado!',         bg: 'from-stone-900/60 to-black' };
     case 'culto':     return { emoji: '🕯️', title: '¡El Culto Ha Tomado el Pueblo!',  bg: 'from-violet-900/60 to-black' };
-    case 'pescador':  return { emoji: '🎣', title: '¡El Pescador Ha Ganado!',           bg: 'from-cyan-900/60 to-black' };
-    default:          return { emoji: '⚖️', title: 'Partida Terminada',                 bg: 'from-gray-900/60 to-black' };
+    case 'pescador':   return { emoji: '🎣', title: '¡El Pescador Ha Ganado!',              bg: 'from-cyan-900/60 to-black' };
+    case 'lobo_blanco': return { emoji: '🐺', title: '¡El Lobo Blanco Gana en Solitario!', bg: 'from-slate-800/60 to-black' };
+    case 'lovers':    return { emoji: '💘', title: '¡Los Enamorados Triunfan Juntos!',     bg: 'from-pink-900/60 to-black' };
+    case 'banshee':   return { emoji: '👻', title: '¡La Banshee Ha Ganado!',              bg: 'from-indigo-900/60 to-black' };
+    case 'hadas':     return { emoji: '🧚', title: '¡Las Hadas Han Ganado!',              bg: 'from-emerald-900/60 to-black' };
+    case 'lider_culto': return { emoji: '🕯️', title: '¡El Culto Ha Tomado el Pueblo!',  bg: 'from-violet-900/60 to-black' };
+    default:          return { emoji: '⚖️', title: 'Partida Terminada',                  bg: 'from-gray-900/60 to-black' };
   }
 }
 
-function didIWin(winners: string | null, myRole?: string): boolean {
+function didIWin(winners: string | null, myRole?: string, myUid?: string, game?: GameState): boolean {
   if (!myRole || !winners) return false;
   const roleInfo = ROLES[myRole];
   if (!roleInfo) return false;
@@ -106,8 +111,15 @@ function didIWin(winners: string | null, myRole?: string): boolean {
   if (winners === 'vampiro')   return myRole === 'Vampiro';
   if (winners === 'ebrio')     return myRole === 'Hombre Ebrio';
   if (winners === 'verdugo')   return myRole === 'Verdugo';
-  if (winners === 'culto')     return myRole === 'Líder del Culto';
-  if (winners === 'pescador')  return myRole === 'Pescador';
+  if (winners === 'culto' || winners === 'lider_culto') return myRole === 'Líder del Culto';
+  if (winners === 'pescador')   return myRole === 'Pescador';
+  if (winners === 'lobo_blanco') return myRole === 'Lobo Blanco';
+  if (winners === 'banshee')    return myRole === 'Banshee';
+  if (winners === 'hadas')      return myRole === 'Hada Buscadora' || myRole === 'Hada Durmiente';
+  if (winners === 'lovers') {
+    const loversUids = game?.lovers ?? [];
+    return myUid ? loversUids.includes(myUid) : false;
+  }
   return false;
 }
 
@@ -170,7 +182,7 @@ const REMATCH_SECS = 15;
 
 export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winners, winMessage, onPlayAgain, onPlayAgainSameRoom }: Props) {
   const { emoji, title, bg } = getWinnerDisplay(winners);
-  const iWon = didIWin(winners, myRole);
+  const iWon = didIWin(winners, myRole, myUid, game);
   const { interruptWith } = useNarrator();
   const xpAwarded = useRef(false);
   const [xpResult, setXpResult] = useState<XPResult | null>(null);

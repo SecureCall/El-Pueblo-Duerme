@@ -607,6 +607,7 @@ interface WinCheckOpts {
   enchanted?: string[];
   round?: number;
   dayEliminatedUid?: string | null;
+  secondEliminatedUid?: string | null;
   eliminatedByVote?: boolean;
   perroLoboChoices?: Record<string, 'wolves' | 'village'>;
   cultMembers?: string[];
@@ -614,6 +615,7 @@ interface WinCheckOpts {
   pescadorBoat?: string[];
   hadaLinked?: boolean;
   nightKilledUids?: string[];
+  lovers?: string[];
 }
 
 interface WinResult {
@@ -627,9 +629,9 @@ export function checkWinCondition(
   opts: WinCheckOpts = {}
 ): WinResult {
   const {
-    enchanted = [], round = 1, dayEliminatedUid, eliminatedByVote,
+    enchanted = [], round = 1, dayEliminatedUid, secondEliminatedUid, eliminatedByVote,
     perroLoboChoices = {}, cultMembers = [], vampiroKills = 0,
-    pescadorBoat = [], hadaLinked = false, nightKilledUids = [],
+    pescadorBoat = [], hadaLinked = false, nightKilledUids = [], lovers = [],
   } = opts;
 
   const effectiveRoles: Record<string, string> = { ...roles };
@@ -639,18 +641,17 @@ export function checkWinCondition(
 
   const alive = players.filter(p => p.isAlive);
 
+  // Comprobación de eliminados por voto (incluye doble ejecución)
+  const lynched = [dayEliminatedUid, secondEliminatedUid].filter(Boolean) as string[];
+
   // Angel: wins if eliminated by village vote in round 1
-  if (dayEliminatedUid && eliminatedByVote && round === 1) {
-    if (effectiveRoles[dayEliminatedUid] === 'Ángel') {
-      return { winner: 'angel', message: '¡El Ángel fue ejecutado en la primera ronda y gana solo!' };
-    }
+  if (eliminatedByVote && round === 1 && lynched.some(uid => effectiveRoles[uid] === 'Ángel')) {
+    return { winner: 'angel', message: '¡El Ángel fue ejecutado en la primera ronda y gana solo!' };
   }
 
   // Hombre Ebrio: wins if lynched by village vote OR killed by wolves at night
-  if (dayEliminatedUid && eliminatedByVote) {
-    if (effectiveRoles[dayEliminatedUid] === 'Hombre Ebrio') {
-      return { winner: 'ebrio', message: '¡El Hombre Ebrio lo logró! Consiguió que el pueblo lo linchara y gana en solitario. ¡Era su plan desde el principio!' };
-    }
+  if (eliminatedByVote && lynched.some(uid => effectiveRoles[uid] === 'Hombre Ebrio')) {
+    return { winner: 'ebrio', message: '¡El Hombre Ebrio lo logró! Consiguió que el pueblo lo linchara y gana en solitario. ¡Era su plan desde el principio!' };
   }
   // Night kill (wolves / poison / etc.)
   if (nightKilledUids.some(uid => effectiveRoles[uid] === 'Hombre Ebrio')) {
@@ -717,6 +718,32 @@ export function checkWinCondition(
     if (nonHadas.length === 0 && alive.some(p => effectiveRoles[p.uid] === 'Hada Buscadora') &&
         alive.some(p => effectiveRoles[p.uid] === 'Hada Durmiente')) {
       return { winner: 'hadas', message: '¡Las Hadas son las últimas en pie y ganan juntas!' };
+    }
+  }
+
+  // Lobo Blanco: gana en solitario si es el único lobo vivo y los lobos igualan/superan al pueblo
+  if (aliveWolves.length >= aliveVillagers.length && aliveWolves.length > 0) {
+    const soloLoboBlanco =
+      aliveWolves.length === 1 && effectiveRoles[aliveWolves[0].uid] === 'Lobo Blanco';
+    if (soloLoboBlanco) {
+      return { winner: 'lobo_blanco', message: '¡El Lobo Blanco eliminó a sus propios aliados y gana en solitario!' };
+    }
+  }
+
+  // Enamorados: ganan juntos si son los dos últimos supervivientes (de bandos distintos)
+  if (lovers.length === 2) {
+    const [l1, l2] = lovers;
+    const loverOneAlive = alive.some(p => p.uid === l1);
+    const loverTwoAlive = alive.some(p => p.uid === l2);
+    if (loverOneAlive && loverTwoAlive && alive.length === 2) {
+      const r1 = effectiveRoles[l1] ?? '';
+      const r2 = effectiveRoles[l2] ?? '';
+      const l1IsWolf = ['Lobo', 'Lobo Blanco', 'Cría de Lobo'].includes(r1);
+      const l2IsWolf = ['Lobo', 'Lobo Blanco', 'Cría de Lobo'].includes(r2);
+      // Victoria de enamorados sólo si son de bandos distintos (el caso interesante)
+      if (l1IsWolf !== l2IsWolf) {
+        return { winner: 'lovers', message: '¡Los enamorados sobrevivieron juntos hasta el final y ganan en solitario!' };
+      }
     }
   }
 
