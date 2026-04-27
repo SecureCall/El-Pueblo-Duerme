@@ -1,6 +1,7 @@
 import { LoginForm } from '@/components/auth/LoginForm';
 import Image from 'next/image';
 import Link from 'next/link';
+import { Suspense } from 'react';
 
 export default function LoginPage() {
   return (
@@ -54,7 +55,9 @@ export default function LoginPage() {
             <p className="text-white/40 text-sm mt-1">Inicia sesión para unirte a la partida</p>
           </div>
 
-          <LoginForm />
+          <Suspense fallback={<div className="h-48 flex items-center justify-center"><div className="w-6 h-6 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" /></div>}>
+            <LoginForm />
+          </Suspense>
 
           <div className="mt-8 text-center">
             <Link href="/" className="text-white/25 hover:text-white/50 text-xs transition-colors">
