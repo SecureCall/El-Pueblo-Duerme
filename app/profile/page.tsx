@@ -63,7 +63,7 @@ export default function ProfilePage() {
 
   const handleLogout = async () => {
     await signOut(auth);
-    router.push('/');
+    window.location.href = '/login?logout=true';
   };
 
   if (isLoading || loading) {
