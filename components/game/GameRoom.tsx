@@ -6,7 +6,7 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { db } from '@/lib/firebase/config';
 import {
   doc, onSnapshot, updateDoc, arrayUnion, arrayRemove, serverTimestamp,
-  collection, addDoc, query, orderBy, limit, onSnapshot as onSnap, deleteDoc,
+  collection, addDoc, query, orderBy, limit, onSnapshot as onSnap,
 } from 'firebase/firestore';
 import { Copy, Crown, LogOut, Send, Users, Loader2, Bot, Share2, MessageCircle, Facebook, Link, Check, UserPlus } from 'lucide-react';
 import { useNarrator, waitForAudio } from '@/hooks/useNarrator';
@@ -15,7 +15,7 @@ import { FriendsPanel } from '@/components/friends/FriendsPanel';
 import { sendFriendRequest } from '@/lib/firebase/friends';
 import { BOT_NAMES, assignBotType, type BotType } from '@/lib/bots/botSystem';
 import { getBehaviorProfile } from '@/lib/bots/playerStats';
-import { updateGamePresence } from '@/lib/game/client-actions';
+import { leaveGame as leaveGameServer, updateGamePresence } from '@/lib/game/client-actions';
 
 interface Player {
   uid: string;
@@ -201,20 +201,14 @@ export function GameRoom({ gameId }: { gameId: string }) {
   };
 
   const leaveGame = async () => {
-    if (!user || !game) return;
-    const me = game.players?.find(p => p.uid === user.uid);
-    const remainingHumans = (game.players ?? []).filter(p => !p.isAI && p.uid !== user.uid);
-    if (remainingHumans.length === 0 && game.isPublic) {
-      await deleteDoc(doc(db, 'games', gameId)).catch(() => {});
-    } else if (me) {
-      const updates: Record<string, unknown> = { playerCount: Math.max(0, (game.playerCount ?? 1) - 1) };
-      if (me.isHost && remainingHumans.length > 0) {
-        const newHost = remainingHumans[0]; updates['hostUid'] = newHost.uid; updates['hostName'] = newHost.name;
-        updates['players'] = (game.players ?? []).filter(p => p.uid !== user.uid).map(p => ({ ...p, isHost: p.uid === newHost.uid }));
-      } else updates['players'] = arrayRemove(me);
-      await updateDoc(doc(db, 'games', gameId), updates).catch(() => {});
+    if (!user) return;
+    try {
+      await leaveGameServer(user, gameId);
+    } catch (error) {
+      console.error('Error leaving game:', error);
+    } finally {
+      router.push('/');
     }
-    router.push('/');
   };
 
   const getShareData = () => { const code = game?.code ?? ''; const url = typeof window !== 'undefined' ? window.location.href : ''; return { code, url, text: `¡Únete a mi partida de El Pueblo Duerme! 🐺\nCódigo: ${code}\n${url}` }; };
