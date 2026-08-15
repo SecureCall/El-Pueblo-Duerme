@@ -25,3 +25,7 @@ export async function joinGame(user: User, gameId: string, playerName: string) {
 export async function updateGamePresence(user: User, gameId: string) {
   return postGameAction(user, '/api/game/presence', { gameId });
 }
+
+export async function leaveGame(user: User, gameId: string) {
+  return postGameAction(user, '/api/game/leave', { gameId });
+}
