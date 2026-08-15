@@ -3,6 +3,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { initAdminApp } from '@/lib/firebase/admin';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { z } from 'zod';
+import { ROLES } from '@/components/game/play/roles';
 
 const CreateGameSchema = z.object({
   name: z.string().trim().min(1).max(50),
@@ -16,6 +17,7 @@ const CreateGameSchema = z.object({
 });
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const CASUAL_ROLES = new Set(['Vidente', 'Doctor', 'Hechicera', 'Cazador', 'Cupido', 'Guardián', 'Príncipe', 'Sheriff']);
 
 function generateCode(length = 6) {
   const bytes = crypto.getRandomValues(new Uint8Array(length));
@@ -24,6 +26,16 @@ function generateCode(length = 6) {
 
 function wolfCount(players: number) {
   return Math.max(1, Math.floor(players / 5));
+}
+
+function validateRoles(roles: string[], mode: 'casual' | 'normal' | 'chaos') {
+  const invalid = roles.filter(role => !ROLES[role] && !CASUAL_ROLES.has(role));
+  if (invalid.length) return `Roles no válidos: ${invalid.join(', ')}`;
+  if (mode === 'casual') {
+    const invalidCasual = roles.filter(role => !CASUAL_ROLES.has(role));
+    if (invalidCasual.length) return 'El modo Casual contiene roles no permitidos';
+  }
+  return null;
 }
 
 export async function POST(req: NextRequest) {
@@ -41,6 +53,9 @@ export async function POST(req: NextRequest) {
   if (uniqueRoles.length !== input.specialRoles.length) {
     return NextResponse.json({ error: 'No se permiten roles duplicados' }, { status: 400 });
   }
+
+  const roleError = validateRoles(uniqueRoles, input.gameMode);
+  if (roleError) return NextResponse.json({ error: roleError }, { status: 400 });
 
   try {
     initAdminApp();
@@ -78,14 +93,7 @@ export async function POST(req: NextRequest) {
       playerCount: 1,
       status: 'lobby',
       phase: 'lobby',
-      players: [{
-        uid,
-        name: displayName,
-        photoURL: '',
-        isHost: true,
-        isAlive: true,
-        role: null,
-      }],
+      players: [{ uid, name: displayName, photoURL: '', isHost: true, isAlive: true, role: null }],
       createdAt: FieldValue.serverTimestamp(),
     };
 
