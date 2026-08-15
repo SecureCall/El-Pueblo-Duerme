@@ -71,12 +71,16 @@ export async function POST(req: NextRequest) {
       if (!validation.ok) throw new Error(validation.code);
 
       const round = Number(gameData.roundNumber ?? 1);
-      const existing = gameData.nightSubmissions?.[authoritativeRole];
+      const submissions = gameData.nightSubmissions && typeof gameData.nightSubmissions === 'object'
+        ? gameData.nightSubmissions as Record<string, Record<string, unknown>>
+        : {};
+      const submissionKey = `${uid}:${round}`;
+      const existing = submissions[submissionKey];
       if (existing && Number(existing.round ?? 0) === round) return { duplicate: true };
 
       transaction.set(gameRef, {
         nightSubmissions: {
-          [authoritativeRole]: { ...payload, round, uid, syncedAt: FieldValue.serverTimestamp(), ...(requestId ? { requestId } : {}) },
+          [submissionKey]: { ...payload, role: authoritativeRole, round, uid, syncedAt: FieldValue.serverTimestamp(), ...(requestId ? { requestId } : {}) },
         },
       }, { merge: true });
       return { duplicate: false };
