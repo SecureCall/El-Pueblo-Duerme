@@ -2,12 +2,6 @@
 // v3 - PWA + build fix
 const nextConfig = {
   trailingSlash: false,
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   devIndicators: { appIsrStatus: false },
   images: {
     remotePatterns: [
@@ -40,7 +34,6 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // ads.txt — must be plain text, no cache so AdSense always reads fresh
         source: '/ads.txt',
         headers: [
           { key: 'Content-Type', value: 'text/plain; charset=utf-8' },
@@ -49,7 +42,6 @@ const nextConfig = {
         ],
       },
       {
-        // Service worker must not be cached by the browser or CDN
         source: '/sw.js',
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
@@ -58,7 +50,6 @@ const nextConfig = {
         ],
       },
       {
-        // Web App Manifest
         source: '/manifest.json',
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
@@ -67,7 +58,6 @@ const nextConfig = {
         ],
       },
       {
-        // Web App Origin Association — required for scope_extensions validation
         source: '/.well-known/web-app-origin-association',
         headers: [
           { key: 'Content-Type', value: 'application/json; charset=utf-8' },
