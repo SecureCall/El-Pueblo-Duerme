@@ -29,3 +29,7 @@ export async function updateGamePresence(user: User, gameId: string) {
 export async function leaveGame(user: User, gameId: string) {
   return postGameAction(user, '/api/game/leave', { gameId });
 }
+
+export async function kickGamePlayer(user: User, gameId: string, targetUid: string) {
+  return postGameAction(user, '/api/game/kick', { gameId, targetUid });
+}
