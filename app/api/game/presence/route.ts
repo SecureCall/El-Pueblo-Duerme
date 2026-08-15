@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { initAdminApp } from '@/lib/firebase/admin';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { z } from 'zod';
@@ -32,9 +32,8 @@ export async function POST(req: NextRequest) {
       const index = players.findIndex((player: any) => player?.uid === uid);
       if (index < 0) throw new Error('NOT_IN_GAME');
 
-      const current = players[index] ?? {};
       const updatedPlayers = players.map((player: any, i: number) =>
-        i === index ? { ...player, lastSeen: FieldValue.serverTimestamp() } : player
+        i === index ? { ...player, lastSeen: Timestamp.now() } : player
       );
       tx.update(gameRef, { players: updatedPlayers });
     });
