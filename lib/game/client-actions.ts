@@ -10,30 +10,14 @@ async function postGameAction(user: User, path: string, body: Record<string, unk
     },
     body: JSON.stringify(body),
   });
-
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(typeof data?.error === 'string' ? data.error : 'Error de partida');
-  }
+  if (!response.ok) throw new Error(typeof data?.error === 'string' ? data.error : 'Error de partida');
   return data;
 }
 
-export async function joinGame(user: User, gameId: string, playerName: string) {
-  return postGameAction(user, '/api/game/join', { gameId, playerName });
-}
-
-export async function updateGamePresence(user: User, gameId: string) {
-  return postGameAction(user, '/api/game/presence', { gameId });
-}
-
-export async function leaveGame(user: User, gameId: string) {
-  return postGameAction(user, '/api/game/leave', { gameId });
-}
-
-export async function kickGamePlayer(user: User, gameId: string, targetUid: string) {
-  return postGameAction(user, '/api/game/kick', { gameId, targetUid });
-}
-
-export async function autofillGame(user: User, gameId: string) {
-  return postGameAction(user, '/api/game/autofill', { gameId });
-}
+export const joinGame = (user: User, gameId: string, playerName: string) => postGameAction(user, '/api/game/join', { gameId, playerName });
+export const updateGamePresence = (user: User, gameId: string) => postGameAction(user, '/api/game/presence', { gameId });
+export const leaveGame = (user: User, gameId: string) => postGameAction(user, '/api/game/leave', { gameId });
+export const kickGamePlayer = (user: User, gameId: string, targetUid: string) => postGameAction(user, '/api/game/kick', { gameId, targetUid });
+export const autofillGame = (user: User, gameId: string) => postGameAction(user, '/api/game/autofill', { gameId });
+export const startGameServer = (user: User, gameId: string) => postGameAction(user, '/api/game/start', { gameId });
