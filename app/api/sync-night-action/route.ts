@@ -10,27 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { initAdminApp } from '@/lib/firebase/admin';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
-
-const ALLOWED_PAYLOAD_KEYS = new Set([
-  'wolfTarget', 'wolfTarget2', 'seerTarget', 'seerTarget2',
-  'witchSave', 'witchPoison', 'cupidTargets', 'guardianTarget',
-  'flautistaTargets', 'loboBlancoCide', 'perroLoboSide', 'salvajeMentor',
-  'profetaTarget', 'sacerdoteTarget', 'ladronTarget', 'espiaActivate',
-  'ancianaTarget', 'angelResucitarTarget', 'doctorTarget', 'silenciadoraTarget',
-  'sirenaTarget', 'virginiawoolTarget', 'vigiaActivate', 'bansheePrediction',
-  'cambiaformasTarget', 'liderCultoTarget', 'pescadorTarget', 'vampiroTarget',
-  'hadaBuscadoraTarget', 'brujaTarget', 'forenseTarget', 'saboteadorTarget',
-]);
-
-function isSafeValue(value: unknown): boolean {
-  if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return true;
-  }
-  if (Array.isArray(value)) {
-    return value.length <= 8 && value.every(item => typeof item === 'string' && item.length <= 128);
-  }
-  return false;
-}
+import { resolveAuthoritativeRole, validateNightActionPayload } from '@/lib/game/nightActionSecurity';
 
 export async function POST(req: NextRequest) {
   const tokenUid = await verifyAuthToken(req);
@@ -60,9 +40,7 @@ export async function POST(req: NextRequest) {
     if (requestId !== undefined && (typeof requestId !== 'string' || requestId.length > 128)) {
       return NextResponse.json({ error: 'requestId inválido' }, { status: 400 });
     }
-
-    const invalidKeys = Object.keys(payload).filter(key => !ALLOWED_PAYLOAD_KEYS.has(key));
-    if (invalidKeys.length > 0 || Object.values(payload).some(value => !isSafeValue(value))) {
+    if (!validateNightActionPayload(payload)) {
       return NextResponse.json({ error: 'Payload de acción no permitido' }, { status: 400 });
     }
 
@@ -84,14 +62,14 @@ export async function POST(req: NextRequest) {
 
       // Private role document is the preferred authority. During migration,
       // accept the existing server-controlled roles map as a compatibility path.
-      const privateRoleSnap = await transaction.get(
-        gameRef.collection('playerRoles').doc(uid)
+      const privateRoleSnap = await transaction.get(gameRef.collection('playerRoles').doc(uid));
+      const authoritativeRole = resolveAuthoritativeRole(
+        privateRoleSnap.exists ? privateRoleSnap.data() : null,
+        gameData.roles,
+        uid,
       );
-      const authoritativeRole = privateRoleSnap.exists
-        ? privateRoleSnap.data()?.role
-        : gameData.roles?.[uid];
 
-      if (typeof authoritativeRole !== 'string' || authoritativeRole !== requestedRole) {
+      if (!authoritativeRole || authoritativeRole !== requestedRole) {
         throw new Error('ROLE_MISMATCH');
       }
 
@@ -111,7 +89,7 @@ export async function POST(req: NextRequest) {
       transaction.set(
         gameRef,
         { nightSubmissions: { [authoritativeRole]: safePayload } },
-        { merge: true }
+        { merge: true },
       );
 
       return { duplicate: false };
