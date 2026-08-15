@@ -7,14 +7,12 @@ import { db } from '@/lib/firebase/config';
 import {
   doc, onSnapshot, updateDoc, arrayUnion, arrayRemove, serverTimestamp,
   collection, addDoc, query, orderBy, limit, onSnapshot as onSnap, deleteDoc,
-  getDoc,
 } from 'firebase/firestore';
 import { Copy, Crown, LogOut, Send, Users, Loader2, Bot, Share2, MessageCircle, Facebook, Link, Check, UserPlus } from 'lucide-react';
 import { useNarrator, waitForAudio } from '@/hooks/useNarrator';
 import { useAudio } from '@/app/providers/AudioProvider';
 import { FriendsPanel } from '@/components/friends/FriendsPanel';
 import { sendFriendRequest } from '@/lib/firebase/friends';
-import { xpToLevel, levelEmoji } from '@/lib/firebase/xp';
 import { BOT_NAMES, assignBotType, type BotType } from '@/lib/bots/botSystem';
 import { getBehaviorProfile } from '@/lib/bots/playerStats';
 import { updateGamePresence } from '@/lib/game/client-actions';
@@ -153,20 +151,8 @@ export function GameRoom({ gameId }: { gameId: string }) {
     return () => unsub();
   }, [game, gameId]);
 
-  useEffect(() => {
-    if (!user || !game) return;
-    const already = game.players?.some(p => p.uid === user.uid);
-    if (!already) {
-      const resolvedName = user.displayName || user.email?.split('@')[0] || 'Jugador';
-      getDoc(doc(db, 'users', user.uid)).then(snap => {
-        const xp = snap.exists() ? (snap.data().xp ?? 0) : 0;
-        const newPlayer: Player = { uid: user.uid, name: resolvedName, photoURL: user.photoURL ?? '', isHost: false, isAlive: true, role: null, level: xpToLevel(xp), lastSeen: Date.now() };
-        updateDoc(doc(db, 'games', gameId), { players: arrayUnion(newPlayer), playerCount: (game.playerCount ?? 1) + 1 }).catch(() => {});
-      }).catch(() => {});
-    }
-  }, [user, game, gameId]);
+  // JOIN is server-authoritative. GameRoom no longer mutates players to add the current user.
 
-  // Presence is now server-authoritative; the browser sends only its game identity.
   useEffect(() => {
     if (!user || !game) return;
     const updatePresence = () => { void updateGamePresence(user, gameId).catch(() => {}); };
