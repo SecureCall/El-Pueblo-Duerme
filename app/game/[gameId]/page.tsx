@@ -1,7 +1,7 @@
 "use client";
 
-import { GameRoom } from "@/components/game/GameRoom";
+import { SecureGameRoomEntry } from "@/components/game/SecureGameRoomEntry";
 
 export default function GamePage({ params }: { params: { gameId: string } }) {
-  return <GameRoom gameId={params.gameId} />;
+  return <SecureGameRoomEntry gameId={params.gameId} />;
 }
