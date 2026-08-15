@@ -19,6 +19,16 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny(keys);
     }
 
+    // ── Fields controlled by trusted server code ────────────────────────────
+    // These values must never be writable by a browser. Admin SDK writes are
+    // not evaluated by Firestore Security Rules.
+    function touchesServerControlledFields() {
+      return affectedAre([
+        'coins', 'dailyStreak',
+        'xp', 'gamesPlayed', 'gamesWon', 'consecutiveWins'
+      ]);
+    }
+
     // ── Fields exclusively controlled by the host ─────────────────────────
     function touchesSensitiveFields() {
       return affectedAre([
@@ -48,71 +58,52 @@ service cloud.firestore {
       ]);
     }
 
-    // ── Campos de progresión — sólo escritura via Admin SDK (servidor) ────
-    // xp, gamesPlayed, gamesWon, consecutiveWins nunca se escriben desde el cliente.
-    function touchesProgressionFields() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
-        'xp', 'gamesPlayed', 'gamesWon', 'consecutiveWins'
-      ]);
-    }
-
     // ── Users ──────────────────────────────────────────────────────────────
     match /users/{userId} {
-      allow read: if isAuth();
-      allow create: if isAuth() && request.auth.uid == userId;
+      // User documents contain private progression and economy data.
+      allow read: if isAuth() && request.auth.uid == userId;
+
+      allow create: if isAuth()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly([
+          'uid', 'displayName', 'photoURL', 'friends', 'friendRequests',
+          'xp', 'gamesPlayed', 'gamesWon', 'consecutiveWins'
+        ])
+        && request.resource.data.uid == userId
+        && request.resource.data.xp == 0
+        && request.resource.data.gamesPlayed == 0
+        && request.resource.data.gamesWon == 0
+        && request.resource.data.consecutiveWins == 0;
+
       allow update: if isAuth() && (
-        // El propietario puede actualizar su perfil, EXCEPTO campos de progresión (sólo servidor)
         (
           request.auth.uid == userId
-          && !touchesProgressionFields()
-          && (
-            !affectedAre(['coins'])
-            // Gasto en tienda: monedas solo pueden decrementarse
-            || request.resource.data.coins <= resource.data.coins
-            // Premio por vídeo: solo se permiten incrementos de exactamente 50 monedas
-            || (
-              request.resource.data.coins - resource.data.coins == 50
-              && onlyUpdating(['coins'])
-            )
-            // Premio diario: incremento válido junto a actualización de dailyStreak
-            || (
-              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coins', 'dailyStreak'])
-              && (request.resource.data.coins - resource.data.coins) in [25, 35, 40, 50, 60, 75, 80, 100, 150]
-            )
-          )
+          && !touchesServerControlledFields()
         )
-        // Cualquier usuario autenticado puede añadir solicitudes de amistad al perfil ajeno
-        || onlyUpdating(['friendRequests'])
+        // A user may send exactly one new friend request to another profile,
+        // but cannot overwrite the existing request list.
+        || (
+          onlyUpdating(['friendRequests'])
+          && request.resource.data.friendRequests.hasAll(resource.data.friendRequests)
+          && request.resource.data.friendRequests.size() <= resource.data.friendRequests.size() + 1
+          && request.resource.data.friendRequests.hasAny([request.auth.uid])
+        )
       );
     }
 
     // ── Coin history ────────────────────────────────────────────────────────
-    // El servidor puede escribir siempre. El cliente solo puede crear entradas de vídeo (50 monedas).
+    // Server-only ledger. The client may read its own history but cannot mint entries.
     match /users/{userId}/coinHistory/{historyId} {
       allow read: if isAuth() && request.auth.uid == userId;
-      allow create: if isAuth()
-        && request.auth.uid == userId
-        && request.resource.data.keys().hasOnly(['amount', 'reason', 'createdAt'])
-        && (
-          // Premio por vídeo
-          (request.resource.data.amount == 50 && request.resource.data.reason == 'video')
-          // Premio diario
-          || (
-            request.resource.data.reason == 'daily_reward'
-            && request.resource.data.amount in [25, 35, 40, 50, 60, 75, 80, 100, 150]
-          )
-        );
-      allow update, delete: if false;
+      allow create, update, delete: if false;
     }
 
-    // ── Purchases (artículos comprados en tienda) ──────────────────────────
-    // El cliente crea el registro al gastar monedas. Sólo los campos esperados.
+    // ── Purchases ──────────────────────────────────────────────────────────
+    // Purchase records are created atomically by the server after validating
+    // the item price and the user's balance.
     match /users/{userId}/purchases/{purchaseId} {
       allow read: if isAuth() && request.auth.uid == userId;
-      allow create: if isAuth()
-        && request.auth.uid == userId
-        && request.resource.data.keys().hasOnly(['itemId', 'itemName', 'amount', 'purchasedAt']);
-      allow update, delete: if false;
+      allow create, update, delete: if false;
     }
 
     // ── Presence (heartbeat during game) ───────────────────────────────────
@@ -122,13 +113,11 @@ service cloud.firestore {
     }
 
     // ── Player behavior & stats ────────────────────────────────────────────
-    // El host registra estadísticas de todos los jugadores al final de la partida.
     match /playerBehavior/{userId} {
-      allow read: if isAuth();
-      allow write: if isAuth();
+      allow read, write: if isAuth() && request.auth.uid == userId;
     }
 
-    // ── Game invites ────────────────────────────────────────────────────────
+    // ── Game invites ───────────────────────────────────────────────────────
     match /gameInvites/{userId}/items/{inviteId} {
       allow read, delete: if isAuth() && request.auth.uid == userId;
       allow create: if isAuth();
@@ -144,16 +133,18 @@ service cloud.firestore {
 
       allow update: if isAuth() && (
 
-        // ① Host puede modificar cualquier campo
+        // ① Host can currently mutate game state. This remains a launch blocker:
+        //    game-state authority must move to trusted server code before release.
         request.auth.uid == resource.data.hostUid
 
-        // ② Unirse al lobby — sólo mientras está en estado lobby
+        // ② Join lobby — only player roster fields.
         || (
           resource.data.status == 'lobby' &&
           onlyUpdating(['players', 'playerCount'])
         )
 
-        // ③ Enviar acción nocturna — sólo nightActions/nightSubmissions, sin campos sensibles
+        // ③ Submit night action data. Validation of role/target semantics must
+        //    ultimately happen in the server game engine.
         || (
           resource.data.phase == 'night' &&
           affectedAre(['nightActions', 'nightSubmissions']) &&
@@ -161,7 +152,7 @@ service cloud.firestore {
           !affectedAre(['dayVotes', 'players'])
         )
 
-        // ④ Votar de día — sólo la propia clave del uid votante, sólo en fase de día/votación
+        // ④ Day vote — only the authenticated player's vote key.
         || (
           (resource.data.phase == 'day' || resource.data.phase == 'voting') &&
           affectedAre(['dayVotes']) &&
@@ -173,21 +164,21 @@ service cloud.firestore {
             .hasOnly([request.auth.uid])
         )
 
-        // ⑤ Narrador y maldición (cursed/narratorBroadcast) — sólo el host durante la partida
+        // ⑤ Narrator and curse broadcasts.
         || (
           request.auth.uid == resource.data.hostUid &&
           onlyUpdating(['cursed', 'narratorBroadcast']) &&
           (resource.data.phase == 'night' || resource.data.phase == 'day')
         )
 
-        // ⑥ Partida terminada — sólo participantes de la partida (revancha, etc.)
+        // ⑥ Ended game — only participants.
         || (
           resource.data.phase == 'ended' &&
           resource.data.players.exists(p, p.uid == request.auth.uid)
         )
 
-        // ⑦ Traspaso de host — el reclamante debe ser un jugador real ya en la partida
-        //    (el cliente aplica además un retardo de 90 s de inactividad del host)
+        // ⑦ Host transfer — client-side transfer remains provisional until the
+        //    trusted game engine owns host election.
         || (
           onlyUpdating(['hostUid', 'players']) &&
           request.resource.data.hostUid == request.auth.uid &&
@@ -195,14 +186,14 @@ service cloud.firestore {
           resource.data.players.exists(p, p.uid == request.auth.uid)
         )
 
-        // ⑧ Banshee day prediction — el jugador Banshee puede escribir su predicción durante el día
+        // ⑧ Banshee prediction.
         || (
           resource.data.phase == 'day' &&
           onlyUpdating(['bansheePredictionUid']) &&
           resource.data.players.exists(p, p.uid == request.auth.uid)
         )
 
-        // ⑨ Fantasma: el jugador Fantasma muerto puede marcar su mensaje como enviado
+        // ⑨ Ghost usage marker.
         || (
           onlyUpdating(['fantasmaUsed', 'fantasmaPending']) &&
           resource.data.players.exists(p, p.uid == request.auth.uid)
@@ -232,7 +223,6 @@ service cloud.firestore {
       allow write: if isAuth() && isHost(gameId);
     }
 
-    // ── Votos de día — cada jugador sólo escribe su propio documento ───────
     match /games/{gameId}/votes/{voterUid} {
       allow read: if isAuth();
       allow create, update: if isAuth()
@@ -274,7 +264,6 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // ── Wolf chat — sólo miembros del equipo lobo o Espía con poder activo ─
     match /games/{gameId}/wolfChat/{messageId} {
       allow read: if isAuth() && (
         isHost(gameId) ||
@@ -293,7 +282,6 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // ── Lovers chat — sólo los dos enamorados ─────────────────────────────
     match /games/{gameId}/loversChat/{messageId} {
       allow read: if isAuth() && (
         isHost(gameId) ||
@@ -316,7 +304,6 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // ── Twin chat — sólo jugadores de la partida ───────────────────────────
     match /games/{gameId}/twinChat/{messageId} {
       allow read: if isAuth() && (
         isHost(gameId) ||
@@ -328,7 +315,6 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // ── Fairy chat — sólo jugadores de la partida ─────────────────────────
     match /games/{gameId}/fairyChat/{messageId} {
       allow read: if isAuth() && (
         isHost(gameId) ||
@@ -340,7 +326,6 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // ── Hermanos chat — sólo jugadores con rol Hermanos ───────────────────
     match /games/{gameId}/hermanosChat/{messageId} {
       allow read: if isAuth() && (
         isHost(gameId) ||
@@ -352,7 +337,6 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // ── Night actions subcollection — host o el propio jugador ────────────
     match /games/{gameId}/nightActions/{actionId} {
       allow read: if isAuth();
       allow create, update: if isAuth() && (
@@ -361,7 +345,6 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ── Chat de voz WebRTC — señalización ─────────────────────────────────
     match /games/{gameId}/voicePresence/{uid} {
       allow read: if isAuth();
       allow write: if isAuth() && request.auth.uid == uid;
