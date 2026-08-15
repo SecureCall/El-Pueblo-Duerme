@@ -4,10 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { db } from '@/lib/firebase/config';
-import {
-  doc, onSnapshot, updateDoc, arrayUnion, arrayRemove, serverTimestamp,
-  collection, addDoc, query, orderBy, limit, onSnapshot as onSnap,
-} from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, arrayUnion, arrayRemove, serverTimestamp, collection, addDoc, query, orderBy, limit, onSnapshot as onSnap } from 'firebase/firestore';
 import { Copy, Crown, LogOut, Send, Users, Loader2, Bot, Share2, MessageCircle, Facebook, Link, Check, UserPlus } from 'lucide-react';
 import { useNarrator, waitForAudio } from '@/hooks/useNarrator';
 import { useAudio } from '@/app/providers/AudioProvider';
@@ -15,243 +12,36 @@ import { FriendsPanel } from '@/components/friends/FriendsPanel';
 import { sendFriendRequest } from '@/lib/firebase/friends';
 import { BOT_NAMES, assignBotType, type BotType } from '@/lib/bots/botSystem';
 import { getBehaviorProfile } from '@/lib/bots/playerStats';
-import { leaveGame as leaveGameServer, updateGamePresence } from '@/lib/game/client-actions';
+import { leaveGame as leaveGameServer, updateGamePresence, kickGamePlayer } from '@/lib/game/client-actions';
 
-interface Player {
-  uid: string;
-  name: string;
-  photoURL: string;
-  isHost: boolean;
-  isAlive: boolean;
-  role: string | null;
-  isAI?: boolean;
-  botType?: string;
-  level?: number;
-  lastSeen?: number;
-}
-
-interface GameData {
-  name: string;
-  code: string;
-  hostUid: string;
-  hostName: string;
-  maxPlayers: number;
-  wolves: number;
-  isPublic: boolean;
-  fillWithAI: boolean;
-  juryVote: boolean;
-  specialRoles: string[];
-  playerCount: number;
-  status: string;
-  phase: string;
-  players: Player[];
-}
-
-interface ChatMsg {
-  id: string;
-  senderId: string;
-  senderName: string;
-  text: string;
-  createdAt: any;
-}
-
-function biasedBotType(aggressionLevel: 'fast' | 'medium' | 'slow', i: number): BotType {
-  const pools: Record<string, BotType[]> = {
-    fast: ['callado', 'callado', 'listo', 'acusador', 'caotico'],
-    slow: ['acusador', 'acusador', 'caotico', 'listo', 'callado'],
-    medium: ['callado', 'acusador', 'listo', 'caotico', 'acusador'],
-  };
-  const pool = pools[aggressionLevel];
-  return pool[i % pool.length];
-}
-
-function generateAIPlayers(current: Player[], maxPlayers: number, aggressionLevel?: 'fast' | 'medium' | 'slow'): Player[] {
-  const count = maxPlayers - current.length;
-  if (count <= 0) return [];
-  const used = new Set(current.map(p => p.name));
-  const available = BOT_NAMES.filter(n => !used.has(n));
-  return Array.from({ length: count }, (_, i) => ({
-    uid: `ai_${Date.now()}_${i}`,
-    name: available[i % available.length] ?? `Jugador ${i + 1}`,
-    photoURL: '',
-    isHost: false,
-    isAlive: true,
-    role: null,
-    isAI: true,
-    botType: aggressionLevel ? biasedBotType(aggressionLevel, i) : assignBotType(),
-  }));
-}
+interface Player { uid: string; name: string; photoURL: string; isHost: boolean; isAlive: boolean; role: string | null; isAI?: boolean; botType?: string; level?: number; lastSeen?: number; }
+interface GameData { name: string; code: string; hostUid: string; hostName: string; maxPlayers: number; wolves: number; isPublic: boolean; fillWithAI: boolean; juryVote: boolean; specialRoles: string[]; playerCount: number; status: string; phase: string; players: Player[]; }
+interface ChatMsg { id: string; senderId: string; senderName: string; text: string; createdAt: any; }
+function biasedBotType(aggressionLevel: 'fast' | 'medium' | 'slow', i: number): BotType { const pools: Record<string, BotType[]> = { fast: ['callado','callado','listo','acusador','caotico'], slow: ['acusador','acusador','caotico','listo','callado'], medium: ['callado','acusador','listo','caotico','acusador'] }; const pool = pools[aggressionLevel]; return pool[i % pool.length]; }
+function generateAIPlayers(current: Player[], maxPlayers: number, aggressionLevel?: 'fast' | 'medium' | 'slow'): Player[] { const count = maxPlayers - current.length; if (count <= 0) return []; const used = new Set(current.map(p => p.name)); const available = BOT_NAMES.filter(n => !used.has(n)); return Array.from({ length: count }, (_, i) => ({ uid: `ai_${Date.now()}_${i}`, name: available[i % available.length] ?? `Jugador ${i + 1}`, photoURL: '', isHost: false, isAlive: true, role: null, isAI: true, botType: aggressionLevel ? biasedBotType(aggressionLevel, i) : assignBotType(), })); }
 
 export function GameRoom({ gameId }: { gameId: string }) {
-  const router = useRouter();
-  const { user } = useAuth();
-  const [game, setGame] = useState<GameData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-  const [msgs, setMsgs] = useState<ChatMsg[]>([]);
-  const [msg, setMsg] = useState('');
-  const [sending, setSending] = useState(false);
-  const [starting, setStarting] = useState(false);
-  const [showShare, setShowShare] = useState(false);
-  const [linkCopied, setLinkCopied] = useState(false);
-  const [retentionCountdown, setRetentionCountdown] = useState<number | null>(null);
-  const retentionFiredRef = useRef(false);
-  const chatRef = useRef<HTMLDivElement>(null);
-  const { play, stop, AUDIO_FILES } = useNarrator();
-  const { playMusic } = useAudio();
-  const [introSkipped, setIntroSkipped] = useState(false);
-  const salasPlayed = useRef(false);
-  const [sentFriendReqs, setSentFriendReqs] = useState<Set<string>>(new Set());
-
-  const addFriend = async (e: React.MouseEvent, targetUid: string) => {
-    e.stopPropagation();
-    if (!user) return;
-    await sendFriendRequest(user.uid, targetUid);
-    setSentFriendReqs(prev => new Set(prev).add(targetUid));
-  };
-
-  const kickPlayer = async (targetUid: string) => {
-    if (!isHost || !game || targetUid === user?.uid) return;
-    const target = game.players?.find(p => p.uid === targetUid);
-    if (!target) return;
-    await updateDoc(doc(db, 'games', gameId), {
-      players: arrayRemove(target),
-      playerCount: Math.max(0, (game.playerCount ?? 1) - 1),
-    }).catch(() => {});
-  };
-
-  useEffect(() => {
-    if (salasPlayed.current) return;
-    salasPlayed.current = true;
-    play(AUDIO_FILES.salas);
-    waitForAudio().then(() => playMusic('lobby'));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
+  const router = useRouter(); const { user } = useAuth(); const [game, setGame] = useState<GameData | null>(null); const [loading, setLoading] = useState(true); const [notFound, setNotFound] = useState(false); const [msgs, setMsgs] = useState<ChatMsg[]>([]); const [msg, setMsg] = useState(''); const [sending, setSending] = useState(false); const [starting, setStarting] = useState(false); const [showShare, setShowShare] = useState(false); const [linkCopied, setLinkCopied] = useState(false); const [retentionCountdown, setRetentionCountdown] = useState<number | null>(null); const retentionFiredRef = useRef(false); const chatRef = useRef<HTMLDivElement>(null); const { play, stop, AUDIO_FILES } = useNarrator(); const { playMusic } = useAudio(); const [introSkipped, setIntroSkipped] = useState(false); const salasPlayed = useRef(false); const [sentFriendReqs, setSentFriendReqs] = useState<Set<string>>(new Set());
+  const addFriend = async (e: React.MouseEvent, targetUid: string) => { e.stopPropagation(); if (!user) return; await sendFriendRequest(user.uid, targetUid); setSentFriendReqs(prev => new Set(prev).add(targetUid)); };
+  const kickPlayer = async (targetUid: string) => { if (!user || !isHost || targetUid === user.uid) return; try { await kickGamePlayer(user, gameId, targetUid); } catch (error) { console.error('Error expulsando jugador:', error); } };
+  useEffect(() => { if (salasPlayed.current) return; salasPlayed.current = true; play(AUDIO_FILES.salas); waitForAudio().then(() => playMusic('lobby')); }, []);
   const shareRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const unsub = onSnapshot(doc(db, "games", gameId), (snap: any) => {
-      if (!snap.exists()) { setNotFound(true); setLoading(false); return; }
-      const data = snap.data() as GameData;
-      setGame(data);
-      setLoading(false);
-      if (data.status === 'playing') router.push(`/game/${gameId}/play`);
-    }, () => { setNotFound(true); setLoading(false); });
-    return () => unsub();
-  }, [gameId, router]);
-
-  useEffect(() => {
-    if (!game) return;
-    const q = query(collection(db, 'games', gameId, 'lobbyChat'), orderBy('createdAt', 'asc'), limit(100));
-    const unsub = onSnap(q, (snap: any) => {
-      setMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg)));
-      setTimeout(() => chatRef.current?.scrollTo({ top: 9999, behavior: 'smooth' }), 50);
-    });
-    return () => unsub();
-  }, [game, gameId]);
-
+  useEffect(() => { const unsub = onSnapshot(doc(db, 'games', gameId), (snap: any) => { if (!snap.exists()) { setNotFound(true); setLoading(false); return; } const data = snap.data() as GameData; setGame(data); setLoading(false); if (data.status === 'playing') router.push(`/game/${gameId}/play`); }, () => { setNotFound(true); setLoading(false); }); return () => unsub(); }, [gameId, router]);
+  useEffect(() => { if (!game) return; const q = query(collection(db, 'games', gameId, 'lobbyChat'), orderBy('createdAt', 'asc'), limit(100)); const unsub = onSnap(q, (snap: any) => { setMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg))); setTimeout(() => chatRef.current?.scrollTo({ top: 9999, behavior: 'smooth' }), 50); }); return () => unsub(); }, [game, gameId]);
   // JOIN is server-authoritative. GameRoom no longer mutates players to add the current user.
-
-  useEffect(() => {
-    if (!user || !game) return;
-    const updatePresence = () => { void updateGamePresence(user, gameId).catch(() => {}); };
-    void updatePresence();
-    const id = setInterval(updatePresence, 60000);
-    return () => clearInterval(id);
-  }, [user, game, gameId]);
-
-  const autoFillWithBots = async () => {
-    if (!user || !game || retentionFiredRef.current) return;
-    if (game.hostUid !== user.uid) return;
-    retentionFiredRef.current = true;
-    const realNow = (game.players ?? []).filter(p => !p.isAI);
-    if (realNow.length >= 4) return;
-    const targetTotal = Math.min(game.maxPlayers ?? 10, Math.max(6, realNow.length + 3));
-    const newBots = generateAIPlayers(realNow, targetTotal);
-    if (newBots.length === 0) return;
-    await updateDoc(doc(db, 'games', gameId), { players: [...realNow, ...newBots], playerCount: realNow.length + newBots.length, fillWithAI: true }).catch(() => {});
-    setRetentionCountdown(null);
-  };
-
-  useEffect(() => {
-    if (!user || !game || game.status !== 'lobby') return;
-    if (game.hostUid !== user.uid) return;
-    const realCount = (game.players ?? []).filter(p => !p.isAI).length;
-    if (realCount >= 4 || retentionFiredRef.current) return;
-    const WARN_AT = 40000; const FILL_AT = 60000; const COUNTDOWN_SECS = 20;
-    const warnTimer = setTimeout(() => setRetentionCountdown(COUNTDOWN_SECS), WARN_AT);
-    const countdownTimer = setTimeout(() => {
-      let c = COUNTDOWN_SECS - 1;
-      const iv = setInterval(() => {
-        setRetentionCountdown(prev => { if (prev === null || prev <= 1) { clearInterval(iv); return null; } return prev - 1; });
-        c--; if (c <= 0) clearInterval(iv);
-      }, 1000);
-    }, WARN_AT + 1000);
-    const fillTimer = setTimeout(() => { autoFillWithBots(); }, FILL_AT);
-    return () => { clearTimeout(warnTimer); clearTimeout(countdownTimer); clearTimeout(fillTimer); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [(game?.players ?? []).filter(p => !p.isAI).length, game?.status, user?.uid]);
-
-  const sendMsg = async (e: React.FormEvent) => {
-    e.preventDefault(); if (!msg.trim() || !user) return;
-    setSending(true);
-    await addDoc(collection(db, 'games', gameId, 'lobbyChat'), { senderId: user.uid, senderName: user.displayName || user.email?.split('@')[0] || 'Jugador', text: msg.trim(), createdAt: serverTimestamp() });
-    setMsg(''); setSending(false);
-  };
-
-  const leaveGame = async () => {
-    if (!user) return;
-    try {
-      await leaveGameServer(user, gameId);
-    } catch (error) {
-      console.error('Error leaving game:', error);
-    } finally {
-      router.push('/');
-    }
-  };
-
+  useEffect(() => { if (!user || !game) return; const updatePresence = () => { void updateGamePresence(user, gameId).catch(() => {}); }; void updatePresence(); const id = setInterval(updatePresence, 60000); return () => clearInterval(id); }, [user, game, gameId]);
+  const autoFillWithBots = async () => { if (!user || !game || retentionFiredRef.current) return; if (game.hostUid !== user.uid) return; retentionFiredRef.current = true; const realNow = (game.players ?? []).filter(p => !p.isAI); if (realNow.length >= 4) return; const targetTotal = Math.min(game.maxPlayers ?? 10, Math.max(6, realNow.length + 3)); const newBots = generateAIPlayers(realNow, targetTotal); if (newBots.length === 0) return; await updateDoc(doc(db, 'games', gameId), { players: [...realNow, ...newBots], playerCount: realNow.length + newBots.length, fillWithAI: true }).catch(() => {}); setRetentionCountdown(null); };
+  useEffect(() => { if (!user || !game || game.status !== 'lobby') return; if (game.hostUid !== user.uid) return; const realCount = (game.players ?? []).filter(p => !p.isAI).length; if (realCount >= 4 || retentionFiredRef.current) return; const WARN_AT = 40000; const FILL_AT = 60000; const COUNTDOWN_SECS = 20; const warnTimer = setTimeout(() => setRetentionCountdown(COUNTDOWN_SECS), WARN_AT); const countdownTimer = setTimeout(() => { let c = COUNTDOWN_SECS - 1; const iv = setInterval(() => { setRetentionCountdown(prev => { if (prev === null || prev <= 1) { clearInterval(iv); return null; } return prev - 1; }); c--; if (c <= 0) clearInterval(iv); }, 1000); }, WARN_AT + 1000); const fillTimer = setTimeout(() => { autoFillWithBots(); }, FILL_AT); return () => { clearTimeout(warnTimer); clearTimeout(countdownTimer); clearTimeout(fillTimer); }; }, [(game?.players ?? []).filter(p => !p.isAI).length, game?.status, user?.uid]);
+  const sendMsg = async (e: React.FormEvent) => { e.preventDefault(); if (!msg.trim() || !user) return; setSending(true); await addDoc(collection(db, 'games', gameId, 'lobbyChat'), { senderId: user.uid, senderName: user.displayName || user.email?.split('@')[0] || 'Jugador', text: msg.trim(), createdAt: serverTimestamp() }); setMsg(''); setSending(false); };
+  const leaveGame = async () => { if (!user) return; try { await leaveGameServer(user, gameId); } catch (error) { console.error('Error leaving game:', error); } finally { router.push('/'); } };
   const getShareData = () => { const code = game?.code ?? ''; const url = typeof window !== 'undefined' ? window.location.href : ''; return { code, url, text: `¡Únete a mi partida de El Pueblo Duerme! 🐺\nCódigo: ${code}\n${url}` }; };
   const handleShare = async () => { const { text, url } = getShareData(); if (navigator.share) { try { await navigator.share({ title: '¡Únete a El Pueblo Duerme!', text, url }); return; } catch (_) {} } setShowShare(v => !v); };
   const handleCopyLink = async () => { const { text } = getShareData(); await navigator.clipboard.writeText(text); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); };
   useEffect(() => { const handleClickOutside = (e: MouseEvent) => { if (shareRef.current && !shareRef.current.contains(e.target as Node)) setShowShare(false); }; document.addEventListener('mousedown', handleClickOutside); return () => document.removeEventListener('mousedown', handleClickOutside); }, []);
   const skipIntro = () => { stop(); setIntroSkipped(true); playMusic('lobby'); };
-  const startGame = async () => {
-    if (!user || !game || game.hostUid !== user.uid) return;
-    stop(); setStarting(true);
-    try {
-      const realPlayers = game.players ?? [];
-      let allPlayers = realPlayers;
-      if (game.fillWithAI && realPlayers.length < game.maxPlayers) {
-        const profile = await getBehaviorProfile(user.uid).catch(() => null);
-        const aggressionLevel = profile?.aggressionLevel ?? 'medium';
-        const aiPlayers = generateAIPlayers(realPlayers, game.maxPlayers, aggressionLevel);
-        allPlayers = [...realPlayers, ...aiPlayers];
-      }
-      await updateDoc(doc(db, 'games', gameId), { status: 'playing', players: allPlayers, playerCount: allPlayers.length, startedAt: serverTimestamp() });
-    } catch (err) { console.error('Error starting game:', err); setStarting(false); }
-  };
-
+  const startGame = async () => { if (!user || !game || game.hostUid !== user.uid) return; stop(); setStarting(true); try { const realPlayers = game.players ?? []; let allPlayers = realPlayers; if (game.fillWithAI && realPlayers.length < game.maxPlayers) { const profile = await getBehaviorProfile(user.uid).catch(() => null); const aggressionLevel = profile?.aggressionLevel ?? 'medium'; const aiPlayers = generateAIPlayers(realPlayers, game.maxPlayers, aggressionLevel); allPlayers = [...realPlayers, ...aiPlayers]; } await updateDoc(doc(db, 'games', gameId), { status: 'playing', players: allPlayers, playerCount: allPlayers.length, startedAt: serverTimestamp() }); } catch (err) { console.error('Error starting game:', err); setStarting(false); } };
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#05080f]"><Loader2 className="h-10 w-10 animate-spin text-white/50" /></div>;
   if (notFound) return <div className="min-h-screen flex flex-col items-center justify-center bg-[#05080f] text-white gap-4"><p className="text-xl font-headline">Sala no encontrada</p><button onClick={() => router.push('/')} className="text-white/70 hover:text-white underline">Volver</button></div>;
-
-  const isHost = !!user && !!game && game.hostUid === user.uid;
-  const humans = game?.players?.filter(p => !p.isAI) ?? [];
-  const canStart = isHost && humans.length >= 3;
-  const hostPlayer = game?.players?.find(p => p.uid === game.hostUid);
-  return (
-    <div className="min-h-screen bg-[#05080f] text-white p-4 md:p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        <div className="flex items-center justify-between"><div><h1 className="text-3xl font-headline">{game?.name ?? 'Sala'}</h1><p className="text-white/50">Código: {game?.code}</p></div><button onClick={handleShare} className="rounded-lg bg-white/10 px-4 py-2">Compartir</button></div>
-        <div className="grid md:grid-cols-[1fr_320px] gap-6">
-          <div className="rounded-xl bg-white/5 p-5"><div className="flex items-center gap-2 mb-4"><Users className="h-5 w-5" /><span>{game?.playerCount ?? 0}/{game?.maxPlayers ?? 0}</span></div>
-            <div className="space-y-2">{game?.players?.map(p => <div key={p.uid} className="flex items-center justify-between rounded-lg bg-black/20 px-3 py-2"><div className="flex items-center gap-3"><span>{p.name}</span>{p.isHost && <Crown className="h-4 w-4" />}</div>{p.uid !== user?.uid && <button onClick={(e) => addFriend(e, p.uid)} className="text-white/60 hover:text-white"><UserPlus className="h-4 w-4" /></button>}</div>)}</div>
-            {isHost && <button disabled={!canStart || starting} onClick={startGame} className="mt-5 w-full rounded-lg bg-white text-black py-3 disabled:opacity-40">{starting ? 'Iniciando…' : 'Iniciar partida'}</button>}
-            <button onClick={leaveGame} className="mt-3 w-full rounded-lg bg-white/10 py-3">Salir</button>
-          </div>
-          <div className="rounded-xl bg-white/5 p-5"><div ref={chatRef} className="h-72 overflow-y-auto space-y-2 mb-3">{msgs.map(m => <div key={m.id}><span className="font-semibold">{m.senderName}: </span><span className="text-white/80">{m.text}</span></div>)}</div><form onSubmit={sendMsg} className="flex gap-2"><input value={msg} onChange={e => setMsg(e.target.value)} className="flex-1 rounded-lg bg-black/20 px-3 py-2" placeholder="Escribe…" /><button disabled={sending} className="rounded-lg bg-white text-black px-3">Enviar</button></form></div>
-        </div>
-      </div>
-    </div>
-  );
+  const isHost = !!user && !!game && game.hostUid === user.uid; const humans = game?.players?.filter(p => !p.isAI) ?? []; const canStart = isHost && humans.length >= 3; const hostPlayer = game?.players?.find(p => p.uid === game.hostUid);
+  return <div className="min-h-screen bg-[#05080f] text-white p-4 md:p-8"><div className="max-w-5xl mx-auto space-y-6"><div className="flex items-center justify-between"><div><h1 className="text-3xl font-headline">{game?.name ?? 'Sala'}</h1><p className="text-white/50">Código: {game?.code}</p></div><button onClick={handleShare} className="rounded-lg bg-white/10 px-4 py-2">Compartir</button></div><div className="grid md:grid-cols-[1fr_320px] gap-6"><div className="rounded-xl bg-white/5 p-5"><div className="flex items-center gap-2 mb-4"><Users className="h-5 w-5" /><span>{game?.playerCount ?? 0}/{game?.maxPlayers ?? 0}</span></div><div className="space-y-2">{game?.players?.map(p => <div key={p.uid} className="flex items-center justify-between rounded-lg bg-black/20 px-3 py-2"><div className="flex items-center gap-3"><span>{p.name}</span>{p.isHost && <Crown className="h-4 w-4" />}</div>{p.uid !== user?.uid && <button onClick={(e) => addFriend(e, p.uid)} className="text-white/60 hover:text-white"><UserPlus className="h-4 w-4" /></button>}</div>)}</div>{isHost && <button disabled={!canStart || starting} onClick={startGame} className="mt-5 w-full rounded-lg bg-white text-black py-3 disabled:opacity-40">{starting ? 'Iniciando…' : 'Iniciar partida'}</button>}<button onClick={leaveGame} className="mt-3 w-full rounded-lg bg-white/10 py-3">Salir</button></div><div className="rounded-xl bg-white/5 p-5"><div ref={chatRef} className="h-72 overflow-y-auto space-y-2 mb-3">{msgs.map(m => <div key={m.id}><span className="font-semibold">{m.senderName}: </span><span className="text-white/80">{m.text}</span></div>)}</div><form onSubmit={sendMsg} className="flex gap-2"><input value={msg} onChange={e => setMsg(e.target.value)} className="flex-1 rounded-lg bg-black/20 px-3 py-2" placeholder="Escribe…" /><button disabled={sending} className="rounded-lg bg-white text-black px-3">Enviar</button></form></div></div></div></div>;
 }
