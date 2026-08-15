@@ -9,9 +9,6 @@ on:
       - main
       - audit/fix-release
 
-permissions:
-  contents: write
-
 jobs:
   quality:
     runs-on: ubuntu-latest
