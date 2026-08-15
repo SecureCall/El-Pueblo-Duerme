@@ -33,3 +33,7 @@ export async function leaveGame(user: User, gameId: string) {
 export async function kickGamePlayer(user: User, gameId: string, targetUid: string) {
   return postGameAction(user, '/api/game/kick', { gameId, targetUid });
 }
+
+export async function autofillGame(user: User, gameId: string) {
+  return postGameAction(user, '/api/game/autofill', { gameId });
+}
