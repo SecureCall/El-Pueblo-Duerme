@@ -21,3 +21,7 @@ async function postGameAction(user: User, path: string, body: Record<string, unk
 export async function joinGame(user: User, gameId: string, playerName: string) {
   return postGameAction(user, '/api/game/join', { gameId, playerName });
 }
+
+export async function updateGamePresence(user: User, gameId: string) {
+  return postGameAction(user, '/api/game/presence', { gameId });
+}
