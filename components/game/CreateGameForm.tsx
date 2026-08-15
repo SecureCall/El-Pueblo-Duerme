@@ -6,14 +6,49 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { Loader2, Copy, RefreshCw } from 'lucide-react';
 import { generateRoomName } from '@/lib/roomNames';
 
+// Roles match exactly the keys in components/game/play/roles.ts
 const SPECIAL_ROLES: { id: string; name: string; icon: string; team: 'village' | 'wolves' | 'solo' }[] = [
-  { id: 'Alborotadora', name: 'Alborotadora', icon: '/roles/Troublemaker.png', team: 'village' }, { id: 'Anciana Líder', name: 'Anciana Líder', icon: '/roles/Leader Crone.png', team: 'village' }, { id: 'Ángel Resucitador', name: 'Ángel Resucitador', icon: '/roles/angel resucitador.png', team: 'village' }, { id: 'Aprendiz de Vidente', name: 'Aprendiz de Vidente', icon: '/roles/Apprentice Seer.png', team: 'village' }, { id: 'Cazador', name: 'Cazador', icon: '/roles/hunter.png', team: 'village' }, { id: 'Cupido', name: 'Cupido', icon: '/roles/cupid.png', team: 'village' }, { id: 'Doctor', name: 'Doctor', icon: '/roles/Doctor.png', team: 'village' }, { id: 'Fantasma', name: 'Fantasma', icon: '/roles/Ghost.png', team: 'village' }, { id: 'Gemela', name: 'Gemela', icon: '/roles/twin.png', team: 'village' }, { id: 'Guardián', name: 'Guardián', icon: '/roles/Guardian.png', team: 'village' }, { id: 'Hechicera', name: 'Hechicera', icon: '/roles/Witch.png', team: 'village' }, { id: 'Leprosa', name: 'Leprosa', icon: '/roles/Leper.png', team: 'village' }, { id: 'Licántropo', name: 'Licántropo', icon: '/roles/lycanthrope.png', team: 'village' }, { id: 'Príncipe', name: 'Príncipe', icon: '/roles/Prince.png', team: 'village' }, { id: 'Sacerdote', name: 'Sacerdote', icon: '/roles/priest.png', team: 'village' }, { id: 'Silenciadora', name: 'Silenciadora', icon: '/roles/Silencer.png', team: 'village' }, { id: 'Sirena del Río', name: 'Sirena del Río', icon: '/roles/River Siren.png', team: 'village' }, { id: 'Vidente', name: 'Vidente', icon: '/roles/seer.png', team: 'village' }, { id: 'Vigía', name: 'Vigía', icon: '/roles/Watcher.png', team: 'village' }, { id: 'Virginia Woolf', name: 'Virginia Woolf', icon: '/roles/Virginia Woolf.png', team: 'village' }, { id: 'Bruja', name: 'Bruja', icon: '/roles/Witch.png', team: 'wolves' }, { id: 'Cría de Lobo', name: 'Cría de Lobo', icon: '/roles/wolf_cub.png', team: 'wolves' }, { id: 'Hada Buscadora', name: 'Hada Buscadora', icon: '/roles/Seeker Faerie.png', team: 'wolves' }, { id: 'Maldito', name: 'Maldito', icon: '/roles/cursed.png', team: 'wolves' }, { id: 'Banshee', name: 'Banshee', icon: '/roles/Banshee.png', team: 'solo' }, { id: 'Cambiaformas', name: 'Cambiaformas', icon: '/roles/Shapeshifter.png', team: 'solo' }, { id: 'Hada Durmiente', name: 'Hada Durmiente', icon: '/roles/Sleeping Faerie.png', team: 'solo' }, { id: 'Hombre Ebrio', name: 'Hombre Ebrio', icon: '/roles/Drunken Man.png', team: 'solo' }, { id: 'Líder del Culto', name: 'Líder del Culto', icon: '/roles/Cult Leader.png', team: 'solo' }, { id: 'Pescador', name: 'Pescador', icon: '/roles/Fisherman.png', team: 'solo' }, { id: 'Vampiro', name: 'Vampiro', icon: '/roles/Vampire.png', team: 'solo' }, { id: 'Verdugo', name: 'Verdugo', icon: '/roles/verdugo.png', team: 'solo' },
+  { id: 'Alborotadora', name: 'Alborotadora', icon: '/roles/Troublemaker.png', team: 'village' },
+  { id: 'Anciana Líder', name: 'Anciana Líder', icon: '/roles/Leader Crone.png', team: 'village' },
+  { id: 'Ángel Resucitador', name: 'Ángel Resucitador', icon: '/roles/angel resucitador.png', team: 'village' },
+  { id: 'Aprendiz de Vidente', name: 'Aprendiz de Vidente', icon: '/roles/Apprentice Seer.png', team: 'village' },
+  { id: 'Cazador', name: 'Cazador', icon: '/roles/hunter.png', team: 'village' },
+  { id: 'Cupido', name: 'Cupido', icon: '/roles/cupid.png', team: 'village' },
+  { id: 'Doctor', name: 'Doctor', icon: '/roles/Doctor.png', team: 'village' },
+  { id: 'Fantasma', name: 'Fantasma', icon: '/roles/Ghost.png', team: 'village' },
+  { id: 'Gemela', name: 'Gemela', icon: '/roles/twin.png', team: 'village' },
+  { id: 'Guardián', name: 'Guardián', icon: '/roles/Guardian.png', team: 'village' },
+  { id: 'Hechicera', name: 'Hechicera', icon: '/roles/Witch.png', team: 'village' },
+  { id: 'Leprosa', name: 'Leprosa', icon: '/roles/Leper.png', team: 'village' },
+  { id: 'Licántropo', name: 'Licántropo', icon: '/roles/lycanthrope.png', team: 'village' },
+  { id: 'Príncipe', name: 'Príncipe', icon: '/roles/Prince.png', team: 'village' },
+  { id: 'Sacerdote', name: 'Sacerdote', icon: '/roles/priest.png', team: 'village' },
+  { id: 'Silenciadora', name: 'Silenciadora', icon: '/roles/Silencer.png', team: 'village' },
+  { id: 'Sirena del Río', name: 'Sirena del Río', icon: '/roles/River Siren.png', team: 'village' },
+  { id: 'Vidente', name: 'Vidente', icon: '/roles/seer.png', team: 'village' },
+  { id: 'Vigía', name: 'Vigía', icon: '/roles/Watcher.png', team: 'village' },
+  { id: 'Virginia Woolf', name: 'Virginia Woolf', icon: '/roles/Virginia Woolf.png', team: 'village' },
+  { id: 'Bruja', name: 'Bruja', icon: '/roles/Witch.png', team: 'wolves' },
+  { id: 'Cría de Lobo', name: 'Cría de Lobo', icon: '/roles/wolf_cub.png', team: 'wolves' },
+  { id: 'Hada Buscadora', name: 'Hada Buscadora', icon: '/roles/Seeker Faerie.png', team: 'wolves' },
+  { id: 'Maldito', name: 'Maldito', icon: '/roles/cursed.png', team: 'wolves' },
+  { id: 'Banshee', name: 'Banshee', icon: '/roles/Banshee.png', team: 'solo' },
+  { id: 'Cambiaformas', name: 'Cambiaformas', icon: '/roles/Shapeshifter.png', team: 'solo' },
+  { id: 'Hada Durmiente', name: 'Hada Durmiente', icon: '/roles/Sleeping Faerie.png', team: 'solo' },
+  { id: 'Hombre Ebrio', name: 'Hombre Ebrio', icon: '/roles/Drunken Man.png', team: 'solo' },
+  { id: 'Líder del Culto', name: 'Líder del Culto', icon: '/roles/Cult Leader.png', team: 'solo' },
+  { id: 'Pescador', name: 'Pescador', icon: '/roles/Fisherman.png', team: 'solo' },
+  { id: 'Vampiro', name: 'Vampiro', icon: '/roles/Vampire.png', team: 'solo' },
+  { id: 'Verdugo', name: 'Verdugo', icon: '/roles/verdugo.png', team: 'solo' },
 ];
+
+const TEAM_COLOR: Record<string, string> = { village: 'text-yellow-400', wolves: 'text-red-400', solo: 'text-cyan-400' };
+function wolfCount(players: number) { return Math.max(1, Math.floor(players / 5)); }
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) { return <button type="button" onClick={() => onChange(!checked)} className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 border ${checked ? 'bg-white border-white' : 'bg-transparent border-white/40'}`}><span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full transition-transform ${checked ? 'translate-x-6 bg-black' : 'translate-x-0 bg-white/50'}`} /></button>; }
+
+type GameMode = 'casual' | 'normal' | 'chaos';
 const CASUAL_ROLES = new Set(['Vidente', 'Doctor', 'Hechicera', 'Cazador', 'Cupido', 'Guardián', 'Príncipe', 'Sheriff']);
 const MODE_INFO: Record<GameMode, { emoji: string; label: string; desc: string; color: string }> = { casual: { emoji: '🌙', label: 'Casual', desc: '8 roles básicos. Perfecto para empezar.', color: 'border-blue-400/60 bg-blue-500/10 text-blue-300' }, normal: { emoji: '⚔️', label: 'Normal', desc: 'Elige los roles que quieras.', color: 'border-white/40 bg-white/5 text-white' }, chaos: { emoji: '💀', label: 'Caos', desc: 'Todos los roles activos. Para expertos.', color: 'border-red-400/60 bg-red-500/10 text-red-300' } };
-type GameMode = 'casual' | 'normal' | 'chaos';
-
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) { return <button type="button" onClick={() => onChange(!checked)} className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 border ${checked ? 'bg-white border-white' : 'bg-transparent border-white/40'}`}><span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full transition-transform ${checked ? 'translate-x-6 bg-black' : 'translate-x-0 bg-white/50'}`} /></button>; }
 
 export function CreateGameForm() {
   const router = useRouter();
@@ -41,7 +76,11 @@ export function CreateGameForm() {
     setLoading(true); setError('');
     try {
       const token = await user.getIdToken();
-      const response = await fetch('/api/game/create', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ name: gameName, playerName: playerName || user.displayName || 'Jugador', maxPlayers: playerCount, isPublic, fillWithAI, juryVote, gameMode, specialRoles: Array.from(selectedRoles) }) });
+      const response = await fetch('/api/game/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: gameName, playerName: playerName || user.displayName || 'Jugador', maxPlayers: playerCount, isPublic, fillWithAI, juryVote, gameMode, specialRoles: Array.from(selectedRoles) }),
+      });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || 'Error al crear la partida');
       setCreated({ code: result.code });
@@ -55,5 +94,19 @@ export function CreateGameForm() {
 
   if (created) return <div className="bg-black/40 border border-white/10 rounded-2xl p-8 text-center space-y-6"><div className="text-6xl">🎉</div><h2 className="text-2xl font-bold font-headline">¡Partida creada!</h2><p className="text-white/50 text-sm">Comparte este código con tus amigos</p><div className="bg-black/50 border border-white/20 rounded-xl p-6"><p className="text-white/40 text-xs uppercase tracking-widest mb-2">Código de sala</p><div className="flex items-center justify-center gap-3"><span className="text-5xl font-mono font-bold tracking-widest">{created.code}</span><button onClick={() => navigator.clipboard.writeText(created.code)} className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"><Copy className="h-5 w-5" /></button></div></div><div className="flex gap-3"><button onClick={() => router.push('/public-rooms')} className="flex-1 bg-white/10 border border-white/20 py-3 rounded-xl hover:bg-white/20 transition-all">Ver salas</button><button onClick={() => router.push('/')} className="flex-1 bg-white text-black font-bold py-3 rounded-xl hover:bg-white/90 transition-all">Inicio</button></div></div>;
 
-  return <form onSubmit={handleCreate} className="space-y-4 max-w-lg mx-auto">{/* Existing form UI intentionally preserved below this component's control logic. */}</form>;
+  return (
+    <form onSubmit={handleCreate} className="space-y-4 max-w-lg mx-auto">
+      <div className="bg-black/40 border border-white/10 rounded-xl p-5 space-y-4">
+        <div><label className="block text-sm text-white/60 mb-1">Nombre de la Sala</label><div className="flex gap-2"><input type="text" value={gameName} onChange={e => setGameName(e.target.value)} maxLength={50} className="flex-1 bg-white/5 border border-white/15 rounded-lg px-3 py-2.5 text-white placeholder:text-white/30 focus:outline-none focus:border-white/40 transition-colors"/><button type="button" onClick={() => setGameName(generateRoomName())} className="flex items-center gap-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-white/50 hover:text-white/80 hover:border-white/30 transition-all text-xs" title="Generar nombre aleatorio"><RefreshCw className="h-3.5 w-3.5" /></button></div></div>
+        <div><label className="block text-sm text-white/60 mb-1">Tu Nombre</label><input type="text" value={playerName} onChange={e => setPlayerName(e.target.value)} placeholder={user?.displayName ?? 'Jugador'} maxLength={30} className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2.5 text-white placeholder:text-white/30 focus:outline-none focus:border-white/40 transition-colors"/></div>
+        <div><label className="block text-sm text-white/60 mb-1">Número de Jugadores ({playerCount})</label><input type="range" min={4} max={32} value={playerCount} onChange={e => setPlayerCount(Number(e.target.value))} className="w-full accent-white" suppressHydrationWarning={true}/><p className="text-white/40 text-xs mt-1">Esto incluirá {wolfCount(playerCount)} Hombre(s) Lobo.</p></div>
+      </div>
+      <div className="bg-black/40 border border-white/10 rounded-xl p-5 space-y-4"><h3 className="font-semibold text-white/80">Ajustes de la Partida</h3>{[{ label: 'Partida Pública', desc: 'Permite que tu partida aparezca en la lista de salas públicas.', value: isPublic, onChange: setIsPublic },{ label: 'Rellenar con IA', desc: 'Completa los puestos vacíos con jugadores IA al empezar.', value: fillWithAI, onChange: setFillWithAI },{ label: 'Voto del Jurado', desc: 'Permite a los jugadores muertos votar para desempatar.', value: juryVote, onChange: setJuryVote }].map(item => <div key={item.label} className="flex items-start justify-between gap-4"><div><p className="text-sm font-medium">{item.label}</p><p className="text-white/40 text-xs mt-0.5">{item.desc}</p></div><Toggle checked={item.value} onChange={item.onChange} /></div>)}</div>
+      <div className="bg-black/40 border border-white/10 rounded-xl p-5 space-y-3"><h3 className="font-semibold text-white/80">Modo de Juego</h3><div className="grid grid-cols-3 gap-2">{(Object.keys(MODE_INFO) as GameMode[]).map(m => { const info = MODE_INFO[m]; const active = gameMode === m; return <button key={m} type="button" onClick={() => handleModeChange(m)} className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center ${active ? info.color + ' border-opacity-100' : 'border-white/10 bg-white/5 text-white/50 hover:border-white/20'}`}><span className="text-2xl">{info.emoji}</span><span className="text-sm font-bold">{info.label}</span><span className="text-xs opacity-70 leading-tight">{info.desc}</span></button>; })}</div></div>
+      <div className="bg-black/40 border border-white/10 rounded-xl p-5 space-y-4"><div><h3 className="font-semibold text-white/80">Roles Especiales</h3><p className="text-white/40 text-xs mt-0.5">{gameMode === 'casual' ? '8 roles básicos seleccionados automáticamente.' : gameMode === 'chaos' ? 'Todos los roles activos en modo Caos.' : 'Selecciona los roles que quieres incluir.'}</p></div>{gameMode === 'normal' && <div className="flex gap-2"><button type="button" onClick={selectAll} className="text-xs border border-white/20 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors">Seleccionar Todos</button><button type="button" onClick={deselectAll} className="text-xs border border-white/20 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors">Deseleccionar Todos</button></div>}<div className="grid grid-cols-3 gap-x-3 gap-y-3">{SPECIAL_ROLES.map(role => { const isChecked = selectedRoles.has(role.id); const isLocked = gameMode !== 'normal'; return <label key={role.id} className={`flex items-center gap-2 ${isLocked ? 'cursor-default' : 'cursor-pointer group'}`}><input type="checkbox" checked={isChecked} onChange={() => toggleRole(role.id)} disabled={isLocked} className="sr-only"/><div className={`w-4 h-4 flex-shrink-0 rounded border transition-colors ${isChecked ? 'bg-white border-white' : 'border-white/30 group-hover:border-white/60'} ${isLocked ? 'opacity-50' : ''}`}>{isChecked && <svg viewBox="0 0 12 12" className="w-full h-full text-black fill-current"><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}</div><div className={`flex items-center gap-1.5 min-w-0 ${isLocked ? 'opacity-50' : ''}`}><img src={role.icon} alt={role.name} className="w-5 h-5 rounded object-cover flex-shrink-0"/><span className={`text-xs truncate ${TEAM_COLOR[role.team]}`}>{role.name}</span></div></label>; })}</div></div>
+      {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+      <button type="submit" disabled={loading || !user} className="w-full flex items-center justify-center gap-2 bg-white/10 border border-white/20 text-white font-semibold py-3 rounded-xl hover:bg-white/20 disabled:opacity-50 transition-all">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <span>👥</span>}{loading ? 'Creando...' : 'Crear Partida'}</button>
+      {!user && <p className="text-center text-white/40 text-sm"><a href="/login" className="text-white underline">Inicia sesión</a> para crear una partida</p>}
+    </form>
+  );
 }
