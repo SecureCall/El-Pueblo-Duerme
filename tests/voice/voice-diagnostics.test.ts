@@ -63,9 +63,10 @@ describe('VoiceDiagnostics', () => {
     expect(snapshot.participants).toBe(35);
     expect(snapshot.audioTracks).toBe(35);
     expect(snapshot.duplicateTrackSids).toBe(0);
+    expect(snapshot.ghostTracks).toBe(0);
   });
 
-  it('does not create duplicate active tracks after repeated reconnects', () => {
+  it('counts each active subscription once and records duplicate events separately', () => {
     const room = makeRoom(35);
     const diagnostics = new VoiceDiagnostics();
     diagnostics.install(room as any);
@@ -74,7 +75,9 @@ describe('VoiceDiagnostics', () => {
     room.emit(RoomEvent.TrackSubscribed, audioTrack(), firstPublication, { identity: 'player-0' });
     room.emit(RoomEvent.TrackSubscribed, audioTrack(), firstPublication, { identity: 'player-0' });
 
-    expect(diagnostics.getSnapshot().duplicateTrackSids).toBe(1);
+    const snapshot = diagnostics.getSnapshot();
+    expect(snapshot.subscribedTracks).toBe(1);
+    expect(snapshot.duplicateTrackSids).toBe(1);
 
     room.emit(RoomEvent.Reconnecting);
     room.emit(RoomEvent.Reconnected);
@@ -85,10 +88,11 @@ describe('VoiceDiagnostics', () => {
 
     expect(diagnostics.getSnapshot().reconnecting).toBe(3);
     expect(diagnostics.getSnapshot().reconnected).toBe(3);
+    expect(diagnostics.getSnapshot().subscribedTracks).toBe(1);
     expect(diagnostics.getSnapshot().duplicateTrackSids).toBe(1);
   });
 
-  it('removes a disappeared track from the active SID set after reconnect', () => {
+  it('removes a disappeared track and records a ghost during reconnect reconciliation', () => {
     const room = makeRoom(35);
     const diagnostics = new VoiceDiagnostics();
     diagnostics.install(room as any);
@@ -99,7 +103,33 @@ describe('VoiceDiagnostics', () => {
     room.remoteParticipants.get('player-7')!.audioTrackPublications.clear();
     room.emit(RoomEvent.Reconnected);
 
+    expect(diagnostics.getSnapshot().ghostTracks).toBe(1);
+
+    room.remoteParticipants.get('player-7')!.audioTrackPublications.set(
+      publication.trackSid,
+      publication,
+    );
     room.emit(RoomEvent.TrackSubscribed, audioTrack(), publication, { identity: 'player-7' });
+
+    const snapshot = diagnostics.getSnapshot();
+    expect(snapshot.duplicateTrackSids).toBe(0);
+    expect(snapshot.subscribedTracks).toBe(2);
+  });
+
+  it('removes a track exactly once when unsubscribed', () => {
+    const room = makeRoom(35);
+    const diagnostics = new VoiceDiagnostics();
+    diagnostics.install(room as any);
+
+    const publication = { trackSid: 'TR_AUDIO_8', kind: Track.Kind.Audio };
+    room.emit(RoomEvent.TrackSubscribed, audioTrack(), publication, { identity: 'player-8' });
+    room.emit(RoomEvent.TrackUnsubscribed, audioTrack(), publication, { identity: 'player-8' });
+    room.emit(RoomEvent.TrackUnsubscribed, audioTrack(), publication, { identity: 'player-8' });
+
+    expect(diagnostics.getSnapshot().unsubscribedTracks).toBe(2);
+
+    room.emit(RoomEvent.TrackSubscribed, audioTrack(), publication, { identity: 'player-8' });
+    expect(diagnostics.getSnapshot().subscribedTracks).toBe(2);
     expect(diagnostics.getSnapshot().duplicateTrackSids).toBe(0);
   });
 
