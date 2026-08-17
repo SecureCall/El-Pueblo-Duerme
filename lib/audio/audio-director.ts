@@ -81,21 +81,29 @@ class AudioDirector {
       this.cinematicDepth++;
     }
 
+    // Start playback without awaiting its terminal event. A cue may represent
+    // a long-running audio track; callers need the acceptance result now while
+    // the director tracks completion asynchronously.
+    let playback: Promise<void>;
     try {
-      await cue.play();
-      return true;
-    } finally {
-      if (this.active.get(cue.id) === cue) {
-        this.active.delete(cue.id);
-        if (cue.bus === 'narrator') {
-          this.cinematicDepth = Math.max(0, this.cinematicDepth - 1);
-          if (this.cinematicDepth === 0) {
-            audioMixer.leaveCinematic();
-            this.notifyMixChange();
-          }
+      playback = Promise.resolve(cue.play());
+    } catch {
+      playback = Promise.resolve();
+    }
+
+    void playback.finally(() => {
+      if (this.active.get(cue.id) !== cue) return;
+      this.active.delete(cue.id);
+      if (cue.bus === 'narrator') {
+        this.cinematicDepth = Math.max(0, this.cinematicDepth - 1);
+        if (this.cinematicDepth === 0) {
+          audioMixer.leaveCinematic();
+          this.notifyMixChange();
         }
       }
-    }
+    });
+
+    return true;
   }
 
   async stop(id: string) {
