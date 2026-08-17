@@ -5,201 +5,197 @@ import { useCallback } from 'react';
 const VOZ = '/audio/voz/';
 
 export const AUDIO_FILES = {
-  // ─── Noche ───────────────────────────────────────────────────────
-  nightStart:       `${VOZ}El pueblo... duerme.mp3`,
-  nightAmbient:     `${VOZ}noche_pueblo_duerme.mp3`,
-
-  // ─── Día / Mañana ────────────────────────────────────────────────
-  roosterCrow:      '/audio/rooster-crowing-364473.mp3',
-  dayWakeup:        `${VOZ}¡Pueblo... despierta!.mp3`,
-  dayStart:         `${VOZ}dia_pueblo_despierta.mp3`,
-
-  // ─── Muertes ─────────────────────────────────────────────────────
-  deathAnnounce:    `${VOZ}muerto.mp3`,
-  rip:              `${VOZ}Descanse en paz.mp3`,
-  vampireDeath:     `${VOZ}muerte vampiro.mp3`,
-
-  // ─── Debate / Votación ───────────────────────────────────────────
-  debateAmbient:    `${VOZ}debate.mp3`,
-  debateStart:      `${VOZ}inicio_debate.mp3`,
-  debatesOpen:      `${VOZ}debates empiecen.mp3`,
-  voteStart:        `${VOZ}inicio_votacion.mp3`,
-  dangerHere:       `${VOZ}el peligro está aquí.mp3`,
-
-  // ─── Exilio / Expulsión ──────────────────────────────────────────
-  exiled:           `${VOZ}destarrado por el pueblo.mp3`,
-  exiledAnnounce:   `${VOZ}anuncio_exilio.mp3`,
-
-  // ─── Inicio de partida ───────────────────────────────────────────
-  gameStart:        `${VOZ}Que comience el juego..mp3`,
-  introEpic:        `${VOZ}intro_epica.mp3`,
-  salas:            `${VOZ}salas.mp3`,
-
-  // ─── Efectos especiales ──────────────────────────────────────────
-  miracle:          `${VOZ}¡Milagro!.mp3`,
-  villageDies:      `${VOZ}aldea perecerá.mp3`,
-  lastBullet:       `${VOZ}la ultima bala.mp3`,
-
-  // ─── Victorias ───────────────────────────────────────────────────
-  victoryVillage:   `${VOZ}victoria_aldeanos.mp3`,
-  victoryWolves:    `${VOZ}victoria_lobos.mp3`,
-  victoryVampire:   `${VOZ}el vampiro ha ganado .mp3`,
-  victoryEbrio:     `${VOZ}ganador el ebrio.mp3`,
-  victoryVerdugo:   `${VOZ}victoria el berdugo.mp3`,
-  victoryCulto:     `${VOZ}victoria culto.mp3`,
-  victoryPescador:  `${VOZ}pescador ganador.mp3`,
+  nightStart: `${VOZ}El pueblo... duerme.mp3`,
+  nightAmbient: `${VOZ}noche_pueblo_duerme.mp3`,
+  roosterCrow: '/audio/rooster-crowing-364473.mp3',
+  dayWakeup: `${VOZ}¡Pueblo... despierta!.mp3`,
+  dayStart: `${VOZ}dia_pueblo_despierta.mp3`,
+  deathAnnounce: `${VOZ}muerto.mp3`,
+  rip: `${VOZ}Descanse en paz.mp3`,
+  vampireDeath: `${VOZ}muerte vampiro.mp3`,
+  debateAmbient: `${VOZ}debate.mp3`,
+  debateStart: `${VOZ}inicio_debate.mp3`,
+  debatesOpen: `${VOZ}debates empiecen.mp3`,
+  voteStart: `${VOZ}inicio_votacion.mp3`,
+  dangerHere: `${VOZ}el peligro está aquí.mp3`,
+  exiled: `${VOZ}destarrado por el pueblo.mp3`,
+  exiledAnnounce: `${VOZ}anuncio_exilio.mp3`,
+  gameStart: `${VOZ}Que comience el juego..mp3`,
+  introEpic: `${VOZ}intro_epica.mp3`,
+  salas: `${VOZ}salas.mp3`,
+  miracle: `${VOZ}¡Milagro!.mp3`,
+  villageDies: `${VOZ}aldea perecerá.mp3`,
+  lastBullet: `${VOZ}la ultima bala.mp3`,
+  victoryVillage: `${VOZ}victoria_aldeanos.mp3`,
+  victoryWolves: `${VOZ}victoria_lobos.mp3`,
+  victoryVampire: `${VOZ}el vampiro ha ganado .mp3`,
+  victoryEbrio: `${VOZ}ganador el ebrio.mp3`,
+  victoryVerdugo: `${VOZ}victoria el berdugo.mp3`,
+  victoryCulto: `${VOZ}victoria culto.mp3`,
+  victoryPescador: `${VOZ}pescador ganador.mp3`,
 };
 
-// ─── Singleton audio queue ───────────────────────────────────────────────────
+type AudioElement = HTMLAudioElement;
+type AudioFactory = (src: string) => AudioElement;
 
-let _current: HTMLAudioElement | null = null;
-let _queue: string[] = [];
-let _playing = false;
-let _doneCallbacks: Array<() => void> = [];
+export interface NarratorScheduler {
+  play(src: string): void;
+  playSequence(files: string[]): void;
+  stop(): void;
+  interruptWith(...files: string[]): void;
+  waitForAudio(): Promise<void>;
+  isBusy(): boolean;
+}
 
 /**
- * Generation counter — incremented every time stopAll() is called.
- * Each audio element captures the generation at creation time.
- * Stale callbacks from old audio elements are ignored.
+ * Pure audio scheduler. It deliberately knows nothing about React, so it can
+ * be stress-tested independently and then exposed through useNarrator().
  */
-let _generation = 0;
+export function createNarratorScheduler(audioFactory: AudioFactory): NarratorScheduler {
+  let current: AudioElement | null = null;
+  let queue: string[] = [];
+  let playing = false;
+  let doneCallbacks: Array<() => void> = [];
+  let generation = 0;
 
-function _resolveDoneWaiters() {
-  if (_doneCallbacks.length === 0) return;
-  const cbs = _doneCallbacks.splice(0);
-  cbs.forEach(cb => cb());
-}
+  const resolveDoneWaiters = () => {
+    if (doneCallbacks.length === 0) return;
+    const callbacks = doneCallbacks.splice(0);
+    callbacks.forEach(cb => cb());
+  };
 
-function _notifyDone() {
-  if (!_playing && _queue.length === 0) {
-    _resolveDoneWaiters();
-  }
-}
+  const notifyDone = () => {
+    if (!playing && queue.length === 0) resolveDoneWaiters();
+  };
 
-function _playNext(gen: number) {
-  if (gen !== _generation) return; // stale callback — ignore
-  if (_playing || _queue.length === 0) {
-    _notifyDone();
-    return;
-  }
-
-  const src = _queue.shift()!;
-  _playing = true;
-
-  try {
-    // Detach handlers before replacing the element.
-    if (_current) {
-      _current.onended = null;
-      _current.onerror = null;
-      _current.pause();
-      _current.src = '';
+  const playNext = (gen: number) => {
+    if (gen !== generation) return;
+    if (playing || queue.length === 0) {
+      notifyDone();
+      return;
     }
 
-    const audio = new Audio(src);
-    _current = audio;
-    audio.volume = 0.9;
+    const src = queue.shift()!;
+    playing = true;
 
-    // A browser can theoretically report more than one terminal signal
-    // (error + rejected play, for example). Make completion idempotent.
-    let finished = false;
-    const done = () => {
-      if (finished || _generation !== gen) return;
-      finished = true;
-      _playing = false;
-      _current = null;
-      _playNext(gen);
-    };
+    try {
+      if (current) {
+        current.onended = null;
+        current.onerror = null;
+        current.pause();
+        current.src = '';
+      }
 
-    audio.onended = done;
-    audio.onerror = done;
-    audio.play().catch(done);
-  } catch {
-    _playing = false;
-    _current = null;
-    _playNext(gen);
-  }
+      const audio = audioFactory(src);
+      current = audio;
+      audio.volume = 0.9;
+
+      let finished = false;
+      const done = () => {
+        if (finished || generation !== gen) return;
+        finished = true;
+        playing = false;
+        current = null;
+        playNext(gen);
+      };
+
+      audio.onended = done;
+      audio.onerror = done;
+      audio.play().catch(done);
+    } catch {
+      playing = false;
+      current = null;
+      playNext(gen);
+    }
+  };
+
+  const play = (src: string) => {
+    if (src) {
+      queue.push(src);
+      playNext(generation);
+    }
+  };
+
+  const playSequence = (files: string[]) => {
+    if (files.length === 0) return;
+    queue.push(...files);
+    playNext(generation);
+  };
+
+  const stop = () => {
+    generation++;
+    queue = [];
+    playing = false;
+
+    if (current) {
+      current.onended = null;
+      current.onerror = null;
+      current.pause();
+      current.src = '';
+      current = null;
+    }
+
+    resolveDoneWaiters();
+  };
+
+  const interruptWith = (...files: string[]) => {
+    stop();
+    playSequence(files);
+  };
+
+  const waitForAudio = () => {
+    if (!playing && queue.length === 0) return Promise.resolve();
+    return new Promise<void>(resolve => doneCallbacks.push(resolve));
+  };
+
+  return {
+    play,
+    playSequence,
+    stop,
+    interruptWith,
+    waitForAudio,
+    isBusy: () => playing || queue.length > 0,
+  };
 }
 
-/**
- * Resolves when the audio that is currently queued at call time becomes idle.
- * If stopAll()/interrupt() cancels that sequence, the waiter resolves too;
- * it never leaks into a later, unrelated sequence.
- */
+const browserAudioFactory: AudioFactory = src => new Audio(src);
+const narratorScheduler = createNarratorScheduler(browserAudioFactory);
+
 export function waitForAudio(): Promise<void> {
   if (typeof window === 'undefined') return Promise.resolve();
-  if (!_playing && _queue.length === 0) return Promise.resolve();
-  return new Promise(resolve => { _doneCallbacks.push(resolve); });
+  return narratorScheduler.waitForAudio();
 }
 
-/** Returns true if narrator is currently speaking or has queued audio. */
 export function isNarratorBusy(): boolean {
-  return _playing || _queue.length > 0;
+  return narratorScheduler.isBusy();
 }
-
-/** Enqueue one or more audio files. They play in order, waiting for each to finish. */
-function enqueue(...files: string[]) {
-  if (typeof window === 'undefined' || files.length === 0) return;
-  _queue.push(...files);
-  _playNext(_generation);
-}
-
-/**
- * Stop current audio, detach callbacks, clear the queue and resolve waiters
- * belonging to the interrupted sequence. This prevents a transition from
- * waiting forever for audio that was intentionally cancelled.
- */
-function stopAll() {
-  _generation++;
-  _queue = [];
-  _playing = false;
-
-  if (_current) {
-    _current.onended = null;
-    _current.onerror = null;
-    _current.pause();
-    _current.src = '';
-    _current = null;
-  }
-
-  _resolveDoneWaiters();
-}
-
-/** Stop current audio, clear queue, then enqueue new files (interrupt). */
-function interrupt(...files: string[]) {
-  stopAll();
-  enqueue(...files);
-}
-
-// ─── React hook ──────────────────────────────────────────────────────────────
 
 export function useNarrator() {
-  const play = useCallback((src: string) => enqueue(src), []);
-  const playSequence = useCallback((files: string[]) => enqueue(...files), []);
-  const stop = useCallback(() => stopAll(), []);
-  const interruptWith = useCallback((...files: string[]) => interrupt(...files), []);
+  const play = useCallback((src: string) => narratorScheduler.play(src), []);
+  const playSequence = useCallback((files: string[]) => narratorScheduler.playSequence(files), []);
+  const stop = useCallback(() => narratorScheduler.stop(), []);
+  const interruptWith = useCallback((...files: string[]) => narratorScheduler.interruptWith(...files), []);
 
   return { play, playSequence, stop, interruptWith, AUDIO_FILES };
 }
 
-// ─── Convenience helpers ──────────────────────────────────────────────────────
-
 export const NARRATIONS = {
-  nightStart:  () => AUDIO_FILES.nightStart,
-  dayWakeup:   () => AUDIO_FILES.dayWakeup,
-  debateOpen:  () => AUDIO_FILES.debateStart,
-  voteStart:   () => AUDIO_FILES.voteStart,
-  exiled:      () => AUDIO_FILES.exiled,
-  gameStart:   () => AUDIO_FILES.gameStart,
-  winMessage:  (winners: string | null): string => {
+  nightStart: () => AUDIO_FILES.nightStart,
+  dayWakeup: () => AUDIO_FILES.dayWakeup,
+  debateOpen: () => AUDIO_FILES.debateStart,
+  voteStart: () => AUDIO_FILES.voteStart,
+  exiled: () => AUDIO_FILES.exiled,
+  gameStart: () => AUDIO_FILES.gameStart,
+  winMessage: (winners: string | null): string => {
     switch (winners) {
-      case 'wolves':    return AUDIO_FILES.victoryWolves;
-      case 'village':   return AUDIO_FILES.victoryVillage;
-      case 'vampiro':   return AUDIO_FILES.victoryVampire;
-      case 'ebrio':     return AUDIO_FILES.victoryEbrio;
-      case 'verdugo':   return AUDIO_FILES.victoryVerdugo;
-      case 'culto':     return AUDIO_FILES.victoryCulto;
-      case 'pescador':  return AUDIO_FILES.victoryPescador;
-      default:          return AUDIO_FILES.victoryVillage;
+      case 'wolves': return AUDIO_FILES.victoryWolves;
+      case 'village': return AUDIO_FILES.victoryVillage;
+      case 'vampiro': return AUDIO_FILES.victoryVampire;
+      case 'ebrio': return AUDIO_FILES.victoryEbrio;
+      case 'verdugo': return AUDIO_FILES.victoryVerdugo;
+      case 'culto': return AUDIO_FILES.victoryCulto;
+      case 'pescador': return AUDIO_FILES.victoryPescador;
+      default: return AUDIO_FILES.victoryVillage;
     }
   },
 };
