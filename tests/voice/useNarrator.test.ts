@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createNarratorScheduler } from '../../hooks/useNarrator';
 
 class FakeAudio {
   static instances: FakeAudio[] = [];
@@ -25,29 +26,22 @@ class FakeAudio {
   }
 }
 
-async function loadNarrator() {
-  vi.resetModules();
-  (globalThis as any).window = {};
-  (globalThis as any).Audio = FakeAudio;
-  return import('../../hooks/useNarrator');
-}
-
 describe('useNarrator audio scheduler', () => {
   beforeEach(() => {
     FakeAudio.instances = [];
   });
 
   afterEach(() => {
-    delete (globalThis as any).window;
-    delete (globalThis as any).Audio;
     vi.restoreAllMocks();
   });
 
-  it('plays a sequence strictly in order', async () => {
-    const { useNarrator } = await loadNarrator();
-    const narrator = useNarrator();
+  const createScheduler = () =>
+    createNarratorScheduler(src => new FakeAudio(src) as unknown as HTMLAudioElement);
 
-    narrator.playSequence(['a.mp3', 'b.mp3', 'c.mp3']);
+  it('plays a sequence strictly in order', async () => {
+    const scheduler = createScheduler();
+
+    scheduler.playSequence(['a.mp3', 'b.mp3', 'c.mp3']);
 
     expect(FakeAudio.instances).toHaveLength(1);
     expect(FakeAudio.instances[0].src).toBe('a.mp3');
@@ -61,46 +55,45 @@ describe('useNarrator audio scheduler', () => {
     expect(FakeAudio.instances[2].src).toBe('c.mp3');
   });
 
-  it('never creates two local narrator players at once', async () => {
-    const { useNarrator, isNarratorBusy } = await loadNarrator();
-    const narrator = useNarrator();
+  it('never creates two local narrator players at once', () => {
+    const scheduler = createScheduler();
 
-    narrator.play('first.mp3');
-    narrator.play('second.mp3');
-    narrator.play('third.mp3');
+    scheduler.play('first.mp3');
+    scheduler.play('second.mp3');
+    scheduler.play('third.mp3');
 
     expect(FakeAudio.instances).toHaveLength(1);
     expect(FakeAudio.instances[0].src).toBe('first.mp3');
-    expect(isNarratorBusy()).toBe(true);
+    expect(scheduler.isBusy()).toBe(true);
   });
 
   it('resolves a waiter when the queued sequence becomes idle', async () => {
-    const { useNarrator, waitForAudio, isNarratorBusy } = await loadNarrator();
+    const scheduler = createScheduler();
 
-    useNarrator().playSequence(['a.mp3', 'b.mp3']);
-    const done = waitForAudio();
+    scheduler.playSequence(['a.mp3', 'b.mp3']);
+    const done = scheduler.waitForAudio();
 
-    expect(isNarratorBusy()).toBe(true);
+    expect(scheduler.isBusy()).toBe(true);
     let resolved = false;
     done.then(() => { resolved = true; });
 
     FakeAudio.instances[0].finish();
+    await Promise.resolve();
     expect(resolved).toBe(false);
 
     FakeAudio.instances[1].finish();
     await done;
     expect(resolved).toBe(true);
-    expect(isNarratorBusy()).toBe(false);
+    expect(scheduler.isBusy()).toBe(false);
   });
 
   it('resolves an old waiter when a sequence is intentionally interrupted', async () => {
-    const { useNarrator, waitForAudio } = await loadNarrator();
-    const narrator = useNarrator();
+    const scheduler = createScheduler();
 
-    narrator.play('old.mp3');
-    const oldWaiter = waitForAudio();
+    scheduler.play('old.mp3');
+    const oldWaiter = scheduler.waitForAudio();
 
-    narrator.interruptWith('new.mp3');
+    scheduler.interruptWith('new.mp3');
     await oldWaiter;
 
     expect(FakeAudio.instances).toHaveLength(2);
@@ -108,14 +101,13 @@ describe('useNarrator audio scheduler', () => {
     expect(FakeAudio.instances[1].src).toBe('new.mp3');
   });
 
-  it('does not let stale callbacks advance a newer generation', async () => {
-    const { useNarrator } = await loadNarrator();
-    const narrator = useNarrator();
+  it('does not let stale callbacks advance a newer generation', () => {
+    const scheduler = createScheduler();
 
-    narrator.play('old.mp3');
+    scheduler.play('old.mp3');
     const oldAudio = FakeAudio.instances[0];
 
-    narrator.interruptWith('new.mp3');
+    scheduler.interruptWith('new.mp3');
     oldAudio.finish();
 
     expect(FakeAudio.instances).toHaveLength(2);
@@ -123,10 +115,10 @@ describe('useNarrator audio scheduler', () => {
   });
 
   it('handles an audio error as a terminal event and continues the queue', async () => {
-    const { useNarrator, waitForAudio } = await loadNarrator();
+    const scheduler = createScheduler();
 
-    useNarrator().playSequence(['broken.mp3', 'next.mp3']);
-    const done = waitForAudio();
+    scheduler.playSequence(['broken.mp3', 'next.mp3']);
+    const done = scheduler.waitForAudio();
 
     FakeAudio.instances[0].fail();
 
@@ -138,10 +130,10 @@ describe('useNarrator audio scheduler', () => {
   });
 
   it('treats repeated terminal signals as one completion', async () => {
-    const { useNarrator, waitForAudio } = await loadNarrator();
+    const scheduler = createScheduler();
 
-    useNarrator().playSequence(['a.mp3', 'b.mp3']);
-    const done = waitForAudio();
+    scheduler.playSequence(['a.mp3', 'b.mp3']);
+    const done = scheduler.waitForAudio();
     const first = FakeAudio.instances[0];
 
     first.fail();
