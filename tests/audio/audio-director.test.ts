@@ -52,9 +52,17 @@ describe('AudioDirector narrator exclusivity', () => {
 
   it('enters cinematic mix for one narrator and restores normal mix after stop', async () => {
     const narrator = cue('narrator', 100);
+
     expect(await audioDirector.play(narrator.item)).toBe(true);
+
+    // The mixer intentionally eases into cinematic mode over 350 ms.
+    await new Promise(resolve => setTimeout(resolve, 400));
     expect(audioDirector.getMix().voice).toBeLessThan(NORMAL_MIX.voice);
+
     await audioDirector.stop('narrator');
+
+    // Leaving cinematic mode intentionally eases back over 650 ms.
+    await new Promise(resolve => setTimeout(resolve, 700));
     expect(audioDirector.getMix()).toEqual(NORMAL_MIX);
   });
 });
