@@ -5,6 +5,7 @@ export class VoiceController {
   private participants: VoiceParticipant[] = [];
   private transport: VoiceTransport | null = null;
   private unsubs: Array<() => void> = [];
+  private participantListeners = new Set<(participants: VoiceParticipant[]) => void>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectCount = 0;
 
@@ -13,12 +14,21 @@ export class VoiceController {
   getState() { return this.state; }
   getParticipants() { return [...this.participants]; }
 
+  onParticipantsChange(listener: (participants: VoiceParticipant[]) => void) {
+    this.participantListeners.add(listener);
+    listener(this.getParticipants());
+    return () => this.participantListeners.delete(listener);
+  }
+
   async connect(room: VoiceRoom, participantId: string): Promise<void> {
     await this.cleanupTransport();
     const transport = this.transportFactory();
     this.transport = transport;
     this.unsubs.push(transport.onStateChange(state => this.handleState(state, room, participantId)));
-    this.unsubs.push(transport.onParticipantsChange(participants => { this.participants = participants; }));
+    this.unsubs.push(transport.onParticipantsChange(participants => {
+      this.participants = participants;
+      this.participantListeners.forEach(listener => listener(this.getParticipants()));
+    }));
     this.state = 'connecting';
     this.reconnectCount = 0;
     try {
@@ -45,6 +55,7 @@ export class VoiceController {
     await this.cleanupTransport();
     this.state = 'disconnected';
     this.participants = [];
+    this.participantListeners.forEach(listener => listener([]));
   }
 
   private handleState(state: VoiceState, room: VoiceRoom, participantId: string) {
