@@ -60,15 +60,19 @@ let _doneCallbacks: Array<() => void> = [];
 /**
  * Generation counter — incremented every time stopAll() is called.
  * Each audio element captures the generation at creation time.
- * Stale onended / onerror callbacks from old audio elements are
- * silently ignored, preventing two tracks from playing at once.
+ * Stale callbacks from old audio elements are ignored.
  */
 let _generation = 0;
 
+function _resolveDoneWaiters() {
+  if (_doneCallbacks.length === 0) return;
+  const cbs = _doneCallbacks.splice(0);
+  cbs.forEach(cb => cb());
+}
+
 function _notifyDone() {
-  if (!_playing && _queue.length === 0 && _doneCallbacks.length > 0) {
-    const cbs = _doneCallbacks.splice(0);
-    cbs.forEach(cb => cb());
+  if (!_playing && _queue.length === 0) {
+    _resolveDoneWaiters();
   }
 }
 
@@ -83,7 +87,7 @@ function _playNext(gen: number) {
   _playing = true;
 
   try {
-    // Detach handlers before replacing the element
+    // Detach handlers before replacing the element.
     if (_current) {
       _current.onended = null;
       _current.onerror = null;
@@ -95,8 +99,12 @@ function _playNext(gen: number) {
     _current = audio;
     audio.volume = 0.9;
 
+    // A browser can theoretically report more than one terminal signal
+    // (error + rejected play, for example). Make completion idempotent.
+    let finished = false;
     const done = () => {
-      if (_generation !== gen) return; // stale
+      if (finished || _generation !== gen) return;
+      finished = true;
       _playing = false;
       _current = null;
       _playNext(gen);
@@ -112,7 +120,11 @@ function _playNext(gen: number) {
   }
 }
 
-/** Returns a promise that resolves when the entire audio queue finishes playing. */
+/**
+ * Resolves when the audio that is currently queued at call time becomes idle.
+ * If stopAll()/interrupt() cancels that sequence, the waiter resolves too;
+ * it never leaks into a later, unrelated sequence.
+ */
 export function waitForAudio(): Promise<void> {
   if (typeof window === 'undefined') return Promise.resolve();
   if (!_playing && _queue.length === 0) return Promise.resolve();
@@ -126,18 +138,21 @@ export function isNarratorBusy(): boolean {
 
 /** Enqueue one or more audio files. They play in order, waiting for each to finish. */
 function enqueue(...files: string[]) {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined' || files.length === 0) return;
   _queue.push(...files);
   _playNext(_generation);
 }
 
-/** Stop current audio, detach its callbacks, and clear the queue.
- *  waitForAudio promises are NOT cleared — they will resolve when the
- *  next audio sequence finishes, so transition screens never hang. */
+/**
+ * Stop current audio, detach callbacks, clear the queue and resolve waiters
+ * belonging to the interrupted sequence. This prevents a transition from
+ * waiting forever for audio that was intentionally cancelled.
+ */
 function stopAll() {
-  _generation++;      // invalidate all in-flight callbacks
+  _generation++;
   _queue = [];
   _playing = false;
+
   if (_current) {
     _current.onended = null;
     _current.onerror = null;
@@ -145,6 +160,8 @@ function stopAll() {
     _current.src = '';
     _current = null;
   }
+
+  _resolveDoneWaiters();
 }
 
 /** Stop current audio, clear queue, then enqueue new files (interrupt). */
