@@ -15,6 +15,7 @@ export type VoiceDiagnosticSnapshot = {
   streamPaused: number;
   streamResumed: number;
   duplicateTrackSids: number;
+  ghostTracks: number;
   lastEvent?: string;
   lastError?: string;
 };
@@ -59,8 +60,12 @@ export class VoiceDiagnostics {
     bind(RoomEvent.TrackSubscribed, (track: any, publication: any) => {
       if (track.kind !== Track.Kind.Audio) return;
       const sid = publication.trackSid;
+      if (this.attachedTrackSids.has(sid)) {
+        this.snapshot.duplicateTrackSids += 1;
+        this.emit('duplicate-track-subscription');
+        return;
+      }
       this.snapshot.subscribedTracks += 1;
-      if (this.attachedTrackSids.has(sid)) this.snapshot.duplicateTrackSids += 1;
       this.seenTrackSids.add(sid);
       this.attachedTrackSids.add(sid);
       this.emit('track-subscribed');
@@ -147,9 +152,14 @@ export class VoiceDiagnostics {
       }
     }
 
+    let ghosts = 0;
     for (const sid of [...this.attachedTrackSids]) {
-      if (!currentAudioSids.has(sid)) this.attachedTrackSids.delete(sid);
+      if (!currentAudioSids.has(sid)) {
+        this.attachedTrackSids.delete(sid);
+        ghosts += 1;
+      }
     }
+    this.snapshot.ghostTracks += ghosts;
 
     for (const sid of currentAudioSids) this.seenTrackSids.add(sid);
 
@@ -178,6 +188,7 @@ export class VoiceDiagnostics {
       streamPaused: 0,
       streamResumed: 0,
       duplicateTrackSids: 0,
+      ghostTracks: 0,
     };
   }
 }
