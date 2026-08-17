@@ -1,13 +1,28 @@
-import type { Participant, Room, RemoteTrackPublication } from 'livekit-client';
+import {
+  Participant,
+  Room,
+  RoomEvent,
+  RemoteTrack,
+  RemoteTrackPublication,
+  Track,
+} from 'livekit-client';
 import type { VoiceParticipant, VoiceRoom, VoiceState, VoiceTransport } from './voice-contract';
 
 export type LiveKitRoomFactory = () => Room;
+
+type AttachedAudio = {
+  track: RemoteTrack;
+  element: HTMLMediaElement;
+};
 
 export class LiveKitVoiceTransport implements VoiceTransport {
   private room: Room | null = null;
   private stateListeners = new Set<(state: VoiceState) => void>();
   private participantListeners = new Set<(participants: VoiceParticipant[]) => void>();
   private roomFactory: LiveKitRoomFactory;
+  private activeSpeakerIds = new Set<string>();
+  private participantVolumes = new Map<string, number>();
+  private attachedAudio = new Map<string, AttachedAudio>();
 
   constructor(roomFactory: LiveKitRoomFactory) {
     this.roomFactory = roomFactory;
@@ -24,18 +39,43 @@ export class LiveKitVoiceTransport implements VoiceTransport {
   }
 
   async connect(room: VoiceRoom, participantId: string) {
+    if (room.maxParticipants > 35) throw new Error('Voice room exceeds the 35-player limit');
+
+    await this.disconnect();
     const roomInstance = this.roomFactory();
     this.room = roomInstance;
     this.emitState('connecting');
 
-    roomInstance.on('participantConnected', () => this.emitParticipants());
-    roomInstance.on('participantDisconnected', () => this.emitParticipants());
-    roomInstance.on('participantMetadataChanged', () => this.emitParticipants());
-    roomInstance.on('trackSubscribed', () => this.emitParticipants());
-    roomInstance.on('trackUnsubscribed', () => this.emitParticipants());
-    roomInstance.on('reconnecting', () => this.emitState('reconnecting'));
-    roomInstance.on('reconnected', () => { this.emitState('connected'); this.emitParticipants(); });
-    roomInstance.on('disconnected', () => this.emitState('disconnected'));
+    roomInstance
+      .on(RoomEvent.ParticipantConnected, () => this.emitParticipants())
+      .on(RoomEvent.ParticipantDisconnected, participant => {
+        this.activeSpeakerIds.delete(participant.identity);
+        this.emitParticipants();
+      })
+      .on(RoomEvent.ParticipantMetadataChanged, () => this.emitParticipants())
+      .on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+        this.attachAudioTrack(track, publication, participant.identity);
+        this.emitParticipants();
+      })
+      .on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+        this.detachAudioTrack(publication.trackSid);
+        this.emitParticipants();
+      })
+      .on(RoomEvent.TrackMuted, () => this.emitParticipants())
+      .on(RoomEvent.TrackUnmuted, () => this.emitParticipants())
+      .on(RoomEvent.ActiveSpeakersChanged, speakers => {
+        this.activeSpeakerIds = new Set(speakers.map(speaker => speaker.identity));
+        this.emitParticipants();
+      })
+      .on(RoomEvent.Reconnecting, () => this.emitState('reconnecting'))
+      .on(RoomEvent.Reconnected, () => {
+        this.emitState('connected');
+        this.emitParticipants();
+      })
+      .on(RoomEvent.Disconnected, () => this.emitState('disconnected'))
+      .on(RoomEvent.AudioPlaybackStatusChanged, playing => {
+        if (!playing) this.emitState('reconnecting');
+      });
 
     await roomInstance.connect(room.serverUrl, room.token, { autoSubscribe: true });
     this.emitState('connected');
@@ -48,23 +88,61 @@ export class LiveKitVoiceTransport implements VoiceTransport {
   }
 
   async setParticipantVolume(playerId: string, volume: number) {
+    const normalized = Math.max(0, Math.min(1, volume));
+    this.participantVolumes.set(playerId, normalized);
     const participant = this.room?.remoteParticipants.get(playerId);
     if (!participant) return;
-    const normalized = Math.max(0, Math.min(1, volume));
-    participant.audioTrackPublications.forEach((publication: RemoteTrackPublication) => {
-      const track = publication.track;
-      if (track && 'setVolume' in track && typeof track.setVolume === 'function') {
-        track.setVolume(normalized);
-      }
+    participant.setVolume(normalized);
+    participant.audioTrackPublications.forEach(publication => {
+      publication.track?.setVolume?.(normalized);
     });
   }
 
   async disconnect() {
     if (!this.room) return;
+    this.detachAllAudio();
     await this.room.disconnect();
     this.room = null;
+    this.activeSpeakerIds.clear();
     this.emitState('disconnected');
     this.emitParticipants();
+  }
+
+  private attachAudioTrack(track: RemoteTrack, publication: RemoteTrackPublication, participantId: string) {
+    if (track.kind !== Track.Kind.Audio || typeof document === 'undefined') return;
+    const key = publication.trackSid;
+    this.detachAudioTrack(key);
+    const element = track.attach();
+    element.autoplay = true;
+    element.setAttribute('aria-hidden', 'true');
+    element.style.position = 'fixed';
+    element.style.width = '1px';
+    element.style.height = '1px';
+    element.style.opacity = '0';
+    element.style.pointerEvents = 'none';
+    document.body.appendChild(element);
+
+    const volume = this.participantVolumes.get(participantId) ?? 1;
+    if ('setVolume' in track && typeof track.setVolume === 'function') track.setVolume(volume);
+    else element.volume = volume;
+    this.attachedAudio.set(key, { track, element });
+  }
+
+  private detachAudioTrack(trackSid?: string) {
+    if (!trackSid) return;
+    const attached = this.attachedAudio.get(trackSid);
+    if (!attached) return;
+    attached.track.detach(attached.element);
+    attached.element.remove();
+    this.attachedAudio.delete(trackSid);
+  }
+
+  private detachAllAudio() {
+    for (const [trackSid, attached] of this.attachedAudio) {
+      attached.track.detach(attached.element);
+      attached.element.remove();
+      this.attachedAudio.delete(trackSid);
+    }
   }
 
   private emitState(state: VoiceState) {
@@ -72,11 +150,16 @@ export class LiveKitVoiceTransport implements VoiceTransport {
   }
 
   private emitParticipants() {
-    const participants = [...(this.room?.remoteParticipants.values() ?? [])].map((participant: Participant) => ({
-      id: participant.identity,
-      displayName: participant.name || participant.identity,
-      muted: [...participant.audioTrackPublications.values()].every(publication => publication.isMuted),
-    }));
+    const participants = [...(this.room?.remoteParticipants.values() ?? [])].map((participant: Participant) => {
+      const volume = this.participantVolumes.get(participant.identity) ?? participant.getVolume() ?? 1;
+      return {
+        playerId: participant.identity,
+        displayName: participant.name || participant.identity,
+        muted: [...participant.audioTrackPublications.values()].every(publication => publication.isMuted),
+        speaking: this.activeSpeakerIds.has(participant.identity),
+        volume,
+      };
+    });
     this.participantListeners.forEach(listener => listener(participants));
   }
 }
