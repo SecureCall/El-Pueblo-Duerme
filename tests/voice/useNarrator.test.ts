@@ -62,7 +62,7 @@ describe('useNarrator audio scheduler', () => {
   });
 
   it('never creates two local narrator players at once', async () => {
-    const { useNarrator } = await loadNarrator();
+    const { useNarrator, isNarratorBusy } = await loadNarrator();
     const narrator = useNarrator();
 
     narrator.play('first.mp3');
@@ -71,7 +71,7 @@ describe('useNarrator audio scheduler', () => {
 
     expect(FakeAudio.instances).toHaveLength(1);
     expect(FakeAudio.instances[0].src).toBe('first.mp3');
-    expect(narrator.isBusy?.()).toBeUndefined();
+    expect(isNarratorBusy()).toBe(true);
   });
 
   it('resolves a waiter when the queued sequence becomes idle', async () => {
