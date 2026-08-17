@@ -21,12 +21,15 @@ export type VoiceDiagnosticSnapshot = {
 
 export type VoiceDiagnosticListener = (snapshot: VoiceDiagnosticSnapshot) => void;
 
+type ListenerBinding = { event: RoomEvent; handler: (...args: any[]) => void };
+
 export class VoiceDiagnostics {
   private room: Room | null = null;
   private listeners = new Set<VoiceDiagnosticListener>();
   private snapshot: VoiceDiagnosticSnapshot = this.createInitialSnapshot();
   private seenTrackSids = new Set<string>();
   private attachedTrackSids = new Set<string>();
+  private bindings: ListenerBinding[] = [];
 
   onChange(listener: VoiceDiagnosticListener): () => void {
     this.listeners.add(listener);
@@ -44,9 +47,14 @@ export class VoiceDiagnostics {
     this.snapshot = this.createInitialSnapshot();
     this.emit('installed');
 
-    const onParticipantConnected = () => this.refreshParticipants('participant-connected');
-    const onParticipantDisconnected = () => this.refreshParticipants('participant-disconnected');
-    const onSubscribed = (track: any, publication: any) => {
+    const bind = (event: RoomEvent, handler: (...args: any[]) => void) => {
+      room.on(event, handler as any);
+      this.bindings.push({ event, handler });
+    };
+
+    bind(RoomEvent.ParticipantConnected, () => this.refreshParticipants('participant-connected'));
+    bind(RoomEvent.ParticipantDisconnected, () => this.refreshParticipants('participant-disconnected'));
+    bind(RoomEvent.TrackSubscribed, (track: any, publication: any) => {
       if (track.kind !== Track.Kind.Audio) return;
       const sid = publication.trackSid;
       this.snapshot.subscribedTracks += 1;
@@ -54,75 +62,57 @@ export class VoiceDiagnostics {
       this.seenTrackSids.add(sid);
       this.attachedTrackSids.add(sid);
       this.emit('track-subscribed');
-    };
-    const onUnsubscribed = (track: any, publication: any) => {
+    });
+    bind(RoomEvent.TrackUnsubscribed, (track: any, publication: any) => {
       if (track.kind !== Track.Kind.Audio) return;
       this.snapshot.unsubscribedTracks += 1;
       this.attachedTrackSids.delete(publication.trackSid);
       this.emit('track-unsubscribed');
-    };
-    const onSubscriptionFailed = (_sid: string, participant: any, reason?: unknown) => {
+    });
+    bind(RoomEvent.TrackSubscriptionFailed, (_sid: string, participant: any, reason?: unknown) => {
       this.snapshot.subscriptionFailures += 1;
-      this.snapshot.lastError = reason instanceof Error ? reason.message : `subscription failed for ${participant?.identity ?? 'unknown'}`;
+      this.snapshot.lastError = reason instanceof Error
+        ? reason.message
+        : `subscription failed for ${participant?.identity ?? 'unknown'}`;
       this.emit('track-subscription-failed');
-    };
-    const onActiveSpeakersChanged = (speakers: any[]) => {
+    });
+    bind(RoomEvent.ActiveSpeakersChanged, (speakers: any[]) => {
       this.snapshot.activeSpeakers = speakers.length;
       this.emit('active-speakers-changed');
-    };
-    const onReconnecting = () => {
+    });
+    bind(RoomEvent.Reconnecting, () => {
       this.snapshot.reconnecting += 1;
       this.emit('reconnecting');
-    };
-    const onReconnected = () => {
+    });
+    bind(RoomEvent.Reconnected, () => {
       this.snapshot.reconnected += 1;
       this.refreshParticipants('reconnected');
-    };
-    const onDisconnected = () => {
+    });
+    bind(RoomEvent.Disconnected, () => {
       this.snapshot.disconnected += 1;
       this.emit('disconnected');
-    };
-    const onPlayback = (playing: boolean) => {
+    });
+    bind(RoomEvent.AudioPlaybackStatusChanged, (playing: boolean) => {
       if (!playing) this.snapshot.playbackBlocked += 1;
       this.emit(playing ? 'audio-playback-restored' : 'audio-playback-blocked');
-    };
-    const onStreamStateChanged = (_publication: any, state: any) => {
+    });
+    bind(RoomEvent.TrackStreamStateChanged, (_publication: any, state: any) => {
       const value = String(state).toLowerCase();
       if (value.includes('paused')) this.snapshot.streamPaused += 1;
       else if (value.includes('active')) this.snapshot.streamResumed += 1;
       this.emit(`stream-state:${value}`);
-    };
-
-    room.on(RoomEvent.ParticipantConnected, onParticipantConnected)
-      .on(RoomEvent.ParticipantDisconnected, onParticipantDisconnected)
-      .on(RoomEvent.TrackSubscribed, onSubscribed)
-      .on(RoomEvent.TrackUnsubscribed, onUnsubscribed)
-      .on(RoomEvent.TrackSubscriptionFailed, onSubscriptionFailed)
-      .on(RoomEvent.ActiveSpeakersChanged, onActiveSpeakersChanged)
-      .on(RoomEvent.Reconnecting, onReconnecting)
-      .on(RoomEvent.Reconnected, onReconnected)
-      .on(RoomEvent.Disconnected, onDisconnected)
-      .on(RoomEvent.AudioPlaybackStatusChanged, onPlayback)
-      .on(RoomEvent.TrackStreamStateChanged, onStreamStateChanged);
+    });
 
     this.refreshParticipants('ready');
-
     return () => this.dispose(room);
   }
 
   dispose(expectedRoom?: Room): void {
     if (!this.room || (expectedRoom && this.room !== expectedRoom)) return;
-    this.room.removeAllListeners(RoomEvent.ParticipantConnected);
-    this.room.removeAllListeners(RoomEvent.ParticipantDisconnected);
-    this.room.removeAllListeners(RoomEvent.TrackSubscribed);
-    this.room.removeAllListeners(RoomEvent.TrackUnsubscribed);
-    this.room.removeAllListeners(RoomEvent.TrackSubscriptionFailed);
-    this.room.removeAllListeners(RoomEvent.ActiveSpeakersChanged);
-    this.room.removeAllListeners(RoomEvent.Reconnecting);
-    this.room.removeAllListeners(RoomEvent.Reconnected);
-    this.room.removeAllListeners(RoomEvent.Disconnected);
-    this.room.removeAllListeners(RoomEvent.AudioPlaybackStatusChanged);
-    this.room.removeAllListeners(RoomEvent.TrackStreamStateChanged);
+    for (const { event, handler } of this.bindings) {
+      this.room.off(event, handler as any);
+    }
+    this.bindings = [];
     this.room = null;
     this.attachedTrackSids.clear();
     this.seenTrackSids.clear();
@@ -131,7 +121,10 @@ export class VoiceDiagnostics {
   private refreshParticipants(event: string): void {
     this.snapshot.participants = this.room?.remoteParticipants.size ?? 0;
     this.snapshot.audioTracks = this.room
-      ? [...this.room.remoteParticipants.values()].reduce((count, participant) => count + participant.audioTrackPublications.size, 0)
+      ? [...this.room.remoteParticipants.values()].reduce(
+          (count, participant) => count + participant.audioTrackPublications.size,
+          0,
+        )
       : 0;
     this.emit(event);
   }
