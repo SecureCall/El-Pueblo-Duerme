@@ -43,20 +43,31 @@ class AudioDirector {
 
   async play(cue: AudioCue): Promise<boolean> {
     if (!this.masterEnabled) return false;
+
     const now = Date.now();
     const last = this.lastPlayed.get(cue.id) ?? 0;
     if (cue.cooldownMs && now - last < cue.cooldownMs) return false;
 
-    const conflicts = [...this.active.values()].filter(active =>
-      active.bus === cue.bus ||
-      (cue.bus === 'narrator' && active.bus === 'narrator') ||
-      (cue.bus === 'sfx' && active.bus === 'sfx' && active.priority >= cue.priority)
-    );
+    // Narration is a single exclusive channel. Never allow two narrator cues
+    // to overlap, even when the incoming cue has equal priority.
+    if (cue.bus === 'narrator') {
+      const activeNarrators = [...this.active.values()].filter(active => active.bus === 'narrator');
+      if (activeNarrators.length > 0) {
+        const strongest = activeNarrators.reduce((max, active) => Math.max(max, active.priority), -Infinity);
+        if (cue.priority < strongest) return false;
+        await Promise.all(activeNarrators.map(active => this.stop(active.id)));
+      }
+    } else {
+      const conflicts = [...this.active.values()].filter(active =>
+        active.bus === cue.bus ||
+        (cue.bus === 'sfx' && active.bus === 'sfx' && active.priority >= cue.priority)
+      );
 
-    if (cue.interrupt || cue.bus === 'narrator') {
-      await Promise.all(conflicts.filter(active => active.priority <= cue.priority).map(active => this.stop(active.id)));
-    } else if (conflicts.some(active => active.priority > cue.priority)) {
-      return false;
+      if (cue.interrupt) {
+        await Promise.all(conflicts.filter(active => active.priority <= cue.priority).map(active => this.stop(active.id)));
+      } else if (conflicts.some(active => active.priority > cue.priority)) {
+        return false;
+      }
     }
 
     this.lastPlayed.set(cue.id, now);
