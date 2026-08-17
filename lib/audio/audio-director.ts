@@ -58,10 +58,14 @@ class AudioDirector {
       await cue.play();
       return true;
     } finally {
-      this.active.delete(cue.id);
-      if (cue.bus === 'narrator') {
-        this.cinematicDepth = Math.max(0, this.cinematicDepth - 1);
-        if (this.cinematicDepth === 0) audioMixer.leaveCinematic();
+      // stop() may already have removed this cue. Only the owner that still
+      // holds the active entry is allowed to release cinematic depth.
+      if (this.active.get(cue.id) === cue) {
+        this.active.delete(cue.id);
+        if (cue.bus === 'narrator') {
+          this.cinematicDepth = Math.max(0, this.cinematicDepth - 1);
+          if (this.cinematicDepth === 0) audioMixer.leaveCinematic();
+        }
       }
     }
   }
@@ -70,9 +74,9 @@ class AudioDirector {
     const cue = this.active.get(id);
     if (!cue) return;
     const wasNarrator = cue.bus === 'narrator';
+    this.active.delete(id);
     try { await cue.stop?.(); }
     finally {
-      this.active.delete(id);
       if (wasNarrator) {
         this.cinematicDepth = Math.max(0, this.cinematicDepth - 1);
         if (this.cinematicDepth === 0) audioMixer.leaveCinematic();
