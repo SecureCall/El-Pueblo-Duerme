@@ -45,6 +45,8 @@ export class VoiceDiagnostics {
     this.dispose();
     this.room = room;
     this.snapshot = this.createInitialSnapshot();
+    this.seenTrackSids.clear();
+    this.attachedTrackSids.clear();
     this.emit('installed');
 
     const bind = (event: RoomEvent, handler: (...args: any[]) => void) => {
@@ -58,7 +60,7 @@ export class VoiceDiagnostics {
       if (track.kind !== Track.Kind.Audio) return;
       const sid = publication.trackSid;
       this.snapshot.subscribedTracks += 1;
-      if (this.seenTrackSids.has(sid)) this.snapshot.duplicateTrackSids += 1;
+      if (this.attachedTrackSids.has(sid)) this.snapshot.duplicateTrackSids += 1;
       this.seenTrackSids.add(sid);
       this.attachedTrackSids.add(sid);
       this.emit('track-subscribed');
@@ -86,7 +88,7 @@ export class VoiceDiagnostics {
     });
     bind(RoomEvent.Reconnected, () => {
       this.snapshot.reconnected += 1;
-      this.refreshParticipants('reconnected');
+      this.reconcileAfterReconnect();
     });
     bind(RoomEvent.Disconnected, () => {
       this.snapshot.disconnected += 1;
@@ -104,6 +106,7 @@ export class VoiceDiagnostics {
     });
 
     this.refreshParticipants('ready');
+    this.reconcileCurrentTracks('ready');
     return () => this.dispose(room);
   }
 
@@ -126,6 +129,30 @@ export class VoiceDiagnostics {
           0,
         )
       : 0;
+    this.emit(event);
+  }
+
+  private reconcileAfterReconnect(): void {
+    this.refreshParticipants('reconnected');
+    this.reconcileCurrentTracks('reconnected-reconciled');
+  }
+
+  private reconcileCurrentTracks(event: string): void {
+    if (!this.room) return;
+
+    const currentAudioSids = new Set<string>();
+    for (const participant of this.room.remoteParticipants.values()) {
+      for (const publication of participant.audioTrackPublications.values()) {
+        currentAudioSids.add(publication.trackSid);
+      }
+    }
+
+    for (const sid of [...this.attachedTrackSids]) {
+      if (!currentAudioSids.has(sid)) this.attachedTrackSids.delete(sid);
+    }
+
+    for (const sid of currentAudioSids) this.seenTrackSids.add(sid);
+
     this.emit(event);
   }
 
