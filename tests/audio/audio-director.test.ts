@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { audioDirector, type AudioCue } from '@/lib/audio/audio-director';
-import { audioMixer, NORMAL_MIX } from '@/lib/audio/audio-mixer';
+import { audioDirector, type AudioCue } from '../../lib/audio/audio-director';
+import { audioMixer, NORMAL_MIX } from '../../lib/audio/audio-mixer';
 
 const cue = (id: string, priority: AudioCue['priority'], bus: AudioCue['bus'] = 'narrator') => {
   const state = { stopped: false };
