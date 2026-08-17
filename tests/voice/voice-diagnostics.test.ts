@@ -170,4 +170,31 @@ describe('VoiceDiagnostics', () => {
     diagnostics.dispose(room as any);
     expect(room.listenerCount(RoomEvent.Reconnected)).toBe(0);
   });
+
+  it('survives 35 concurrent audio subscriptions across 5 reconnect cycles', () => {
+    const room = makeRoom(35);
+    const diagnostics = new VoiceDiagnostics();
+    diagnostics.install(room as any);
+
+    for (const participant of room.remoteParticipants.values()) {
+      for (const publication of participant.audioTrackPublications.values()) {
+        room.emit(RoomEvent.TrackSubscribed, audioTrack(), publication, participant);
+      }
+    }
+
+    for (let cycle = 0; cycle < 5; cycle += 1) {
+      room.emit(RoomEvent.Reconnecting);
+      room.emit(RoomEvent.Reconnected);
+    }
+
+    const snapshot = diagnostics.getSnapshot();
+    expect(snapshot.participants).toBe(35);
+    expect(snapshot.audioTracks).toBe(35);
+    expect(snapshot.subscribedTracks).toBe(35);
+    expect(snapshot.duplicateTrackSids).toBe(0);
+    expect(snapshot.ghostTracks).toBe(0);
+    expect(snapshot.subscriptionFailures).toBe(0);
+    expect(snapshot.reconnecting).toBe(5);
+    expect(snapshot.reconnected).toBe(5);
+  });
 });
