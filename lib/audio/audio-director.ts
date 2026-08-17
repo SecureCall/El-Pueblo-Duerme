@@ -1,4 +1,4 @@
-import { audioMixer } from './audio-mixer';
+import { audioMixer, type AudioMix } from './audio-mixer';
 
 export type AudioBus = 'narrator' | 'voice' | 'music' | 'sfx' | 'ambient';
 export type AudioPriority = 20 | 40 | 60 | 80 | 90 | 95 | 100;
@@ -21,12 +21,25 @@ class AudioDirector {
   private lastPlayed = new Map<string, number>();
   private masterEnabled = true;
   private cinematicDepth = 0;
+  private mixListeners = new Set<(mix: AudioMix) => void>();
 
   setEnabled(enabled: boolean) {
     this.masterEnabled = enabled;
     if (!enabled) void this.stopAll();
   }
+
   isEnabled() { return this.masterEnabled; }
+
+  onMixChange(listener: (mix: AudioMix) => void) {
+    this.mixListeners.add(listener);
+    listener(this.getMix());
+    return () => this.mixListeners.delete(listener);
+  }
+
+  private notifyMixChange() {
+    const mix = this.getMix();
+    this.mixListeners.forEach(listener => listener(mix));
+  }
 
   async play(cue: AudioCue): Promise<boolean> {
     if (!this.masterEnabled) return false;
@@ -50,7 +63,10 @@ class AudioDirector {
     this.active.set(cue.id, cue);
 
     if (cue.bus === 'narrator') {
-      if (this.cinematicDepth === 0) audioMixer.enterCinematic();
+      if (this.cinematicDepth === 0) {
+        audioMixer.enterCinematic();
+        this.notifyMixChange();
+      }
       this.cinematicDepth++;
     }
 
@@ -58,13 +74,14 @@ class AudioDirector {
       await cue.play();
       return true;
     } finally {
-      // stop() may already have removed this cue. Only the owner that still
-      // holds the active entry is allowed to release cinematic depth.
       if (this.active.get(cue.id) === cue) {
         this.active.delete(cue.id);
         if (cue.bus === 'narrator') {
           this.cinematicDepth = Math.max(0, this.cinematicDepth - 1);
-          if (this.cinematicDepth === 0) audioMixer.leaveCinematic();
+          if (this.cinematicDepth === 0) {
+            audioMixer.leaveCinematic();
+            this.notifyMixChange();
+          }
         }
       }
     }
@@ -79,7 +96,10 @@ class AudioDirector {
     finally {
       if (wasNarrator) {
         this.cinematicDepth = Math.max(0, this.cinematicDepth - 1);
-        if (this.cinematicDepth === 0) audioMixer.leaveCinematic();
+        if (this.cinematicDepth === 0) {
+          audioMixer.leaveCinematic();
+          this.notifyMixChange();
+        }
       }
     }
   }
@@ -92,6 +112,7 @@ class AudioDirector {
     await Promise.all([...this.active.values()].map(cue => this.stop(cue.id)));
     this.cinematicDepth = 0;
     audioMixer.reset();
+    this.notifyMixChange();
   }
 
   getMix() { return audioMixer.getMix(); }
