@@ -134,10 +134,9 @@ describe('useNarrator audio scheduler', () => {
     const h = createBridgeHarness();
     h.bridge.play('old.mp3');
     h.bridge.interruptWith('new.mp3');
-    await Promise.resolve();
+    await vi.waitFor(() => expect(h.director.play).toHaveBeenCalledTimes(2));
     expect(h.scheduler.stop).toHaveBeenCalled();
     expect(h.director.stop).toHaveBeenCalledWith('narrator:local-scheduler');
-    expect(h.director.play).toHaveBeenCalledTimes(2);
     expect(h.scheduler.playSequence).toHaveBeenLastCalledWith(['new.mp3']);
   });
 
