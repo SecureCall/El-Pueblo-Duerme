@@ -1978,6 +1978,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const virginiawoolFate = game.virginiawoolFate ?? {};
     let fantasmaPending = [...(game.fantasmaPending ?? [])];
     const fantasmaUsed = [...(game.fantasmaUsed ?? [])];
+    const lovers = game.lovers; // ✅ CORREGIDO: declarado al inicio para evitar TDZ
 
     // Sirena: force sirena-linked player to vote same as sirena
     const sirenaLinked = game.sirenaLinked;
@@ -2210,7 +2211,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }
 
     // Lovers cascade
-    const lovers = game.lovers;
+    // const lovers = game.lovers; // ❌ ELIMINADO: ya declarado al inicio
     if (lovers && eliminated) {
       const [l1, l2] = lovers;
       const partnerUid = eliminated === l1 ? l2 : eliminated === l2 ? l1 : null;
