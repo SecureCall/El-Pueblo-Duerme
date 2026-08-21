@@ -1,7 +1,7 @@
 /**
  * POST /api/sync-vote
  * Called by the service worker Background Sync handler when connectivity is restored.
- * Security: verifies Firebase Auth token and that uid matches the authenticated user.
+ * Security: verifies Firebase Auth token and validates the vote against the live game state.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { initAdminApp } from '@/lib/firebase/admin';
@@ -27,37 +27,52 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'gameId, uid, target required' }, { status: 400 });
     }
 
-    // El uid del body debe coincidir con el del token
     if (tokenUid !== uid) {
       return NextResponse.json({ error: 'UID no coincide con el token' }, { status: 403 });
     }
 
     initAdminApp();
     const db = getFirestore();
+    const gameRef = db.collection('games').doc(gameId);
+    const gameSnap = await gameRef.get();
 
-    const gameSnap = await db.collection('games').doc(gameId).get();
     if (!gameSnap.exists) {
       return NextResponse.json({ error: 'Partida no encontrada' }, { status: 404 });
     }
+
     const gameData = gameSnap.data()!;
     if (gameData.phase !== 'day' && gameData.phase !== 'voting') {
       return NextResponse.json({ error: 'No es fase de votación' }, { status: 409 });
     }
+
+    const currentRound = Number(gameData.roundNumber ?? 1);
+    if (round != null && Number(round) !== currentRound) {
+      return NextResponse.json({ error: 'Voto de una ronda antigua' }, { status: 409 });
+    }
+
     const players: { uid: string; isAlive: boolean }[] = gameData.players ?? [];
-    if (!players.some(p => p.uid === uid && p.isAlive)) {
+    const voter = players.find(p => p.uid === uid);
+    const targetPlayer = players.find(p => p.uid === target);
+
+    if (!voter?.isAlive) {
       return NextResponse.json({ error: 'Jugador no válido o muerto' }, { status: 403 });
     }
-    if (!players.some(p => p.uid === target && p.isAlive)) {
+    if (!targetPlayer?.isAlive || target === uid) {
       return NextResponse.json({ error: 'Objetivo no válido' }, { status: 403 });
     }
 
-    await db
-      .collection('games').doc(gameId)
-      .collection('votes').doc(uid)
-      .set(
-        { target, round: round ?? gameData.roundNumber, submittedAt: Date.now(), syncedAt: Date.now() },
-        { merge: true }
-      );
+    const banned = new Set<string>(gameData.voteBanned ?? []);
+    if (gameData.saboteadorBan) banned.add(gameData.saboteadorBan);
+    if (banned.has(uid)) {
+      return NextResponse.json({ error: 'No puedes votar esta ronda' }, { status: 403 });
+    }
+
+    await gameRef.collection('votes').doc(uid).set({
+      target,
+      round: currentRound,
+      submittedAt: Date.now(),
+      syncedAt: Date.now(),
+    }, { merge: true });
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
