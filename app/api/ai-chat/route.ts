@@ -18,19 +18,25 @@ interface RequestBody {
   eliminatedRole?: string | null;
   round: number;
   allAliveNames: string[];
+  recentChat?: { name: string; text: string }[];
 }
 
-const WOLF_INSTRUCTIONS = `Eres un LOBO disfrazado de aldeano. Debes parecer inocente.
-- Nunca confieses que eres un lobo
-- Acusa a aldeanos reales o desvía la atención
-- Muestra "preocupación" falsa por el pueblo`;
+const WOLF_INSTRUCTIONS = `Eres un LOBO disfrazado de aldeano.
+- Nunca admitas ser lobo ni hables como si tuvieras información sobrenatural.
+- Desvía sospechas de la manada sin defender siempre al mismo jugador.
+- Puedes equivocarte, dudar o cambiar de opinión para parecer humano.
+- No ataques a alguien sin una razón mínimamente creíble.`;
 
-const VILLAGE_INSTRUCTIONS = `Eres un aldeano inocente tratando de encontrar a los lobos.
-- Debate activamente sobre quién puede ser el lobo
-- Usa tu lógica e intuición`;
+const VILLAGE_INSTRUCTIONS = `Eres un aldeano inocente.
+- Intenta encontrar lobos a partir de contradicciones, votos y comportamiento.
+- No sabes los roles de los demás salvo la información propia de tu personaje.
+- Puedes sospechar de inocentes y equivocarte.
+- No actúes como si conocieras el futuro.`;
 
-const SEER_INSTRUCTIONS = `Eres un vidente. Tienes información, pero no puedes revelar tu rol.
-- Da pistas sutiles sobre quién es el lobo`;
+const SEER_INSTRUCTIONS = `Eres Vidente/Profeta y tienes información privada sobre algunas personas.
+- No reveles tu rol directamente salvo que la situación lo justifique.
+- Puedes insinuar o presionar a un sospechoso, pero no inventes información que no tienes.
+- Recuerda que revelar demasiado pronto puede hacer que los lobos te maten.`;
 
 function getRoleStyle(role: string, isWolf: boolean): string {
   if (isWolf) return WOLF_INSTRUCTIONS;
@@ -52,7 +58,7 @@ export async function POST(req: NextRequest) {
   let body: RequestBody = { aiPlayers: [], round: 1, allAliveNames: [] };
   try {
     body = await req.json();
-    const { aiPlayers, eliminatedName, eliminatedRole, round, allAliveNames } = body;
+    const { aiPlayers, eliminatedName, eliminatedRole, round, allAliveNames, recentChat = [] } = body;
 
     if (!aiPlayers || aiPlayers.length === 0) {
       return NextResponse.json({ messages: [] });
@@ -65,39 +71,48 @@ export async function POST(req: NextRequest) {
       : `Esta mañana nadie murió. El pueblo está aliviado pero tenso.`;
 
     const namesStr = allAliveNames.join(', ');
+    const chatContext = recentChat.length > 0
+      ? `\nConversación reciente del pueblo. Responde a ella cuando tenga sentido; no repitas frases literalmente:\n${recentChat.slice(-12).map(m => `${m.name}: ${m.text}`).join('\n')}`
+      : '';
 
     const playersDesc = aiPlayers
       .map(p => {
         const bType = (p.botType ?? 'caotico') as BotType;
         const personality = BOT_CHAT_STYLE[bType];
-        return `- ${p.name}: ${personality}. ${getRoleStyle(p.role, p.isWolf)}`;
+        return `- ${p.name} [${p.uid}]: ${personality}. ${getRoleStyle(p.role, p.isWolf)}`;
       })
       .join('\n');
 
-    const prompt = `Eres el narrador de "El Pueblo Duerme" (Werewolf/Mafia). Es el DÍA ${round}.
+    const prompt = `Eres el director de comportamiento de bots de "El Pueblo Duerme" (Werewolf/Mafia). Es el DÍA ${round}.
 ${contextInfo}
-Los jugadores vivos son: ${namesStr}.
+Los jugadores vivos son: ${namesStr}.${chatContext}
 
-Genera mensajes de chat para estos jugadores IA:
+Genera mensajes para estos jugadores IA:
 ${playersDesc}
 
-REGLAS:
-- ESPAÑOL coloquial y natural
-- Máximo 12 palabras por mensaje
-- Sin saludos formales
-- Cada jugador tiene su personalidad propia
-- Errores tipográficos ocasionales están bien
-- NO uses emojis
+REGLAS DE HUMANIDAD:
+- Cada mensaje debe reaccionar al estado de la partida o a la conversación cuando sea posible.
+- No hagas que todos estén de acuerdo ni que todos acusen.
+- No hagas que todos hablen de los mismos jugadores.
+- Mantén las personalidades diferenciadas.
+- Los bots pueden equivocarse, dudar, corregirse o cambiar de opinión.
+- Un lobo debe intentar sobrevivir, pero no parecer artificialmente perfecto.
+- Un rol con información privada no puede compartir información que todavía no posee.
+- No inventes acciones, muertes o roles que no aparecen en el contexto.
+- No uses frases genéricas repetidas si puedes responder a lo que otro jugador dijo.
+- Español coloquial natural, como jugadores reales en un chat rápido.
+- Máximo 18 palabras por mensaje.
+- Algún error tipográfico ocasional está bien, pero no en todos los mensajes.
+- Sin saludos formales y sin emojis.
 
 Responde SOLO con JSON válido:
 {
   "messages": [
-    {"uid": "uid_aqui", "name": "nombre_aqui", "text": "mensaje"},
-    ...
+    {"uid": "uid_aqui", "name": "nombre_aqui", "text": "mensaje"}
   ]
 }
 
-Genera 1 mensaje por jugador.`;
+Genera exactamente 1 mensaje por jugador. Conserva exactamente su uid y nombre.`;
 
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
@@ -105,7 +120,18 @@ Genera 1 mensaje por jugador.`;
     if (!jsonMatch) return NextResponse.json(getFallback(aiPlayers));
 
     const parsed = JSON.parse(jsonMatch[0]);
-    return NextResponse.json({ messages: parsed.messages ?? [] });
+    const validIds = new Set(aiPlayers.map(p => p.uid));
+    const validMessages = Array.isArray(parsed.messages)
+      ? parsed.messages
+          .filter((m: any) => m && validIds.has(m.uid) && typeof m.text === 'string')
+          .map((m: any) => ({
+            uid: m.uid,
+            name: aiPlayers.find(p => p.uid === m.uid)?.name ?? m.name,
+            text: m.text.trim().slice(0, 180),
+          }))
+      : [];
+
+    return NextResponse.json({ messages: validMessages.length > 0 ? validMessages : getFallback(aiPlayers).messages });
 
   } catch (error) {
     console.error('ai-chat error:', error);

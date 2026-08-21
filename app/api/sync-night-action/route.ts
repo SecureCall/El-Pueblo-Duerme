@@ -1,69 +1,173 @@
 /**
  * POST /api/sync-night-action
- * Called by the service worker Background Sync handler when connectivity is restored.
- * Security: verifies Firebase Auth token and that uid matches the authenticated user.
+ * Canonical server-side endpoint for player night actions.
+ * The client may request an action, but the server derives the role from the
+ * game document and validates the action before writing it.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { initAdminApp } from '@/lib/firebase/admin';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { getFirestore } from 'firebase-admin/firestore';
 
+const ROLE_KEYS: Record<string, string> = {
+  'Lobo': 'wolves', 'Lobo Blanco': 'wolves', 'Cría de Lobo': 'wolves',
+  'Vidente': 'vidente', 'Hechicera': 'hechicera', 'Bruja': 'bruja', 'Cupido': 'cupido',
+  'Guardián': 'guardian', 'Doctor': 'doctor', 'Flautista': 'flautista', 'Perro Lobo': 'perrolo',
+  'Niño Salvaje': 'salvaje', 'Profeta': 'profeta', 'Sacerdote': 'sacerdote', 'Ladrón': 'ladron',
+  'Espía': 'espia', 'Anciana Líder': 'anciana', 'Ángel Resucitador': 'angelresucitador',
+  'Silenciadora': 'silenciadora', 'Sirena del Río': 'sirena', 'Virginia Woolf': 'virginiawoolf',
+  'Vigía': 'vigia', 'Banshee': 'banshee', 'Cambiaformas': 'cambiaformas',
+  'Líder del Culto': 'liderculto', 'Pescador': 'pescador', 'Vampiro': 'vampiro',
+  'Hada Buscadora': 'hadabuscadora', 'Médico Forense': 'forense', 'Saboteador': 'saboteador',
+};
+
+const ROLE_ACTIONS: Record<string, string[]> = {
+  'Lobo': ['wolfTarget', 'wolfTarget2'], 'Lobo Blanco': ['wolfTarget', 'wolfTarget2', 'loboBlancoCide'],
+  'Cría de Lobo': ['wolfTarget', 'wolfTarget2'], 'Vidente': ['seerTarget', 'seerTarget2'],
+  'Hechicera': ['witchSave', 'witchPoison'], 'Bruja': ['brujaTarget'], 'Cupido': ['cupidTargets'],
+  'Guardián': ['guardianTarget'], 'Doctor': ['doctorTarget'], 'Flautista': ['flautistaTargets'],
+  'Perro Lobo': ['perroLoboSide'], 'Niño Salvaje': ['salvajeMentor'], 'Profeta': ['profetaTarget'],
+  'Sacerdote': ['sacerdoteTarget'], 'Ladrón': ['ladronTarget'], 'Espía': ['espiaActivate'],
+  'Anciana Líder': ['ancianaTarget'], 'Ángel Resucitador': ['angelResucitarTarget'],
+  'Silenciadora': ['silenciadoraTarget'], 'Sirena del Río': ['sirenaTarget'],
+  'Virginia Woolf': ['virginiawoolTarget'], 'Vigía': ['vigiaActivate'], 'Banshee': ['bansheePrediction'],
+  'Cambiaformas': ['cambiaformasTarget'], 'Líder del Culto': ['liderCultoTarget'],
+  'Pescador': ['pescadorTarget'], 'Vampiro': ['vampiroTarget'], 'Hada Buscadora': ['hadaBuscadoraTarget'],
+  'Médico Forense': ['forenseTarget'], 'Saboteador': ['saboteadorTarget'],
+};
+
+const ALIVE_TARGET_KEYS = new Set([
+  'wolfTarget', 'wolfTarget2', 'seerTarget', 'seerTarget2', 'witchPoison', 'brujaTarget',
+  'guardianTarget', 'doctorTarget', 'salvajeMentor', 'profetaTarget', 'sacerdoteTarget',
+  'ladronTarget', 'ancianaTarget', 'silenciadoraTarget', 'sirenaTarget', 'virginiawoolTarget',
+  'bansheePrediction', 'cambiaformasTarget', 'liderCultoTarget', 'pescadorTarget', 'vampiroTarget',
+  'hadaBuscadoraTarget', 'saboteadorTarget', 'loboBlancoCide',
+]);
+
+function fail(message: string, status = 400) { return NextResponse.json({ error: message }, { status }); }
+function isStringId(value: unknown): value is string { return typeof value === 'string' && value.length > 0 && value.length <= 128; }
+function alivePlayer(players: any[], uid: string) { return players.find((p: any) => p.uid === uid && p.isAlive === true); }
+function validTarget(players: any[], value: unknown, actorUid: string, allowSelf = false) {
+  return isStringId(value) && (allowSelf || value !== actorUid) && Boolean(alivePlayer(players, value));
+}
+
+function validateAction(role: string, payload: Record<string, unknown>, game: any, actorUid: string, players: any[]) {
+  const allowed = ROLE_ACTIONS[role];
+  if (!allowed) return Object.keys(payload).length ? 'Este rol no tiene acción nocturna válida' : null;
+  const keys = Object.keys(payload);
+  if (keys.some(k => !allowed.includes(k))) return 'Acción no permitida para este rol';
+  if (!keys.length) return null;
+
+  const round = game.roundNumber ?? 1;
+  for (const key of keys) {
+    const value = payload[key];
+    if (ALIVE_TARGET_KEYS.has(key)) {
+      const allowSelf = role === 'Doctor' || role === 'Guardián' || role === 'Sacerdote';
+      if (!validTarget(players, value, actorUid, allowSelf)) return `Objetivo inválido: ${key}`;
+    }
+    if (key === 'wolfTarget' || key === 'wolfTarget2') {
+      const target = alivePlayer(players, value as string);
+      if (!target) return `Objetivo inválido: ${key}`;
+      const targetRole = game.roles?.[target.uid];
+      if (['Lobo', 'Lobo Blanco', 'Cría de Lobo', 'Bruja'].includes(targetRole)) return 'Los lobos no pueden seleccionar a un aliado como víctima';
+      if (game.brujaProtectedUid === target.uid) return 'Ese jugador está protegido por la Bruja';
+      if (game.lobosBlocked) return 'La manada está bloqueada esta noche';
+    }
+    if (key === 'loboBlancoCide') {
+      if (round % 2 !== 0) return 'La acción del Lobo Blanco no está disponible esta noche';
+      if (!['Lobo', 'Lobo Blanco', 'Cría de Lobo'].includes(game.roles?.[value as string])) return 'El Lobo Blanco solo puede eliminar a un lobo aliado';
+      if (value === actorUid) return 'No puedes eliminarte a ti mismo';
+    }
+    if (key === 'wolfTarget2' && !game.criaLoboRage && !game.eclipseActive) return 'La segunda víctima no está disponible';
+    if (key === 'seerTarget2' && (!game.doubleSeerActive || value === payload.seerTarget)) return 'La segunda visión no está disponible';
+    if (key === 'cupidTargets') {
+      if (!Array.isArray(value) || value.length !== 2 || new Set(value).size !== 2) return 'Cupido debe elegir exactamente 2 jugadores distintos';
+      if (!value.every(v => validTarget(players, v, actorUid, true))) return 'Objetivo de Cupido inválido';
+      if (round !== 1) return 'Cupido solo actúa en la primera noche';
+    }
+    if (key === 'flautistaTargets') {
+      if (!Array.isArray(value) || value.length < 1 || value.length > 2 || new Set(value).size !== value.length) return 'El Flautista debe elegir 1 o 2 jugadores distintos';
+      if (!value.every(v => validTarget(players, v, actorUid, false))) return 'Objetivo del Flautista inválido';
+    }
+    if (key === 'perroLoboSide') {
+      if (value !== 'wolves' && value !== 'village') return 'Bando de Perro Lobo inválido';
+      if (round !== 1) return 'Perro Lobo solo decide bando en la primera noche';
+      if (game.perroLoboChoices?.[actorUid]) return 'Ya has elegido bando';
+    }
+    if (key === 'witchSave') {
+      if (value !== true) return 'Acción de salvación inválida';
+      if (game.hechiceraLifeUsed) return 'La poción de vida ya fue utilizada';
+      if (!game.nightActions?.wolfTarget) return 'No hay víctima de lobos que salvar';
+    }
+    if (key === 'witchPoison' && game.hechiceraPoisonUsed) return 'La poción de veneno ya fue utilizada';
+    if (key === 'guardianTarget' && value === game.guardianLastTarget) return 'El Guardián no puede proteger al mismo objetivo en noches consecutivas';
+    if (key === 'doctorTarget' && value === game.doctorLastTarget) return 'El Doctor no puede proteger al mismo objetivo en noches consecutivas';
+    if (key === 'sacerdoteTarget' && game.sacerdoteUsed) return 'El Sacerdote ya utilizó su bendición';
+    if (key === 'angelResucitarTarget') {
+      if (game.angelResucitadorUsed) return 'El Ángel Resucitador ya utilizó su poder';
+      if (!players.find((p: any) => p.uid === value && !p.isAlive)) return 'Solo puedes resucitar a un jugador muerto';
+    }
+    if (key === 'forenseTarget' && !players.find((p: any) => p.uid === value && !p.isAlive)) return 'El Médico Forense solo puede examinar cadáveres';
+    if (key === 'espiaActivate') {
+      if (value !== true) return 'Activación del Espía inválida';
+      if (game.espiaUsed) return 'El Espía ya utilizó su poder';
+    }
+    if (key === 'vigiaActivate') {
+      if (value !== true) return 'Activación del Vigía inválida';
+      if (game.vigiaUsed) return 'El Vigía ya utilizó su poder';
+    }
+    if (['sirenaTarget', 'virginiawoolTarget', 'cambiaformasTarget'].includes(key) && round !== 1) return 'Esta habilidad solo está disponible en la primera noche';
+    if (key === 'ladronTarget' && round !== 1) return 'El Ladrón solo actúa la primera noche';
+    if (key === 'hadaBuscadoraTarget' && game.hadaLinked) return 'El Hada Buscadora ya ha encontrado a su objetivo';
+  }
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   const tokenUid = await verifyAuthToken(req);
-  if (!tokenUid) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
-
+  if (!tokenUid) return fail('No autorizado', 401);
   try {
     const body = await req.json();
-    const { gameId, uid, role, payload } = body as {
-      gameId: string;
-      uid: string;
-      role: string;
-      payload: Record<string, unknown>;
-    };
-
-    if (!gameId || !uid || !role) {
-      return NextResponse.json({ error: 'gameId, uid, role required' }, { status: 400 });
-    }
-
-    // El uid del body debe coincidir con el del token
-    if (tokenUid !== uid) {
-      return NextResponse.json({ error: 'UID no coincide con el token' }, { status: 403 });
-    }
-
+    const { gameId, uid, payload } = body as { gameId?: string; uid?: string; payload?: Record<string, unknown> };
+    if (!gameId || !uid || !payload || typeof payload !== 'object' || Array.isArray(payload)) return fail('gameId, uid y payload son obligatorios');
+    if (tokenUid !== uid) return fail('UID no coincide con el token', 403);
     initAdminApp();
-    const db = getFirestore();
-
-    const gameSnap = await db.collection('games').doc(gameId).get();
-    if (!gameSnap.exists) {
-      return NextResponse.json({ error: 'Partida no encontrada' }, { status: 404 });
-    }
-    const gameData = gameSnap.data()!;
-    if (gameData.phase !== 'night') {
-      return NextResponse.json({ error: 'No es fase de noche' }, { status: 409 });
-    }
-    const players: { uid: string; isAlive: boolean }[] = gameData.players ?? [];
-    if (!players.some(p => p.uid === uid && p.isAlive)) {
-      return NextResponse.json({ error: 'Jugador no válido o muerto' }, { status: 403 });
-    }
-
-    // Sanitizar payload: solo tipos primitivos permitidos
-    const safePayload: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(payload ?? {})) {
-      if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' || v === null) {
-        safePayload[k] = v;
+    const firestore = getFirestore();
+    const gameRef = firestore.collection('games').doc(gameId);
+    const result = await firestore.runTransaction(async tx => {
+      const snap = await tx.get(gameRef);
+      if (!snap.exists) throw Object.assign(new Error('Partida no encontrada'), { status: 404 });
+      const game = snap.data()!;
+      if (game.phase !== 'night') throw Object.assign(new Error('No es fase de noche'), { status: 409 });
+      const players = Array.isArray(game.players) ? game.players : [];
+      const me = players.find((p: any) => p.uid === uid);
+      if (!me?.isAlive) throw Object.assign(new Error('Jugador no válido o muerto'), { status: 403 });
+      const role = game.roles?.[uid] ?? 'Aldeano';
+      const submissionKey = ROLE_KEYS[role] ?? uid;
+      const existingSubs = game.nightSubmissions ?? {};
+      if (existingSubs[submissionKey] === true && submissionKey !== '') {
+        throw Object.assign(new Error('La acción nocturna ya fue enviada'), { status: 409 });
       }
-    }
-
-    await db.collection('games').doc(gameId).set(
-      { nightSubmissions: { [role]: { ...safePayload, syncedAt: Date.now() } } },
-      { merge: true }
-    );
-
-    return NextResponse.json({ ok: true });
+      const cleanPayload: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(payload)) {
+        if (key === '_skip') { if (value !== true) throw Object.assign(new Error('Valor _skip inválido'), { status: 422 }); continue; }
+        if (typeof value === 'string' && value.length <= 128) cleanPayload[key] = value;
+        else if (typeof value === 'boolean') cleanPayload[key] = value;
+        else if (Array.isArray(value) && value.length <= 3 && value.every(v => typeof v === 'string' && v.length <= 128)) cleanPayload[key] = value;
+        else throw Object.assign(new Error(`Payload inválido: ${key}`), { status: 422 });
+      }
+      const validationError = validateAction(role, cleanPayload, game, uid, players);
+      if (validationError) throw Object.assign(new Error(validationError), { status: 422 });
+      const updates: Record<string, unknown> = { [`nightSubmissions.${submissionKey}`]: true };
+      for (const [key, value] of Object.entries(cleanPayload)) updates[`nightActions.${key}`] = value;
+      if (role === 'Lobo Blanco' && (game.roundNumber ?? 1) % 2 === 0) updates['nightSubmissions.loboblanco'] = true;
+      tx.update(gameRef, updates);
+      return { role, submissionKey };
+    });
+    return NextResponse.json({ ok: true, ...result });
   } catch (err: any) {
     console.error('[sync-night-action]', err);
-    return NextResponse.json({ error: 'Error interno' }, { status: 500 });
+    const status = Number.isInteger(err?.status) ? err.status : 500;
+    return NextResponse.json({ error: status === 500 ? 'Error interno' : err.message }, { status });
   }
 }
