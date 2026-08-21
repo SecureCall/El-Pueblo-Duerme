@@ -59,88 +59,63 @@ function validateAction(role: string, payload: Record<string, unknown>, game: an
   if (!keys.length) return null;
 
   const round = game.roundNumber ?? 1;
-
   for (const key of keys) {
     const value = payload[key];
-
     if (ALIVE_TARGET_KEYS.has(key)) {
       const allowSelf = role === 'Doctor' || role === 'Guardián' || role === 'Sacerdote';
       if (!validTarget(players, value, actorUid, allowSelf)) return `Objetivo inválido: ${key}`;
     }
-
     if (key === 'wolfTarget' || key === 'wolfTarget2') {
       const target = alivePlayer(players, value as string);
+      if (!target) return `Objetivo inválido: ${key}`;
       const targetRole = game.roles?.[target.uid];
       if (['Lobo', 'Lobo Blanco', 'Cría de Lobo', 'Bruja'].includes(targetRole)) return 'Los lobos no pueden seleccionar a un aliado como víctima';
       if (game.brujaProtectedUid === target.uid) return 'Ese jugador está protegido por la Bruja';
       if (game.lobosBlocked) return 'La manada está bloqueada esta noche';
     }
-
     if (key === 'loboBlancoCide') {
       if (round % 2 !== 0) return 'La acción del Lobo Blanco no está disponible esta noche';
       if (!['Lobo', 'Lobo Blanco', 'Cría de Lobo'].includes(game.roles?.[value as string])) return 'El Lobo Blanco solo puede eliminar a un lobo aliado';
       if (value === actorUid) return 'No puedes eliminarte a ti mismo';
     }
-
-    if (key === 'wolfTarget2' && !game.criaLoboRage) return 'La segunda víctima no está disponible';
+    if (key === 'wolfTarget2' && !game.criaLoboRage && !game.eclipseActive) return 'La segunda víctima no está disponible';
     if (key === 'seerTarget2' && (!game.doubleSeerActive || value === payload.seerTarget)) return 'La segunda visión no está disponible';
-
     if (key === 'cupidTargets') {
       if (!Array.isArray(value) || value.length !== 2 || new Set(value).size !== 2) return 'Cupido debe elegir exactamente 2 jugadores distintos';
       if (!value.every(v => validTarget(players, v, actorUid, true))) return 'Objetivo de Cupido inválido';
       if (round !== 1) return 'Cupido solo actúa en la primera noche';
     }
-
     if (key === 'flautistaTargets') {
       if (!Array.isArray(value) || value.length < 1 || value.length > 2 || new Set(value).size !== value.length) return 'El Flautista debe elegir 1 o 2 jugadores distintos';
       if (!value.every(v => validTarget(players, v, actorUid, false))) return 'Objetivo del Flautista inválido';
     }
-
     if (key === 'perroLoboSide') {
       if (value !== 'wolves' && value !== 'village') return 'Bando de Perro Lobo inválido';
       if (round !== 1) return 'Perro Lobo solo decide bando en la primera noche';
       if (game.perroLoboChoices?.[actorUid]) return 'Ya has elegido bando';
     }
-
     if (key === 'witchSave') {
       if (value !== true) return 'Acción de salvación inválida';
       if (game.hechiceraLifeUsed) return 'La poción de vida ya fue utilizada';
       if (!game.nightActions?.wolfTarget) return 'No hay víctima de lobos que salvar';
     }
     if (key === 'witchPoison' && game.hechiceraPoisonUsed) return 'La poción de veneno ya fue utilizada';
-
-    if (key === 'guardianTarget') {
-      if (value === game.guardianLastTarget) return 'El Guardián no puede proteger al mismo objetivo en noches consecutivas';
-      if (value === actorUid && game.guardianSelfUsed) return 'El Guardián ya utilizó su autoprotección';
-    }
-
-    if (key === 'doctorTarget') {
-      if (value === game.doctorLastTarget) return 'El Doctor no puede proteger al mismo objetivo en noches consecutivas';
-    }
-
+    if (key === 'guardianTarget' && value === game.guardianLastTarget) return 'El Guardián no puede proteger al mismo objetivo en noches consecutivas';
+    if (key === 'doctorTarget' && value === game.doctorLastTarget) return 'El Doctor no puede proteger al mismo objetivo en noches consecutivas';
     if (key === 'sacerdoteTarget' && game.sacerdoteUsed) return 'El Sacerdote ya utilizó su bendición';
-
     if (key === 'angelResucitarTarget') {
-      if (!isStringId(value)) return 'Objetivo de resurrección inválido';
       if (game.angelResucitadorUsed) return 'El Ángel Resucitador ya utilizó su poder';
       if (!players.find((p: any) => p.uid === value && !p.isAlive)) return 'Solo puedes resucitar a un jugador muerto';
     }
-
-    if (key === 'forenseTarget') {
-      if (!isStringId(value)) return 'Objetivo forense inválido';
-      if (!players.find((p: any) => p.uid === value && !p.isAlive)) return 'El Médico Forense solo puede examinar cadáveres';
-    }
-
+    if (key === 'forenseTarget' && !players.find((p: any) => p.uid === value && !p.isAlive)) return 'El Médico Forense solo puede examinar cadáveres';
     if (key === 'espiaActivate') {
       if (value !== true) return 'Activación del Espía inválida';
       if (game.espiaUsed) return 'El Espía ya utilizó su poder';
     }
-
     if (key === 'vigiaActivate') {
       if (value !== true) return 'Activación del Vigía inválida';
       if (game.vigiaUsed) return 'El Vigía ya utilizó su poder';
     }
-
     if (['sirenaTarget', 'virginiawoolTarget', 'cambiaformasTarget'].includes(key) && round !== 1) return 'Esta habilidad solo está disponible en la primera noche';
     if (key === 'ladronTarget' && round !== 1) return 'El Ladrón solo actúa la primera noche';
     if (key === 'hadaBuscadoraTarget' && game.hadaLinked) return 'El Hada Buscadora ya ha encontrado a su objetivo';
@@ -151,51 +126,48 @@ function validateAction(role: string, payload: Record<string, unknown>, game: an
 export async function POST(req: NextRequest) {
   const tokenUid = await verifyAuthToken(req);
   if (!tokenUid) return fail('No autorizado', 401);
-
   try {
     const body = await req.json();
     const { gameId, uid, payload } = body as { gameId?: string; uid?: string; payload?: Record<string, unknown> };
     if (!gameId || !uid || !payload || typeof payload !== 'object' || Array.isArray(payload)) return fail('gameId, uid y payload son obligatorios');
     if (tokenUid !== uid) return fail('UID no coincide con el token', 403);
-
     initAdminApp();
-    const db = getFirestore();
-    const gameRef = db.collection('games').doc(gameId);
-    const gameSnap = await gameRef.get();
-    if (!gameSnap.exists) return fail('Partida no encontrada', 404);
-    const game = gameSnap.data()!;
-    if (game.phase !== 'night') return fail('No es fase de noche', 409);
-
-    const players = Array.isArray(game.players) ? game.players : [];
-    const me = players.find((p: any) => p.uid === uid);
-    if (!me?.isAlive) return fail('Jugador no válido o muerto', 403);
-
-    const role = game.roles?.[uid] ?? 'Aldeano';
-    const submissionKey = ROLE_KEYS[role] ?? uid;
-    const cleanPayload: Record<string, unknown> = {};
-
-    for (const [key, value] of Object.entries(payload)) {
-      if (key === '_skip') {
-        if (value !== true) return fail('Valor _skip inválido');
-        continue;
+    const firestore = getFirestore();
+    const gameRef = firestore.collection('games').doc(gameId);
+    const result = await firestore.runTransaction(async tx => {
+      const snap = await tx.get(gameRef);
+      if (!snap.exists) throw Object.assign(new Error('Partida no encontrada'), { status: 404 });
+      const game = snap.data()!;
+      if (game.phase !== 'night') throw Object.assign(new Error('No es fase de noche'), { status: 409 });
+      const players = Array.isArray(game.players) ? game.players : [];
+      const me = players.find((p: any) => p.uid === uid);
+      if (!me?.isAlive) throw Object.assign(new Error('Jugador no válido o muerto'), { status: 403 });
+      const role = game.roles?.[uid] ?? 'Aldeano';
+      const submissionKey = ROLE_KEYS[role] ?? uid;
+      const existingSubs = game.nightSubmissions ?? {};
+      if (existingSubs[submissionKey] === true && submissionKey !== '') {
+        throw Object.assign(new Error('La acción nocturna ya fue enviada'), { status: 409 });
       }
-      if (typeof value === 'string' && value.length <= 128) cleanPayload[key] = value;
-      else if (typeof value === 'boolean') cleanPayload[key] = value;
-      else if (Array.isArray(value) && value.length <= 3 && value.every(v => typeof v === 'string' && v.length <= 128)) cleanPayload[key] = value;
-      else return fail(`Payload inválido: ${key}`);
-    }
-
-    const validationError = validateAction(role, cleanPayload, game, uid, players);
-    if (validationError) return fail(validationError, 422);
-
-    const updates: Record<string, unknown> = { [`nightSubmissions.${submissionKey}`]: true };
-    for (const [key, value] of Object.entries(cleanPayload)) updates[`nightActions.${key}`] = value;
-    if (role === 'Lobo Blanco' && (game.roundNumber ?? 1) % 2 === 0) updates['nightSubmissions.loboblanco'] = true;
-
-    await gameRef.update(updates);
-    return NextResponse.json({ ok: true, role, submissionKey });
-  } catch (err) {
+      const cleanPayload: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(payload)) {
+        if (key === '_skip') { if (value !== true) throw Object.assign(new Error('Valor _skip inválido'), { status: 422 }); continue; }
+        if (typeof value === 'string' && value.length <= 128) cleanPayload[key] = value;
+        else if (typeof value === 'boolean') cleanPayload[key] = value;
+        else if (Array.isArray(value) && value.length <= 3 && value.every(v => typeof v === 'string' && v.length <= 128)) cleanPayload[key] = value;
+        else throw Object.assign(new Error(`Payload inválido: ${key}`), { status: 422 });
+      }
+      const validationError = validateAction(role, cleanPayload, game, uid, players);
+      if (validationError) throw Object.assign(new Error(validationError), { status: 422 });
+      const updates: Record<string, unknown> = { [`nightSubmissions.${submissionKey}`]: true };
+      for (const [key, value] of Object.entries(cleanPayload)) updates[`nightActions.${key}`] = value;
+      if (role === 'Lobo Blanco' && (game.roundNumber ?? 1) % 2 === 0) updates['nightSubmissions.loboblanco'] = true;
+      tx.update(gameRef, updates);
+      return { role, submissionKey };
+    });
+    return NextResponse.json({ ok: true, ...result });
+  } catch (err: any) {
     console.error('[sync-night-action]', err);
-    return NextResponse.json({ error: 'Error interno' }, { status: 500 });
+    const status = Number.isInteger(err?.status) ? err.status : 500;
+    return NextResponse.json({ error: status === 500 ? 'Error interno' : err.message }, { status });
   }
 }
