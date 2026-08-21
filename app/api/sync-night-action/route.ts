@@ -36,13 +36,12 @@ const ROLE_ACTIONS: Record<string, string[]> = {
   'Médico Forense': ['forenseTarget'], 'Saboteador': ['saboteadorTarget'],
 };
 
-const TARGET_KEYS = new Set([
+const ALIVE_TARGET_KEYS = new Set([
   'wolfTarget', 'wolfTarget2', 'seerTarget', 'seerTarget2', 'witchPoison', 'brujaTarget',
   'guardianTarget', 'doctorTarget', 'salvajeMentor', 'profetaTarget', 'sacerdoteTarget',
-  'ladronTarget', 'ancianaTarget', 'angelResucitarTarget', 'silenciadoraTarget', 'sirenaTarget',
-  'virginiawoolTarget', 'bansheePrediction', 'cambiaformasTarget', 'liderCultoTarget',
-  'pescadorTarget', 'vampiroTarget', 'hadaBuscadoraTarget', 'forenseTarget', 'saboteadorTarget',
-  'loboBlancoCide',
+  'ladronTarget', 'ancianaTarget', 'silenciadoraTarget', 'sirenaTarget', 'virginiawoolTarget',
+  'bansheePrediction', 'cambiaformasTarget', 'liderCultoTarget', 'pescadorTarget', 'vampiroTarget',
+  'hadaBuscadoraTarget', 'saboteadorTarget', 'loboBlancoCide',
 ]);
 
 function fail(message: string, status = 400) { return NextResponse.json({ error: message }, { status }); }
@@ -55,14 +54,13 @@ function validTarget(players: any[], value: unknown, actorUid: string, allowSelf
 function validateAction(role: string, payload: Record<string, unknown>, game: any, actorUid: string, players: any[]) {
   const allowed = ROLE_ACTIONS[role];
   if (!allowed) return Object.keys(payload).length ? 'Este rol no tiene acción nocturna válida' : null;
-
   const keys = Object.keys(payload);
   if (keys.some(k => !allowed.includes(k))) return 'Acción no permitida para este rol';
   if (!keys.length) return null;
 
   for (const key of keys) {
     const value = payload[key];
-    if (TARGET_KEYS.has(key)) {
+    if (ALIVE_TARGET_KEYS.has(key)) {
       const allowSelf = role === 'Doctor' || role === 'Guardián' || role === 'Sacerdote';
       if (!validTarget(players, value, actorUid, allowSelf)) return `Objetivo inválido: ${key}`;
     }
@@ -74,7 +72,6 @@ function validateAction(role: string, payload: Record<string, unknown>, game: an
       if (game.brujaProtectedUid === target.uid) return 'Ese jugador está protegido por la Bruja';
       if (game.lobosBlocked) return 'La manada está bloqueada esta noche';
     }
-
     if (key === 'loboBlancoCide') {
       if (!['Lobo', 'Lobo Blanco', 'Cría de Lobo'].includes(game.roles?.[value as string])) return 'El Lobo Blanco solo puede eliminar a un lobo aliado';
       if ((game.roundNumber ?? 1) % 2 !== 0) return 'La acción del Lobo Blanco no está disponible esta noche';
@@ -104,8 +101,13 @@ function validateAction(role: string, payload: Record<string, unknown>, game: an
     }
     if (key === 'witchPoison' && game.hechiceraPoisonUsed) return 'La poción de veneno ya fue utilizada';
     if (key === 'angelResucitarTarget') {
+      if (!isStringId(value)) return 'Objetivo de resurrección inválido';
       if (game.angelResucitadorUsed) return 'El Ángel Resucitador ya utilizó su poder';
       if (!players.find((p: any) => p.uid === value && !p.isAlive)) return 'Solo puedes resucitar a un jugador muerto';
+    }
+    if (key === 'forenseTarget') {
+      if (!isStringId(value)) return 'Objetivo forense inválido';
+      if (!players.find((p: any) => p.uid === value && !p.isAlive)) return 'El Médico Forense solo puede examinar cadáveres';
     }
     if (key === 'espiaActivate' && value !== true) return 'Activación del Espía inválida';
     if (key === 'vigiaActivate') {
