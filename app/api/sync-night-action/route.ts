@@ -58,8 +58,11 @@ function validateAction(role: string, payload: Record<string, unknown>, game: an
   if (keys.some(k => !allowed.includes(k))) return 'Acción no permitida para este rol';
   if (!keys.length) return null;
 
+  const round = game.roundNumber ?? 1;
+
   for (const key of keys) {
     const value = payload[key];
+
     if (ALIVE_TARGET_KEYS.has(key)) {
       const allowSelf = role === 'Doctor' || role === 'Guardián' || role === 'Sacerdote';
       if (!validTarget(players, value, actorUid, allowSelf)) return `Objetivo inválido: ${key}`;
@@ -72,50 +75,74 @@ function validateAction(role: string, payload: Record<string, unknown>, game: an
       if (game.brujaProtectedUid === target.uid) return 'Ese jugador está protegido por la Bruja';
       if (game.lobosBlocked) return 'La manada está bloqueada esta noche';
     }
+
     if (key === 'loboBlancoCide') {
+      if (round % 2 !== 0) return 'La acción del Lobo Blanco no está disponible esta noche';
       if (!['Lobo', 'Lobo Blanco', 'Cría de Lobo'].includes(game.roles?.[value as string])) return 'El Lobo Blanco solo puede eliminar a un lobo aliado';
-      if ((game.roundNumber ?? 1) % 2 !== 0) return 'La acción del Lobo Blanco no está disponible esta noche';
       if (value === actorUid) return 'No puedes eliminarte a ti mismo';
     }
+
     if (key === 'wolfTarget2' && !game.criaLoboRage) return 'La segunda víctima no está disponible';
     if (key === 'seerTarget2' && (!game.doubleSeerActive || value === payload.seerTarget)) return 'La segunda visión no está disponible';
 
     if (key === 'cupidTargets') {
       if (!Array.isArray(value) || value.length !== 2 || new Set(value).size !== 2) return 'Cupido debe elegir exactamente 2 jugadores distintos';
       if (!value.every(v => validTarget(players, v, actorUid, true))) return 'Objetivo de Cupido inválido';
-      if ((game.roundNumber ?? 1) !== 1) return 'Cupido solo actúa en la primera noche';
+      if (round !== 1) return 'Cupido solo actúa en la primera noche';
     }
+
     if (key === 'flautistaTargets') {
       if (!Array.isArray(value) || value.length < 1 || value.length > 2 || new Set(value).size !== value.length) return 'El Flautista debe elegir 1 o 2 jugadores distintos';
       if (!value.every(v => validTarget(players, v, actorUid, false))) return 'Objetivo del Flautista inválido';
     }
+
     if (key === 'perroLoboSide') {
       if (value !== 'wolves' && value !== 'village') return 'Bando de Perro Lobo inválido';
-      if ((game.roundNumber ?? 1) !== 1) return 'Perro Lobo solo decide bando en la primera noche';
+      if (round !== 1) return 'Perro Lobo solo decide bando en la primera noche';
       if (game.perroLoboChoices?.[actorUid]) return 'Ya has elegido bando';
     }
+
     if (key === 'witchSave') {
       if (value !== true) return 'Acción de salvación inválida';
       if (game.hechiceraLifeUsed) return 'La poción de vida ya fue utilizada';
       if (!game.nightActions?.wolfTarget) return 'No hay víctima de lobos que salvar';
     }
     if (key === 'witchPoison' && game.hechiceraPoisonUsed) return 'La poción de veneno ya fue utilizada';
+
+    if (key === 'guardianTarget') {
+      if (value === game.guardianLastTarget) return 'El Guardián no puede proteger al mismo objetivo en noches consecutivas';
+      if (value === actorUid && game.guardianSelfUsed) return 'El Guardián ya utilizó su autoprotección';
+    }
+
+    if (key === 'doctorTarget') {
+      if (value === game.doctorLastTarget) return 'El Doctor no puede proteger al mismo objetivo en noches consecutivas';
+    }
+
+    if (key === 'sacerdoteTarget' && game.sacerdoteUsed) return 'El Sacerdote ya utilizó su bendición';
+
     if (key === 'angelResucitarTarget') {
       if (!isStringId(value)) return 'Objetivo de resurrección inválido';
       if (game.angelResucitadorUsed) return 'El Ángel Resucitador ya utilizó su poder';
       if (!players.find((p: any) => p.uid === value && !p.isAlive)) return 'Solo puedes resucitar a un jugador muerto';
     }
+
     if (key === 'forenseTarget') {
       if (!isStringId(value)) return 'Objetivo forense inválido';
       if (!players.find((p: any) => p.uid === value && !p.isAlive)) return 'El Médico Forense solo puede examinar cadáveres';
     }
-    if (key === 'espiaActivate' && value !== true) return 'Activación del Espía inválida';
+
+    if (key === 'espiaActivate') {
+      if (value !== true) return 'Activación del Espía inválida';
+      if (game.espiaUsed) return 'El Espía ya utilizó su poder';
+    }
+
     if (key === 'vigiaActivate') {
       if (value !== true) return 'Activación del Vigía inválida';
       if (game.vigiaUsed) return 'El Vigía ya utilizó su poder';
     }
-    if (['sirenaTarget', 'virginiawoolTarget', 'cambiaformasTarget'].includes(key) && (game.roundNumber ?? 1) !== 1) return 'Esta habilidad solo está disponible en la primera noche';
-    if (key === 'ladronTarget' && (game.roundNumber ?? 1) !== 1) return 'El Ladrón solo actúa la primera noche';
+
+    if (['sirenaTarget', 'virginiawoolTarget', 'cambiaformasTarget'].includes(key) && round !== 1) return 'Esta habilidad solo está disponible en la primera noche';
+    if (key === 'ladronTarget' && round !== 1) return 'El Ladrón solo actúa la primera noche';
     if (key === 'hadaBuscadoraTarget' && game.hadaLinked) return 'El Hada Buscadora ya ha encontrado a su objetivo';
   }
   return null;
@@ -124,6 +151,7 @@ function validateAction(role: string, payload: Record<string, unknown>, game: an
 export async function POST(req: NextRequest) {
   const tokenUid = await verifyAuthToken(req);
   if (!tokenUid) return fail('No autorizado', 401);
+
   try {
     const body = await req.json();
     const { gameId, uid, payload } = body as { gameId?: string; uid?: string; payload?: Record<string, unknown> };
@@ -145,8 +173,12 @@ export async function POST(req: NextRequest) {
     const role = game.roles?.[uid] ?? 'Aldeano';
     const submissionKey = ROLE_KEYS[role] ?? uid;
     const cleanPayload: Record<string, unknown> = {};
+
     for (const [key, value] of Object.entries(payload)) {
-      if (key === '_skip') { if (value !== true) return fail('Valor _skip inválido'); continue; }
+      if (key === '_skip') {
+        if (value !== true) return fail('Valor _skip inválido');
+        continue;
+      }
       if (typeof value === 'string' && value.length <= 128) cleanPayload[key] = value;
       else if (typeof value === 'boolean') cleanPayload[key] = value;
       else if (Array.isArray(value) && value.length <= 3 && value.every(v => typeof v === 'string' && v.length <= 128)) cleanPayload[key] = value;
