@@ -77,7 +77,7 @@ service cloud.firestore {
     }
     match /users/{userId}/purchases/{purchaseId} {
       allow read: if isAuth() && request.auth.uid == userId;
-      allow create: if isAuth() && request.auth.uid == userId && request.resource.data.keys().hasOnly(['itemId','itemName','amount','purchasedAt']);
+      allow create: if isAuth() && request.resource.data.keys().hasOnly(['itemId','itemName','amount','purchasedAt']);
       allow update, delete: if false;
     }
     match /presence/{userId} { allow read: if isAuth(); allow write: if isAuth() && request.auth.uid == userId; }
@@ -106,7 +106,15 @@ service cloud.firestore {
     match /games/{gameId}/nightLogs/{round} { allow read: if isAuth(); allow write: if isAuth() && isHost(gameId); }
     match /games/{gameId}/votes/{voterUid} {
       allow read: if isAuth();
-      allow create, update: if isAuth() && request.auth.uid == voterUid && (get(/databases/$(database)/documents/games/$(gameId)).data.phase == 'day' || get(/databases/$(database)/documents/games/$(gameId)).data.phase == 'voting') && request.resource.data.keys().hasOnly(['target','round','submittedAt']);
+      allow create, update: if isAuth() && request.auth.uid == voterUid
+        && (get(/databases/$(database)/documents/games/$(gameId)).data.phase == 'day' || get(/databases/$(database)/documents/games/$(gameId)).data.phase == 'voting')
+        && request.resource.data.keys().hasOnly(['target','round','submittedAt'])
+        && request.resource.data.round == get(/databases/$(database)/documents/games/$(gameId)).data.roundNumber
+        && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid && p.isAlive == true)
+        && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.resource.data.target && p.isAlive == true)
+        && request.resource.data.target != request.auth.uid
+        && get(/databases/$(database)/documents/games/$(gameId)).data.saboteadorBan != request.auth.uid
+        && !(request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.voteBanned);
       allow write: if isAuth() && isHost(gameId); allow delete: if false;
     }
     match /games/{gameId}/lobbyChat/{messageId} { allow read: if isAuth(); allow create: if isAuth() && request.auth.uid == request.resource.data.senderId; allow update, delete: if false; }
