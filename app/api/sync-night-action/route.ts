@@ -16,18 +16,17 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { gameId, uid, role, payload } = body as {
+    const { gameId, uid, payload } = body as {
       gameId: string;
       uid: string;
-      role: string;
       payload: Record<string, unknown>;
     };
 
-    if (!gameId || !uid || !role) {
-      return NextResponse.json({ error: 'gameId, uid, role required' }, { status: 400 });
+    if (!gameId || !uid) {
+      return NextResponse.json({ error: 'gameId, uid required' }, { status: 400 });
     }
 
-    // El uid del body debe coincidir con el del token
+    // El uid del body debe coincidir con el del token.
     if (tokenUid !== uid) {
       return NextResponse.json({ error: 'UID no coincide con el token' }, { status: 403 });
     }
@@ -35,20 +34,36 @@ export async function POST(req: NextRequest) {
     initAdminApp();
     const db = getFirestore();
 
-    const gameSnap = await db.collection('games').doc(gameId).get();
+    const gameRef = db.collection('games').doc(gameId);
+    const gameSnap = await gameRef.get();
     if (!gameSnap.exists) {
       return NextResponse.json({ error: 'Partida no encontrada' }, { status: 404 });
     }
+
     const gameData = gameSnap.data()!;
     if (gameData.phase !== 'night') {
       return NextResponse.json({ error: 'No es fase de noche' }, { status: 409 });
     }
+
     const players: { uid: string; isAlive: boolean }[] = gameData.players ?? [];
     if (!players.some(p => p.uid === uid && p.isAlive)) {
       return NextResponse.json({ error: 'Jugador no válido o muerto' }, { status: 403 });
     }
 
-    // Sanitizar payload: solo tipos primitivos permitidos
+    // El rol NO se acepta desde el cliente. Se obtiene de la fuente privada
+    // server-side para impedir que un jugador escriba una acción bajo otro rol.
+    const roleSnap = await gameRef.collection('playerRoles').doc(uid).get();
+    if (!roleSnap.exists) {
+      return NextResponse.json({ error: 'Rol no disponible' }, { status: 403 });
+    }
+
+    const roleData = roleSnap.data()!;
+    const serverRole = typeof roleData.role === 'string' ? roleData.role : null;
+    if (!serverRole) {
+      return NextResponse.json({ error: 'Rol inválido' }, { status: 403 });
+    }
+
+    // Sanitizar payload: solo tipos primitivos permitidos.
     const safePayload: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(payload ?? {})) {
       if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' || v === null) {
@@ -56,8 +71,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await db.collection('games').doc(gameId).set(
-      { nightSubmissions: { [role]: { ...safePayload, syncedAt: Date.now() } } },
+    await gameRef.set(
+      { nightSubmissions: { [serverRole]: { ...safePayload, syncedAt: Date.now(), actorUid: uid } } },
       { merge: true }
     );
 
