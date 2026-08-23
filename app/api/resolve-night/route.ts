@@ -3,15 +3,21 @@ import { verifyAuthToken } from '@/lib/server/auth';
 import { getSdks } from '@/lib/server/firebase-admin';
 import { readNightSubmissions } from '@/lib/server/nightSubmissions';
 import { validatePersistedNightSubmissions } from '@/lib/server/nightResolveValidation';
+import {
+  claimNightResolution,
+  releaseNightResolution,
+} from '@/lib/server/nightResolutionLock';
 
 /**
  * Server-side boundary for night resolution.
  *
- * This endpoint intentionally does NOT mutate game state yet. It authenticates
- * the caller, verifies the current game state, reads persisted submissions
- * with Admin SDK, and re-validates them against the current round/player state.
+ * This endpoint still does not mutate the game result. It first acquires an
+ * atomic per-round lease so concurrent callers cannot process the same round.
  */
 export async function POST(request: Request) {
+  let claimedGameId: string | null = null;
+  let claimedRound: number | null = null;
+
   try {
     const user = await verifyAuthToken(request);
     const body = await request.json().catch(() => null);
@@ -48,12 +54,33 @@ export async function POST(request: Request) {
     }
 
     const roundNumber = typeof game.roundNumber === 'number' ? game.roundNumber : null;
+    if (roundNumber === null) {
+      return NextResponse.json({ error: 'Invalid night round' }, { status: 409 });
+    }
+
+    const lock = await claimNightResolution(db, gameId, roundNumber);
+    if (!lock.acquired) {
+      return NextResponse.json(
+        { error: lock.reason === 'already_resolved' ? 'Night already resolved' : 'Night resolution already in progress' },
+        { status: 409 },
+      );
+    }
+
+    claimedGameId = gameId;
+    claimedRound = roundNumber;
+
     const submissions = await readNightSubmissions(gameId);
     const validation = validatePersistedNightSubmissions(
       players as Array<Record<string, unknown>>,
       submissions,
       roundNumber,
     );
+
+    // The actual game-state mutation is deliberately the next migration step.
+    // Keep the lease recoverable if anything fails before that point.
+    await releaseNightResolution(db, gameId, roundNumber);
+    claimedGameId = null;
+    claimedRound = null;
 
     return NextResponse.json({
       ok: true,
@@ -63,6 +90,15 @@ export async function POST(request: Request) {
       rejected: validation.rejected,
     });
   } catch (error) {
+    if (claimedGameId && claimedRound !== null) {
+      try {
+        const { db } = getSdks();
+        await releaseNightResolution(db, claimedGameId, claimedRound);
+      } catch (releaseError) {
+        console.error('[resolve-night] failed to release resolution lease', releaseError);
+      }
+    }
+
     console.error('[resolve-night] request failed', error);
     return NextResponse.json({ error: 'Unauthorized or invalid request' }, { status: 401 });
   }
