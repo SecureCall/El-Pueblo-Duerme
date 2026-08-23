@@ -73,20 +73,30 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Reutilizamos la validación server-side antes de persistir la propuesta.
+    // La validación comprueba identidad, pertenencia, estado del jugador y rol real.
+    const validatedSubmission = {
+      ...safePayload,
+      actorUid: uid,
+      role: serverRole,
+      syncedAt: Date.now(),
+    };
+
     await gameRef.set(
       {
         nightSubmissions: {
-          [serverRole]: {
-            ...safePayload,
-            actorUid: uid,
-            syncedAt: Date.now(),
-          },
+          [serverRole]: validatedSubmission,
         },
       },
       { merge: true }
     );
 
-    return NextResponse.json({ ok: true, role: serverRole });
+    return NextResponse.json({
+      ok: true,
+      validated: true,
+      role: serverRole,
+      actorUid: uid,
+    });
   } catch (err: unknown) {
     console.error('[sync-night-action]', err);
     return NextResponse.json({ error: 'Error interno' }, { status: 500 });
