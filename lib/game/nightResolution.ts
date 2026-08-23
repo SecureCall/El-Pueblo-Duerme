@@ -61,6 +61,21 @@ export interface NightActionValidation {
   errors: string[];
 }
 
+/** A single client proposal, with its claimed actor made explicit. */
+export interface NightActionSubmission {
+  actorUid: string;
+  action: keyof NightActions;
+  targetUid?: string;
+  targetUids?: string[];
+  value?: boolean | 'wolves' | 'village';
+}
+
+export interface NightActorValidation {
+  valid: boolean;
+  submissions: NightActionSubmission[];
+  errors: string[];
+}
+
 export function normalizeNightActions(input: unknown): NightActions {
   if (!input || typeof input !== 'object') return {};
 
@@ -131,6 +146,23 @@ const SINGLE_ROLE_ACTIONS: Partial<Record<keyof NightActions, string>> = {
   ladronTarget: 'Ladrón',
 };
 
+const ACTOR_ROLES: Partial<Record<keyof NightActions, string[]>> = {
+  ...Object.fromEntries(
+    Object.entries(SINGLE_ROLE_ACTIONS).map(([key, role]) => [key, [role as string]]),
+  ) as Partial<Record<keyof NightActions, string[]>>,
+  witchSave: ['Bruja'],
+  witchPoison: ['Bruja'],
+  cupidTargets: ['Cupido'],
+  flautistaTargets: ['Flautista'],
+  loboBlancoCide: ['Lobo Blanco'],
+  perroLoboSide: ['Perro Lobo'],
+  espiaActivate: ['Espía'],
+  vigiaActivate: ['Vigía'],
+  bansheePrediction: ['Banshee'],
+  wolfTarget: ['Lobo', 'Lobo Alfa', 'Lobo Blanco', 'Cachorro de Lobo', 'Perro Lobo'],
+  wolfTarget2: ['Lobo', 'Lobo Alfa', 'Lobo Blanco', 'Cachorro de Lobo', 'Perro Lobo'],
+};
+
 function alivePlayer(players: NightPlayerState[], uid: string): boolean {
   return players.some((player) => player.uid === uid && player.isAlive);
 }
@@ -181,6 +213,60 @@ export function validateNightActions(
   }
 
   return { valid: errors.length === 0, actions, errors };
+}
+
+/**
+ * Validates the actor of every submitted action. This is the security boundary
+ * used when moving action resolution off the host. A client cannot claim an
+ * action for another role or for a dead player.
+ */
+export function validateNightActionActors(
+  submissions: NightActionSubmission[],
+  state: NightValidationState,
+): NightActorValidation {
+  const errors: string[] = [];
+
+  for (const submission of submissions) {
+    if (!submission.actorUid) {
+      errors.push('action: missing actorUid');
+      continue;
+    }
+
+    const actor = state.players.find((player) => player.uid === submission.actorUid);
+    if (!actor) {
+      errors.push(`${submission.action}: actor is not a player`);
+      continue;
+    }
+
+    if (!actor.isAlive) {
+      errors.push(`${submission.action}: actor is dead`);
+      continue;
+    }
+
+    const allowedRoles = ACTOR_ROLES[submission.action];
+    if (!allowedRoles || allowedRoles.length === 0) {
+      errors.push(`${String(submission.action)}: action has no server role mapping`);
+      continue;
+    }
+
+    if (!allowedRoles.includes(actor.role ?? '')) {
+      errors.push(`${String(submission.action)}: actor role is not allowed`);
+    }
+
+    if (submission.targetUid && !alivePlayer(state.players, submission.targetUid)) {
+      errors.push(`${String(submission.action)}: target is not alive`);
+    }
+
+    if (submission.targetUids) {
+      for (const targetUid of submission.targetUids) {
+        if (!alivePlayer(state.players, targetUid)) {
+          errors.push(`${String(submission.action)}: target is not alive`);
+        }
+      }
+    }
+  }
+
+  return { valid: errors.length === 0, submissions, errors };
 }
 
 export function createNightResolutionContext(
