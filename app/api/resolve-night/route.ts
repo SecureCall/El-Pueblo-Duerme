@@ -3,6 +3,9 @@ import { verifyAuthToken } from '@/lib/server/auth';
 import { getSdks } from '@/lib/server/firebase-admin';
 import { readNightSubmissions } from '@/lib/server/nightSubmissions';
 import { validatePersistedNightSubmissions } from '@/lib/server/nightResolveValidation';
+import { createNightResolutionInput } from '@/lib/server/nightResolutionInput';
+import { readNightRoleSnapshot } from '@/lib/server/nightRoleSnapshot';
+import { resolveNightActions } from '@/lib/server/nightResolutionEngine';
 import {
   claimNightResolution,
   releaseNightResolution,
@@ -10,9 +13,7 @@ import {
 
 /**
  * Server-side boundary for night resolution.
- *
- * This endpoint still does not mutate the game result. It first acquires an
- * atomic per-round lease so concurrent callers cannot process the same round.
+ * The engine is deterministic and side-effect free at this migration stage.
  */
 export async function POST(request: Request) {
   let claimedGameId: string | null = null;
@@ -23,40 +24,23 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null);
     const gameId = typeof body?.gameId === 'string' ? body.gameId.trim() : '';
 
-    if (!gameId) {
-      return NextResponse.json({ error: 'gameId is required' }, { status: 400 });
-    }
+    if (!gameId) return NextResponse.json({ error: 'gameId is required' }, { status: 400 });
 
     const { db } = getSdks();
     const gameRef = db.collection('games').doc(gameId);
     const gameSnap = await gameRef.get();
-
-    if (!gameSnap.exists) {
-      return NextResponse.json({ error: 'Game not found' }, { status: 404 });
-    }
+    if (!gameSnap.exists) return NextResponse.json({ error: 'Game not found' }, { status: 404 });
 
     const game = gameSnap.data() as Record<string, unknown>;
     const players = Array.isArray(game.players) ? game.players : [];
     const isPlayer = players.some(
-      (player) =>
-        player &&
-        typeof player === 'object' &&
-        'uid' in player &&
-        player.uid === user.uid,
+      (player) => player && typeof player === 'object' && 'uid' in player && player.uid === user.uid,
     );
-
-    if (!isPlayer) {
-      return NextResponse.json({ error: 'Not a player in this game' }, { status: 403 });
-    }
-
-    if (game.phase !== 'night') {
-      return NextResponse.json({ error: 'Night phase is not active' }, { status: 409 });
-    }
+    if (!isPlayer) return NextResponse.json({ error: 'Not a player in this game' }, { status: 403 });
+    if (game.phase !== 'night') return NextResponse.json({ error: 'Night phase is not active' }, { status: 409 });
 
     const roundNumber = typeof game.roundNumber === 'number' ? game.roundNumber : null;
-    if (roundNumber === null) {
-      return NextResponse.json({ error: 'Invalid night round' }, { status: 409 });
-    }
+    if (roundNumber === null) return NextResponse.json({ error: 'Invalid night round' }, { status: 409 });
 
     const lock = await claimNightResolution(db, gameId, roundNumber);
     if (!lock.acquired) {
@@ -65,7 +49,6 @@ export async function POST(request: Request) {
         { status: 409 },
       );
     }
-
     claimedGameId = gameId;
     claimedRound = roundNumber;
 
@@ -76,19 +59,22 @@ export async function POST(request: Request) {
       roundNumber,
     );
 
-    // The actual game-state mutation is deliberately the next migration step.
-    // Keep the lease recoverable if anything fails before that point.
+    const input = createNightResolutionInput(
+      gameId,
+      roundNumber,
+      players as Array<Record<string, unknown>>,
+      validation.valid.flatMap((submission) => submission.actions),
+    );
+
+    const playerUids = input.players.map((player) => player.uid);
+    const roleSnapshot = await readNightRoleSnapshot(gameId, playerUids);
+    const result = resolveNightActions(input, roleSnapshot);
+
     await releaseNightResolution(db, gameId, roundNumber);
     claimedGameId = null;
     claimedRound = null;
 
-    return NextResponse.json({
-      ok: true,
-      gameId,
-      roundNumber,
-      submissions: validation.valid,
-      rejected: validation.rejected,
-    });
+    return NextResponse.json({ ok: true, gameId, result, rejected: validation.rejected });
   } catch (error) {
     if (claimedGameId && claimedRound !== null) {
       try {
@@ -98,7 +84,6 @@ export async function POST(request: Request) {
         console.error('[resolve-night] failed to release resolution lease', releaseError);
       }
     }
-
     console.error('[resolve-night] request failed', error);
     return NextResponse.json({ error: 'Unauthorized or invalid request' }, { status: 401 });
   }
