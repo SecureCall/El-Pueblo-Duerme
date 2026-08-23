@@ -2,14 +2,14 @@ import { NextResponse } from 'next/server';
 import { verifyAuthToken } from '@/lib/server/auth';
 import { getSdks } from '@/lib/server/firebase-admin';
 import { readNightSubmissions } from '@/lib/server/nightSubmissions';
+import { validatePersistedNightSubmissions } from '@/lib/server/nightResolveValidation';
 
 /**
  * Server-side boundary for night resolution.
  *
- * This endpoint intentionally does NOT resolve the night yet. It only
- * authenticates the caller and proves that the persisted submissions can be
- * read server-side. The actual game-state mutation remains in the existing
- * resolver until it is migrated atomically.
+ * This endpoint intentionally does NOT mutate game state yet. It authenticates
+ * the caller, verifies the current game state, reads persisted submissions
+ * with Admin SDK, and re-validates them against the current round/player state.
  */
 export async function POST(request: Request) {
   try {
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
         player &&
         typeof player === 'object' &&
         'uid' in player &&
-        player.uid === user.uid
+        player.uid === user.uid,
     );
 
     if (!isPlayer) {
@@ -47,13 +47,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Night phase is not active' }, { status: 409 });
     }
 
+    const roundNumber = typeof game.roundNumber === 'number' ? game.roundNumber : null;
     const submissions = await readNightSubmissions(gameId);
+    const validation = validatePersistedNightSubmissions(
+      players as Array<Record<string, unknown>>,
+      submissions,
+      roundNumber,
+    );
 
     return NextResponse.json({
       ok: true,
       gameId,
-      roundNumber: game.roundNumber ?? null,
-      submissions,
+      roundNumber,
+      submissions: validation.valid,
+      rejected: validation.rejected,
     });
   } catch (error) {
     console.error('[resolve-night] request failed', error);
