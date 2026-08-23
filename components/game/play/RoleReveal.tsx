@@ -4,9 +4,8 @@ import { useState, useEffect } from 'react';
 import { ROLES } from './roles';
 import { GameState, Player } from './GamePlay';
 import { Eye, EyeOff, Check } from 'lucide-react';
-import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { getRoleIcon } from './roleIcons';
+import { getPrivatePlayerRole } from '@/lib/game/privateRoles';
 
 interface Props {
   game: GameState;
@@ -22,9 +21,27 @@ export function RoleReveal({ game, myRole, me, isHost, onReady, gameId, userId }
   const [revealed, setRevealed] = useState(false);
   const [readyCount, setReadyCount] = useState(0);
   const [isReady, setIsReady] = useState(false);
+  const [privateRole, setPrivateRole] = useState<string | null>(null);
 
-  const roleInfo = myRole ? ROLES[myRole] : null;
-  const myWolfTeam = myRole === 'Lobo'
+  // Prefer the protected playerRoles/{uid} document over the legacy public roles map.
+  // Keep myRole as a temporary fallback so existing/in-progress games do not break.
+  useEffect(() => {
+    let cancelled = false;
+    setPrivateRole(null);
+    if (!gameId || !userId) return;
+    getPrivatePlayerRole(gameId, userId)
+      .then(role => {
+        if (!cancelled) setPrivateRole(role);
+      })
+      .catch(() => {
+        // Legacy fallback remains available while the migration is in progress.
+      });
+    return () => { cancelled = true; };
+  }, [gameId, userId]);
+
+  const effectiveRole = privateRole ?? myRole ?? 'Aldeano';
+  const roleInfo = ROLES[effectiveRole];
+  const myWolfTeam = effectiveRole === 'Lobo'
     ? (game.players ?? []).filter(p => game.roles?.[p.uid] === 'Lobo' && p.uid !== userId)
     : [];
 
@@ -65,11 +82,11 @@ export function RoleReveal({ game, myRole, me, isHost, onReady, gameId, userId }
           ) : (
             <div className="flex flex-col items-center gap-4">
               <img
-                src={getRoleIcon(myRole ?? 'Aldeano')}
-                alt={myRole ?? 'Aldeano'}
+                src={getRoleIcon(effectiveRole)}
+                alt={effectiveRole}
                 className="w-28 h-28 object-cover rounded-2xl mb-2 shadow-lg shadow-black/60"
               />
-              <h3 className="font-headline text-4xl font-bold">{myRole ?? 'Aldeano'}</h3>
+              <h3 className="font-headline text-4xl font-bold">{effectiveRole}</h3>
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mt-1"
                 style={{
                   background: roleInfo?.team === 'wolves' ? 'rgba(239,68,68,0.2)' : 'rgba(34,197,94,0.2)',
