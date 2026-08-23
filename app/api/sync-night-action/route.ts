@@ -73,8 +73,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Reutilizamos la validación server-side antes de persistir la propuesta.
-    // La validación comprueba identidad, pertenencia, estado del jugador y rol real.
+    // Una propuesta pertenece al actor autenticado, nunca a su rol.
+    // Esto evita que dos jugadores con el mismo rol se sobrescriban.
+    const submissionRef = gameRef.collection('nightSubmissions').doc(uid);
     const validatedSubmission = {
       ...safePayload,
       actorUid: uid,
@@ -82,20 +83,13 @@ export async function POST(req: NextRequest) {
       syncedAt: Date.now(),
     };
 
-    await gameRef.set(
-      {
-        nightSubmissions: {
-          [serverRole]: validatedSubmission,
-        },
-      },
-      { merge: true }
-    );
+    await submissionRef.set(validatedSubmission, { merge: true });
 
     return NextResponse.json({
       ok: true,
       validated: true,
-      role: serverRole,
       actorUid: uid,
+      role: serverRole,
     });
   } catch (err: unknown) {
     console.error('[sync-night-action]', err);
