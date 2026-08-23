@@ -1,281 +1,177 @@
-/**
- * Pure night-resolution boundary.
- *
- * No Firebase imports or writes are allowed in this module.
- */
+export type NightActionValue = string | string[] | boolean | number | null;
 
-export interface NightResolutionContext {
-  gameId: string;
-  roundNumber: number;
-}
-
-export interface NightActions {
-  wolfTarget?: string;
-  wolfTarget2?: string;
-  seerTarget?: string;
-  seerTarget2?: string;
-  witchSave?: boolean;
-  witchPoison?: string;
-  cupidTargets?: string[];
-  guardianTarget?: string;
-  flautistaTargets?: string[];
-  loboBlancoCide?: string;
-  perroLoboSide?: 'wolves' | 'village';
-  salvajeMentor?: string;
-  profetaTarget?: string;
-  sacerdoteTarget?: string;
-  ladronTarget?: string;
-  espiaActivate?: boolean;
-  ancianaTarget?: string;
-  angelResucitarTarget?: string;
-  doctorTarget?: string;
-  silenciadoraTarget?: string;
-  sirenaTarget?: string;
-  virginiawoolTarget?: string;
-  vigiaActivate?: boolean;
-  bansheePrediction?: string;
-  cambiaformasTarget?: string;
-  liderCultoTarget?: string;
-  pescadorTarget?: string;
-  vampiroTarget?: string;
-  hadaBuscadoraTarget?: string;
-  brujaTarget?: string;
-  forenseTarget?: string;
-  saboteadorTarget?: string;
-}
-
-export interface NightPlayerState {
-  uid: string;
-  role?: string | null;
-  isAlive: boolean;
-}
-
-export interface NightValidationState {
-  players: NightPlayerState[];
-  wolfTeam?: Record<string, boolean>;
-}
-
-export interface NightActionValidation {
-  valid: boolean;
-  actions: NightActions;
-  errors: string[];
-}
-
-/** A single client proposal, with its claimed actor made explicit. */
 export interface NightActionSubmission {
   actorUid: string;
-  action: keyof NightActions;
+  action: string;
   targetUid?: string;
   targetUids?: string[];
-  value?: boolean | 'wolves' | 'village';
+  value?: NightActionValue;
 }
 
-export interface NightActorValidation {
-  valid: boolean;
-  submissions: NightActionSubmission[];
-  errors: string[];
-}
+const TARGET_ACTIONS = new Set([
+  'wolfTarget', 'wolfTarget2', 'seerTarget', 'seerTarget2', 'profetaTarget',
+  'witchPoison', 'brujaTarget', 'guardianTarget', 'doctorTarget',
+  'salvajeMentor', 'sacerdoteTarget', 'ladronTarget', 'ancianaTarget',
+  'angelResucitarTarget', 'silenciadoraTarget', 'sirenaTarget',
+  'virginiawoolTarget', 'bansheePrediction', 'cambiaformasTarget',
+  'liderCultoTarget', 'pescadorTarget', 'vampiroTarget', 'hadaBuscadoraTarget',
+  'forenseTarget', 'saboteadorTarget',
+]);
 
-export function normalizeNightActions(input: unknown): NightActions {
-  if (!input || typeof input !== 'object') return {};
+const MULTI_TARGET_ACTIONS = new Set(['cupidTargets', 'flautistaTargets']);
+
+const BOOLEAN_ACTIONS = new Set([
+  'witchSave', 'vigiaActivate', 'espiaActivate', '_skip',
+]);
+
+const ALLOWED_ACTIONS = new Set([
+  ...TARGET_ACTIONS,
+  ...MULTI_TARGET_ACTIONS,
+  ...BOOLEAN_ACTIONS,
+  'loboBlancoCide', 'perroLoboSide', 'salvajeMentor',
+]);
+
+export function normalizeNightActions(input: unknown): Record<string, NightActionValue> {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
 
   const source = input as Record<string, unknown>;
-  const result: NightActions = {};
+  const output: Record<string, NightActionValue> = {};
 
-  const stringKeys: (keyof NightActions)[] = [
-    'wolfTarget', 'wolfTarget2', 'seerTarget', 'seerTarget2', 'witchPoison',
-    'guardianTarget', 'loboBlancoCide', 'salvajeMentor', 'profetaTarget',
-    'sacerdoteTarget', 'ladronTarget', 'ancianaTarget', 'angelResucitarTarget',
-    'doctorTarget', 'silenciadoraTarget', 'sirenaTarget', 'virginiawoolTarget',
-    'bansheePrediction', 'cambiaformasTarget', 'liderCultoTarget',
-    'pescadorTarget', 'vampiroTarget', 'hadaBuscadoraTarget', 'brujaTarget',
-    'forenseTarget', 'saboteadorTarget',
-  ];
+  for (const [key, value] of Object.entries(source)) {
+    if (!ALLOWED_ACTIONS.has(key)) continue;
 
-  for (const key of stringKeys) {
-    if (typeof source[key] === 'string' && source[key]) {
-      result[key] = source[key] as never;
+    if (typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number' || value === null) {
+      output[key] = value;
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      const strings = value.filter((item): item is string => typeof item === 'string' && item.length > 0);
+      if (strings.length > 0) output[key] = strings;
     }
   }
 
-  const booleanKeys: (keyof NightActions)[] = [
-    'witchSave', 'espiaActivate', 'vigiaActivate',
-  ];
-  for (const key of booleanKeys) {
-    if (typeof source[key] === 'boolean') result[key] = source[key] as never;
-  }
-
-  const arrayStringKeys: (keyof NightActions)[] = ['cupidTargets', 'flautistaTargets'];
-  for (const key of arrayStringKeys) {
-    if (Array.isArray(source[key])) {
-      const values = (source[key] as unknown[]).filter(
-        (value): value is string => typeof value === 'string' && value.length > 0,
-      );
-      if (values.length) result[key] = values as never;
-    }
-  }
-
-  if (source.perroLoboSide === 'wolves' || source.perroLoboSide === 'village') {
-    result.perroLoboSide = source.perroLoboSide;
-  }
-
-  return result;
-}
-
-const SINGLE_ROLE_ACTIONS: Partial<Record<keyof NightActions, string>> = {
-  seerTarget: 'Vidente',
-  seerTarget2: 'Vidente',
-  guardianTarget: 'Guardián',
-  profetaTarget: 'Profeta',
-  doctorTarget: 'Doctor',
-  silenciadoraTarget: 'Silenciadora',
-  sirenaTarget: 'Sirena',
-  virginiawoolTarget: 'Virginia Woolf',
-  angelResucitarTarget: 'Ángel Resucitador',
-  liderCultoTarget: 'Líder de Culto',
-  pescadorTarget: 'Pescador',
-  vampiroTarget: 'Vampiro',
-  hadaBuscadoraTarget: 'Hada Buscadora',
-  brujaTarget: 'Bruja',
-  forenseTarget: 'Forense',
-  saboteadorTarget: 'Saboteador',
-  ancianaTarget: 'Anciana',
-  cambiaformasTarget: 'Cambiaformas',
-  salvajeMentor: 'Salvaje',
-  sacerdoteTarget: 'Sacerdote',
-  ladronTarget: 'Ladrón',
-};
-
-const ACTOR_ROLES: Partial<Record<keyof NightActions, string[]>> = {
-  ...Object.fromEntries(
-    Object.entries(SINGLE_ROLE_ACTIONS).map(([key, role]) => [key, [role as string]]),
-  ) as Partial<Record<keyof NightActions, string[]>>,
-  witchSave: ['Bruja'],
-  witchPoison: ['Bruja'],
-  cupidTargets: ['Cupido'],
-  flautistaTargets: ['Flautista'],
-  loboBlancoCide: ['Lobo Blanco'],
-  perroLoboSide: ['Perro Lobo'],
-  espiaActivate: ['Espía'],
-  vigiaActivate: ['Vigía'],
-  bansheePrediction: ['Banshee'],
-  wolfTarget: ['Lobo', 'Lobo Alfa', 'Lobo Blanco', 'Cachorro de Lobo', 'Perro Lobo'],
-  wolfTarget2: ['Lobo', 'Lobo Alfa', 'Lobo Blanco', 'Cachorro de Lobo', 'Perro Lobo'],
-};
-
-function alivePlayer(players: NightPlayerState[], uid: string): boolean {
-  return players.some((player) => player.uid === uid && player.isAlive);
-}
-
-function hasRole(players: NightPlayerState[], role: string): boolean {
-  return players.some((player) => player.isAlive && player.role === role);
+  return output;
 }
 
 export function createNightActionSubmission(
   actorUid: string,
-  action: keyof NightActions,
-  value: NightActionSubmission['value'] | string | string[] | undefined,
+  action: string,
+  value?: NightActionValue,
 ): NightActionSubmission {
   const submission: NightActionSubmission = { actorUid, action };
 
-  if (Array.isArray(value)) {
+  if (typeof value === 'string') {
+    if (TARGET_ACTIONS.has(action)) submission.targetUid = value;
+    else submission.value = value;
+  } else if (Array.isArray(value)) {
     submission.targetUids = value.filter((uid): uid is string => typeof uid === 'string' && uid.length > 0);
-  } else if (typeof value === 'string') {
-    if (action === 'perroLoboSide') {
-      submission.value = value === 'wolves' || value === 'village' ? value : undefined;
-    } else {
-      submission.targetUid = value;
-    }
-  } else if (typeof value === 'boolean') {
+  } else if (value !== undefined) {
     submission.value = value;
   }
 
   return submission;
 }
 
-/** Converts the current legacy action object into actor-aware proposals. */
 export function createNightActionSubmissions(
   actorUid: string,
-  input: unknown,
+  actions: unknown,
 ): NightActionSubmission[] {
-  const actions = normalizeNightActions(input);
-  return (Object.entries(actions) as [keyof NightActions, NightActions[keyof NightActions]][]).map(
-    ([action, value]) => createNightActionSubmission(actorUid, action, value as never),
-  );
-}
+  const normalized = normalizeNightActions(actions);
+  const submissions: NightActionSubmission[] = [];
 
-export function validateNightActions(
-  input: unknown,
-  state: NightValidationState,
-): NightActionValidation {
-  const actions = normalizeNightActions(input);
-  const errors: string[] = [];
-
-  const targets = Object.entries(actions).flatMap(([key, value]) => {
-    if (typeof value === 'string' && key !== 'perroLoboSide') return [[key, value] as const];
-    if (Array.isArray(value)) return value.map((uid) => [key, uid] as const);
-    return [];
-  });
-
-  for (const [key, uid] of targets) {
-    if (!alivePlayer(state.players, uid)) errors.push(`${key}: target is not an alive player`);
-  }
-
-  for (const [key, role] of Object.entries(SINGLE_ROLE_ACTIONS)) {
-    if (actions[key as keyof NightActions] !== undefined && !hasRole(state.players, role)) {
-      errors.push(`${key}: acting role is not available`);
+  for (const [action, value] of Object.entries(normalized)) {
+    if (action === '_skip') {
+      submissions.push(createNightActionSubmission(actorUid, action, value));
+      continue;
+    }
+    if (MULTI_TARGET_ACTIONS.has(action) || TARGET_ACTIONS.has(action) || BOOLEAN_ACTIONS.has(action) || typeof value === 'string' || typeof value === 'boolean') {
+      submissions.push(createNightActionSubmission(actorUid, action, value));
     }
   }
 
-  if (actions.wolfTarget !== undefined && !Object.values(state.wolfTeam ?? {}).some(Boolean)) {
-    errors.push('wolfTarget: no wolf team is available');
-  }
-
-  if (actions.cupidTargets && actions.cupidTargets.length !== 2) errors.push('cupidTargets: exactly two targets are required');
-  if (actions.flautistaTargets && actions.flautistaTargets.length > 2) errors.push('flautistaTargets: at most two targets are allowed');
-
-  return { valid: errors.length === 0, actions, errors };
+  return submissions;
 }
+
+export interface NightPlayerForValidation {
+  uid: string;
+  isAlive: boolean;
+}
+
+export interface NightGameForValidation {
+  players: NightPlayerForValidation[];
+  roles: Record<string, string>;
+}
+
+const ROLE_ACTIONS: Record<string, Set<string>> = {
+  Lobo: new Set(['wolfTarget', 'wolfTarget2']),
+  'Lobo Blanco': new Set(['wolfTarget', 'wolfTarget2', 'loboBlancoCide']),
+  'Cría de Lobo': new Set(['wolfTarget', 'wolfTarget2']),
+  Vidente: new Set(['seerTarget', 'seerTarget2']),
+  Hechicera: new Set(['witchSave', 'witchPoison']),
+  Bruja: new Set(['brujaTarget']),
+  Cupido: new Set(['cupidTargets']),
+  Guardián: new Set(['guardianTarget']),
+  Doctor: new Set(['doctorTarget']),
+  Flautista: new Set(['flautistaTargets']),
+  'Perro Lobo': new Set(['perroLoboSide']),
+  'Niño Salvaje': new Set(['salvajeMentor']),
+  Profeta: new Set(['profetaTarget']),
+  Sacerdote: new Set(['sacerdoteTarget']),
+  Ladrón: new Set(['ladronTarget']),
+  'Anciana Líder': new Set(['ancianaTarget']),
+  'Ángel Resucitador': new Set(['angelResucitarTarget']),
+  Silenciadora: new Set(['silenciadoraTarget']),
+  'Sirena del Río': new Set(['sirenaTarget']),
+  'Virginia Woolf': new Set(['virginiawoolTarget']),
+  Vigía: new Set(['vigiaActivate']),
+  Banshee: new Set(['bansheePrediction']),
+  Cambiaformas: new Set(['cambiaformasTarget']),
+  'Líder del Culto': new Set(['liderCultoTarget']),
+  Pescador: new Set(['pescadorTarget']),
+  Vampiro: new Set(['vampiroTarget']),
+  'Hada Buscadora': new Set(['hadaBuscadoraTarget']),
+  'Médico Forense': new Set(['forenseTarget']),
+  Saboteador: new Set(['saboteadorTarget']),
+  Espía: new Set(['espiaActivate']),
+};
 
 export function validateNightActionActors(
+  game: NightGameForValidation,
   submissions: NightActionSubmission[],
-  state: NightValidationState,
-): NightActorValidation {
+): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
+  const players = new Map(game.players.map(player => [player.uid, player]));
 
   for (const submission of submissions) {
-    if (!submission.actorUid) {
-      errors.push('action: missing actorUid');
-      continue;
-    }
-
-    const actor = state.players.find((player) => player.uid === submission.actorUid);
+    const actor = players.get(submission.actorUid);
     if (!actor) {
-      errors.push(`${submission.action}: actor is not a player`);
+      errors.push(`unknown_actor:${submission.actorUid}`);
       continue;
     }
-    if (!actor.isAlive) {
-      errors.push(`${submission.action}: actor is dead`);
+    if (!actor.isAlive && submission.action !== '_skip') {
+      errors.push(`dead_actor:${submission.actorUid}`);
       continue;
     }
 
-    const allowedRoles = ACTOR_ROLES[submission.action];
-    if (!allowedRoles || allowedRoles.length === 0) {
-      errors.push(`${String(submission.action)}: action has no server role mapping`);
-      continue;
+    const role = game.roles[submission.actorUid];
+    const allowed = ROLE_ACTIONS[role];
+    if (submission.action !== '_skip' && (!allowed || !allowed.has(submission.action))) {
+      errors.push(`role_not_allowed:${submission.actorUid}:${submission.action}`);
     }
-    if (!allowedRoles.includes(actor.role ?? '')) errors.push(`${String(submission.action)}: actor role is not allowed`);
-    if (submission.targetUid && !alivePlayer(state.players, submission.targetUid)) errors.push(`${String(submission.action)}: target is not alive`);
+
+    if (submission.targetUid) {
+      const target = players.get(submission.targetUid);
+      if (!target || !target.isAlive) errors.push(`invalid_target:${submission.targetUid}`);
+    }
+
     if (submission.targetUids) {
       for (const targetUid of submission.targetUids) {
-        if (!alivePlayer(state.players, targetUid)) errors.push(`${String(submission.action)}: target is not alive`);
+        const target = players.get(targetUid);
+        if (!target || !target.isAlive) errors.push(`invalid_target:${targetUid}`);
       }
     }
   }
 
-  return { valid: errors.length === 0, submissions, errors };
-}
-
-export function createNightResolutionContext(gameId: string, roundNumber: number): NightResolutionContext {
-  return { gameId, roundNumber };
+  return { valid: errors.length === 0, errors };
 }
