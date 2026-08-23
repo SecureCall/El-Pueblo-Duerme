@@ -171,11 +171,6 @@ function hasRole(players: NightPlayerState[], role: string): boolean {
   return players.some((player) => player.isAlive && player.role === role);
 }
 
-/**
- * Converts one already-normalized legacy action into the new actor-aware
- * proposal format. This is intentionally pure so GamePlay can adopt it
- * incrementally without changing the Firestore schema yet.
- */
 export function createNightActionSubmission(
   actorUid: string,
   action: keyof NightActions,
@@ -198,10 +193,17 @@ export function createNightActionSubmission(
   return submission;
 }
 
-/**
- * Validates normalized actions against the current public player state.
- * This does not resolve outcomes and deliberately does not perform I/O.
- */
+/** Converts the current legacy action object into actor-aware proposals. */
+export function createNightActionSubmissions(
+  actorUid: string,
+  input: unknown,
+): NightActionSubmission[] {
+  const actions = normalizeNightActions(input);
+  return (Object.entries(actions) as [keyof NightActions, NightActions[keyof NightActions]][]).map(
+    ([action, value]) => createNightActionSubmission(actorUid, action, value as never),
+  );
+}
+
 export function validateNightActions(
   input: unknown,
   state: NightValidationState,
@@ -216,9 +218,7 @@ export function validateNightActions(
   });
 
   for (const [key, uid] of targets) {
-    if (!alivePlayer(state.players, uid)) {
-      errors.push(`${key}: target is not an alive player`);
-    }
+    if (!alivePlayer(state.players, uid)) errors.push(`${key}: target is not an alive player`);
   }
 
   for (const [key, role] of Object.entries(SINGLE_ROLE_ACTIONS)) {
@@ -231,22 +231,12 @@ export function validateNightActions(
     errors.push('wolfTarget: no wolf team is available');
   }
 
-  if (actions.cupidTargets && actions.cupidTargets.length !== 2) {
-    errors.push('cupidTargets: exactly two targets are required');
-  }
-
-  if (actions.flautistaTargets && actions.flautistaTargets.length > 2) {
-    errors.push('flautistaTargets: at most two targets are allowed');
-  }
+  if (actions.cupidTargets && actions.cupidTargets.length !== 2) errors.push('cupidTargets: exactly two targets are required');
+  if (actions.flautistaTargets && actions.flautistaTargets.length > 2) errors.push('flautistaTargets: at most two targets are allowed');
 
   return { valid: errors.length === 0, actions, errors };
 }
 
-/**
- * Validates the actor of every submitted action. This is the security boundary
- * used when moving action resolution off the host. A client cannot claim an
- * action for another role or for a dead player.
- */
 export function validateNightActionActors(
   submissions: NightActionSubmission[],
   state: NightValidationState,
@@ -264,7 +254,6 @@ export function validateNightActionActors(
       errors.push(`${submission.action}: actor is not a player`);
       continue;
     }
-
     if (!actor.isAlive) {
       errors.push(`${submission.action}: actor is dead`);
       continue;
@@ -275,20 +264,11 @@ export function validateNightActionActors(
       errors.push(`${String(submission.action)}: action has no server role mapping`);
       continue;
     }
-
-    if (!allowedRoles.includes(actor.role ?? '')) {
-      errors.push(`${String(submission.action)}: actor role is not allowed`);
-    }
-
-    if (submission.targetUid && !alivePlayer(state.players, submission.targetUid)) {
-      errors.push(`${String(submission.action)}: target is not alive`);
-    }
-
+    if (!allowedRoles.includes(actor.role ?? '')) errors.push(`${String(submission.action)}: actor role is not allowed`);
+    if (submission.targetUid && !alivePlayer(state.players, submission.targetUid)) errors.push(`${String(submission.action)}: target is not alive`);
     if (submission.targetUids) {
       for (const targetUid of submission.targetUids) {
-        if (!alivePlayer(state.players, targetUid)) {
-          errors.push(`${String(submission.action)}: target is not alive`);
-        }
+        if (!alivePlayer(state.players, targetUid)) errors.push(`${String(submission.action)}: target is not alive`);
       }
     }
   }
@@ -296,9 +276,6 @@ export function validateNightActionActors(
   return { valid: errors.length === 0, submissions, errors };
 }
 
-export function createNightResolutionContext(
-  gameId: string,
-  roundNumber: number,
-): NightResolutionContext {
+export function createNightResolutionContext(gameId: string, roundNumber: number): NightResolutionContext {
   return { gameId, roundNumber };
 }
