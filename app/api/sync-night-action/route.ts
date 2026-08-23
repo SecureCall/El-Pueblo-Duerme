@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { initAdminApp } from '@/lib/firebase/admin';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { getFirestore } from 'firebase-admin/firestore';
-import { createNightActionSubmissions, validateNightActionActors } from '@/lib/game/nightResolution';
+import { createNightActionSubmissions, validateNightActionSubmissions } from '@/lib/game/nightResolution';
 
 export async function POST(req: NextRequest) {
   const tokenUid = await verifyAuthToken(req);
@@ -54,15 +54,17 @@ export async function POST(req: NextRequest) {
       : typeof roleData.rol === 'string' ? roleData.rol : null;
     if (!serverRole) return NextResponse.json({ error: 'Rol inválido en servidor' }, { status: 500 });
 
-    // Convertimos el payload al formato canónico y comprobamos que cada acción
-    // pertenece realmente al rol que el servidor acaba de recuperar.
     const submissions = createNightActionSubmissions(uid, payload);
     if (submissions.length === 0) {
       return NextResponse.json({ error: 'Acción nocturna no reconocida' }, { status: 400 });
     }
 
-    const validation = validateNightActionActors(
-      { players, roles: { [uid]: serverRole } },
+    // La validación recibe el rol privado obtenido por Admin SDK. Nunca usa
+    // gameData.roles, que no debe convertirse en una fuente de autoridad.
+    const validation = validateNightActionSubmissions(
+      players,
+      uid,
+      serverRole,
       submissions,
     );
     if (!validation.valid) {
