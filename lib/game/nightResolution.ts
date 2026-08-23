@@ -172,6 +172,33 @@ function hasRole(players: NightPlayerState[], role: string): boolean {
 }
 
 /**
+ * Converts one already-normalized legacy action into the new actor-aware
+ * proposal format. This is intentionally pure so GamePlay can adopt it
+ * incrementally without changing the Firestore schema yet.
+ */
+export function createNightActionSubmission(
+  actorUid: string,
+  action: keyof NightActions,
+  value: NightActionSubmission['value'] | string | string[] | undefined,
+): NightActionSubmission {
+  const submission: NightActionSubmission = { actorUid, action };
+
+  if (Array.isArray(value)) {
+    submission.targetUids = value.filter((uid): uid is string => typeof uid === 'string' && uid.length > 0);
+  } else if (typeof value === 'string') {
+    if (action === 'perroLoboSide') {
+      submission.value = value === 'wolves' || value === 'village' ? value : undefined;
+    } else {
+      submission.targetUid = value;
+    }
+  } else if (typeof value === 'boolean') {
+    submission.value = value;
+  }
+
+  return submission;
+}
+
+/**
  * Validates normalized actions against the current public player state.
  * This does not resolve outcomes and deliberately does not perform I/O.
  */
