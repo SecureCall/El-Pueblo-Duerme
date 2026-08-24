@@ -5,19 +5,20 @@ import {
 import type { NightResolutionInput } from '@/lib/server/nightResolutionInput';
 import type { NightRoleSnapshot } from '@/lib/server/nightRoleSnapshot';
 import { resolveWolfNightTarget, type WolfNightResolution } from '@/lib/server/wolfNightResolution';
+import { resolveNightProtections, type NightProtectionResolution } from '@/lib/server/nightProtectionResolution';
 
 export interface NightResolutionEngineResult {
   roundNumber: number;
   acceptedActions: NightActionSubmission[];
   rejectedActions: Array<{ actorUid: string; reason: string }>;
   wolfResolution: WolfNightResolution;
+  protectionResolution: NightProtectionResolution;
+  pendingWolfDeath: string | null;
 }
 
 /**
- * Deterministic, side-effect-free first-stage night engine.
- *
- * This stage does not apply deaths, protections, or victory conditions. It
- * establishes the server-owned action set and derives the wolf target.
+ * Deterministic, side-effect-free night engine.
+ * No deaths, phase transitions, or Firestore writes are applied here.
  */
 export function resolveNightActions(
   input: NightResolutionInput,
@@ -66,10 +67,20 @@ export function resolveNightActions(
     roles.rolesByUid,
   );
 
+  const protectionResolution = resolveNightProtections(
+    input,
+    roles,
+    wolfResolution,
+  );
+
   return {
     roundNumber: input.roundNumber,
     acceptedActions,
     rejectedActions,
     wolfResolution,
+    protectionResolution,
+    pendingWolfDeath: protectionResolution.wolfAttackBlocked
+      ? null
+      : protectionResolution.wolfTargetUid,
   };
 }
