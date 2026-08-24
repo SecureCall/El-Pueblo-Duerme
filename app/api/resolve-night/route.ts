@@ -59,11 +59,17 @@ export async function POST(request: Request) {
       roundNumber,
     );
 
+    const groupedSubmissions = validation.valid.map((submission) => ({
+      actorUid: submission.actorUid,
+      role: submission.role,
+      actions: submission.actions,
+    }));
+
     const input = createNightResolutionInput(
       gameId,
       roundNumber,
       players as Array<Record<string, unknown>>,
-      validation.valid.flatMap((submission) => submission.actions),
+      groupedSubmissions,
     );
 
     const playerUids = input.players.map((player) => player.uid);
