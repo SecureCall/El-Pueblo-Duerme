@@ -14,14 +14,11 @@ export interface NightResolutionEngineResult {
   rejectedActions: Array<{ actorUid: string; reason: string }>;
   wolfResolution: WolfNightResolution;
   protectionResolution: NightProtectionResolution;
-  pendingWolfDeath: string | null;
+  pendingWolfDeaths: string[];
   deathEffects: NightDeathEffectsResult;
 }
 
-/**
- * Deterministic, side-effect-free night engine.
- * No deaths, phase transitions, or Firestore writes are applied here.
- */
+/** Deterministic, side-effect-free night engine. */
 export function resolveNightActions(
   input: NightResolutionInput,
   roles: NightRoleSnapshot,
@@ -31,32 +28,23 @@ export function resolveNightActions(
 
   for (const submission of input.submissions) {
     const role = roles.rolesByUid[submission.actorUid];
-
     if (!role) {
       rejectedActions.push({ actorUid: submission.actorUid, reason: 'missing_private_role' });
       continue;
     }
-
     if (submission.role !== role) {
       rejectedActions.push({ actorUid: submission.actorUid, reason: 'role_mismatch' });
       continue;
     }
 
     for (const action of submission.actions) {
-      const validation = validateNightActionSubmissions(
-        input.players,
-        submission.actorUid,
-        role,
-        [action],
-      );
-
+      const validation = validateNightActionSubmissions(input.players, submission.actorUid, role, [action]);
       if (!validation.valid) {
         for (const error of validation.errors) {
           rejectedActions.push({ actorUid: submission.actorUid, reason: error });
         }
         continue;
       }
-
       acceptedActions.push(action);
     }
   }
@@ -68,26 +56,16 @@ export function resolveNightActions(
     }))
     .filter((submission) => submission.actions.length > 0);
 
-  const wolfResolution = resolveWolfNightTarget(
-    input.players,
-    acceptedSubmissions,
-    roles.rolesByUid,
-  );
+  const wolfResolution = resolveWolfNightTarget(input.players, acceptedSubmissions, roles.rolesByUid);
+  const protectionInput = { ...input, submissions: acceptedSubmissions };
+  const protectionResolution = resolveNightProtections(protectionInput, roles, wolfResolution);
 
-  const protectionResolution = resolveNightProtections(
-    { ...input, submissions: acceptedSubmissions },
-    roles,
-    wolfResolution,
-  );
+  const pendingWolfDeaths = [
+    protectionResolution.wolfAttackBlocked ? null : protectionResolution.wolfTargetUid,
+    protectionResolution.secondaryAttackBlocked ? null : protectionResolution.secondaryTargetUid,
+  ].filter((uid): uid is string => Boolean(uid));
 
-  const pendingWolfDeath = protectionResolution.wolfAttackBlocked
-    ? null
-    : protectionResolution.wolfTargetUid;
-
-  const deathEffects = resolveNightDeathEffects(
-    input,
-    pendingWolfDeath ? [pendingWolfDeath] : [],
-  );
+  const deathEffects = resolveNightDeathEffects(input, [...new Set(pendingWolfDeaths)]);
 
   return {
     roundNumber: input.roundNumber,
@@ -95,7 +73,7 @@ export function resolveNightActions(
     rejectedActions,
     wolfResolution,
     protectionResolution,
-    pendingWolfDeath,
+    pendingWolfDeaths: [...new Set(pendingWolfDeaths)],
     deathEffects,
   };
 }
