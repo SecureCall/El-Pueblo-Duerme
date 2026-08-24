@@ -1,5 +1,4 @@
-import type { NightActionSubmission } from '@/lib/game/nightResolution';
-import type { NightResolutionPlayer, NightResolutionSubmission } from '@/lib/server/nightResolutionInput';
+import type { NightResolutionSubmission, NightResolutionPlayer } from '@/lib/server/nightResolutionInput';
 
 export interface WolfNightResolution {
   targetUid: string | null;
@@ -9,9 +8,10 @@ export interface WolfNightResolution {
 }
 
 /**
- * Deterministically resolves the ordinary wolf target from already-validated
- * submissions. It has no Firestore side effects and deliberately does not
- * decide deaths/protections yet.
+ * Deterministically resolves the ordinary wolf target from validated
+ * submissions. Each living wolf contributes at most one vote to a target;
+ * duplicate wolfTarget/wolfTarget2 submissions from the same actor cannot
+ * amplify that actor's vote.
  */
 export function resolveWolfNightTarget(
   players: NightResolutionPlayer[],
@@ -25,12 +25,26 @@ export function resolveWolfNightTarget(
     .map(([uid]) => uid);
 
   const votes: Record<string, number> = {};
+
   for (const submission of submissions) {
     if (!wolfRoles.has(rolesByUid[submission.actorUid])) continue;
-    for (const action of submission.actions) {
-      if ((action.action !== 'wolfTarget' && action.action !== 'wolfTarget2') || !action.targetUid) continue;
-      if (!alive.has(action.targetUid) || wolfActors.includes(action.targetUid)) continue;
-      votes[action.targetUid] = (votes[action.targetUid] ?? 0) + 1;
+    if (!wolfActors.includes(submission.actorUid)) continue;
+
+    const actorTargets = submission.actions
+      .filter((action) => action.action === 'wolfTarget' || action.action === 'wolfTarget2')
+      .map((action) => action.targetUid)
+      .filter((targetUid): targetUid is string => Boolean(targetUid))
+      .filter((targetUid) => alive.has(targetUid) && !wolfActors.includes(targetUid));
+
+    const uniqueTargets = [...new Set(actorTargets)];
+    if (uniqueTargets.length === 0) continue;
+
+    // A wolf may submit two target fields, but cannot contribute two votes to
+    // the same target. For ordinary wolves, one vote is the maximum influence
+    // of a single actor. If the actor selected two different targets, both are
+    // represented as one vote each; the existing tie logic decides the result.
+    for (const targetUid of uniqueTargets) {
+      votes[targetUid] = (votes[targetUid] ?? 0) + 1;
     }
   }
 
@@ -43,6 +57,7 @@ export function resolveWolfNightTarget(
 
   const highest = ranked[0][1];
   const tied = ranked.filter(([, count]) => count === highest).length > 1;
+
   return {
     targetUid: tied ? null : ranked[0][0],
     votes,
