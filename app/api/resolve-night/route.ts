@@ -11,10 +11,7 @@ import {
   releaseNightResolution,
 } from '@/lib/server/nightResolutionLock';
 
-/**
- * Server-side boundary for night resolution.
- * The engine is deterministic and side-effect free at this migration stage.
- */
+/** Server-side, deterministic night-resolution boundary. */
 export async function POST(request: Request) {
   let claimedGameId: string | null = null;
   let claimedRound: number | null = null;
@@ -23,7 +20,6 @@ export async function POST(request: Request) {
     const user = await verifyAuthToken(request);
     const body = await request.json().catch(() => null);
     const gameId = typeof body?.gameId === 'string' ? body.gameId.trim() : '';
-
     if (!gameId) return NextResponse.json({ error: 'gameId is required' }, { status: 400 });
 
     const { db } = getSdks();
@@ -58,7 +54,6 @@ export async function POST(request: Request) {
       submissions,
       roundNumber,
     );
-
     const groupedSubmissions = validation.valid.map((submission) => ({
       actorUid: submission.actorUid,
       role: submission.role,
@@ -70,10 +65,12 @@ export async function POST(request: Request) {
       roundNumber,
       players as Array<Record<string, unknown>>,
       groupedSubmissions,
+      game,
     );
-
-    const playerUids = input.players.map((player) => player.uid);
-    const roleSnapshot = await readNightRoleSnapshot(gameId, playerUids);
+    const roleSnapshot = await readNightRoleSnapshot(
+      gameId,
+      input.players.map((player) => player.uid),
+    );
     const result = resolveNightActions(input, roleSnapshot);
 
     await releaseNightResolution(db, gameId, roundNumber);
