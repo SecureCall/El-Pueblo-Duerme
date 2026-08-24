@@ -19,6 +19,7 @@ export interface NightResolutionHistory {
   brujaProtectedUid: string | null;
   hechiceraLifeUsed: boolean;
   hechiceraPoisonUsed: boolean;
+  lovers: [string, string] | null;
 }
 
 export interface NightResolutionInput {
@@ -28,6 +29,14 @@ export interface NightResolutionInput {
   players: NightResolutionPlayer[];
   submissions: NightResolutionSubmission[];
   history: NightResolutionHistory;
+}
+
+function readLovers(game: Record<string, unknown>): [string, string] | null {
+  const value = game.lovers;
+  if (!Array.isArray(value) || value.length !== 2) return null;
+  if (typeof value[0] !== 'string' || typeof value[1] !== 'string') return null;
+  if (value[0] === value[1]) return null;
+  return [value[0], value[1]];
 }
 
 /** Builds the server-owned input from persisted submissions and game history. */
@@ -57,6 +66,7 @@ export function createNightResolutionInput(
       brujaProtectedUid: typeof game.brujaProtectedUid === 'string' ? game.brujaProtectedUid : null,
       hechiceraLifeUsed: game.hechiceraLifeUsed === true,
       hechiceraPoisonUsed: game.hechiceraPoisonUsed === true,
+      lovers: readLovers(game),
     },
   };
 }
