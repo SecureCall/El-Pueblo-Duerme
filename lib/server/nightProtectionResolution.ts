@@ -4,8 +4,10 @@ import type { WolfNightResolution } from '@/lib/server/wolfNightResolution';
 
 export interface NightProtectionResolution {
   wolfTargetUid: string | null;
+  secondaryTargetUid: string | null;
   protectedTargetUids: string[];
   wolfAttackBlocked: boolean;
+  secondaryAttackBlocked: boolean;
   reasons: string[];
 }
 
@@ -23,27 +25,38 @@ export function resolveNightProtections(
   roles: NightRoleSnapshot,
   wolfResolution: WolfNightResolution,
 ): NightProtectionResolution {
-  if (!wolfResolution.targetUid) {
-    return { wolfTargetUid: null, protectedTargetUids: [], wolfAttackBlocked: false, reasons: ['no_wolf_target'] };
-  }
-
   const protectedTargetUids = new Set<string>();
 
   for (const uid of actionTargets(input, 'guardian')) {
-    if (roles.rolesByUid[uid] || input.players.some((player) => player.uid === uid)) protectedTargetUids.add(uid);
+    if (input.players.some((player) => player.uid === uid)) protectedTargetUids.add(uid);
   }
   for (const uid of actionTargets(input, 'doctor')) {
-    if (roles.rolesByUid[uid] || input.players.some((player) => player.uid === uid)) protectedTargetUids.add(uid);
+    if (input.players.some((player) => player.uid === uid)) protectedTargetUids.add(uid);
   }
   for (const uid of actionTargets(input, 'witch')) {
-    if (roles.rolesByUid[uid] || input.players.some((player) => player.uid === uid)) protectedTargetUids.add(uid);
+    if (input.players.some((player) => player.uid === uid)) protectedTargetUids.add(uid);
   }
 
-  const blocked = protectedTargetUids.has(wolfResolution.targetUid);
+  const primaryBlocked = Boolean(
+    wolfResolution.targetUid && protectedTargetUids.has(wolfResolution.targetUid),
+  );
+  const secondaryBlocked = Boolean(
+    wolfResolution.secondaryTargetUid && protectedTargetUids.has(wolfResolution.secondaryTargetUid),
+  );
+
+  const reasons: string[] = [];
+  if (!wolfResolution.targetUid) reasons.push('no_wolf_target');
+  else reasons.push(primaryBlocked ? 'wolf_target_protected' : 'wolf_target_unprotected');
+  if (wolfResolution.secondaryTargetUid) {
+    reasons.push(secondaryBlocked ? 'secondary_target_protected' : 'secondary_target_unprotected');
+  }
+
   return {
     wolfTargetUid: wolfResolution.targetUid,
+    secondaryTargetUid: wolfResolution.secondaryTargetUid,
     protectedTargetUids: [...protectedTargetUids],
-    wolfAttackBlocked: blocked,
-    reasons: blocked ? ['wolf_target_protected'] : ['wolf_target_unprotected'],
+    wolfAttackBlocked: primaryBlocked,
+    secondaryAttackBlocked: secondaryBlocked,
+    reasons,
   };
 }
