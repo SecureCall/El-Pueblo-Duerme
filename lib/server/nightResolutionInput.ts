@@ -6,23 +6,26 @@ export interface NightResolutionPlayer {
   isAlive: boolean;
 }
 
+export interface NightResolutionSubmission {
+  actorUid: string;
+  role: string;
+  actions: NightActionSubmission[];
+}
+
 export interface NightResolutionInput {
   gameId: string;
   roundNumber: number;
   phase: 'night';
   players: NightResolutionPlayer[];
-  submissions: NightActionSubmission[];
+  submissions: NightResolutionSubmission[];
 }
 
-/**
- * Builds the smallest server-owned input accepted by the future night engine.
- * No client-supplied game state is trusted here.
- */
+/** Builds the server-owned input from persisted submissions. */
 export function createNightResolutionInput(
   gameId: string,
   roundNumber: number,
   players: Array<Record<string, unknown>>,
-  submissions: NightActionSubmission[],
+  submissions: NightResolutionSubmission[],
 ): NightResolutionInput {
   return {
     gameId,
