@@ -65,7 +65,8 @@ export function resolveNightActions(
     protectionResolution.secondaryAttackBlocked ? null : protectionResolution.secondaryTargetUid,
   ].filter((uid): uid is string => Boolean(uid));
 
-  const deathEffects = resolveNightDeathEffects(input, [...new Set(pendingWolfDeaths)]);
+  const resolvedInput = { ...input, submissions: acceptedSubmissions };
+  const deathEffects = resolveNightDeathEffects(resolvedInput, [...new Set(pendingWolfDeaths)]);
 
   return {
     roundNumber: input.roundNumber,
