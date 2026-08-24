@@ -6,6 +6,7 @@ import type { NightResolutionInput } from '@/lib/server/nightResolutionInput';
 import type { NightRoleSnapshot } from '@/lib/server/nightRoleSnapshot';
 import { resolveWolfNightTarget, type WolfNightResolution } from '@/lib/server/wolfNightResolution';
 import { resolveNightProtections, type NightProtectionResolution } from '@/lib/server/nightProtectionResolution';
+import { resolveNightDeathEffects, type NightDeathEffectsResult } from '@/lib/server/nightDeathEffects';
 
 export interface NightResolutionEngineResult {
   roundNumber: number;
@@ -14,6 +15,7 @@ export interface NightResolutionEngineResult {
   wolfResolution: WolfNightResolution;
   protectionResolution: NightProtectionResolution;
   pendingWolfDeath: string | null;
+  deathEffects: NightDeathEffectsResult;
 }
 
 /**
@@ -73,14 +75,22 @@ export function resolveNightActions(
     wolfResolution,
   );
 
+  const pendingWolfDeath = protectionResolution.wolfAttackBlocked
+    ? null
+    : protectionResolution.wolfTargetUid;
+
+  const deathEffects = resolveNightDeathEffects(
+    input,
+    pendingWolfDeath ? [pendingWolfDeath] : [],
+  );
+
   return {
     roundNumber: input.roundNumber,
     acceptedActions,
     rejectedActions,
     wolfResolution,
     protectionResolution,
-    pendingWolfDeath: protectionResolution.wolfAttackBlocked
-      ? null
-      : protectionResolution.wolfTargetUid,
+    pendingWolfDeath,
+    deathEffects,
   };
 }
