@@ -42,26 +42,31 @@ export function resolveNightActions(
       continue;
     }
 
-    const validation = validateNightActionSubmissions(
-      input.players,
-      submission.actorUid,
-      role,
-      submission.actions,
-    );
+    for (const action of submission.actions) {
+      const validation = validateNightActionSubmissions(
+        input.players,
+        submission.actorUid,
+        role,
+        [action],
+      );
 
-    if (!validation.valid) {
-      for (const error of validation.errors) {
-        rejectedActions.push({ actorUid: submission.actorUid, reason: error });
+      if (!validation.valid) {
+        for (const error of validation.errors) {
+          rejectedActions.push({ actorUid: submission.actorUid, reason: error });
+        }
+        continue;
       }
-      continue;
-    }
 
-    acceptedActions.push(...submission.actions);
+      acceptedActions.push(action);
+    }
   }
 
-  const acceptedSubmissions = input.submissions.filter((submission) =>
-    acceptedActions.some((action) => action.actorUid === submission.actorUid),
-  );
+  const acceptedSubmissions = input.submissions
+    .map((submission) => ({
+      ...submission,
+      actions: submission.actions.filter((action) => acceptedActions.includes(action)),
+    }))
+    .filter((submission) => submission.actions.length > 0);
 
   const wolfResolution = resolveWolfNightTarget(
     input.players,
@@ -70,7 +75,7 @@ export function resolveNightActions(
   );
 
   const protectionResolution = resolveNightProtections(
-    input,
+    { ...input, submissions: acceptedSubmissions },
     roles,
     wolfResolution,
   );
