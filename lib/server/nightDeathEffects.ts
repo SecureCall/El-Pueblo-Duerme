@@ -17,12 +17,16 @@ export function resolveNightDeathEffects(
   const reasons: Record<string, string[]> = {};
 
   const addDeath = (uid: string, reason: string) => {
-    if (!alive.has(uid) || dead.has(uid)) return;
+    if (!alive.has(uid) || dead.has(uid)) return false;
     dead.add(uid);
     reasons[uid] = [...(reasons[uid] ?? []), reason];
+    return true;
   };
 
-  for (const uid of initialDeathUids) addDeath(uid, 'wolf_attack');
+  // De-duplicate simultaneous attacks before applying any future cascades.
+  for (const uid of [...new Set(initialDeathUids)]) {
+    addDeath(uid, 'wolf_attack');
+  }
 
   // Cascades are intentionally driven by explicit server actions/state only.
   // This stage currently establishes the deterministic boundary for future
@@ -30,7 +34,7 @@ export function resolveNightDeathEffects(
   const pendingHunterShot = null;
 
   return {
-    initialDeaths: initialDeathUids.filter((uid) => dead.has(uid)),
+    initialDeaths: [...dead].filter((uid) => initialDeathUids.includes(uid)),
     cascadeDeaths: [...dead].filter((uid) => !initialDeathUids.includes(uid)),
     pendingHunterShot,
     deathReasons: reasons,
