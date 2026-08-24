@@ -1,4 +1,7 @@
-import type { NightActionSubmission } from '@/lib/game/nightResolution';
+import {
+  validateNightActionSubmissions,
+  type NightActionSubmission,
+} from '@/lib/game/nightResolution';
 import type { NightResolutionInput } from '@/lib/server/nightResolutionInput';
 import type { NightRoleSnapshot } from '@/lib/server/nightRoleSnapshot';
 
@@ -11,9 +14,9 @@ export interface NightResolutionEngineResult {
 /**
  * Deterministic, side-effect-free first-stage night engine.
  *
- * This stage deliberately does not apply deaths, protections, or victory
- * conditions. It establishes the server-owned action set that the real role
- * resolver will consume, without mutating Firestore.
+ * This stage does not apply deaths, protections, or victory conditions. It
+ * establishes the server-owned action set after re-checking role permissions,
+ * actor liveness, actor ownership and target liveness.
  */
 export function resolveNightActions(
   input: NightResolutionInput,
@@ -30,8 +33,22 @@ export function resolveNightActions(
       continue;
     }
 
-    if (submission.role && submission.role !== role) {
+    if (submission.role !== role) {
       rejectedActions.push({ actorUid: submission.actorUid, reason: 'role_mismatch' });
+      continue;
+    }
+
+    const validation = validateNightActionSubmissions(
+      input.players,
+      submission.actorUid,
+      role,
+      submission.actions,
+    );
+
+    if (!validation.valid) {
+      for (const error of validation.errors) {
+        rejectedActions.push({ actorUid: submission.actorUid, reason: error });
+      }
       continue;
     }
 
