@@ -2,7 +2,7 @@
  * POST /api/sync-vote
  * Persists one authenticated player's vote after validating the current game state.
  * The server is authoritative for voter identity and round; the client cannot
- * submit a vote for a different round or a player who is not currently alive.
+ * submit a vote for a different round or a different player.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { initAdminApp } from '@/lib/firebase/admin';
@@ -17,9 +17,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { gameId, uid, target, round } = body as {
+    const { gameId, target, round } = body as {
       gameId?: unknown;
-      uid?: unknown;
       target?: unknown;
       round?: unknown;
     };
@@ -27,11 +26,8 @@ export async function POST(req: NextRequest) {
     if (typeof gameId !== 'string' || !gameId.trim()) {
       return NextResponse.json({ error: 'gameId requerido' }, { status: 400 });
     }
-    if (typeof uid !== 'string' || !uid.trim() || typeof target !== 'string' || !target.trim()) {
-      return NextResponse.json({ error: 'uid y target requeridos' }, { status: 400 });
-    }
-    if (tokenUid !== uid) {
-      return NextResponse.json({ error: 'UID no coincide con el token' }, { status: 403 });
+    if (typeof target !== 'string' || !target.trim()) {
+      return NextResponse.json({ error: 'target requerido' }, { status: 400 });
     }
     if (!Number.isInteger(round) || (round as number) < 1) {
       return NextResponse.json({ error: 'round inválido' }, { status: 400 });
@@ -73,11 +69,12 @@ export async function POST(req: NextRequest) {
         throw new Error('TARGET_NOT_ELIGIBLE');
       }
 
+      const now = Date.now();
       tx.set(voteRef, {
         target,
         round: currentRound,
-        submittedAt: Date.now(),
-        syncedAt: Date.now(),
+        submittedAt: now,
+        syncedAt: now,
       });
     });
 
