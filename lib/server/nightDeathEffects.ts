@@ -23,14 +23,19 @@ export function resolveNightDeathEffects(
     return true;
   };
 
-  // De-duplicate simultaneous attacks before applying any future cascades.
   for (const uid of [...new Set(initialDeathUids)]) {
     addDeath(uid, 'wolf_attack');
   }
 
-  // Cascades are intentionally driven by explicit server actions/state only.
-  // This stage currently establishes the deterministic boundary for future
-  // lover/twin/hunter effects without guessing role-specific legacy rules.
+  // Lovers are a symmetric pair. Once one dies, the other dies as a cascade.
+  const lovers = input.history.lovers;
+  if (lovers) {
+    const [first, second] = lovers;
+    if (dead.has(first)) addDeath(second, 'lover_cascade');
+    if (dead.has(second)) addDeath(first, 'lover_cascade');
+  }
+
+  // Cascades are intentionally driven by explicit server state only.
   const pendingHunterShot = null;
 
   return {
