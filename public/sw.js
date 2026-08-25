@@ -66,19 +66,51 @@ self.addEventListener('sync', (event) => {
   }
 });
 
+async function requestFreshAuthToken() {
+  const clients = await self.clients.matchAll({
+    includeUncontrolled: true,
+    type: 'window',
+  });
+
+  for (const client of clients) {
+    const channel = new MessageChannel();
+    const token = await new Promise((resolve) => {
+      const timeout = setTimeout(() => resolve(null), 5000);
+      channel.port1.onmessage = (event) => {
+        clearTimeout(timeout);
+        resolve(typeof event.data?.token === 'string' ? event.data.token : null);
+      };
+      client.postMessage({ type: 'REQUEST_AUTH_TOKEN' }, [channel.port2]);
+    });
+    if (typeof token === 'string' && token) return token;
+  }
+
+  return null;
+}
+
 async function flushPendingVotes() {
   const db = await openIDB();
   const items = await idbGetAll(db, 'pending-votes');
+  const token = await requestFreshAuthToken();
+  if (!token) return;
+
   for (const item of items) {
     try {
-      await fetch('/api/sync-vote', {
+      const response = await fetch('/api/sync-vote', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(item),
       });
-      await idbDelete(db, 'pending-votes', item.id);
+
+      if (response.ok || response.status === 403 || response.status === 409) {
+        await idbDelete(db, 'pending-votes', item.id);
+      }
+      // 401/5xx: keep the item for a later sync attempt.
     } catch {
-      // Will retry on next sync event
+      // Network error: keep the item for the next sync event.
     }
   }
 }
@@ -88,12 +120,14 @@ async function flushPendingNightActions() {
   const items = await idbGetAll(db, 'pending-night-actions');
   for (const item of items) {
     try {
-      await fetch('/api/sync-night-action', {
+      const response = await fetch('/api/sync-night-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(item),
       });
-      await idbDelete(db, 'pending-night-actions', item.id);
+      if (response.ok || response.status === 403 || response.status === 409) {
+        await idbDelete(db, 'pending-night-actions', item.id);
+      }
     } catch {
       // Will retry on next sync event
     }
