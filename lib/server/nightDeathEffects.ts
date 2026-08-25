@@ -5,16 +5,21 @@ export interface NightDeathEffectsResult {
   cascadeDeaths: string[];
   pendingHunterShot: string | null;
   deathReasons: Record<string, string[]>;
+  transformedMalditoUid: string | null;
+  nextNightWolfBlock: boolean;
 }
 
 /** Pure death-cascade stage. It derives consequences but performs no writes. */
 export function resolveNightDeathEffects(
   input: NightResolutionInput,
   initialDeathUids: string[],
+  rolesByUid: Record<string, string>,
 ): NightDeathEffectsResult {
   const alive = new Set(input.players.filter((player) => player.isAlive).map((player) => player.uid));
   const dead = new Set<string>();
   const reasons: Record<string, string[]> = {};
+  let transformedMalditoUid: string | null = null;
+  let nextNightWolfBlock = false;
 
   const addDeath = (uid: string, reason: string) => {
     if (!alive.has(uid) || dead.has(uid)) return false;
@@ -24,10 +29,21 @@ export function resolveNightDeathEffects(
   };
 
   for (const uid of [...new Set(initialDeathUids)]) {
+    const role = rolesByUid[uid];
+
+    if (uid === input.history.malditoUid || role === 'Maldito') {
+      transformedMalditoUid = uid;
+      reasons[uid] = [...(reasons[uid] ?? []), 'maldito_transform'];
+      continue;
+    }
+
+    if (role === 'Leprosa') {
+      nextNightWolfBlock = true;
+    }
+
     addDeath(uid, 'wolf_attack');
   }
 
-  // Lovers are a symmetric pair. Once one dies, the other dies as a cascade.
   const lovers = input.history.lovers;
   if (lovers) {
     const [first, second] = lovers;
@@ -35,13 +51,14 @@ export function resolveNightDeathEffects(
     if (dead.has(second)) addDeath(first, 'lover_cascade');
   }
 
-  // Cascades are intentionally driven by explicit server state only.
-  const pendingHunterShot = null;
+  const pendingHunterShot = [...dead].find((uid) => rolesByUid[uid] === 'Cazador') ?? null;
 
   return {
     initialDeaths: [...dead].filter((uid) => initialDeathUids.includes(uid)),
     cascadeDeaths: [...dead].filter((uid) => !initialDeathUids.includes(uid)),
     pendingHunterShot,
     deathReasons: reasons,
+    transformedMalditoUid,
+    nextNightWolfBlock,
   };
 }
