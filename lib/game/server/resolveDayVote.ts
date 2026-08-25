@@ -1,7 +1,7 @@
-import type { GameState } from '@/components/game/play/GamePlay';
+import type { GameStateForServer } from '@/lib/game/types';
 
 export interface DayVoteResolutionInput {
-  game: GameState;
+  game: GameStateForServer;
   votes: Record<string, string>;
 }
 
@@ -14,19 +14,17 @@ export interface DayVoteResolution {
 }
 
 /**
- * Pure, server-side vote tally primitive.
- *
- * This deliberately performs ONLY deterministic tallying. Role-specific
- * consequences remain in the existing game resolver until they are migrated
- * and parity-tested; this prevents silently changing game rules.
+ * Pure, framework-independent day-vote tally.
+ * Role-specific consequences intentionally remain outside this primitive
+ * until parity with the existing game resolver has been verified.
  */
 export function resolveDayVote({ game, votes }: DayVoteResolutionInput): DayVoteResolution {
-  const alive = new Set((game.players ?? []).filter((p) => p.isAlive).map((p) => p.uid));
+  const alive = new Set(game.players.filter((p) => p.isAlive).map((p) => p.uid));
+  const banned = new Set(game.voteBanned ?? []);
   const counts: Record<string, number> = {};
 
   for (const [voterUid, targetUid] of Object.entries(votes)) {
-    if (!alive.has(voterUid) || !alive.has(targetUid)) continue;
-    if (game.voteBanned?.includes(voterUid)) continue;
+    if (!alive.has(voterUid) || !alive.has(targetUid) || banned.has(voterUid)) continue;
     counts[targetUid] = (counts[targetUid] ?? 0) + 1;
   }
 
@@ -39,7 +37,7 @@ export function resolveDayVote({ game, votes }: DayVoteResolutionInput): DayVote
   return {
     round: game.roundNumber ?? 1,
     counts,
-    totalVoted: Object.keys(votes).filter((uid) => alive.has(uid) && !game.voteBanned?.includes(uid)).length,
+    totalVoted: Object.entries(votes).filter(([voterUid]) => alive.has(voterUid) && !banned.has(voterUid)).length,
     winnerUid: tiedUids.length === 1 ? tiedUids[0] : null,
     tiedUids,
   };
