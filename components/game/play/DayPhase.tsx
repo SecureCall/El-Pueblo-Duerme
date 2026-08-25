@@ -16,6 +16,7 @@ import { EmoteBar } from './EmoteBar';
 import { VoiceChat } from './VoiceChat';
 
 function computeDayDuration(alivePlayers: number): number {
+  // 10s per alive player, min 60s, max 120s  (noche dura 90s → proporcional)
   return Math.min(120, Math.max(60, alivePlayers * 10));
 }
 
@@ -70,12 +71,16 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
 
   useEffect(() => { onTimerEndRef.current = onTimerEnd; }, [onTimerEnd]);
 
-  // Kept as a compatibility prop until GamePlay is migrated to useVoteSummary directly.
+  // Use votes passed from parent (subscribed at GamePlay level)
   const dayVotes = votesFromSub;
 
   const meAlive = me?.isAlive ?? false;
   const alivePlayers = (game.players ?? []).filter(p => p.isAlive);
-  const eliminatedNight = game.dayEliminatedUid ? game.players?.find(p => p.uid === game.dayEliminatedUid) : null;
+  const eliminatedNight = game.dayEliminatedUid
+    ? game.players?.find(p => p.uid === game.dayEliminatedUid)
+    : null;
+
+  // Role-based access flags
   const isMedium = myRole === 'Médium';
   const isDead = !meAlive;
   const canSeeGhostChat = isMedium || isDead;
@@ -87,16 +92,26 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
   const voteBanned = game.voteBanned ?? [];
   const myVoteBanned = voteBanned.includes(userId) || game.saboteadorBan === userId;
   const isSilenced = (game.silencedPlayers ?? []).includes(userId);
+
+  // ── Confesión Forzada ────────────────────────────────────────────────────
   const elapsed = dayDurationRef.current - secondsLeft;
-  const isForzadaActive = game.currentEvent?.mechanical === 'forceConfession' && elapsed >= 0 && elapsed < 20;
-  const confessorPlayer = isForzadaActive ? (game.players ?? []).find(p => p.uid === game.confessionUid) ?? null : null;
+  const isForzadaActive = game.currentEvent?.mechanical === 'forceConfession'
+    && elapsed >= 0 && elapsed < 20;
+  const confessorPlayer = isForzadaActive
+    ? (game.players ?? []).find(p => p.uid === game.confessionUid) ?? null
+    : null;
   const amIConfessor = isForzadaActive && game.confessionUid === userId;
   const confessionCountdown = Math.max(0, 20 - elapsed);
   const isAlborotadora = myRole === 'Alborotadora' && meAlive && !game.alborotadoraUsed;
   const [alborotadoraStep, setAlborotadoraStep] = useState<0 | 1>(0);
   const [sentFriendReqs, setSentFriendReqs] = useState<Set<string>>(new Set());
   const [reportedPlayers, setReportedPlayers] = useState<Set<string>>(new Set());
-  const addFriend = async (e: React.MouseEvent, targetUid: string) => { e.stopPropagation(); await sendFriendRequest(userId, targetUid); setSentFriendReqs(prev => new Set(prev).add(targetUid)); };
+
+  const addFriend = async (e: React.MouseEvent, targetUid: string) => {
+    e.stopPropagation();
+    await sendFriendRequest(userId, targetUid);
+    setSentFriendReqs(prev => new Set(prev).add(targetUid));
+  };
   const [alborotadoraFighters, setAlborotadoraFighters] = useState<string[]>([]);
   const isVerdugo = myRole === 'Verdugo';
   const verdugoTarget = isVerdugo ? (game.players ?? []).find(p => p.uid === game.verdugos?.[userId]) : null;
@@ -120,62 +135,111 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
     }
   };
 
+  // Hermanos chat
   useEffect(() => {
     if (!isHermanos) return;
     const q = query(collection(db, 'games', gameId, 'hermanosChat'), orderBy('createdAt', 'asc'), limit(100));
-    const unsub = onSnapshot(q, (snap: any) => { setHermanosMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg))); if (chatTab === 'hermanos') setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50); });
+    const unsub = onSnapshot(q, (snap: any) => {
+      setHermanosMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg)));
+      if (chatTab === 'hermanos') setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
+    });
     return () => unsub();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId, isHermanos]);
 
+  // Tabs available
   const availableTabs: ChatTab[] = ['public'];
   if (canSeeGhostChat) availableTabs.push('ghost');
   if (isLover) availableTabs.push('lovers');
   if (isHermanos) availableTabs.push('hermanos');
 
+  // Public chat
   useEffect(() => {
     const q = query(collection(db, 'games', gameId, 'publicChat'), orderBy('createdAt', 'asc'), limit(100));
-    const unsub = onSnapshot(q, (snap: any) => { setMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg))); if (chatTab === 'public') setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50); });
+    const unsub = onSnapshot(q, (snap: any) => {
+      setMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg)));
+      if (chatTab === 'public') setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
+    });
     return () => unsub();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId]);
 
+  // Ghost chat (Médium reads, dead players write)
   useEffect(() => {
     if (!canSeeGhostChat) return;
     const q = query(collection(db, 'games', gameId, 'ghostChat'), orderBy('createdAt', 'asc'), limit(100));
-    const unsub = onSnapshot(q, (snap: any) => { setGhostMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg))); if (chatTab === 'ghost') setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50); });
+    const unsub = onSnapshot(q, (snap: any) => {
+      setGhostMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg)));
+      if (chatTab === 'ghost') setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
+    });
     return () => unsub();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId, canSeeGhostChat]);
 
+  // Lovers chat (only the pair)
   useEffect(() => {
     if (!isLover) return;
     const q = query(collection(db, 'games', gameId, 'loversChat'), orderBy('createdAt', 'asc'), limit(100));
-    const unsub = onSnapshot(q, (snap: any) => { setLoversMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg))); if (chatTab === 'lovers') setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50); });
+    const unsub = onSnapshot(q, (snap: any) => {
+      setLoversMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg)));
+      if (chatTab === 'lovers') setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
+    });
     return () => unsub();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId, isLover]);
 
-  useEffect(() => { setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50); }, [chatTab]);
-  useEffect(() => { setBansheePick(null); setBansheeSubmitted(false); }, [game.roundNumber]);
-  useEffect(() => { if (game.bansheePredictionUid) { setBansheePick(game.bansheePredictionUid); setBansheeSubmitted(true); } }, [game.bansheePredictionUid]);
+  // Scroll chat on tab switch
+  useEffect(() => {
+    setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
+  }, [chatTab]);
 
+  // Reset Banshee prediction state on new round
+  useEffect(() => {
+    setBansheePick(null);
+    setBansheeSubmitted(false);
+  }, [game.roundNumber]);
+
+  // Sync submitted state with Firestore (if prediction already written)
+  useEffect(() => {
+    if (game.bansheePredictionUid) {
+      setBansheePick(game.bansheePredictionUid);
+      setBansheeSubmitted(true);
+    }
+  }, [game.bansheePredictionUid]);
+
+  // Timer
   useEffect(() => {
     const startedAt = game.dayStartedAt ?? Date.now();
     timerEndFired.current = false;
+    // Lock duration at start of day: base from player count, then apply event modifiers
     const base = computeDayDuration((game.players ?? []).filter(p => p.isAlive).length);
     const mech = game.currentEvent?.mechanical;
-    dayDurationRef.current = mech === 'extraTime' ? Math.min(300, base + 30) : mech === 'halfTime' ? Math.max(30, Math.floor(base / 2)) : base;
+    dayDurationRef.current = mech === 'extraTime' ? Math.min(300, base + 30)
+      : mech === 'halfTime' ? Math.max(30, Math.floor(base / 2))
+      : base;
+
     const round = game.roundNumber ?? 1;
     const tick = () => {
       const elapsed = Math.floor((Date.now() - startedAt) / 1000);
       const remaining = Math.max(0, dayDurationRef.current - elapsed);
       setSecondsLeft(remaining);
-      if (remaining === 20 && voteNarratedRound.current !== round) { voteNarratedRound.current = round; interruptWith(AUDIO_FILES.voteStart); }
-      if (remaining === 10 && dangerNarratedRound.current !== round) { dangerNarratedRound.current = round; interruptWith(AUDIO_FILES.dangerHere); }
-      if (remaining === 0 && !timerEndFired.current) { timerEndFired.current = true; onTimerEndRef.current(); }
+      if (remaining === 20 && voteNarratedRound.current !== round) {
+        voteNarratedRound.current = round;
+        interruptWith(AUDIO_FILES.voteStart);
+      }
+      if (remaining === 10 && dangerNarratedRound.current !== round) {
+        dangerNarratedRound.current = round;
+        interruptWith(AUDIO_FILES.dangerHere);
+      }
+      if (remaining === 0 && !timerEndFired.current) {
+        timerEndFired.current = true;
+        onTimerEndRef.current();
+      }
     };
-    tick(); const id = setInterval(tick, 1000); return () => clearInterval(id);
+
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
   }, [game.dayStartedAt]);
 
   const timerColor = secondsLeft <= 30 ? 'text-red-400' : secondsLeft <= 60 ? 'text-amber-400' : 'text-green-400';
@@ -184,31 +248,718 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
   const ss = String(secondsLeft % 60).padStart(2, '0');
 
   const sendMsg = async (e: React.FormEvent) => {
-    e.preventDefault(); if (!msg.trim() || isSilenced || (isForzadaActive && !amIConfessor)) return; setSending(true);
-    await addDoc(collection(db, 'games', gameId, 'publicChat'), { senderId: userId, senderName: userName, text: msg.trim(), createdAt: serverTimestamp() }); setMsg(''); setSending(false);
-  };
-  const sendGhostMsg = async (e: React.FormEvent) => {
-    e.preventDefault(); if (!ghostMsg.trim() || !isDead) return; setSendingGhost(true);
-    await addDoc(collection(db, 'games', gameId, 'ghostChat'), { senderId: userId, senderName: userName, text: ghostMsg.trim(), createdAt: serverTimestamp() }); setGhostMsg(''); setSendingGhost(false);
-  };
-  const sendLoversMsg = async (e: React.FormEvent) => {
-    e.preventDefault(); if (!loversMsg.trim() || !isLover || !meAlive) return; setSendingLovers(true);
-    await addDoc(collection(db, 'games', gameId, 'loversChat'), { senderId: userId, senderName: userName, text: loversMsg.trim(), createdAt: serverTimestamp() }); setLoversMsg(''); setSendingLovers(false);
-  };
-  const sendHermanosMsg = async (e: React.FormEvent) => {
-    e.preventDefault(); if (!hermanosMsg.trim() || !isHermanos || !meAlive) return; setSendingHermanos(true);
-    await addDoc(collection(db, 'games', gameId, 'hermanosChat'), { senderId: userId, senderName: userName, text: hermanosMsg.trim(), createdAt: serverTimestamp() }); setHermanosMsg(''); setSendingHermanos(false);
+    e.preventDefault();
+    if (!msg.trim() || isSilenced || (isForzadaActive && !amIConfessor)) return;
+    setSending(true);
+    await addDoc(collection(db, 'games', gameId, 'publicChat'), {
+      senderId: userId,
+      senderName: userName,
+      text: msg.trim(),
+      createdAt: serverTimestamp(),
+    });
+    setMsg('');
+    setSending(false);
   };
 
-  const handleVote = async () => { if (!myVote || voted || !meAlive || myVoteBanned) return; await onVote(myVote); setVoted(true); };
+  const sendGhostMsg = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ghostMsg.trim() || !isDead) return;
+    setSendingGhost(true);
+    await addDoc(collection(db, 'games', gameId, 'ghostChat'), {
+      senderId: userId,
+      senderName: userName,
+      text: ghostMsg.trim(),
+      createdAt: serverTimestamp(),
+    });
+    setGhostMsg('');
+    setSendingGhost(false);
+  };
+
+  const sendLoversMsg = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loversMsg.trim() || !isLover || !meAlive) return;
+    setSendingLovers(true);
+    await addDoc(collection(db, 'games', gameId, 'loversChat'), {
+      senderId: userId,
+      senderName: userName,
+      text: loversMsg.trim(),
+      createdAt: serverTimestamp(),
+    });
+    setLoversMsg('');
+    setSendingLovers(false);
+  };
+
+  const sendHermanosMsg = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!hermanosMsg.trim() || !isHermanos || !meAlive) return;
+    setSendingHermanos(true);
+    await addDoc(collection(db, 'games', gameId, 'hermanosChat'), {
+      senderId: userId,
+      senderName: userName,
+      text: hermanosMsg.trim(),
+      createdAt: serverTimestamp(),
+    });
+    setHermanosMsg('');
+    setSendingHermanos(false);
+  };
+
+  const handleVote = async () => {
+    if (!myVote || voted || !meAlive || myVoteBanned) return;
+    await onVote(myVote);
+    setVoted(true);
+  };
+
   const voteCounts: Record<string, number> = {};
-  for (const target of Object.values(dayVotes) as string[]) voteCounts[target] = (voteCounts[target] ?? 0) + 1;
+  for (const target of Object.values(dayVotes) as string[]) {
+    voteCounts[target] = (voteCounts[target] ?? 0) + 1;
+  }
   const totalVoted = Object.keys(dayVotes).length;
   const totalAlive = alivePlayers.length;
+
   const votingTargets = alivePlayers.filter(p => p.uid !== userId);
 
-  const tabLabel: Record<ChatTab, string> = { public: '💬 Pueblo', ghost: '👻 Muertos', lovers: '💕 Privado', hermanos: '👬 Hermanos' };
+  const tabLabel: Record<ChatTab, string> = {
+    public: '💬 Pueblo',
+    ghost: '👻 Muertos',
+    lovers: '💕 Privado',
+    hermanos: '👬 Hermanos',
+  };
 
-  /* The remainder of the existing DayPhase render is intentionally retained in the repository version. */
-  return null;
+  const renderChatContent = () => {
+    if (chatTab === 'ghost') {
+      return (
+        <>
+          <div ref={chatRef} className="flex-1 overflow-y-auto p-4 space-y-2">
+            {ghostMsgs.length === 0 && (
+              <p className="text-white/60 text-sm text-center mt-8">
+                {isMedium ? 'El más allá guarda silencio...' : 'Los muertos aún no hablan...'}
+              </p>
+            )}
+            {ghostMsgs.map(m => (
+              <div key={m.id} className={`flex gap-2 ${m.senderId === userId ? 'flex-row-reverse' : ''}`}>
+                <div className={`max-w-[80%] flex flex-col ${m.senderId === userId ? 'items-end' : 'items-start'}`}>
+                  {m.senderId !== userId && (
+                    <span className="text-[10px] text-white/70 mb-0.5 font-semibold">{m.senderName}</span>
+                  )}
+                  <div className={`px-3 py-1.5 rounded-xl text-sm text-white ${m.senderId === userId ? 'bg-slate-600' : 'bg-gray-700'}`}>
+                    {m.text}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {isDead && (
+            <form onSubmit={sendGhostMsg} className="p-3 border-t border-white/10 flex gap-2">
+              <input
+                value={ghostMsg}
+                onChange={e => setGhostMsg(e.target.value)}
+                placeholder="Habla desde el más allá..."
+                maxLength={200}
+                className="flex-1 bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-white/40"
+              />
+              <button type="submit" disabled={!ghostMsg.trim() || sendingGhost} className="bg-slate-500/20 hover:bg-slate-500/30 border border-slate-500/30 p-2 rounded-lg disabled:opacity-40">
+                <Send className="h-4 w-4 text-slate-400" />
+              </button>
+            </form>
+          )}
+          {isMedium && !isDead && (
+            <div className="p-3 border-t border-white/5 text-center">
+              <p className="text-white/20 text-xs">👻 Solo los muertos pueden escribir aquí. Tú puedes leer.</p>
+            </div>
+          )}
+        </>
+      );
+    }
+
+    if (chatTab === 'hermanos') {
+      const siblings = (game.players ?? []).filter(p => p.uid !== userId && game.roles?.[p.uid] === 'Hermanos');
+      return (
+        <>
+          <div className="px-4 py-2 border-b border-white/10">
+            <p className="text-xs text-orange-400/70">👬 Chat secreto de Hermanos — solo vosotros podéis leer esto</p>
+          </div>
+          <div ref={chatRef} className="flex-1 overflow-y-auto p-4 space-y-2">
+            {hermanosMsgs.length === 0 && (
+              <p className="text-white/60 text-sm text-center mt-8">Habla con tus hermanos en secreto...</p>
+            )}
+            {hermanosMsgs.map(m => (
+              <div key={m.id} className={`flex gap-2 ${m.senderId === userId ? 'flex-row-reverse' : ''}`}>
+                <div className={`max-w-[80%] flex flex-col ${m.senderId === userId ? 'items-end' : 'items-start'}`}>
+                  {m.senderId !== userId && (
+                    <span className="text-[10px] text-white/70 mb-0.5 font-semibold">{m.senderName}</span>
+                  )}
+                  <div className={`px-3 py-1.5 rounded-xl text-sm text-white font-medium ${m.senderId === userId ? 'bg-orange-700' : 'bg-orange-900'}`}>
+                    {m.text}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {meAlive ? (
+            <form onSubmit={sendHermanosMsg} className="p-3 border-t border-white/10 flex gap-2">
+              <input
+                value={hermanosMsg}
+                onChange={e => setHermanosMsg(e.target.value)}
+                placeholder={`Solo ${siblings.map(s => s.name).join(' y ') || 'tus hermanos'} lo ven...`}
+                maxLength={200}
+                className="flex-1 bg-white/5 border border-orange-500/30 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-orange-500/50"
+              />
+              <button type="submit" disabled={!hermanosMsg.trim() || sendingHermanos} className="bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 p-2 rounded-lg disabled:opacity-40">
+                <Send className="h-4 w-4 text-orange-400" />
+              </button>
+            </form>
+          ) : (
+            <div className="p-3 border-t border-white/5 text-center">
+              <p className="text-white/20 text-xs">💀 Estás muerto/a. Solo podéis leer.</p>
+            </div>
+          )}
+        </>
+      );
+    }
+
+    if (chatTab === 'lovers') {
+      const partner = (game.players ?? []).find(p => lovers && p.uid !== userId && (lovers[0] === p.uid || lovers[1] === p.uid));
+      return (
+        <>
+          <div className="px-4 py-2 border-b border-white/10">
+            <p className="text-xs text-pink-400/70">💕 Chat privado con {partner?.name ?? 'tu amado/a'}</p>
+          </div>
+          <div ref={chatRef} className="flex-1 overflow-y-auto p-4 space-y-2">
+            {loversMsgs.length === 0 && (
+              <p className="text-white/60 text-sm text-center mt-8">Solo tú y {partner?.name ?? 'tu pareja'} podéis leer esto...</p>
+            )}
+            {loversMsgs.map(m => (
+              <div key={m.id} className={`flex gap-2 ${m.senderId === userId ? 'flex-row-reverse' : ''}`}>
+                <div className={`max-w-[80%] flex flex-col ${m.senderId === userId ? 'items-end' : 'items-start'}`}>
+                  {m.senderId !== userId && (
+                    <span className="text-[10px] text-white/70 mb-0.5 font-semibold">{m.senderName}</span>
+                  )}
+                  <div className={`px-3 py-1.5 rounded-xl text-sm text-white font-medium ${m.senderId === userId ? 'bg-pink-600' : 'bg-pink-900'}`}>
+                    {m.text}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {meAlive && (
+            <form onSubmit={sendLoversMsg} className="p-3 border-t border-white/10 flex gap-2">
+              <input
+                value={loversMsg}
+                onChange={e => setLoversMsg(e.target.value)}
+                placeholder="Solo vuestra pareja lo ve..."
+                maxLength={200}
+                className="flex-1 bg-white/5 border border-pink-500/30 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-pink-500/50"
+              />
+              <button type="submit" disabled={!loversMsg.trim() || sendingLovers} className="bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/30 p-2 rounded-lg disabled:opacity-40">
+                <Send className="h-4 w-4 text-pink-400" />
+              </button>
+            </form>
+          )}
+          {!meAlive && (
+            <div className="p-3 border-t border-white/5 text-center">
+              <p className="text-white/20 text-xs">💔 Estás muerto/a. Solo podéis leer.</p>
+            </div>
+          )}
+        </>
+      );
+    }
+
+    // Public chat
+    return (
+      <>
+        <div ref={chatRef} className="flex-1 overflow-y-auto p-4 space-y-2">
+          {msgs.length === 0 && (
+            <p className="text-white/60 text-sm text-center mt-8">El pueblo delibera en silencio...</p>
+          )}
+          {msgs.map(m => (
+            <div key={m.id} className={`flex gap-2 ${m.senderId === userId ? 'flex-row-reverse' : ''}`}>
+              <div className={`max-w-[80%] flex flex-col ${m.senderId === userId ? 'items-end' : 'items-start'}`}>
+                {m.senderId !== userId && (
+                  <span className="text-[10px] text-white/70 mb-0.5 font-semibold">{m.senderName}</span>
+                )}
+                <div className={`px-3 py-1.5 rounded-xl text-sm text-white ${m.senderId === userId ? 'bg-amber-600 font-semibold' : 'bg-gray-700'}`}>
+                  {m.text}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* ── Confesión Forzada banner ─────────────────────────────────── */}
+        {isForzadaActive && (
+          <div className={`px-4 py-2 border-t flex items-center gap-3 ${
+            amIConfessor
+              ? 'border-purple-500/50 bg-purple-950/60'
+              : 'border-purple-900/40 bg-purple-950/30'
+          }`}>
+            <span className="text-xl flex-shrink-0">🎙️</span>
+            <div className="flex-1 min-w-0">
+              {amIConfessor ? (
+                <p className="text-purple-200 text-sm font-bold animate-pulse truncate">
+                  ¡Debes hablar ahora mismo! El pueblo escucha.
+                </p>
+              ) : (
+                <p className="text-purple-400 text-xs truncate">
+                  <strong className="text-purple-300">{confessorPlayer?.name ?? '???'}</strong> debe confesar. Escucha en silencio.
+                </p>
+              )}
+            </div>
+            <span className={`text-xs font-mono font-bold flex-shrink-0 ${
+              confessionCountdown <= 5 ? 'text-red-400 animate-pulse' : 'text-purple-400'
+            }`}>
+              {confessionCountdown}s
+            </span>
+          </div>
+        )}
+
+        {meAlive && !isSilenced && (!isForzadaActive || amIConfessor) && (
+          <form onSubmit={sendMsg} className="p-3 border-t border-white/10 flex gap-2">
+            <input
+              value={msg}
+              onChange={e => setMsg(e.target.value)}
+              placeholder={amIConfessor ? '🎙️ ¡Habla! El pueblo escucha...' : 'Defiéndete o acusa...'}
+              maxLength={200}
+              className={`flex-1 bg-white/5 border rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none ${
+                amIConfessor
+                  ? 'border-purple-500/50 focus:border-purple-400'
+                  : 'border-white/15 focus:border-white/40'
+              }`}
+            />
+            <button type="submit" disabled={!msg.trim() || sending} className="bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 p-2 rounded-lg disabled:opacity-40">
+              <Send className="h-4 w-4 text-amber-400" />
+            </button>
+          </form>
+        )}
+        {meAlive && !isSilenced && isForzadaActive && !amIConfessor && (
+          <div className="p-3 border-t border-purple-900/30 text-center">
+            <p className="text-purple-400/60 text-xs">🤫 Silencio hasta que termine la confesión.</p>
+          </div>
+        )}
+        {meAlive && isSilenced && (
+          <div className="p-3 border-t border-slate-700/30 text-center">
+            <p className="text-slate-400/60 text-xs">🤫 La Silenciadora te ha robado la voz esta ronda.</p>
+          </div>
+        )}
+        {!meAlive && (
+          <div className="p-3 border-t border-white/5 text-center">
+            <p className="text-white/70 text-xs">👻 Estás muerto. Observas en silencio.</p>
+          </div>
+        )}
+      </>
+    );
+  };
+
+  return (
+    <div
+      className="min-h-screen w-full text-white flex flex-col"
+      style={{
+        backgroundImage: 'url(/dia.png)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.82)' }} />
+      <div className="relative z-10 flex flex-col h-screen max-w-3xl mx-auto w-full p-4 gap-3">
+
+        {/* Header */}
+        <div className="flex items-center justify-between pt-2">
+          <div className="flex items-center gap-2">
+            <Sun className="h-5 w-5 text-amber-400" />
+            <h1 className="font-headline text-xl font-bold">Día {game.roundNumber ?? 1}</h1>
+          </div>
+
+          {/* Timer */}
+          <div className="flex items-center gap-2">
+            <div className="relative w-28">
+              <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${secondsLeft <= 30 ? 'bg-red-500' : secondsLeft <= 60 ? 'bg-amber-500' : 'bg-green-500'}`}
+                  style={{ width: `${timerPct * 100}%` }}
+                />
+              </div>
+            </div>
+            <div className={`flex items-center gap-1 font-mono font-bold text-sm ${timerColor}`}>
+              <Timer className="h-3.5 w-3.5" />
+              {mm}:{ss}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <img src={getRoleIcon(myRole)} alt={myRole} className="w-7 h-7 rounded object-cover" />
+            <span className="text-white/90 text-sm font-medium">{myRole}</span>
+          </div>
+        </div>
+
+        {/* Night death announcement */}
+        {eliminatedNight && (
+          <div className="bg-red-900/30 border border-red-500/40 rounded-xl p-4 flex items-center gap-3">
+            <Skull className="h-6 w-6 text-red-400 flex-shrink-0" />
+            <div>
+              <p className="text-red-300 font-semibold">
+                {eliminatedNight.name} ha sido devorado/a durante la noche
+              </p>
+              <p className="text-red-400/60 text-xs">Era: {game.roles?.[eliminatedNight.uid] ?? 'Aldeano'}</p>
+            </div>
+          </div>
+        )}
+
+        {!eliminatedNight && (
+          <div className="bg-green-900/20 border border-green-500/30 rounded-xl p-3 text-center">
+            <p className="text-green-400 text-sm">☀️ Esta noche nadie murió. El pueblo descansa aliviado.</p>
+          </div>
+        )}
+
+        {/* Alquimista potion result */}
+        {isAlquimista && game.alquimistaPotion && (
+          <div className={`rounded-xl p-3 border text-sm flex items-center gap-3 ${
+            game.alquimistaPotion === 'save' ? 'bg-lime-900/30 border-lime-500/40 text-lime-300' :
+            game.alquimistaPotion === 'reveal' ? 'bg-cyan-900/30 border-cyan-500/40 text-cyan-300' :
+            'bg-white/5 border-white/10 text-white/50'
+          }`}>
+            <span className="text-2xl">⚗️</span>
+            <div>
+              <p className="font-semibold">
+                {game.alquimistaPotion === 'save' && '¡Tu poción salvó a la víctima de los lobos esta noche!'}
+                {game.alquimistaPotion === 'reveal' && game.alquimistaRevealUid
+                  ? `Tu poción revela: ${(game.players ?? []).find(p => p.uid === game.alquimistaRevealUid)?.name ?? '?'} es ${(game.roles ?? {})[game.alquimistaRevealUid ?? ''] ?? 'Aldeano'}`
+                  : game.alquimistaPotion === 'reveal' && '🔍 Tu poción no reveló nada (no había candidatos)'}
+                {game.alquimistaPotion === 'nothing' && 'Tu poción de anoche fue inerte. Sin efecto.'}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Random event banner */}
+        {game.currentEvent && (
+          <div className="bg-purple-900/30 border border-purple-500/40 rounded-xl p-3 flex items-center gap-3">
+            <span className="text-2xl flex-shrink-0">{game.currentEvent.emoji}</span>
+            <div>
+              <p className="text-purple-300 font-semibold text-sm">{game.currentEvent.name}</p>
+              <p className="text-purple-400/70 text-xs">{game.currentEvent.description}</p>
+            </div>
+          </div>
+        )}
+
+        {/* revealDead event: muestra el rol de un muerto */}
+        {game.revealDeadResult && (
+          <div className="bg-slate-900/50 border border-slate-400/40 rounded-xl p-3 flex items-center gap-3">
+            <span className="text-2xl flex-shrink-0">💀</span>
+            <div>
+              <p className="text-slate-300 font-semibold text-sm">El narrador revela un secreto del más allá</p>
+              <p className="text-slate-400 text-xs">
+                <strong className="text-slate-200">{game.revealDeadResult.name}</strong> era <strong className="text-slate-200">{game.revealDeadResult.role}</strong>
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Saboteador vote ban notice */}
+        {(game.saboteadorBan === userId) && meAlive && (
+          <div className="bg-orange-900/30 border border-orange-500/40 rounded-xl p-3 text-center">
+            <p className="text-orange-300 text-sm">💣 El Saboteador anuló tu voto — <strong>no puedes votar esta ronda</strong>.</p>
+          </div>
+        )}
+
+        {/* Vote ban notice */}
+        {myVoteBanned && meAlive && (
+          <div className="bg-orange-900/30 border border-orange-500/40 rounded-xl p-3 text-center">
+            <p className="text-orange-300 text-sm">🐐 El Chivo Expiatorio te excluyó — <strong>no puedes votar esta ronda</strong>.</p>
+          </div>
+        )}
+
+        {/* ── BANSHEE: predicción de día ───────────────────────────────── */}
+        {isBanshee && (
+          <div className="bg-violet-900/20 border border-violet-500/40 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg">👻</span>
+              <p className="text-sm font-semibold text-violet-300">Banshee — predice al ejecutado</p>
+              <span className="ml-auto text-xs text-violet-400/60">{game.bansheePoints ?? 0}/2 pts</span>
+            </div>
+            {bansheeSubmitted ? (
+              <div className="flex items-center gap-2 mt-2 p-2 bg-violet-900/30 border border-violet-500/30 rounded-lg">
+                <Check className="h-4 w-4 text-violet-400 flex-shrink-0" />
+                <p className="text-violet-300 text-xs">
+                  Predicción enviada: <strong>{(game.players ?? []).find(p => p.uid === bansheePick)?.name ?? '—'}</strong>
+                </p>
+              </div>
+            ) : (
+              <>
+                <p className="text-white/40 text-xs mb-3">¿Quién crees que el pueblo ejecutará hoy? Si aciertas 2 veces, ¡ganas!</p>
+                <div className="flex flex-wrap gap-2">
+                  {alivePlayers.filter(p => p.uid !== userId).map(p => (
+                    <button
+                      key={p.uid}
+                      onClick={() => setBansheePick(bansheePick === p.uid ? null : p.uid)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-all ${bansheePick === p.uid ? 'border-violet-500 bg-violet-900/40 text-violet-200' : 'border-white/15 bg-white/5 text-white/60 hover:border-violet-400/50'}`}
+                    >
+                      <span>{p.name}</span>
+                      {p.isAI && <Bot className="h-3 w-3 text-cyan-400/60" />}
+                    </button>
+                  ))}
+                </div>
+                {bansheePick && (
+                  <button
+                    onClick={() => submitBansheePrediction(bansheePick)}
+                    className="mt-3 w-full bg-violet-700 hover:bg-violet-600 text-white text-xs font-bold py-2 rounded-lg transition-colors"
+                  >
+                    Confirmar predicción
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        <div className="flex gap-3 flex-1 min-h-0">
+          {/* Chat area with tabs */}
+          <div className="flex-1 flex flex-col bg-black/65 border border-white/20 rounded-xl overflow-hidden">
+            {/* Tab bar */}
+            <div className="flex border-b border-white/10">
+              {availableTabs.map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setChatTab(tab)}
+                  className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+                    chatTab === tab
+                      ? tab === 'ghost' ? 'bg-slate-800/60 text-slate-300 border-b-2 border-slate-400'
+                      : tab === 'lovers' ? 'bg-pink-900/40 text-pink-300 border-b-2 border-pink-400'
+                      : 'bg-amber-900/30 text-amber-300 border-b-2 border-amber-400'
+                      : 'text-white/40 hover:text-white/60'
+                  }`}
+                >
+                  {tabLabel[tab]}
+                </button>
+              ))}
+            </div>
+
+            {/* Header for public chat */}
+            {chatTab === 'public' && (
+              <div className="px-4 py-2 border-b border-white/10">
+                <p className="text-white/70 text-xs">Discutid y decidid quién ejecutar hoy</p>
+              </div>
+            )}
+
+            {/* Chat content */}
+            {renderChatContent()}
+          </div>
+
+          {/* Voting panel */}
+          <div className="w-52 flex-shrink-0 flex flex-col gap-3">
+            <div className="bg-black/65 border border-white/20 rounded-xl p-4 flex-1 flex flex-col">
+              <div className="flex items-center gap-2 mb-1">
+                <Vote className="h-4 w-4 text-amber-400" />
+                <p className="text-sm font-medium text-amber-300">Votación</p>
+              </div>
+              <p className="text-white/70 text-xs mb-3">{totalVoted}/{totalAlive} han votado</p>
+
+              <div className="flex-1 overflow-y-auto space-y-1.5">
+                {votingTargets.map(p => {
+                  const votes = voteCounts[p.uid] ?? 0;
+                  const isSelected = myVote === p.uid;
+                  return (
+                    <button
+                      key={p.uid}
+                      onClick={() => !voted && meAlive && !myVoteBanned && setMyVote(p.uid)}
+                      disabled={voted || !meAlive || myVoteBanned}
+                      className={`w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-all ${isSelected ? 'border-amber-500 bg-amber-900/30' : 'border-white/10 bg-white/5 hover:border-white/25'} ${!meAlive || voted || myVoteBanned ? 'opacity-50 cursor-default' : 'cursor-pointer'}`}
+                    >
+                      <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-xs flex-shrink-0 font-bold overflow-hidden">
+                        {p.photoURL
+                          ? <img src={p.photoURL} alt="" className="w-full h-full object-cover" />
+                          : p.name[0]
+                        }
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1">
+                          <p className="text-xs font-medium truncate">{p.name}</p>
+                          {p.isAI && <Bot className="h-2.5 w-2.5 text-cyan-400/60 flex-shrink-0" />}
+                        </div>
+                        {votes > 0 && (
+                          <p className="text-amber-400 text-[10px]">
+                            {'⚡'.repeat(Math.min(votes, 5))} ×{votes}
+                          </p>
+                        )}
+                      </div>
+                      {!p.isAI && (
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {sentFriendReqs.has(p.uid)
+                            ? <Check className="h-3 w-3 text-green-400" />
+                            : <span onClick={e => addFriend(e, p.uid)} title={`Agregar a ${p.name}`} className="text-white/25 hover:text-amber-400 transition-colors cursor-pointer">
+                                <UserPlus className="h-3 w-3" />
+                              </span>
+                          }
+                          <span
+                            onClick={async e => {
+                              e.stopPropagation();
+                              if (reportedPlayers.has(p.uid)) return;
+                              await submitReport(gameId, p.uid, p.name, userId, userName, 'otro');
+                              setReportedPlayers(prev => new Set(prev).add(p.uid));
+                            }}
+                            title={reportedPlayers.has(p.uid) ? 'Reportado' : `Reportar a ${p.name}`}
+                            className={`cursor-pointer transition-colors ${reportedPlayers.has(p.uid) ? 'text-red-400' : 'text-white/20 hover:text-red-400'}`}
+                          >⚑</span>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {meAlive && !voted && !myVoteBanned && (
+                <button
+                  onClick={handleVote}
+                  disabled={!myVote}
+                  className="mt-3 w-full bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold py-2.5 rounded-xl transition-colors"
+                >
+                  Votar
+                </button>
+              )}
+              {voted && (
+                <div className="mt-3 text-center text-amber-400 text-xs py-1 font-semibold">
+                  ✓ Voto registrado
+                </div>
+              )}
+              {myVoteBanned && meAlive && (
+                <div className="mt-3 text-center text-orange-300 text-xs py-1 font-semibold">
+                  🐐 Sin voto esta ronda
+                </div>
+              )}
+              {!meAlive && (
+                <div className="mt-3 text-center text-white/60 text-xs py-1">
+                  No puedes votar
+                </div>
+              )}
+
+              {/* Juez second vote button */}
+              {isJuez && !game.juezUsed && (
+                <button
+                  onClick={onJuezSecondVote}
+                  className="mt-2 w-full flex items-center justify-center gap-1.5 bg-gray-700/60 hover:bg-gray-600/60 border border-gray-500/40 text-gray-200 text-xs font-medium py-2 rounded-xl transition-colors"
+                >
+                  <Scale className="h-3.5 w-3.5" />
+                  Segunda votación
+                </button>
+              )}
+              {isJuez && game.juezUsed && (
+                <div className="mt-2 text-center text-gray-400/40 text-[10px] py-1">
+                  ⚖️ Segunda votación usada
+                </div>
+              )}
+
+              {/* Alborotadora fight picker */}
+              {isAlborotadora && !game.alborotadoraFight && (
+                <div className="mt-3 border border-amber-500/30 rounded-xl p-3 bg-amber-900/10">
+                  <p className="text-xs text-amber-300 font-semibold mb-1">🥊 Alborotadora — provocar pelea</p>
+                  <p className="text-[10px] text-white/80 mb-2">Elige 2 jugadores. Ambos morirán antes de la votación final.</p>
+                  {alborotadoraStep === 0 ? (
+                    <>
+                      <p className="text-[10px] text-amber-300/60 mb-1">1er luchador:</p>
+                      <div className="space-y-1">
+                        {alivePlayers.filter(p => p.uid !== userId).map(p => (
+                          <button key={p.uid} onClick={() => { setAlborotadoraFighters([p.uid]); setAlborotadoraStep(1); }}
+                            className="w-full text-left text-xs p-1.5 rounded-lg border border-white/10 bg-white/5 hover:border-amber-500/50 transition-all">
+                            {p.name}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[10px] text-amber-300/60 mb-1">
+                        2º luchador (contra {alivePlayers.find(p => p.uid === alborotadoraFighters[0])?.name}):
+                      </p>
+                      <div className="space-y-1">
+                        {alivePlayers.filter(p => p.uid !== alborotadoraFighters[0]).map(p => (
+                          <button key={p.uid} onClick={() => onAlborotadoraFight(alborotadoraFighters[0], p.uid)}
+                            className="w-full text-left text-xs p-1.5 rounded-lg border border-white/10 bg-white/5 hover:border-red-500/50 transition-all">
+                            {p.name}
+                          </button>
+                        ))}
+                        <button onClick={() => { setAlborotadoraFighters([]); setAlborotadoraStep(0); }}
+                          className="w-full text-[10px] text-white/30 hover:text-white/50 pt-1">
+                          ← Volver
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+              {game.alborotadoraFight && (
+                <div className="mt-2 text-center text-amber-400/60 text-[10px] py-1">
+                  🥊 Pelea activa: {game.alborotadoraFight.map(uid => (game.players ?? []).find(p => p.uid === uid)?.name).join(' vs ')}
+                </div>
+              )}
+
+              {/* Verdugo secret target reminder */}
+              {isVerdugo && verdugoTarget && (
+                <div className="mt-3 border border-red-700/30 rounded-xl p-3 bg-red-950/10">
+                  <p className="text-[10px] text-red-300/80 uppercase tracking-wide mb-1">Tu objetivo secreto</p>
+                  <p className="text-sm text-white font-semibold">{verdugoTarget.name}</p>
+                  <p className="text-[10px] text-white/80">Si el pueblo lo lincha hoy, ¡ganas solo!</p>
+                </div>
+              )}
+
+              {/* Silenciadora reminder */}
+              {isSilenced && (
+                <div className="mt-3 border border-slate-700/40 rounded-xl p-3 bg-slate-950/20 text-center">
+                  <p className="text-xs text-slate-400">🤫 Has sido silenciado. No puedes escribir en el chat.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Alive list */}
+            <div className="bg-black/60 border border-white/15 rounded-xl p-3">
+              <p className="text-white/70 text-[10px] uppercase tracking-wide mb-2">Vivos ({alivePlayers.length})</p>
+              {alivePlayers.map(p => (
+                <div key={p.uid} className="flex items-center gap-1.5 mb-1 group">
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
+                  <span className="text-white/90 text-xs truncate flex-1">{p.name}</span>
+                  {(game as any).cursed?.uid === p.uid && <span className="text-purple-400 text-[10px]" title="Maldito">🔱</span>}
+                  {p.isAI && <Bot className="h-2.5 w-2.5 text-cyan-400/60" />}
+                  {voteBanned.includes(p.uid) && <span className="text-orange-400 text-[9px]">🚫</span>}
+                  {p.uid !== userId && !p.isAI && (
+                    sentFriendReqs.has(p.uid)
+                      ? <Check className="h-3 w-3 text-green-400 flex-shrink-0" />
+                      : <button
+                          onClick={e => addFriend(e, p.uid)}
+                          title={`Agregar a ${p.name} como amigo`}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 text-white/50 hover:text-amber-400"
+                        >
+                          <UserPlus className="h-3 w-3" />
+                        </button>
+                  )}
+                </div>
+              ))}
+              {(game.players ?? []).filter(p => !p.isAlive).map(p => (
+                <div key={p.uid} className="flex items-center gap-1.5 mb-1 group">
+                  <div className="w-1.5 h-1.5 rounded-full bg-white/30 flex-shrink-0" />
+                  <span className="text-white/40 text-xs truncate line-through flex-1">{p.name}</span>
+                  {p.uid !== userId && !p.isAI && (
+                    sentFriendReqs.has(p.uid)
+                      ? <Check className="h-3 w-3 text-green-400 flex-shrink-0" />
+                      : <button
+                          onClick={e => addFriend(e, p.uid)}
+                          title={`Agregar a ${p.name} como amigo`}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 text-white/30 hover:text-amber-400"
+                        >
+                          <UserPlus className="h-3 w-3" />
+                        </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+      <VoiceChat
+        gameId={gameId}
+        userId={userId}
+        userName={userName}
+        phase="day"
+        myRole={myRole}
+        isAlive={meAlive}
+        wolfTeam={game.wolfTeam}
+      />
+      <EmoteBar gameId={gameId} userId={userId} userName={userName} />
+    </div>
+  );
 }
