@@ -1,7 +1,7 @@
 /**
  * POST /api/sync-vote
  * Called by the service worker Background Sync handler when connectivity is restored.
- * Security: verifies Firebase Auth token and that uid matches the authenticated user.
+ * Security: the authenticated Firebase UID and current round/phase come from the server.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { initAdminApp } from '@/lib/firebase/admin';
@@ -16,51 +16,69 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { gameId, uid, target, round } = body as {
-      gameId: string;
-      uid: string;
-      target: string;
-      round: number;
+    const { gameId, target } = body as {
+      gameId?: unknown;
+      target?: unknown;
     };
 
-    if (!gameId || !uid || !target) {
-      return NextResponse.json({ error: 'gameId, uid, target required' }, { status: 400 });
-    }
-
-    // El uid del body debe coincidir con el del token
-    if (tokenUid !== uid) {
-      return NextResponse.json({ error: 'UID no coincide con el token' }, { status: 403 });
+    if (typeof gameId !== 'string' || !gameId || typeof target !== 'string' || !target) {
+      return NextResponse.json({ error: 'gameId y target son obligatorios' }, { status: 400 });
     }
 
     initAdminApp();
     const db = getFirestore();
+    const gameRef = db.collection('games').doc(gameId);
+    const gameSnap = await gameRef.get();
 
-    const gameSnap = await db.collection('games').doc(gameId).get();
     if (!gameSnap.exists) {
       return NextResponse.json({ error: 'Partida no encontrada' }, { status: 404 });
     }
+
     const gameData = gameSnap.data()!;
-    if (gameData.phase !== 'day' && gameData.phase !== 'voting') {
+
+    // In the current game FSM, daytime is the voting phase.
+    if (gameData.phase !== 'day') {
       return NextResponse.json({ error: 'No es fase de votación' }, { status: 409 });
     }
-    const players: { uid: string; isAlive: boolean }[] = gameData.players ?? [];
-    if (!players.some(p => p.uid === uid && p.isAlive)) {
+
+    // Respect the authoritative server-side phase deadline as well as the phase flag.
+    const phaseEndsAt = typeof gameData.phaseEndsAt === 'number' ? gameData.phaseEndsAt : null;
+    if (phaseEndsAt !== null && Date.now() >= phaseEndsAt) {
+      return NextResponse.json({ error: 'La votación ha terminado' }, { status: 409 });
+    }
+
+    const players = Array.isArray(gameData.players)
+      ? gameData.players as Array<{ uid?: unknown; isAlive?: unknown; isAI?: unknown }>
+      : [];
+
+    const voter = players.find(player => player.uid === tokenUid);
+    if (!voter || voter.isAlive !== true || voter.isAI === true) {
       return NextResponse.json({ error: 'Jugador no válido o muerto' }, { status: 403 });
     }
-    if (!players.some(p => p.uid === target && p.isAlive)) {
+
+    const targetPlayer = players.find(player => player.uid === target);
+    if (!targetPlayer || targetPlayer.isAlive !== true) {
       return NextResponse.json({ error: 'Objetivo no válido' }, { status: 403 });
     }
 
-    await db
-      .collection('games').doc(gameId)
-      .collection('votes').doc(uid)
-      .set(
-        { target, round: round ?? gameData.roundNumber, submittedAt: Date.now(), syncedAt: Date.now() },
-        { merge: true }
-      );
+    const round = Number(gameData.roundNumber ?? 1);
+    if (!Number.isInteger(round) || round < 1) {
+      return NextResponse.json({ error: 'Ronda no válida' }, { status: 409 });
+    }
 
-    return NextResponse.json({ ok: true });
-  } catch (err: any) {
+    const now = Date.now();
+    await gameRef.collection('votes').doc(tokenUid).set(
+      {
+        target,
+        round,
+        submittedAt: now,
+        syncedAt: now,
+      },
+      { merge: true }
+    );
+
+    return NextResponse.json({ ok: true, round });
+  } catch (err) {
     console.error('[sync-vote]', err);
     return NextResponse.json({ error: 'Error interno' }, { status: 500 });
   }
