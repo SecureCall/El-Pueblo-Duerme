@@ -66,7 +66,11 @@ export function resolveNightActions(
   ].filter((uid): uid is string => Boolean(uid));
 
   const resolvedInput = { ...input, submissions: acceptedSubmissions };
-  const deathEffects = resolveNightDeathEffects(resolvedInput, [...new Set(pendingWolfDeaths)]);
+  const deathEffects = resolveNightDeathEffects(
+    resolvedInput,
+    [...new Set(pendingWolfDeaths)],
+    roles.rolesByUid,
+  );
 
   return {
     roundNumber: input.roundNumber,
