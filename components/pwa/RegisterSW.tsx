@@ -53,10 +53,10 @@ export function RegisterSW() {
             });
             if (status.state === 'granted') {
               await (reg as unknown as { periodicSync: { register: (tag: string, opts: object) => Promise<void> } }).periodicSync.register('refresh-content', {
-                minInterval: 24 * 60 * 60 * 1000, // 24h
+                minInterval: 24 * 60 * 60 * 1000,
               });
               await (reg as unknown as { periodicSync: { register: (tag: string, opts: object) => Promise<void> } }).periodicSync.register('update-widget-data', {
-                minInterval: 5 * 60 * 1000, // 5 min
+                minInterval: 5 * 60 * 1000,
               });
             }
           } catch {
@@ -81,6 +81,29 @@ export function RegisterSW() {
     navigator.serviceWorker.addEventListener('message', handleMessage);
     return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
   }, [router]);
+
+  // ── Auth bridge for Background Sync ──────────────────────────────────────
+  // The Service Worker never stores the Firebase token. It asks an active,
+  // authenticated page for a fresh token only when it needs to sync a vote.
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+
+    const handleAuthTokenRequest = async (event: MessageEvent) => {
+      if (event.data?.type !== 'REQUEST_AUTH_TOKEN') return;
+      const port = event.ports?.[0];
+      if (!port) return;
+
+      try {
+        const token = user ? await user.getIdToken() : null;
+        port.postMessage({ token });
+      } catch {
+        port.postMessage({ token: null });
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleAuthTokenRequest);
+    return () => navigator.serviceWorker.removeEventListener('message', handleAuthTokenRequest);
+  }, [user]);
 
   // ── Push subscription: subscribe once the user is logged in ──────────────
   useEffect(() => {
