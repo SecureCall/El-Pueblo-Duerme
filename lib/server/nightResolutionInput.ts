@@ -20,6 +20,7 @@ export interface NightResolutionHistory {
   hechiceraLifeUsed: boolean;
   hechiceraPoisonUsed: boolean;
   lovers: [string, string] | null;
+  malditoUid: string | null;
 }
 
 export interface NightResolutionInput {
@@ -67,6 +68,7 @@ export function createNightResolutionInput(
       hechiceraLifeUsed: game.hechiceraLifeUsed === true,
       hechiceraPoisonUsed: game.hechiceraPoisonUsed === true,
       lovers: readLovers(game),
+      malditoUid: typeof game.malditoUid === 'string' ? game.malditoUid : null,
     },
   };
 }
