@@ -12,7 +12,6 @@ export function RegisterSW() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
 
-    // Register the service worker
     navigator.serviceWorker
       .register('/sw.js', { scope: '/' })
       .then(async (reg) => {
@@ -29,23 +28,14 @@ export function RegisterSW() {
           }
         });
 
-        // Tell SW to pre-warm cache for this page (ensures offline works)
         if (navigator.serviceWorker.controller) {
-          navigator.serviceWorker.controller.postMessage({
-            type: 'CACHE_PAGE',
-            url: '/',
-          });
+          navigator.serviceWorker.controller.postMessage({ type: 'CACHE_PAGE', url: '/' });
         } else {
-          // Wait for SW to take control, then send the message
           navigator.serviceWorker.addEventListener('controllerchange', () => {
-            navigator.serviceWorker.controller?.postMessage({
-              type: 'CACHE_PAGE',
-              url: '/',
-            });
+            navigator.serviceWorker.controller?.postMessage({ type: 'CACHE_PAGE', url: '/' });
           }, { once: true });
         }
 
-        // Register Periodic Background Sync if supported
         if ('periodicSync' in reg) {
           try {
             const status = await navigator.permissions.query({
@@ -53,10 +43,10 @@ export function RegisterSW() {
             });
             if (status.state === 'granted') {
               await (reg as unknown as { periodicSync: { register: (tag: string, opts: object) => Promise<void> } }).periodicSync.register('refresh-content', {
-                minInterval: 24 * 60 * 60 * 1000, // 24h
+                minInterval: 24 * 60 * 60 * 1000,
               });
               await (reg as unknown as { periodicSync: { register: (tag: string, opts: object) => Promise<void> } }).periodicSync.register('update-widget-data', {
-                minInterval: 5 * 60 * 1000, // 5 min
+                minInterval: 5 * 60 * 1000,
               });
             }
           } catch {
@@ -66,8 +56,22 @@ export function RegisterSW() {
       })
       .catch((err) => console.warn('[SW] Error al registrar:', err));
 
-    // launch_handler: listen for NAVIGATE messages from the SW (focus-existing behavior).
-    const handleMessage = (event: MessageEvent) => {
+    // The service worker cannot access Firebase Auth directly. For queued
+    // votes it asks the controlled page for a fresh ID token instead of
+    // persisting an auth token in IndexedDB.
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.data?.type === 'REQUEST_SYNC_AUTH') {
+        const port = event.ports?.[0];
+        if (!port) return;
+        try {
+          const token = user ? await user.getIdToken(true) : null;
+          port.postMessage({ type: 'SYNC_AUTH_RESPONSE', token });
+        } catch {
+          port.postMessage({ type: 'SYNC_AUTH_RESPONSE', token: null });
+        }
+        return;
+      }
+
       if (event.data?.type === 'NAVIGATE' && typeof event.data.url === 'string') {
         try {
           const target = new URL(event.data.url);
@@ -79,15 +83,12 @@ export function RegisterSW() {
     };
 
     navigator.serviceWorker.addEventListener('message', handleMessage);
-    return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
-  }, [router]);
+    return () => navigator.serviceWorker.removeEventListener('message', handleMessage, false);
+  }, [router, user]);
 
-  // ── Push subscription: subscribe once the user is logged in ──────────────
   useEffect(() => {
     if (!user?.uid) return;
     if (!('Notification' in window)) return;
-    // Only attempt if permission is already granted (don't prompt automatically —
-    // the UI should call subscribeToPush() explicitly when the user opts in)
     if (Notification.permission !== 'granted') return;
 
     subscribeToPush().then(async (sub) => {
