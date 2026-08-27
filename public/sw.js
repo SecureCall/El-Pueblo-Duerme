@@ -1,8 +1,6 @@
 const CACHE_NAME = 'elpueblo-v10';
 
 // ─── Install ─────────────────────────────────────────────────────────────────
-// Only cache offline.html synchronously — it's tiny and guaranteed to exist.
-// Everything else is cached lazily on first fetch (see fetch handler below).
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
@@ -23,7 +21,6 @@ self.addEventListener('activate', (event) => {
 });
 
 // ─── Message handler ─────────────────────────────────────────────────────────
-// Pages send CACHE_PAGE to pre-warm the cache after first load.
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'CACHE_PAGE') {
     const urlToCache = event.data.url || '/';
@@ -57,7 +54,6 @@ self.addEventListener('navigate', async (event) => {
 });
 
 // ─── Background Sync ─────────────────────────────────────────────────────────
-// Tags: 'sync-vote', 'sync-night-action'
 self.addEventListener('sync', (event) => {
   if (event.tag === 'sync-vote') {
     event.waitUntil(flushPendingVotes());
@@ -66,19 +62,64 @@ self.addEventListener('sync', (event) => {
   }
 });
 
+async function requestSyncAuthToken() {
+  const clients = await self.clients.matchAll({ includeUncontrolled: true, type: 'window' });
+  if (!clients.length) throw new Error('No hay una ventana abierta para autenticar el voto pendiente');
+
+  const client = clients[0];
+  const channel = new MessageChannel();
+
+  const tokenPromise = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('Timeout solicitando token de autenticación')), 5000);
+    channel.port1.onmessage = (messageEvent) => {
+      clearTimeout(timeout);
+      const token = messageEvent.data?.type === 'SYNC_AUTH_RESPONSE'
+        ? messageEvent.data.token
+        : null;
+      if (typeof token === 'string' && token.length > 0) resolve(token);
+      else reject(new Error('No hay sesión autenticada disponible'));
+    };
+  });
+
+  client.postMessage({ type: 'REQUEST_SYNC_AUTH' }, [channel.port2]);
+  return tokenPromise;
+}
+
 async function flushPendingVotes() {
   const db = await openIDB();
   const items = await idbGetAll(db, 'pending-votes');
+
+  if (!items.length) return;
+
+  const token = await requestSyncAuthToken();
+
   for (const item of items) {
     try {
-      await fetch('/api/sync-vote', {
+      const response = await fetch('/api/sync-vote', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(item),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          gameId: item.gameId,
+          target: item.target,
+        }),
       });
-      await idbDelete(db, 'pending-votes', item.id);
+
+      if (response.ok || (response.status >= 400 && response.status < 500 && response.status !== 401)) {
+        // 2xx = accepted. Other 4xx (except auth) = permanently invalid
+        // because the server decides phase, player and target validity.
+        await idbDelete(db, 'pending-votes', item.id);
+        continue;
+      }
+
+      // 401/5xx must keep the item so Background Sync can retry.
+      throw new Error(`sync-vote retryable response: ${response.status}`);
     } catch {
-      // Will retry on next sync event
+      // Abort the sync attempt so the browser can retry the tag later.
+      throw new Error('No se pudo sincronizar un voto pendiente');
     }
   }
 }
@@ -88,12 +129,12 @@ async function flushPendingNightActions() {
   const items = await idbGetAll(db, 'pending-night-actions');
   for (const item of items) {
     try {
-      await fetch('/api/sync-night-action', {
+      const response = await fetch('/api/sync-night-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(item),
       });
-      await idbDelete(db, 'pending-night-actions', item.id);
+      if (response.ok) await idbDelete(db, 'pending-night-actions', item.id);
     } catch {
       // Will retry on next sync event
     }
@@ -126,10 +167,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
-// Open notification → navigate to URL stored in data
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-
   const targetUrl = event.notification.data?.url ?? '/';
 
   event.waitUntil(
@@ -137,9 +176,7 @@ self.addEventListener('notificationclick', (event) => {
       .matchAll({ includeUncontrolled: true, type: 'window' })
       .then((clientList) => {
         for (const client of clientList) {
-          if (client.url === targetUrl && 'focus' in client) {
-            return client.focus();
-          }
+          if (client.url === targetUrl && 'focus' in client) return client.focus();
         }
         return self.clients.openWindow(targetUrl);
       })
@@ -153,7 +190,6 @@ self.addEventListener('fetch', (event) => {
 
   if (!url.protocol.startsWith('http') || url.origin !== self.location.origin) return;
 
-  // Network-only: API calls, Firestore, auth, analytics
   if (
     url.pathname.startsWith('/api/') ||
     url.hostname.includes('firestore') ||
@@ -168,7 +204,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first for static assets
   if (
     url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/icons/') ||
@@ -190,7 +225,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-first with cache fallback for all HTML pages
   event.respondWith(
     fetch(request)
       .then((response) => {
@@ -204,11 +238,10 @@ self.addEventListener('fetch', (event) => {
         caches.match(request, { ignoreSearch: true })
           .then((cached) => cached ?? caches.match('/offline.html'))
       )
-
   );
 });
 
-// ─── Periodic Background Sync ─────────────────────────────────────────────────
+// ─── Periodic Background Sync ───────────────────────────────────────────────
 self.addEventListener('periodicsync', (event) => {
   if (event.tag === 'update-widget-data') {
     event.waitUntil(
@@ -242,7 +275,7 @@ self.addEventListener('periodicsync', (event) => {
   }
 });
 
-// ─── IndexedDB helpers (for Background Sync queue) ───────────────────────────
+// ─── IndexedDB helpers ───────────────────────────────────────────────────────
 function openIDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open('elpueblo-sync', 1);
