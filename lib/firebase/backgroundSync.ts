@@ -1,21 +1,17 @@
 /**
  * Background Sync helpers
  *
- * Usage:
- *   import { queueVote, queueNightAction } from '@/lib/firebase/backgroundSync';
- *
- * When offline, items are saved to IndexedDB and the SW retries them once
- * the connection is restored (via the 'sync' event).
- *
- * When online, items are sent directly without queuing.
+ * Votes are authenticated with the current Firebase ID token. The service
+ * worker cannot read Firebase Auth state, so queued votes are authenticated
+ * by asking an open app window for a fresh token when the sync event runs.
  */
+
+import { auth } from '@/lib/firebase/config';
 
 const DB_NAME = 'elpueblo-sync';
 const DB_VERSION = 1;
 const STORES = ['pending-votes', 'pending-night-actions'] as const;
 type StoreName = (typeof STORES)[number];
-
-// ─── IndexedDB ───────────────────────────────────────────────────────────────
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -43,8 +39,6 @@ async function idbPut(store: StoreName, item: Record<string, unknown>): Promise<
   });
 }
 
-// ─── Background Sync registration ────────────────────────────────────────────
-
 async function registerSync(tag: string): Promise<void> {
   if (!('serviceWorker' in navigator) || !('SyncManager' in window)) return;
   try {
@@ -54,8 +48,6 @@ async function registerSync(tag: string): Promise<void> {
     console.warn('[BackgroundSync] Could not register sync tag:', tag, e);
   }
 }
-
-// ─── Public API ──────────────────────────────────────────────────────────────
 
 export type PendingVote = {
   id: string;
@@ -75,30 +67,45 @@ export type PendingNightAction = {
   submittedAt: number;
 };
 
-/**
- * Queue a vote for background sync.
- * When online the action is attempted immediately; on failure it's queued.
- */
+async function sendVote(vote: PendingVote): Promise<Response> {
+  const currentUser = auth.currentUser;
+  if (!currentUser || currentUser.uid !== vote.uid) {
+    throw new Error('Usuario no autenticado para sincronizar el voto');
+  }
+
+  const idToken = await currentUser.getIdToken();
+  return fetch('/api/sync-vote', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${idToken}`,
+    },
+    credentials: 'include',
+    body: JSON.stringify({ gameId: vote.gameId, target: vote.target }),
+  });
+}
+
+/** Queue a vote for background sync. */
 export async function queueVote(vote: PendingVote): Promise<void> {
   if (navigator.onLine) {
     try {
-      const res = await fetch('/api/sync-vote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(vote),
-      });
+      const res = await sendVote(vote);
       if (res.ok) return;
-    } catch {
-      // fall through to queue
+      // Server validation errors are final (for example expired voting phase).
+      // Only transport/server failures should remain queued.
+      if (res.status >= 400 && res.status < 500 && res.status !== 401) {
+        throw new Error(`Voto rechazado por el servidor (${res.status})`);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Voto rechazado')) throw error;
     }
   }
+
   await idbPut('pending-votes', vote);
   await registerSync('sync-vote');
 }
 
-/**
- * Queue a night action for background sync.
- */
+/** Queue a night action for background sync. */
 export async function queueNightAction(action: PendingNightAction): Promise<void> {
   if (navigator.onLine) {
     try {
