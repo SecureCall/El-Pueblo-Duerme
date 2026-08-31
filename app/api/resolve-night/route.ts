@@ -8,6 +8,8 @@ import { readNightRoleSnapshot } from '@/lib/server/nightRoleSnapshot';
 import { resolveNightActions } from '@/lib/server/nightResolutionEngine';
 import { claimNightResolution, markNightResolutionResolved, releaseNightResolution, renewNightResolution } from '@/lib/server/nightResolutionLock';
 
+const HEARTBEAT_MS = 30_000;
+
 export async function POST(request: Request) {
   let claimedGameId: string | null = null;
   let claimedRound: number | null = null;
@@ -34,9 +36,16 @@ export async function POST(request: Request) {
     claimedGameId = gameId;
     claimedRound = roundNumber;
     claimedLeaseId = lock.leaseId;
-    heartbeat = setInterval(() => {
-      if (claimedGameId && claimedRound !== null && claimedLeaseId) void renewNightResolution(db, claimedGameId, claimedRound, claimedLeaseId).catch((error) => console.error('[resolve-night] lease renewal failed', error));
-    }, 60_000);
+
+    const renew = async () => {
+      if (!claimedGameId || claimedRound === null || !claimedLeaseId) return;
+      const renewed = await renewNightResolution(db, claimedGameId, claimedRound, claimedLeaseId);
+      if (!renewed) {
+        console.error('[resolve-night] lease fencing detected; resolver no longer owns the lease');
+      }
+    };
+    heartbeat = setInterval(() => { void renew().catch((error) => console.error('[resolve-night] lease renewal failed', error)); }, HEARTBEAT_MS);
+
     const submissions = await readNightSubmissions(gameId);
     const validation = validatePersistedNightSubmissions(players as Array<Record<string, unknown>>, submissions, roundNumber);
     const groupedSubmissions = validation.valid.map((submission) => ({ actorUid: submission.actorUid, role: submission.role, actions: submission.actions }));
