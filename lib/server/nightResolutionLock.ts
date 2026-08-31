@@ -6,8 +6,9 @@ export interface NightResolutionLockResult {
   leaseId?: string;
 }
 
-// Five-minute lease plus heartbeat. A live resolver renews ownership, so it
-// cannot be replaced merely because the resolution takes longer than a minute.
+// Long enough to tolerate transient Firestore/network delays, while the
+// resolver renews frequently. The leaseId is a fencing token: only its owner
+// can renew, resolve, or release the lock.
 const RESOLUTION_LEASE_MS = 5 * 60_000;
 
 function lockRef(db: Firestore, gameId: string, roundNumber: number) {
@@ -27,12 +28,24 @@ export async function claimNightResolution(db: Firestore, gameId: string, roundN
       if (expiresMillis > Date.now()) return { acquired: false, reason: 'already_resolving' };
       const leaseId = crypto.randomUUID();
       const now = new Date();
-      tx.update(ref, { status: 'resolving', leaseId, startedAt: now, expiresAt: new Date(now.getTime() + RESOLUTION_LEASE_MS), reclaimedAt: now });
+      tx.update(ref, {
+        status: 'resolving',
+        leaseId,
+        startedAt: now,
+        expiresAt: new Date(now.getTime() + RESOLUTION_LEASE_MS),
+        reclaimedAt: now,
+      });
       return { acquired: true, leaseId };
     }
     const leaseId = crypto.randomUUID();
     const now = new Date();
-    tx.create(ref, { status: 'resolving', roundNumber, leaseId, startedAt: now, expiresAt: new Date(now.getTime() + RESOLUTION_LEASE_MS) });
+    tx.create(ref, {
+      status: 'resolving',
+      roundNumber,
+      leaseId,
+      startedAt: now,
+      expiresAt: new Date(now.getTime() + RESOLUTION_LEASE_MS),
+    });
     return { acquired: true, leaseId };
   });
 }
@@ -45,7 +58,10 @@ export async function renewNightResolution(db: Firestore, gameId: string, roundN
     const data = snapshot.data() as Record<string, unknown>;
     if (data.status !== 'resolving' || data.leaseId !== leaseId) return false;
     const now = new Date();
-    tx.update(ref, { expiresAt: new Date(now.getTime() + RESOLUTION_LEASE_MS), renewedAt: now });
+    tx.update(ref, {
+      expiresAt: new Date(now.getTime() + RESOLUTION_LEASE_MS),
+      renewedAt: now,
+    });
     return true;
   });
 }
@@ -56,6 +72,7 @@ export async function markNightResolutionResolved(db: Firestore, gameId: string,
     const snapshot = await tx.get(ref);
     if (!snapshot.exists) return false;
     const data = snapshot.data() as Record<string, unknown>;
+    // Fencing check: a reclaimed lease can never commit the old resolver's result.
     if (data.status !== 'resolving' || data.leaseId !== leaseId) return false;
     tx.update(ref, { status: 'resolved', resolvedAt: new Date(), expiresAt: null });
     return true;
