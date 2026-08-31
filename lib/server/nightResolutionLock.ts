@@ -3,94 +3,73 @@ import type { Firestore } from 'firebase-admin/firestore';
 export interface NightResolutionLockResult {
   acquired: boolean;
   reason?: 'already_resolving' | 'already_resolved';
+  leaseId?: string;
 }
 
-const RESOLUTION_LEASE_MS = 60_000;
+// Five-minute lease plus heartbeat. A live resolver renews ownership, so it
+// cannot be replaced merely because the resolution takes longer than a minute.
+const RESOLUTION_LEASE_MS = 5 * 60_000;
 
-/**
- * Atomically claims one resolution slot for a game round.
- * The lock lives outside the public game document so clients cannot forge it.
- * A stale resolving lock can be reclaimed after the lease expires.
- */
-export async function claimNightResolution(
-  db: Firestore,
-  gameId: string,
-  roundNumber: number,
-): Promise<NightResolutionLockResult> {
-  const lockRef = db
-    .collection('games')
-    .doc(gameId)
-    .collection('nightResolutions')
-    .doc(String(roundNumber));
+function lockRef(db: Firestore, gameId: string, roundNumber: number) {
+  return db.collection('games').doc(gameId).collection('nightResolutions').doc(String(roundNumber));
+}
 
+export async function claimNightResolution(db: Firestore, gameId: string, roundNumber: number): Promise<NightResolutionLockResult> {
+  const ref = lockRef(db, gameId, roundNumber);
   return db.runTransaction(async (tx) => {
-    const snapshot = await tx.get(lockRef);
-
+    const snapshot = await tx.get(ref);
     if (snapshot.exists) {
       const data = snapshot.data() as Record<string, unknown>;
-      if (data.status === 'resolved') {
-        return { acquired: false, reason: 'already_resolved' };
-      }
-
-      const startedAt = data.startedAt;
-      const startedMillis =
-        startedAt && typeof (startedAt as { toMillis?: unknown }).toMillis === 'function'
-          ? (startedAt as { toMillis: () => number }).toMillis()
-          : 0;
-
-      if (startedMillis > 0 && Date.now() - startedMillis < RESOLUTION_LEASE_MS) {
-        return { acquired: false, reason: 'already_resolving' };
-      }
-
-      tx.update(lockRef, {
-        status: 'resolving',
-        startedAt: new Date(),
-        reclaimedAt: new Date(),
-      });
-      return { acquired: true };
+      if (data.status === 'resolved') return { acquired: false, reason: 'already_resolved' };
+      const expiresAt = data.expiresAt;
+      const expiresMillis = expiresAt && typeof (expiresAt as { toMillis?: unknown }).toMillis === 'function'
+        ? (expiresAt as { toMillis: () => number }).toMillis() : 0;
+      if (expiresMillis > Date.now()) return { acquired: false, reason: 'already_resolving' };
+      const leaseId = crypto.randomUUID();
+      const now = new Date();
+      tx.update(ref, { status: 'resolving', leaseId, startedAt: now, expiresAt: new Date(now.getTime() + RESOLUTION_LEASE_MS), reclaimedAt: now });
+      return { acquired: true, leaseId };
     }
-
-    tx.create(lockRef, {
-      status: 'resolving',
-      roundNumber,
-      startedAt: new Date(),
-    });
-
-    return { acquired: true };
+    const leaseId = crypto.randomUUID();
+    const now = new Date();
+    tx.create(ref, { status: 'resolving', roundNumber, leaseId, startedAt: now, expiresAt: new Date(now.getTime() + RESOLUTION_LEASE_MS) });
+    return { acquired: true, leaseId };
   });
 }
 
-export async function markNightResolutionResolved(
-  db: Firestore,
-  gameId: string,
-  roundNumber: number,
-): Promise<void> {
-  const lockRef = db
-    .collection('games')
-    .doc(gameId)
-    .collection('nightResolutions')
-    .doc(String(roundNumber));
-
-  await lockRef.update({
-    status: 'resolved',
-    resolvedAt: new Date(),
+export async function renewNightResolution(db: Firestore, gameId: string, roundNumber: number, leaseId: string): Promise<boolean> {
+  const ref = lockRef(db, gameId, roundNumber);
+  return db.runTransaction(async (tx) => {
+    const snapshot = await tx.get(ref);
+    if (!snapshot.exists) return false;
+    const data = snapshot.data() as Record<string, unknown>;
+    if (data.status !== 'resolving' || data.leaseId !== leaseId) return false;
+    const now = new Date();
+    tx.update(ref, { expiresAt: new Date(now.getTime() + RESOLUTION_LEASE_MS), renewedAt: now });
+    return true;
   });
 }
 
-/**
- * Releases a failed/incomplete resolution so the next attempt can recover.
- * This must only be called by trusted server code after a resolver failure.
- */
-export async function releaseNightResolution(
-  db: Firestore,
-  gameId: string,
-  roundNumber: number,
-): Promise<void> {
-  const lockRef = db
-    .collection('games')
-    .doc(gameId)
-    .collection('nightResolutions')
-    .doc(String(roundNumber));
+export async function markNightResolutionResolved(db: Firestore, gameId: string, roundNumber: number, leaseId: string): Promise<boolean> {
+  const ref = lockRef(db, gameId, roundNumber);
+  return db.runTransaction(async (tx) => {
+    const snapshot = await tx.get(ref);
+    if (!snapshot.exists) return false;
+    const data = snapshot.data() as Record<string, unknown>;
+    if (data.status !== 'resolving' || data.leaseId !== leaseId) return false;
+    tx.update(ref, { status: 'resolved', resolvedAt: new Date(), expiresAt: null });
+    return true;
+  });
+}
 
-  await lockRef.delete();
+export async function releaseNightResolution(db: Firestore, gameId: string, roundNumber: number, leaseId: string): Promise<boolean> {
+  const ref = lockRef(db, gameId, roundNumber);
+  return db.runTransaction(async (tx) => {
+    const snapshot = await tx.get(ref);
+    if (!snapshot.exists) return false;
+    const data = snapshot.data() as Record<string, unknown>;
+    if (data.status !== 'resolving' || data.leaseId !== leaseId) return false;
+    tx.delete(ref);
+    return true;
+  });
 }
