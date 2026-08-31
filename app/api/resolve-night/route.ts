@@ -8,6 +8,7 @@ import { readNightRoleSnapshot } from '@/lib/server/nightRoleSnapshot';
 import { resolveNightActions } from '@/lib/server/nightResolutionEngine';
 import {
   claimNightResolution,
+  markNightResolutionResolved,
   releaseNightResolution,
 } from '@/lib/server/nightResolutionLock';
 
@@ -73,7 +74,9 @@ export async function POST(request: Request) {
     );
     const result = resolveNightActions(input, roleSnapshot);
 
-    await releaseNightResolution(db, gameId, roundNumber);
+    // A successful resolution is terminal for this round. Deleting the lock
+    // here allowed an immediate retry to resolve the same night twice.
+    await markNightResolutionResolved(db, gameId, roundNumber);
     claimedGameId = null;
     claimedRound = null;
 
