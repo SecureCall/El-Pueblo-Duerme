@@ -10,12 +10,18 @@ import {
   claimNightResolution,
   markNightResolutionResolved,
   releaseNightResolution,
+  renewNightResolution,
 } from '@/lib/server/nightResolutionLock';
+
+const RESOLUTION_HEARTBEAT_MS = 30_000;
 
 /** Server-side, deterministic night-resolution boundary. */
 export async function POST(request: Request) {
   let claimedGameId: string | null = null;
   let claimedRound: number | null = null;
+  let claimedLeaseId: string | null = null;
+  let heartbeat: ReturnType<typeof setInterval> | null = null;
+  let leaseLost = false;
 
   try {
     const user = await verifyAuthToken(request);
@@ -40,7 +46,7 @@ export async function POST(request: Request) {
     if (roundNumber === null) return NextResponse.json({ error: 'Invalid night round' }, { status: 409 });
 
     const lock = await claimNightResolution(db, gameId, roundNumber);
-    if (!lock.acquired) {
+    if (!lock.acquired || !lock.leaseId) {
       return NextResponse.json(
         { error: lock.reason === 'already_resolved' ? 'Night already resolved' : 'Night resolution already in progress' },
         { status: 409 },
@@ -48,6 +54,20 @@ export async function POST(request: Request) {
     }
     claimedGameId = gameId;
     claimedRound = roundNumber;
+    claimedLeaseId = lock.leaseId;
+
+    heartbeat = setInterval(() => {
+      if (!claimedGameId || claimedRound === null || !claimedLeaseId) return;
+      void renewNightResolution(db, claimedGameId, claimedRound, claimedLeaseId)
+        .then((renewed) => {
+          if (!renewed) leaseLost = true;
+        })
+        .catch(() => {
+          // A transient heartbeat failure is fenced by the final transactional
+          // lease check; do not allow an old resolver to commit.
+          leaseLost = true;
+        });
+    }, RESOLUTION_HEARTBEAT_MS);
 
     const submissions = await readNightSubmissions(gameId);
     const validation = validatePersistedNightSubmissions(
@@ -74,16 +94,30 @@ export async function POST(request: Request) {
     );
     const result = resolveNightActions(input, roleSnapshot);
 
-    await markNightResolutionResolved(db, gameId, roundNumber);
+    if (leaseLost) {
+      throw new Error('Night resolution lease lost before commit');
+    }
+
+    const resolved = await markNightResolutionResolved(db, gameId, roundNumber, claimedLeaseId);
+    if (!resolved) {
+      throw new Error('Night resolution lease rejected at commit');
+    }
+
+    if (heartbeat) clearInterval(heartbeat);
+    heartbeat = null;
     claimedGameId = null;
     claimedRound = null;
+    claimedLeaseId = null;
 
     return NextResponse.json({ ok: true, gameId, result, rejected: validation.rejected });
   } catch (error) {
-    if (claimedGameId && claimedRound !== null) {
+    if (heartbeat) clearInterval(heartbeat);
+    heartbeat = null;
+
+    if (claimedGameId && claimedRound !== null && claimedLeaseId) {
       try {
         const { db } = getSdks();
-        await releaseNightResolution(db, claimedGameId, claimedRound);
+        await releaseNightResolution(db, claimedGameId, claimedRound, claimedLeaseId);
       } catch (releaseError) {
         console.error('[resolve-night] failed to release resolution lease', releaseError);
       }
