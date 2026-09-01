@@ -19,7 +19,6 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
           path = Path('components/game/play/GamePlay.tsx')
           text = path.read_text(encoding='utf-8')
