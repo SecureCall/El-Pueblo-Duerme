@@ -15,41 +15,37 @@ jobs:
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Remove client-authoritative night resolver
         run: |
           python3 - <<'PY'
           from pathlib import Path
-
           path = Path('components/game/play/GamePlay.tsx')
           text = path.read_text(encoding='utf-8')
-
-          start_marker = '  // Host processes night when all required submissions received\n'
           end_marker = '  const submitDayVote = useCallback(async (targetUid: string) => {'
-          start = text.find(start_marker)
           end = text.find(end_marker)
+          candidates = [
+              text.find('  // Host processes night when all required submissions received\n'),
+              text.find('  // Server-authoritative night resolution.'),
+          ]
+          starts = [p for p in candidates if p != -1]
+          start = min(starts) if starts else -1
           if start == -1 or end == -1 or end <= start:
               raise SystemExit('Night resolver block markers not found; refusing unsafe edit')
-
           replacement = '''  // Server-authoritative night resolution. Any authenticated player can trigger it;
   // the server lease guarantees that only one resolver commits the round.
   useEffect(() => {
     if (!game || !user || game.phase !== 'night') return;
-
     const NIGHT_DEADLINE_MS = 58_000;
     const startedAt = game.nightStartedAt ?? Date.now();
     const remaining = Math.max(0, NIGHT_DEADLINE_MS - (Date.now() - startedAt));
-
     const resolve = async () => {
       try {
         const idToken = await user.getIdToken();
         const response = await fetch('/api/resolve-night', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
-          },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
           credentials: 'include',
           body: JSON.stringify({ gameId }),
         });
@@ -61,21 +57,20 @@ jobs:
         console.warn('[server-night-resolution] request failed', error);
       }
     };
-
     const timer = window.setTimeout(resolve, remaining);
     return () => window.clearTimeout(timer);
   }, [game?.phase, game?.roundNumber, game?.nightStartedAt, gameId, user]);
 
 '''
           migrated = text[:start] + replacement + text[end:]
-          if 'function processNight' in migrated or 'processNight();' in migrated or start_marker in migrated:
+          if 'async function processNight' in migrated or 'function processNight' in migrated or 'processNight();' in migrated:
               raise SystemExit('Client-authoritative night resolver still detected after migration')
           path.write_text(migrated, encoding='utf-8')
           PY
 
       - name: Verify migration
         run: |
-          ! grep -nE "function processNight|processNight\(\)|Host processes night when all required submissions" components/game/play/GamePlay.tsx
+          ! grep -nE "async function processNight|function processNight|processNight\(\)|Host processes night when all required submissions" components/game/play/GamePlay.tsx
 
       - name: Commit migration to PR branch
         run: |
@@ -87,4 +82,4 @@ jobs:
             exit 0
           fi
           git commit -m 'fix: make night resolution server authoritative'
-          git push origin HEAD:${{ github.head_ref }}
+          git push origin HEAD:${{ github.head_ref || github.ref_name }}
