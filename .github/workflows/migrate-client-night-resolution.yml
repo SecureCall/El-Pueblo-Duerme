@@ -88,3 +88,5 @@ jobs:
           fi
           git commit -m 'fix: make night resolution server authoritative'
           git push origin HEAD:${{ github.head_ref }}
+
+      # This workflow intentionally performs the client-resolver removal only on the PR branch.
