@@ -6,7 +6,7 @@ import { validatePersistedNightSubmissions } from '@/lib/server/nightResolveVali
 import { createNightResolutionInput } from '@/lib/server/nightResolutionInput';
 import { readNightRoleSnapshot } from '@/lib/server/nightRoleSnapshot';
 import { resolveNightActions } from '@/lib/server/nightResolutionEngine';
-import { claimNightResolution, releaseNightResolution, renewNightResolution, markNightResolutionResolved } from '@/lib/server/nightResolutionLock';
+import { claimNightResolution, releaseNightResolution, renewNightResolution } from '@/lib/server/nightResolutionLock';
 
 const HEARTBEAT_MS = 30_000;
 
@@ -84,6 +84,31 @@ export async function POST(request: Request) {
     const roleSnapshot = await readNightRoleSnapshot(gameId, input.players.map((player) => player.uid));
     const result = resolveNightActions(input, roleSnapshot);
 
+    const acceptedAction = (action: string) =>
+      result.acceptedActions.find((item) => item.action === action) ?? null;
+    const ancianaAction = acceptedAction('ancianaTarget');
+    const ancianaTarget = ancianaAction?.targetUid ?? null;
+    const actorTarget = (action: string): string | null => {
+      const item = acceptedAction(action);
+      if (!item?.targetUid) return null;
+      return item.actorUid === ancianaTarget ? null : item.targetUid;
+    };
+
+    const guardianLastTarget = actorTarget('guardianTarget');
+    const doctorLastTarget = actorTarget('doctorTarget');
+    const doctorAction = acceptedAction('doctorTarget');
+    const doctorSelfUsed = Boolean(
+      doctorAction?.targetUid && doctorAction.targetUid === doctorAction.actorUid,
+    );
+
+    const primaryWolfTarget = result.wolfResolution.targetUid;
+    const primaryWolfVictim = primaryWolfTarget
+      ? result.statePatch.players.find((player) => player.uid === primaryWolfTarget)
+      : null;
+    const dayEliminatedUid = primaryWolfVictim && !primaryWolfVictim.isAlive
+      ? primaryWolfTarget
+      : null;
+
     // The lease is fenced again inside the transaction immediately before the
     // game write. No client-provided game state is trusted for this commit.
     const committed = await db.runTransaction(async (tx) => {
@@ -107,6 +132,9 @@ export async function POST(request: Request) {
       const finalWinner = result.winner;
       const nextPhase = finalWinner ? 'ended' : 'day';
       const aliveCount = patch.players.filter((player) => player.isAlive).length;
+      const previousForenseResults = currentGame.forenseResults && typeof currentGame.forenseResults === 'object'
+        ? currentGame.forenseResults as Record<string, string>
+        : {};
 
       tx.update(gameRef, {
         players: patch.players,
@@ -131,19 +159,24 @@ export async function POST(request: Request) {
         espiaUsed: patch.espiaUsed,
         sirenaUid: patch.sirenaUid,
         sirenaLinked: patch.sirenaLinked,
-        lobosBlocked: patch.lobosBlocked,
+        // This value must describe THIS night only. The old client resolver
+        // reset it at the start of every night and only Leprosa can set it.
+        lobosBlocked: result.deathEffects.nextNightWolfBlock,
         criaLoboRage: patch.criaLoboRage,
         hechiceraLifeUsed: patch.hechiceraLifeUsed,
         hechiceraPoisonUsed: patch.hechiceraPoisonUsed,
         brujaFoundVidente: patch.brujaFoundVidente,
         brujaProtectedUid: patch.brujaProtectedUid,
-        dayEliminatedUid: patch.dayEliminatedUid,
+        guardianLastTarget,
+        doctorLastTarget,
+        doctorSelfUsed,
+        dayEliminatedUid,
         cazadorPendingShot: patch.cazadorPendingShot,
         seerReveal: patch.seerReveal,
         seerReveal2: patch.seerReveal2,
         profetaReveal: patch.profetaReveal,
         silencedPlayers: patch.silencedPlayers,
-        forenseResults: patch.forenseResults,
+        forenseResults: { ...previousForenseResults, ...patch.forenseResults },
         saboteadorBan: patch.saboteadorBan,
         phase: nextPhase,
         winners: finalWinner,
