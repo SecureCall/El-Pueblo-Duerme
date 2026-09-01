@@ -9,7 +9,6 @@ permissions:
 
 jobs:
   migrate:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,10 +16,10 @@ jobs:
           fetch-depth: 1
 
       - name: Remove host-side night resolver
-        shell: python
+        shell: bash
         run: |
+          python3 <<'PY'
           from pathlib import Path
-          import re
 
           path = Path('components/game/play/GamePlay.tsx')
           text = path.read_text(encoding='utf-8')
@@ -36,8 +35,9 @@ jobs:
           end = text.index(end_marker, start)
 
           replacement = '''  // ── Server-authoritative night resolution ───────────────────────────────
-  // Every client may request resolution. The API owns the lock, validation,
-  // role snapshot and atomic Firestore commit, so the host is not a dependency.
+  // Any connected player may request resolution. The API owns authentication,
+  // action validation, the private role snapshot, the round lock and the
+  // atomic Firestore commit. The host is deliberately not a dependency.
   useEffect(() => {
     if (!game || !user || game.phase !== 'night') return;
 
@@ -63,12 +63,9 @@ jobs:
           body: JSON.stringify({ gameId }),
         });
 
-        if (!response.ok) {
+        if (!response.ok && response.status !== 409) {
           const data = await response.json().catch(() => ({}));
-          // 409 means another client already owns/resolved this round.
-          if (response.status !== 409) {
-            console.warn('[server-night] resolution request failed', data?.error ?? response.status);
-          }
+          console.warn('[server-night] resolution request failed', data?.error ?? response.status);
         }
       } catch (error) {
         console.error('[server-night] resolution request error', error);
@@ -77,11 +74,6 @@ jobs:
       }
     };
 
-    // Never resolve before the minimum coordination window.
-    const minDelay = Math.max(0, MIN_NIGHT_MS - elapsed);
-    const timeoutDelay = Math.max(0, NIGHT_TIMEOUT_MS - elapsed);
-
-    // If the public submission map says everybody is done, request early.
     const subs = game.nightSubmissions ?? {};
     const roles = game.roles ?? {};
     const activePlayers = (game.players ?? []).filter(p => p.isAlive);
@@ -121,12 +113,14 @@ jobs:
       done('forense', has('Médico Forense')) &&
       done('saboteador', has('Saboteador'));
 
-    const earlyDelay = Math.max(minDelay, 0);
+    const earlyDelay = Math.max(0, MIN_NIGHT_MS - elapsed);
+    const timeoutDelay = Math.max(0, NIGHT_TIMEOUT_MS - elapsed);
+    const shouldResolveEarly = allDone && elapsed >= MIN_NIGHT_MS;
     const timer = setTimeout(() => {
-      if (allDone || Date.now() - startedAt >= NIGHT_TIMEOUT_MS) {
+      if (shouldResolveEarly || Date.now() - startedAt >= NIGHT_TIMEOUT_MS) {
         void resolveOnServer();
       }
-    }, allDone ? earlyDelay : timeoutDelay);
+    }, shouldResolveEarly ? 0 : (allDone ? earlyDelay : timeoutDelay));
 
     return () => clearTimeout(timer);
   }, [game, user, gameId]);
@@ -134,18 +128,15 @@ jobs:
 '''
 
           text = text[:start] + replacement + text[end:]
-
-          # The legacy resolver imported client-only resolution helpers. Keep
-          # only the imports still needed by the component after migration.
           text = text.replace(
               "import { db } from '@/lib/firebase/config';",
               "import { db, auth } from '@/lib/firebase/config';",
           )
-
           path.write_text(text, encoding='utf-8')
-          print('Removed host-side processNight and installed server-authoritative trigger.')
+          print('Migration applied.')
+          PY
 
-      - name: Typecheck and commit migration
+      - name: Commit migration and remove temporary workflow
         shell: bash
         run: |
           if git diff --quiet -- components/game/play/GamePlay.tsx; then
@@ -157,4 +148,4 @@ jobs:
           git add components/game/play/GamePlay.tsx
           git rm .github/workflows/migrate-night-authority.yml
           git commit -m 'fix: remove host-side night resolution'
-          git push
+          git push origin HEAD:main
