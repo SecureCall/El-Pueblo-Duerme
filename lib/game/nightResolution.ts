@@ -28,30 +28,19 @@ const TARGET_ACTIONS = new Set([
 ]);
 
 const MULTI_TARGET_ACTIONS = new Set(['cupidTargets', 'flautistaTargets']);
-
-const BOOLEAN_ACTIONS = new Set([
-  'witchSave', 'vigiaActivate', 'espiaActivate', '_skip',
-]);
-
-const ALLOWED_ACTIONS = new Set([
-  ...TARGET_ACTIONS,
-  ...MULTI_TARGET_ACTIONS,
-  ...BOOLEAN_ACTIONS,
-  'perroLoboSide',
-]);
+const BOOLEAN_ACTIONS = new Set(['witchSave', 'vigiaActivate', 'espiaActivate', '_skip']);
+const ALLOWED_ACTIONS = new Set([...TARGET_ACTIONS, ...MULTI_TARGET_ACTIONS, ...BOOLEAN_ACTIONS, 'perroLoboSide']);
+const DEAD_TARGET_ACTIONS = new Set(['angelResucitarTarget', 'forenseTarget']);
 
 export function normalizeNightActions(input: unknown): Record<string, NightActionValue> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
   const source = input as Record<string, unknown>;
   const output: Record<string, NightActionValue> = {};
-
   for (const [key, value] of Object.entries(source)) {
     if (!ALLOWED_ACTIONS.has(key)) continue;
     if (typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number' || value === null) {
       output[key] = value;
-      continue;
-    }
-    if (Array.isArray(value)) {
+    } else if (Array.isArray(value)) {
       const strings = value.filter((item): item is string => typeof item === 'string' && item.length > 0);
       if (strings.length > 0) output[key] = strings;
     }
@@ -59,11 +48,7 @@ export function normalizeNightActions(input: unknown): Record<string, NightActio
   return output;
 }
 
-export function createNightActionSubmission(
-  actorUid: string,
-  action: string,
-  value?: NightActionValue,
-): NightActionSubmission {
+export function createNightActionSubmission(actorUid: string, action: string, value?: NightActionValue): NightActionSubmission {
   const submission: NightActionSubmission = { actorUid, action };
   if (typeof value === 'string') {
     if (TARGET_ACTIONS.has(action)) submission.targetUid = value;
@@ -76,10 +61,7 @@ export function createNightActionSubmission(
   return submission;
 }
 
-export function createNightActionSubmissions(
-  actorUid: string,
-  actions: unknown,
-): NightActionSubmission[] {
+export function createNightActionSubmissions(actorUid: string, actions: unknown): NightActionSubmission[] {
   const normalized = normalizeNightActions(actions);
   const submissions: NightActionSubmission[] = [];
   for (const [action, value] of Object.entries(normalized)) {
@@ -104,27 +86,28 @@ export function validateNightActionSubmissions(
   const errors: string[] = [];
   const playerMap = new Map(players.map(player => [player.uid, player]));
   const actor = playerMap.get(actorUid);
-
   if (!actor) errors.push(`unknown_actor:${actorUid}`);
   else if (!actor.isAlive) errors.push(`dead_actor:${actorUid}`);
 
   const allowed = ROLE_ACTIONS[actorRole];
   for (const submission of submissions) {
-    if (submission.actorUid !== actorUid) {
-      errors.push(`actor_mismatch:${submission.actorUid}`);
-      continue;
-    }
+    if (submission.actorUid !== actorUid) { errors.push(`actor_mismatch:${submission.actorUid}`); continue; }
     if (submission.action !== '_skip' && (!allowed || !allowed.has(submission.action))) {
       errors.push(`role_not_allowed:${actorUid}:${submission.action}`);
     }
+    if (BOOLEAN_ACTIONS.has(submission.action) && submission.action !== '_skip' && submission.value !== true) {
+      errors.push(`invalid_boolean:${submission.action}`);
+    }
     if (submission.targetUid) {
       const target = playerMap.get(submission.targetUid);
-      if (!target || !target.isAlive) errors.push(`invalid_target:${submission.targetUid}`);
+      if (!target || (!target.isAlive && !DEAD_TARGET_ACTIONS.has(submission.action))) {
+        errors.push(`invalid_target:${submission.targetUid}`);
+      }
     }
     if (submission.targetUids) {
       for (const targetUid of submission.targetUids) {
         const target = playerMap.get(targetUid);
-        if (!target || !target.isAlive) errors.push(`invalid_target:${targetUid}`);
+        if (!target || (!target.isAlive && !DEAD_TARGET_ACTIONS.has(submission.action))) errors.push(`invalid_target:${targetUid}`);
       }
     }
   }
