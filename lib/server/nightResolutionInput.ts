@@ -4,6 +4,7 @@ export interface NightResolutionPlayer {
   uid: string;
   name?: string;
   isAlive: boolean;
+  [key: string]: unknown;
 }
 
 export interface NightResolutionSubmission {
@@ -55,60 +56,37 @@ export interface NightResolutionInput {
 }
 
 function readRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
-
 function readStringRecord(value: unknown): Record<string, string> {
   const source = readRecord(value);
-  return Object.fromEntries(
-    Object.entries(source).filter(([, item]) => typeof item === 'string'),
-  ) as Record<string, string>;
+  return Object.fromEntries(Object.entries(source).filter(([, item]) => typeof item === 'string')) as Record<string, string>;
 }
-
 function readBooleanRecord(value: unknown): Record<string, boolean> {
   const source = readRecord(value);
-  return Object.fromEntries(
-    Object.entries(source).filter(([, item]) => item === true),
-  ) as Record<string, boolean>;
+  return Object.fromEntries(Object.entries(source).filter(([, item]) => item === true)) as Record<string, boolean>;
 }
-
 function readNumberRecord(value: unknown): Record<string, number> {
   const source = readRecord(value);
-  return Object.fromEntries(
-    Object.entries(source).filter(([, item]) => typeof item === 'number' && Number.isFinite(item)),
-  ) as Record<string, number>;
+  return Object.fromEntries(Object.entries(source).filter(([, item]) => typeof item === 'number' && Number.isFinite(item))) as Record<string, number>;
 }
-
 function readStringArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === 'string' && item.length > 0)
-    : [];
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.length > 0) : [];
 }
-
 function readLovers(game: Record<string, unknown>): [string, string] | null {
   const value = game.lovers;
   if (!Array.isArray(value) || value.length !== 2) return null;
-  if (typeof value[0] !== 'string' || typeof value[1] !== 'string') return null;
-  if (value[0] === value[1]) return null;
+  if (typeof value[0] !== 'string' || typeof value[1] !== 'string' || value[0] === value[1]) return null;
   return [value[0], value[1]];
 }
-
 function readHistory(game: Record<string, unknown>): NightResolutionHistory {
   const rawHistory = Array.isArray(game.eliminatedHistory) ? game.eliminatedHistory : [];
   const eliminatedHistory = rawHistory.flatMap((entry) => {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return [];
     const item = entry as Record<string, unknown>;
     if (typeof item.uid !== 'string' || typeof item.name !== 'string' || typeof item.role !== 'string') return [];
-    return [{
-      uid: item.uid,
-      name: item.name,
-      role: item.role,
-      ...(typeof item.round === 'number' ? { round: item.round } : {}),
-    }];
+    return [{ uid: item.uid, name: item.name, role: item.role, ...(typeof item.round === 'number' ? { round: item.round } : {}) }];
   });
-
   return {
     guardianLastTarget: typeof game.guardianLastTarget === 'string' ? game.guardianLastTarget : null,
     doctorLastTarget: typeof game.doctorLastTarget === 'string' ? game.doctorLastTarget : null,
@@ -143,25 +121,16 @@ function readHistory(game: Record<string, unknown>): NightResolutionHistory {
   };
 }
 
-/** Builds the server-owned input from persisted submissions and game history. */
-export function createNightResolutionInput(
-  gameId: string,
-  roundNumber: number,
-  players: Array<Record<string, unknown>>,
-  submissions: NightResolutionSubmission[],
-  game: Record<string, unknown>,
-): NightResolutionInput {
+/** Builds server-owned input while preserving non-gameplay player fields for atomic state commits. */
+export function createNightResolutionInput(gameId: string, roundNumber: number, players: Array<Record<string, unknown>>, submissions: NightResolutionSubmission[], game: Record<string, unknown>): NightResolutionInput {
   return {
-    gameId,
-    roundNumber,
-    phase: 'night',
-    players: players
-      .filter((player) => typeof player.uid === 'string')
-      .map((player) => ({
-        uid: player.uid as string,
-        ...(typeof player.name === 'string' ? { name: player.name } : {}),
-        isAlive: player.isAlive === true,
-      })),
+    gameId, roundNumber, phase: 'night',
+    players: players.filter((player) => typeof player.uid === 'string').map((player) => ({
+      ...player,
+      uid: player.uid as string,
+      ...(typeof player.name === 'string' ? { name: player.name } : {}),
+      isAlive: player.isAlive === true,
+    })),
     submissions,
     history: readHistory(game),
   };
