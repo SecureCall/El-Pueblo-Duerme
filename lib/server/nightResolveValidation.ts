@@ -7,8 +7,8 @@ export interface NightResolveValidationResult {
 
 /**
  * Re-validates persisted night submissions against the current game state.
- * This is intentionally side-effect free: it only filters stale/invalid
- * proposals before the actual resolver mutates game state.
+ * A submission is valid only when it belongs to the exact active round.
+ * This prevents a stale per-player document from being replayed in a later night.
  */
 export function validatePersistedNightSubmissions(
   players: Array<Record<string, unknown>>,
@@ -37,8 +37,18 @@ export function validatePersistedNightSubmissions(
       continue;
     }
 
-    if (roundNumber !== null && submission.roundNumber != null && submission.roundNumber !== roundNumber) {
-      rejected.push({ actorUid: submission.actorUid, reason: 'stale_round' });
+    if (roundNumber === null || !Number.isInteger(roundNumber) || roundNumber < 1) {
+      rejected.push({ actorUid: submission.actorUid, reason: 'invalid_active_round' });
+      continue;
+    }
+
+    // Round binding is mandatory. Missing roundNumber is stale/legacy data,
+    // not a valid submission for the current night.
+    if (submission.roundNumber !== roundNumber) {
+      rejected.push({
+        actorUid: submission.actorUid,
+        reason: submission.roundNumber == null ? 'missing_round' : 'stale_round',
+      });
       continue;
     }
 
