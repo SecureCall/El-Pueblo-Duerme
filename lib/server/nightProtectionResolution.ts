@@ -11,17 +11,29 @@ export interface NightProtectionResolution {
   reasons: string[];
 }
 
-function actionTargets(input: NightResolutionInput, role: string, actionNames: string[]): string[] {
+function actionTargets(
+  input: NightResolutionInput,
+  role: string,
+  actionNames: string[],
+  blockedActorUid: string | null,
+  extraTargetFilter?: (targetUid: string) => boolean,
+): string[] {
   return input.submissions
-    .filter((submission) => submission.role === role)
+    .filter((submission) => submission.role === role && submission.actorUid !== blockedActorUid)
     .flatMap((submission) => submission.actions)
     .filter((action) => actionNames.includes(action.action))
-    .flatMap((action) => action.targetUid ? [action.targetUid] : []);
+    .flatMap((action) => action.targetUid ? [action.targetUid] : [])
+    .filter((uid) => extraTargetFilter ? extraTargetFilter(uid) : true);
 }
 
-function hasBooleanAction(input: NightResolutionInput, role: string, actionName: string): boolean {
+function hasBooleanAction(
+  input: NightResolutionInput,
+  role: string,
+  actionName: string,
+  blockedActorUid: string | null,
+): boolean {
   return input.submissions
-    .filter((submission) => submission.role === role)
+    .filter((submission) => submission.role === role && submission.actorUid !== blockedActorUid)
     .some((submission) => submission.actions.some(
       (action) => action.action === actionName && action.value === true,
     ));
@@ -36,19 +48,33 @@ export function resolveNightProtections(
   const protectedTargetUids = new Set<string>();
   const playerUids = new Set(input.players.map((player) => player.uid));
 
-  // Canonical role names are Spanish; never use client-provided aliases here.
-  for (const uid of actionTargets(input, 'Guardián', ['guardianTarget'])) {
+  // Anciana Líder's target is blocked for the entire night, including protection abilities.
+  const ancianaSubmission = input.submissions
+    .find((submission) => submission.role === 'Anciana Líder')
+    ?.actions.find((action) => action.action === 'ancianaTarget');
+  const blockedActorUid = ancianaSubmission?.targetUid ?? null;
+
+  for (const uid of actionTargets(input, 'Guardián', ['guardianTarget'], blockedActorUid)) {
     if (playerUids.has(uid)) protectedTargetUids.add(uid);
   }
-  for (const uid of actionTargets(input, 'Doctor', ['doctorTarget'])) {
+
+  // Doctor cannot protect the same target on consecutive nights.
+  for (const uid of actionTargets(
+    input,
+    'Doctor',
+    ['doctorTarget'],
+    blockedActorUid,
+    (targetUid) => targetUid !== input.history.doctorLastTarget,
+  )) {
     if (playerUids.has(uid)) protectedTargetUids.add(uid);
   }
-  for (const uid of actionTargets(input, 'Sacerdote', ['sacerdoteTarget'])) {
+
+  for (const uid of actionTargets(input, 'Sacerdote', ['sacerdoteTarget'], blockedActorUid)) {
     if (playerUids.has(uid)) protectedTargetUids.add(uid);
   }
 
   // Hechicera's life potion is boolean: it protects the primary wolf target.
-  if (hasBooleanAction(input, 'Hechicera', 'witchSave') && wolfResolution.targetUid) {
+  if (hasBooleanAction(input, 'Hechicera', 'witchSave', blockedActorUid) && wolfResolution.targetUid) {
     protectedTargetUids.add(wolfResolution.targetUid);
   }
 
@@ -70,6 +96,8 @@ export function resolveNightProtections(
   );
 
   const reasons: string[] = [];
+  if (blockedActorUid) reasons.push(`anciana_block:${blockedActorUid}`);
+  if (input.history.doctorLastTarget) reasons.push(`doctor_last_target:${input.history.doctorLastTarget}`);
   if (!wolfResolution.targetUid) reasons.push('no_wolf_target');
   else reasons.push(primaryBlocked ? 'wolf_target_protected' : 'wolf_target_unprotected');
   if (wolfResolution.secondaryTargetUid) {
