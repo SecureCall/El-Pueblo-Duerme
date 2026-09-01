@@ -8,6 +8,15 @@ export interface NightActionSubmission {
   value?: NightActionValue;
 }
 
+export interface NightSubmission {
+  actorUid: string;
+  role: string;
+  actions: NightActionSubmission[];
+  roundNumber?: number;
+  submittedAt?: number;
+  syncedAt?: number;
+}
+
 const TARGET_ACTIONS = new Set([
   'wolfTarget', 'wolfTarget2', 'seerTarget', 'seerTarget2', 'profetaTarget',
   'witchPoison', 'brujaTarget', 'guardianTarget', 'doctorTarget',
