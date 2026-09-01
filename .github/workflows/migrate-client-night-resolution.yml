@@ -3,6 +3,9 @@ name: Migrate client night resolution
 on:
   pull_request:
     types: [opened, synchronize]
+  push:
+    branches:
+      - 'migration/**'
   workflow_dispatch:
 
 permissions:
@@ -15,7 +18,7 @@ jobs:
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Remove client-authoritative night resolver
         run: |
@@ -87,6 +90,4 @@ jobs:
             exit 0
           fi
           git commit -m 'fix: make night resolution server authoritative'
-          git push origin HEAD:${{ github.head_ref }}
-
-      # This workflow intentionally performs the client-resolver removal only on the PR branch.
+          git push origin HEAD:${{ github.head_ref || github.ref_name }}
