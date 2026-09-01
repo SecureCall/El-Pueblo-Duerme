@@ -24,7 +24,7 @@ const TARGET_ACTIONS = new Set([
   'angelResucitarTarget', 'silenciadoraTarget', 'sirenaTarget',
   'virginiawoolTarget', 'bansheePrediction', 'cambiaformasTarget',
   'liderCultoTarget', 'pescadorTarget', 'vampiroTarget', 'hadaBuscadoraTarget',
-  'forenseTarget', 'saboteadorTarget',
+  'forenseTarget', 'saboteadorTarget', 'loboBlancoCide',
 ]);
 
 const MULTI_TARGET_ACTIONS = new Set(['cupidTargets', 'flautistaTargets']);
@@ -37,7 +37,7 @@ const ALLOWED_ACTIONS = new Set([
   ...TARGET_ACTIONS,
   ...MULTI_TARGET_ACTIONS,
   ...BOOLEAN_ACTIONS,
-  'loboBlancoCide', 'perroLoboSide', 'salvajeMentor',
+  'perroLoboSide',
 ]);
 
 export function normalizeNightActions(input: unknown): Record<string, NightActionValue> {
