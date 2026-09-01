@@ -1,0 +1,93 @@
+name: Migrate client night resolution
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Remove client-authoritative night resolver
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('components/game/play/GamePlay.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          start_marker = '  // Host processes night when all required submissions received\n'
+          start = text.find(start_marker)
+          end_marker = '  const submitDayVote = useCallback(async (targetUid: string) => {'
+          end = text.find(end_marker)
+
+          if start == -1 or end == -1 or end <= start:
+              raise SystemExit('Night resolver block markers not found; refusing unsafe edit')
+
+          replacement = '''  // Server-authoritative night resolution. Any authenticated player can trigger it;
+  // the server lease guarantees that only one resolver commits the round.
+  useEffect(() => {
+    if (!game || !user || game.phase !== 'night') return;
+
+    const NIGHT_DEADLINE_MS = 58_000;
+    const startedAt = game.nightStartedAt ?? Date.now();
+    const remaining = Math.max(0, NIGHT_DEADLINE_MS - (Date.now() - startedAt));
+
+    const resolve = async () => {
+      try {
+        const idToken = await user.getIdToken();
+        const response = await fetch('/api/resolve-night', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          credentials: 'include',
+          body: JSON.stringify({ gameId }),
+        });
+        if (!response.ok && response.status !== 409) {
+          const data = await response.json().catch(() => ({}));
+          console.warn('[server-night-resolution] request rejected', data?.error ?? response.status);
+        }
+      } catch (error) {
+        console.warn('[server-night-resolution] request failed', error);
+      }
+    };
+
+    const timer = window.setTimeout(resolve, remaining);
+    return () => window.clearTimeout(timer);
+  }, [game?.phase, game?.roundNumber, game?.nightStartedAt, gameId, user]);
+
+'''
+
+          text = text[:start] + replacement + text[end:]
+          path.write_text(text, encoding='utf-8')
+          print('GamePlay.tsx migrated')
+          PY
+
+      - name: Verify no client night resolver remains
+        run: |
+          if grep -nE "function processNight|processNight\(\)|Host processes night when all required submissions" components/game/play/GamePlay.tsx; then
+            echo 'Client-authoritative night resolution still present'
+            exit 1
+          fi
+
+      - name: Commit migration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add components/game/play/GamePlay.tsx
+          if git diff --cached --quiet; then
+            echo 'No migration changes needed'
+            exit 0
+          fi
+          git commit -m 'fix: make night resolution server authoritative'
+          git push
