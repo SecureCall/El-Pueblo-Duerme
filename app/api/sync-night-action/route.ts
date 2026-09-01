@@ -39,6 +39,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No es fase de noche' }, { status: 409 });
     }
 
+    const roundNumber = typeof gameData.roundNumber === 'number' && Number.isInteger(gameData.roundNumber)
+      ? gameData.roundNumber
+      : null;
+    if (roundNumber === null || roundNumber < 1) {
+      return NextResponse.json({ error: 'Ronda nocturna inválida' }, { status: 409 });
+    }
+
     const players: { uid: string; isAlive: boolean }[] = Array.isArray(gameData.players) ? gameData.players : [];
     const actor = players.find(p => p.uid === uid);
     if (!actor || !actor.isAlive) {
@@ -78,7 +85,9 @@ export async function POST(req: NextRequest) {
     await submissionRef.set({
       actorUid: uid,
       role: serverRole,
+      roundNumber,
       actions: submissions,
+      submittedAt: Date.now(),
       syncedAt: Date.now(),
     }, { merge: true });
 
@@ -87,6 +96,7 @@ export async function POST(req: NextRequest) {
       validated: true,
       actorUid: uid,
       role: serverRole,
+      roundNumber,
       actions: submissions.map(s => s.action),
     });
   } catch (err: unknown) {
