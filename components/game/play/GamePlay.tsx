@@ -1687,16 +1687,18 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (game.phase !== 'day' && game.phase !== 'voting') { console.warn('[FSM] submitDayVote rejected — not day/voting phase'); return; }
     const me = game.players?.find(p => p.uid === user.uid);
     if (!me?.isAlive) { console.warn('[FSM] submitDayVote rejected — player not alive'); return; }
-    let actualTarget = targetUid;
-    if (game.sirenaLinked === user.uid && game.sirenaUid) {
-      actualTarget = votesFromSub[game.sirenaUid] ?? targetUid;
-    }
+    const round = game.roundNumber ?? 1;
     try {
-      await setDoc(doc(db, 'games', gameId, 'votes', user.uid), {
-        target: actualTarget,
-        round: game.roundNumber ?? 1,
-        submittedAt: Date.now(),
+      const idToken = await user.getIdToken();
+      const response = await fetch('/api/day-vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ gameId, uid: user.uid, target: targetUid, round }),
       });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error ?? `day-vote ${response.status}`);
+      }
       // Registro de comportamiento del jugador (fire-and-forget)
       if (game.dayStartedAt) recordVote(user.uid, game.dayStartedAt).catch(() => {});
     } catch (e) { console.error('submitDayVote error:', e); }
@@ -1794,11 +1796,13 @@ export function GamePlay({ gameId }: { gameId: string }) {
             : pickBotVoteTarget(bType, capturedUid, freshAlive, allCurrentVotes);
           if (!targetUid) return;
 
-          await setDoc(doc(db, 'games', gameId, 'votes', capturedUid), {
-            target: targetUid,
-            round,
-            submittedAt: Date.now(),
+          const idToken = await user.getIdToken();
+          const voteResponse = await fetch('/api/day-vote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+            body: JSON.stringify({ gameId, uid: capturedUid, target: targetUid, round }),
           });
+          if (!voteResponse.ok) return;
 
           // Narrador spotlight: 28% de probabilidad de mencionar al bot
           if (Math.random() < 0.28) {
