@@ -7,6 +7,7 @@ import { createNightResolutionInput } from '@/lib/server/nightResolutionInput';
 import { readNightRoleSnapshot } from '@/lib/server/nightRoleSnapshot';
 import { resolveNightActions } from '@/lib/server/nightResolutionEngine';
 import { claimNightResolution, releaseNightResolution, renewNightResolution } from '@/lib/server/nightResolutionLock';
+import { canonicalizeWolfTeam } from '@/lib/server/wolfTeam';
 
 const HEARTBEAT_MS = 30_000;
 
@@ -114,6 +115,10 @@ export async function POST(request: Request) {
       ? primaryWolfTarget
       : null;
 
+    // The resolver may carry historical/stale wolfTeam entries. Never persist one
+    // that disagrees with the authoritative private role snapshot.
+    const canonicalWolfTeam = canonicalizeWolfTeam(result.statePatch.roles, result.statePatch.wolfTeam);
+
     // The lease is fenced again inside the transaction immediately before the
     // game write. No client-provided game state is trusted for this commit.
     const committed = await db.runTransaction(async (tx) => {
@@ -145,7 +150,7 @@ export async function POST(request: Request) {
         players: patch.players,
         roles: patch.roles,
         eliminatedHistory: patch.eliminatedHistory,
-        wolfTeam: patch.wolfTeam,
+        wolfTeam: canonicalWolfTeam,
         antigoHit: patch.antigoHit,
         cambiaformasTargets: patch.cambiaformasTargets,
         salvajeMentors: patch.salvajeMentors,
