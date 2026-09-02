@@ -23,9 +23,6 @@ export async function POST(req: NextRequest) {
     if (!gameId || !uid || !target || !Number.isInteger(round)) {
       return NextResponse.json({ error: 'gameId, uid, target y round son obligatorios' }, { status: 400 });
     }
-    if (uid !== tokenUid) {
-      return NextResponse.json({ error: 'UID no coincide con el token' }, { status: 403 });
-    }
 
     initAdminApp();
     const db = getFirestore();
@@ -41,11 +38,17 @@ export async function POST(req: NextRequest) {
       if (!ALLOWED_PHASES.has(String(game.phase))) throw new Error('VOTE_PHASE_CLOSED');
       if (!Number.isInteger(currentRound) || round !== currentRound) throw new Error('STALE_ROUND');
 
-      const players = Array.isArray(game.players) ? game.players as Array<{ uid?: string; isAlive?: boolean }> : [];
+      const players = Array.isArray(game.players) ? game.players as Array<{ uid?: string; isAlive?: boolean; isAI?: boolean }> : [];
       const voter = players.find(p => p.uid === uid);
       const targetPlayer = players.find(p => p.uid === target);
       if (!voter?.isAlive) throw new Error('VOTER_INVALID');
       if (!targetPlayer?.isAlive) throw new Error('TARGET_INVALID');
+
+      // Humans may submit only for themselves. The current host may submit
+      // on behalf of an AI player because AI votes are host-driven by design.
+      const authorizedHuman = tokenUid === uid;
+      const authorizedAI = voter.isAI === true && tokenUid === game.hostUid;
+      if (!authorizedHuman && !authorizedAI) throw new Error('UID_FORBIDDEN');
 
       const banned = new Set<string>([
         ...(Array.isArray(game.voteBanned) ? game.voteBanned : []),
@@ -53,8 +56,7 @@ export async function POST(req: NextRequest) {
       ]);
       if (banned.has(uid)) throw new Error('VOTER_BANNED');
 
-      // Sirena: the linked player must mirror the Sirena's current vote.
-      // Read the authoritative vote document, never a client-supplied cache.
+      // Sirena: the linked player mirrors the Sirena's current vote.
       let actualTarget = target;
       if (game.sirenaLinked === uid && typeof game.sirenaUid === 'string' && game.sirenaUid) {
         const sirenaVoteSnap = await tx.get(gameRef.collection('votes').doc(game.sirenaUid));
@@ -81,6 +83,7 @@ export async function POST(req: NextRequest) {
       STALE_ROUND: [409, 'Ronda de voto no válida o desactualizada'],
       VOTER_INVALID: [403, 'Jugador no válido o muerto'],
       TARGET_INVALID: [403, 'Objetivo no válido'],
+      UID_FORBIDDEN: [403, 'No autorizado para emitir este voto'],
       VOTER_BANNED: [403, 'Este jugador no puede votar'],
     };
     const [status, message] = statuses[code] ?? [500, 'Error interno'];
