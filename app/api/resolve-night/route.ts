@@ -63,7 +63,9 @@ export async function POST(request: Request) {
       void renew().catch((error) => console.error('[resolve-night] lease renewal failed', error));
     }, HEARTBEAT_MS);
 
-    const submissions = await readNightSubmissions(gameId);
+    // Round binding happens at the read boundary, not only later in validation.
+    // Old subcollection documents can therefore never enter the resolver.
+    const submissions = await readNightSubmissions(gameId, roundNumber);
     const validation = validatePersistedNightSubmissions(
       players as Array<Record<string, unknown>>,
       submissions,
@@ -73,6 +75,9 @@ export async function POST(request: Request) {
       actorUid: submission.actorUid,
       role: submission.role,
       actions: submission.actions,
+      roundNumber: submission.roundNumber,
+      submittedAt: submission.submittedAt,
+      syncedAt: submission.syncedAt,
     }));
     const input = createNightResolutionInput(
       gameId,
@@ -159,8 +164,6 @@ export async function POST(request: Request) {
         espiaUsed: patch.espiaUsed,
         sirenaUid: patch.sirenaUid,
         sirenaLinked: patch.sirenaLinked,
-        // This value must describe THIS night only. The old client resolver
-        // reset it at the start of every night and only Leprosa can set it.
         lobosBlocked: result.deathEffects.nextNightWolfBlock,
         criaLoboRage: patch.criaLoboRage,
         hechiceraLifeUsed: patch.hechiceraLifeUsed,
