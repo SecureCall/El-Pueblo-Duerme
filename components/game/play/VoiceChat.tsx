@@ -14,12 +14,14 @@ interface Props {
   wolfTeam?: Record<string, boolean>;
 }
 
-const WOLF_ROLES = new Set(['Lobo', 'Alfa', 'Lobo Solitario', 'Hechicera', 'Lobo Anciano', 'Lobo Blanco', 'Cría de Lobo', 'Virginia Woolf']);
+// Only roles that are actually on the wolf team by game rules.
+// Dynamic role changes (Cambiaformas, Perro Lobo, etc.) are supplied by wolfTeam.
+const WOLF_ROLES = new Set(['Lobo', 'Lobo Blanco', 'Cría de Lobo']);
 
 export function VoiceChat({ gameId, userId, userName, phase, myRole, isAlive, wolfTeam = {} }: Props) {
   const [collapsed, setCollapsed] = useState(false);
 
-  const isWolf = WOLF_ROLES.has(myRole) || wolfTeam[userId];
+  const isWolf = WOLF_ROLES.has(myRole) || wolfTeam[userId] === true;
 
   let channel: string;
   let canSpeak: boolean;
