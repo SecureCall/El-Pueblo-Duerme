@@ -6,6 +6,7 @@ export interface ServerNightSubmission {
   actorUid: string;
   role: string;
   actions: NightActionSubmission[];
+  roundNumber?: number;
   submittedAt?: number;
   syncedAt?: number;
   [key: string]: unknown;
@@ -45,10 +46,16 @@ function normalizeStoredActions(value: unknown, actorUid: string): NightActionSu
 
 /**
  * Reads only the per-player submissions for a game using the Admin SDK.
- * This must stay server-side: clients never receive the full submission set.
+ * When a round is supplied, stale submissions from previous nights are
+ * excluded before game-specific validation. This prevents an old document
+ * from ever entering the resolver input for the current night.
  */
-export async function readNightSubmissions(gameId: string): Promise<ServerNightSubmission[]> {
+export async function readNightSubmissions(
+  gameId: string,
+  roundNumber?: number,
+): Promise<ServerNightSubmission[]> {
   if (!gameId) return [];
+  if (roundNumber !== undefined && (!Number.isInteger(roundNumber) || roundNumber < 1)) return [];
 
   initAdminApp();
   const db = getFirestore();
@@ -63,15 +70,23 @@ export async function readNightSubmissions(gameId: string): Promise<ServerNightS
       const data = doc.data() as Record<string, unknown>;
       const actorUid = typeof data.actorUid === 'string' ? data.actorUid : doc.id;
       const role = typeof data.role === 'string' ? data.role : '';
+      const storedRound = typeof data.roundNumber === 'number' && Number.isInteger(data.roundNumber)
+        ? data.roundNumber
+        : undefined;
 
       return {
         ...data,
         actorUid,
         role,
+        roundNumber: storedRound,
         actions: normalizeStoredActions(data.actions, actorUid),
       };
     })
-    .filter((submission) => Boolean(submission.actorUid && submission.role && submission.actions.length));
+    .filter((submission) => {
+      if (!submission.actorUid || !submission.role || !submission.actions.length) return false;
+      if (roundNumber !== undefined && submission.roundNumber !== roundNumber) return false;
+      return true;
+    });
 }
 
 /**
