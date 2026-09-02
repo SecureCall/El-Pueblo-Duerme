@@ -43,6 +43,13 @@ export async function POST(req: NextRequest) {
     if (gameData.phase !== 'day' && gameData.phase !== 'voting') {
       return NextResponse.json({ error: 'No es fase de votación' }, { status: 409 });
     }
+
+    const currentRound = Number(gameData.roundNumber ?? 1);
+    const submittedRound = Number(round);
+    if (!Number.isInteger(submittedRound) || submittedRound !== currentRound) {
+      return NextResponse.json({ error: 'Ronda de voto no válida o desactualizada' }, { status: 409 });
+    }
+
     const players: { uid: string; isAlive: boolean }[] = gameData.players ?? [];
     if (!players.some(p => p.uid === uid && p.isAlive)) {
       return NextResponse.json({ error: 'Jugador no válido o muerto' }, { status: 403 });
@@ -55,7 +62,7 @@ export async function POST(req: NextRequest) {
       .collection('games').doc(gameId)
       .collection('votes').doc(uid)
       .set(
-        { target, round: round ?? gameData.roundNumber, submittedAt: Date.now(), syncedAt: Date.now() },
+        { target, round: currentRound, submittedAt: Date.now(), syncedAt: Date.now() },
         { merge: true }
       );
 
