@@ -59,15 +59,13 @@ export async function POST(req: NextRequest) {
       const now = Date.now();
       if (lockSnap.exists) {
         const lock = lockSnap.data() as LockDoc;
-        if (lock.expiresAt > now && lock.ownerUid !== tokenUid) throw new Error('LOCKED');
+        if (lock.expiresAt > now) throw new Error('LOCKED');
       }
 
       tx.set(lockRef, { ownerUid: tokenUid, leaseId: lease, round, expiresAt: now + LEASE_MS });
       return { round, leaseId: lease };
     });
 
-    // Read authoritative vote documents after claiming the lease. Only current-round
-    // votes from living voters targeting living players are returned to the host.
     const gameSnap = await gameRef.get();
     const game = gameSnap.data()!;
     const players = Array.isArray(game.players) ? game.players as { uid: string; isAlive: boolean }[] : [];
