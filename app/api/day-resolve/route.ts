@@ -4,6 +4,7 @@ import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { getFirestore } from 'firebase-admin/firestore';
 
 const LEASE_MS = 30_000;
+const MAX_PATCH_BYTES = 256_000;
 
 type LockDoc = {
   ownerUid: string;
@@ -16,6 +17,31 @@ function makeLeaseId(uid: string) {
   return `${uid}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
 }
 
+const DAY_PATCH_KEYS = new Set([
+  'players', 'roles', 'eliminatedHistory', 'enchanted', 'cazadorPendingShot',
+  'chivoPendingChoice', 'voteBanned', 'alquimistaPotion', 'alquimistaRevealUid',
+  'juezUsed', 'alborotadoraFight', 'fantasmaPending', 'silencedPlayers',
+  'bansheePredictionUid', 'bansheePoints', 'phase', 'winners', 'winMessage',
+  'roundNumber', 'dayVotes', 'dayEliminatedUid', 'seerReveal', 'seerReveal2',
+  'profetaReveal', 'nightActions', 'nightSubmissions', 'bearGrowl',
+  'nightStartedAt', 'phaseEndsAt', 'currentEvent', 'eclipseActive',
+  'doubleSeerActive', 'anonymousVotesActive', 'noExileActive', 'saboteadorBan',
+  'cambiaformasTargets', 'wolfTeam', 'revealDeadResult',
+]);
+
+function sanitizePatch(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const patch = value as Record<string, unknown>;
+  const keys = Object.keys(patch);
+  if (!keys.length || keys.length > DAY_PATCH_KEYS.size) return null;
+  for (const key of keys) {
+    if (!DAY_PATCH_KEYS.has(key)) return null;
+  }
+  const encoded = JSON.stringify(patch);
+  if (!encoded || Buffer.byteLength(encoded, 'utf8') > MAX_PATCH_BYTES) return null;
+  return patch;
+}
+
 export async function POST(req: NextRequest) {
   const tokenUid = await verifyAuthToken(req);
   if (!tokenUid) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
@@ -23,8 +49,9 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const gameId = typeof body.gameId === 'string' ? body.gameId : '';
-    const action = body.action === 'release' ? 'release' : 'claim';
+    const action = body.action === 'release' || body.action === 'commit' ? body.action : 'claim';
     const leaseId = typeof body.leaseId === 'string' ? body.leaseId : '';
+    const submittedRound = Number(body.round);
     if (!gameId) return NextResponse.json({ error: 'gameId required' }, { status: 400 });
 
     initAdminApp();
@@ -43,6 +70,38 @@ export async function POST(req: NextRequest) {
         return true;
       });
       return NextResponse.json({ ok: true, released });
+    }
+
+    if (action === 'commit') {
+      if (!leaseId || !Number.isInteger(submittedRound)) {
+        return NextResponse.json({ error: 'leaseId and round required' }, { status: 400 });
+      }
+      const patch = sanitizePatch(body.patch);
+      if (!patch) return NextResponse.json({ error: 'Invalid day resolution patch' }, { status: 400 });
+
+      await db.runTransaction(async tx => {
+        const [gameSnap, lockSnap] = await Promise.all([tx.get(gameRef), tx.get(lockRef)]);
+        if (!gameSnap.exists) throw new Error('GAME_NOT_FOUND');
+        if (!lockSnap.exists) throw new Error('LEASE_LOST');
+        const game = gameSnap.data()!;
+        const lock = lockSnap.data() as LockDoc;
+        const now = Date.now();
+        if (lock.ownerUid !== tokenUid || lock.leaseId !== leaseId) throw new Error('LEASE_LOST');
+        if (lock.round !== submittedRound || Number(game.roundNumber ?? 1) !== submittedRound) throw new Error('ROUND_CHANGED');
+        if (lock.expiresAt <= now) throw new Error('LEASE_EXPIRED');
+        if (game.hostUid !== tokenUid) throw new Error('NOT_HOST');
+        if (game.phase !== 'day') throw new Error('PHASE_CHANGED');
+
+        const nextRound = Number(patch.roundNumber);
+        if (!Number.isInteger(nextRound) || nextRound !== submittedRound + 1) throw new Error('INVALID_NEXT_ROUND');
+        const nextPhase = patch.phase;
+        if (nextPhase !== 'night' && nextPhase !== 'ended') throw new Error('INVALID_NEXT_PHASE');
+
+        tx.update(gameRef, patch);
+        tx.delete(lockRef);
+      });
+
+      return NextResponse.json({ ok: true, committed: true });
     }
 
     const lease = makeLeaseId(tokenUid);
@@ -90,6 +149,12 @@ export async function POST(req: NextRequest) {
       NOT_HOST: ['Solo el host puede resolver el día', 403],
       NOT_DAY: ['No es fase de día', 409],
       LOCKED: ['La resolución del día ya está en curso', 409],
+      LEASE_LOST: ['La resolución del día perdió su lease', 409],
+      LEASE_EXPIRED: ['El lease de resolución expiró', 409],
+      ROUND_CHANGED: ['La ronda cambió durante la resolución', 409],
+      PHASE_CHANGED: ['La fase cambió durante la resolución', 409],
+      INVALID_NEXT_ROUND: ['Ronda de resolución inválida', 400],
+      INVALID_NEXT_PHASE: ['Fase final inválida', 400],
     };
     const [error, status] = map[message] ?? ['Error interno', 500];
     console.error('[day-resolve]', message);
