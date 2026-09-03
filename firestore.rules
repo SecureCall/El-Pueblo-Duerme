@@ -177,12 +177,21 @@ service cloud.firestore {
       allow delete: if isAuth() && request.auth.uid == resource.data.hostUid;
     }
 
+    // Private role snapshots are authoritative server state once the match
+    // leaves the lobby. The host may create them during lobby setup, but can
+    // never mutate or delete them after the match starts. Server/Admin SDK
+    // writes (night/day resolution) bypass these client rules.
     match /games/{gameId}/playerRoles/{uid} {
       allow read: if isAuth() && (
         request.auth.uid == uid
         || isHost(gameId)
       );
-      allow write: if isAuth() && isHost(gameId);
+      allow create: if isAuth()
+        && isHost(gameId)
+        && get(/databases/$(database)/documents/games/$(gameId)).data.phase == 'lobby'
+        && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == uid)
+        && request.resource.data.role == get(/databases/$(database)/documents/games/$(gameId)).data.roles[uid];
+      allow update, delete: if false;
     }
 
     match /games/{gameId}/reports/{reportId} {
@@ -197,9 +206,6 @@ service cloud.firestore {
     }
 
     // ── Day votes — server-only writes ────────────────────────────────────
-    // Online and offline clients submit through /api/day-vote and
-    // /api/sync-vote. Both endpoints validate identity, phase, round,
-    // voter/target liveness and vote bans before using Admin SDK.
     match /games/{gameId}/votes/{voterUid} {
       allow read: if isAuth();
       allow create, update, delete: if false;
@@ -221,7 +227,14 @@ service cloud.firestore {
     }
 
     match /games/{gameId}/ghostChat/{messageId} {
-      allow read: if isAuth();
+      allow read: if isAuth() && (
+        isHost(gameId)
+        || (
+          request.auth.uid == request.resource.data.senderId &&
+          get(/databases/$(database)/documents/games/$(gameId)).data.players
+            .exists(p, p.uid == request.auth.uid && p.isAlive == false)
+        )
+      );
       allow create: if isAuth() && (
         isHost(gameId)
         || (
