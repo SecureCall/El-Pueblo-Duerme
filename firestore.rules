@@ -34,7 +34,8 @@ service cloud.firestore {
         'fantasmaPending', 'fantasmaUsed', 'doubleSeerActive', 'criaLoboRage', 'vigiaUsed',
         'vigiaKnowsWolves', 'angelResucitadorUsed', 'bansheePoints', 'alquimistaPotion',
         'alquimistaRevealUid', 'hadaLinked', 'principeUsed', 'espiaUsed', 'antiguoHit',
-        'brujaFoundVidente', 'guardianLastTarget', 'doctorLastTarget', 'doctorSelfUsed'
+        'brujaFoundVidente', 'guardianLastTarget', 'doctorLastTarget', 'doctorSelfUsed',
+        'lastWordsUsed'
       ]);
     }
 
@@ -191,7 +192,21 @@ service cloud.firestore {
 
     match /games/{gameId}/publicChat/{messageId} {
       allow read: if isAuth();
-      allow create: if isAuth() && (request.auth.uid == request.resource.data.senderId || isHost(gameId));
+      allow create: if isAuth()
+        && request.resource.data.keys().hasOnly(['senderId', 'senderName', 'text', 'type', 'createdAt'])
+        && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.senderName is string
+        && request.resource.data.senderName.size() <= 60
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 280
+        && request.resource.data.type != 'lastWords'
+        && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid)
+        && (
+          isHost(gameId)
+          || get(/databases/$(database)/documents/games/$(gameId)).data.phase == 'day'
+          || get(/databases/$(database)/documents/games/$(gameId)).data.phase == 'voting'
+        );
       allow update, delete: if false;
     }
 
@@ -254,20 +269,12 @@ service cloud.firestore {
     }
 
     match /games/{gameId}/twinChat/{messageId} {
-      allow read: if isAuth() && (
-        isHost(gameId) || get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid)
-      );
-      allow create: if isAuth() && request.auth.uid == request.resource.data.senderId
-        && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid);
+      allow read, create: if isAuth() && (isHost(gameId) || get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid));
       allow update, delete: if false;
     }
 
     match /games/{gameId}/fairyChat/{messageId} {
-      allow read: if isAuth() && (
-        isHost(gameId) || get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid)
-      );
-      allow create: if isAuth() && request.auth.uid == request.resource.data.senderId
-        && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid);
+      allow read, create: if isAuth() && (isHost(gameId) || get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid));
       allow update, delete: if false;
     }
 
