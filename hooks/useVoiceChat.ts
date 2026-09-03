@@ -47,7 +47,7 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
     ));
     controllerRef.current = controller;
 
-    const offState = controller.onStateChange?.((nextState) => setState(nextState));
+    const offState = controller.onStateChange(nextState => setState(nextState));
     const offParticipants = controller.onParticipantsChange((participants: VoiceParticipant[]) => {
       setPeers(participants.map(peer => ({
         uid: peer.playerId,
@@ -60,7 +60,7 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
     });
 
     return () => {
-      offState?.();
+      offState();
       offParticipants();
       controller.disconnect().catch(() => undefined);
       if (controllerRef.current === controller) controllerRef.current = null;
@@ -68,7 +68,7 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
       setPermissionGranted(false);
       setState('disconnected');
     };
-  }, [enabled, user, userId, userName]);
+  }, [enabled, user, userId, userName, channel]);
 
   const joinVoice = useCallback(async () => {
     const controller = controllerRef.current;
