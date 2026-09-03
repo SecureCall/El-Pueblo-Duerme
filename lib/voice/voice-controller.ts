@@ -6,6 +6,7 @@ export class VoiceController {
   private transport: VoiceTransport | null = null;
   private unsubs: Array<() => void> = [];
   private participantListeners = new Set<(participants: VoiceParticipant[]) => void>();
+  private stateListeners = new Set<(state: VoiceState) => void>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectCount = 0;
 
@@ -14,6 +15,12 @@ export class VoiceController {
   getState() { return this.state; }
   getParticipants() { return [...this.participants]; }
 
+  onStateChange(listener: (state: VoiceState) => void) {
+    this.stateListeners.add(listener);
+    listener(this.state);
+    return () => this.stateListeners.delete(listener);
+  }
+
   onParticipantsChange(listener: (participants: VoiceParticipant[]) => void) {
     this.participantListeners.add(listener);
     listener(this.getParticipants());
@@ -21,6 +28,7 @@ export class VoiceController {
   }
 
   async connect(room: VoiceRoom, participantId: string): Promise<void> {
+    this.clearReconnect();
     await this.cleanupTransport();
     const transport = this.transportFactory();
     this.transport = transport;
@@ -29,12 +37,12 @@ export class VoiceController {
       this.participants = participants;
       this.participantListeners.forEach(listener => listener(this.getParticipants()));
     }));
-    this.state = 'connecting';
+    this.setState('connecting');
     this.reconnectCount = 0;
     try {
       await transport.connect(room, participantId);
     } catch (error) {
-      this.state = 'failed';
+      this.setState('failed');
       this.scheduleReconnect(room, participantId);
       throw error;
     }
@@ -53,13 +61,13 @@ export class VoiceController {
   async disconnect() {
     this.clearReconnect();
     await this.cleanupTransport();
-    this.state = 'disconnected';
+    this.setState('disconnected');
     this.participants = [];
     this.participantListeners.forEach(listener => listener([]));
   }
 
   private handleState(state: VoiceState, room: VoiceRoom, participantId: string) {
-    this.state = state;
+    this.setState(state);
     if (state === 'connected') this.reconnectCount = 0;
     if ((state === 'reconnecting' || state === 'failed') && this.reconnectCount < 5) {
       this.scheduleReconnect(room, participantId);
@@ -67,14 +75,16 @@ export class VoiceController {
   }
 
   private scheduleReconnect(room: VoiceRoom, participantId: string) {
-    if (this.reconnectTimer) return;
-    if (this.reconnectCount >= 5) return;
+    if (this.reconnectTimer || this.reconnectCount >= 5) return;
     const attempt = ++this.reconnectCount;
     const delay = Math.min(1000 * 2 ** (attempt - 1), 15000);
     this.reconnectTimer = setTimeout(async () => {
       this.reconnectTimer = null;
-      try { await this.connect(room, participantId); }
-      catch { this.scheduleReconnect(room, participantId); }
+      try {
+        await this.connect(room, participantId);
+      } catch {
+        this.scheduleReconnect(room, participantId);
+      }
     }, delay);
   }
 
@@ -83,8 +93,12 @@ export class VoiceController {
     this.reconnectTimer = null;
   }
 
+  private setState(state: VoiceState) {
+    this.state = state;
+    this.stateListeners.forEach(listener => listener(state));
+  }
+
   private async cleanupTransport() {
-    this.clearReconnect();
     this.unsubs.splice(0).forEach(unsub => unsub());
     if (this.transport) await this.transport.disconnect().catch(() => undefined);
     this.transport = null;
