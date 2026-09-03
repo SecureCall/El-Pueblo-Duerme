@@ -1,4 +1,4 @@
-import type { BotType } from '@/types';
+import type { BotType } from '@/lib/bots/botSystem';
 
 /** Data safe to expose to every participant in a game. */
 export type PublicPlayer = {
