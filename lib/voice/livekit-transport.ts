@@ -130,10 +130,15 @@ export class LiveKitVoiceTransport implements VoiceTransport {
     const participant = this.room?.remoteParticipants.get(playerId);
     if (!participant) return;
 
+    // RemoteParticipant owns the playback volume API. RemoteTrack does not
+    // expose setVolume in the current LiveKit client typings.
     participant.setVolume(normalized);
-    participant.audioTrackPublications.forEach(publication => {
-      publication.track?.setVolume?.(normalized);
-    });
+
+    for (const attached of this.attachedAudio.values()) {
+      if (attached.element.dataset.voiceParticipantId === playerId) {
+        attached.element.volume = normalized;
+      }
+    }
   }
 
   async disconnect() {
@@ -160,6 +165,7 @@ export class LiveKitVoiceTransport implements VoiceTransport {
     const element = track.attach();
     element.autoplay = true;
     element.setAttribute('aria-hidden', 'true');
+    element.dataset.voiceParticipantId = participantId;
     element.style.position = 'fixed';
     element.style.width = '1px';
     element.style.height = '1px';
@@ -168,11 +174,7 @@ export class LiveKitVoiceTransport implements VoiceTransport {
     document.body.appendChild(element);
 
     const volume = this.participantVolumes.get(participantId) ?? 1;
-    if ('setVolume' in track && typeof track.setVolume === 'function') {
-      track.setVolume(volume);
-    } else {
-      element.volume = volume;
-    }
+    element.volume = volume;
 
     this.attachedAudio.set(key, { track, element });
   }
