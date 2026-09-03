@@ -1,3 +1,5 @@
+import type { VoiceChannel } from './voice-contract';
+
 export interface VoiceTokenResponse {
   server_url: string;
   participant_token: string;
@@ -9,6 +11,7 @@ export type IdTokenProvider = () => Promise<string | null>;
 
 export async function fetchVoiceToken(
   gameId: string,
+  channel: VoiceChannel,
   getIdToken: IdTokenProvider,
   displayName?: string,
 ): Promise<VoiceTokenResponse> {
@@ -21,7 +24,7 @@ export async function fetchVoiceToken(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${idToken}`,
     },
-    body: JSON.stringify({ gameId, displayName }),
+    body: JSON.stringify({ gameId, channel, displayName }),
     credentials: 'include',
   });
 
