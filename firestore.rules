@@ -19,43 +19,31 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny(keys);
     }
 
-    // ── Fields exclusively controlled by the host ─────────────────────────
     function touchesSensitiveFields() {
       return affectedAre([
-        'hostUid', 'code',
-        'roles', 'phase', 'status', 'winners', 'winMessage',
-        'wolfTeam',
-        'eliminatedHistory', 'roundNumber', 'nightStartedAt', 'dayStartedAt',
-        'dayDuration', 'dayEliminatedUid',
-        'currentEvent', 'eventRound',
-        'seerReveal', 'profetaReveal',
-        'saboteadorBan', 'forenseResults', 'iluminadoReveal',
-        'noExileActive', 'eclipseActive', 'anonymousVotesActive',
-        'lovers', 'silencedPlayers', 'enchanted',
-        'bearGrowl', 'lobosBlocked',
-        'brujaProtectedUid', 'hechiceraLifeUsed', 'hechiceraPoisonUsed',
-        'vampiroBites', 'cultMembers', 'pescadorBoat', 'malditoUid',
-        'alborotadoraFight', 'alborotadoraUsed', 'juezUsed', 'voteBanned',
-        'sirenaUid', 'sirenaLinked', 'cazadorPendingShot', 'chivoPendingChoice',
-        'perroLoboChoices', 'salvajeMentors', 'virginiawoolFate',
-        'verdugos', 'cambiaformasTargets', 'fantasmaPending', 'fantasmaUsed',
-        'doubleSeerActive', 'criaLoboRage', 'vigiaUsed', 'vigiaKnowsWolves',
-        'angelResucitadorUsed', 'bansheePoints',
-        'alquimistaPotion', 'alquimistaRevealUid',
-        'hadaLinked', 'principeUsed', 'espiaUsed',
-        'antiguoHit', 'brujaFoundVidente',
-        'guardianLastTarget', 'doctorLastTarget', 'doctorSelfUsed'
+        'hostUid', 'code', 'roles', 'phase', 'status', 'winners', 'winMessage',
+        'wolfTeam', 'eliminatedHistory', 'roundNumber', 'nightStartedAt', 'dayStartedAt',
+        'dayDuration', 'dayEliminatedUid', 'currentEvent', 'eventRound',
+        'seerReveal', 'profetaReveal', 'saboteadorBan', 'forenseResults', 'iluminadoReveal',
+        'noExileActive', 'eclipseActive', 'anonymousVotesActive', 'lovers', 'silencedPlayers',
+        'enchanted', 'bearGrowl', 'lobosBlocked', 'brujaProtectedUid', 'hechiceraLifeUsed',
+        'hechiceraPoisonUsed', 'vampiroBites', 'cultMembers', 'pescadorBoat', 'malditoUid',
+        'alborotadoraFight', 'alborotadoraUsed', 'juezUsed', 'voteBanned', 'sirenaUid',
+        'sirenaLinked', 'cazadorPendingShot', 'chivoPendingChoice', 'perroLoboChoices',
+        'salvajeMentors', 'virginiawoolFate', 'verdugos', 'cambiaformasTargets',
+        'fantasmaPending', 'fantasmaUsed', 'doubleSeerActive', 'criaLoboRage', 'vigiaUsed',
+        'vigiaKnowsWolves', 'angelResucitadorUsed', 'bansheePoints', 'alquimistaPotion',
+        'alquimistaRevealUid', 'hadaLinked', 'principeUsed', 'espiaUsed', 'antiguoHit',
+        'brujaFoundVidente', 'guardianLastTarget', 'doctorLastTarget', 'doctorSelfUsed'
       ]);
     }
 
-    // ── Campos de progresión — sólo escritura via Admin SDK (servidor) ────
     function touchesProgressionFields() {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny([
         'xp', 'gamesPlayed', 'gamesWon', 'consecutiveWins'
       ]);
     }
 
-    // ── Users ──────────────────────────────────────────────────────────────
     match /users/{userId} {
       allow read: if isAuth();
       allow create: if isAuth() && request.auth.uid == userId;
@@ -129,63 +117,52 @@ service cloud.firestore {
       allow update: if isAuth() && (
         request.auth.uid == resource.data.hostUid
         || (
-          resource.data.status == 'lobby' &&
-          onlyUpdating(['players', 'playerCount'])
+          resource.data.status == 'lobby'
+          && onlyUpdating(['players', 'playerCount'])
+          && request.resource.data.players.size() == resource.data.players.size() + 1
+          && !resource.data.players.exists(p, p.uid == request.auth.uid)
+          && request.resource.data.players.exists(p, p.uid == request.auth.uid)
+          && request.resource.data.playerCount == request.resource.data.players.size()
         )
         || (
-          resource.data.phase == 'night' &&
-          affectedAre(['nightActions', 'nightSubmissions']) &&
-          !touchesSensitiveFields() &&
-          !affectedAre(['dayVotes', 'players'])
+          resource.data.phase == 'night' && affectedAre(['nightActions', 'nightSubmissions'])
+          && !touchesSensitiveFields() && !affectedAre(['dayVotes', 'players'])
         )
         || (
-          (resource.data.phase == 'day' || resource.data.phase == 'voting') &&
-          affectedAre(['dayVotes']) &&
-          !touchesSensitiveFields() &&
-          !affectedAre(['nightActions', 'nightSubmissions', 'players']) &&
-          request.resource.data.dayVotes
-            .diff(resource.data.dayVotes)
-            .affectedKeys()
-            .hasOnly([request.auth.uid])
+          (resource.data.phase == 'day' || resource.data.phase == 'voting')
+          && affectedAre(['dayVotes']) && !touchesSensitiveFields()
+          && !affectedAre(['nightActions', 'nightSubmissions', 'players'])
+          && request.resource.data.dayVotes.diff(resource.data.dayVotes).affectedKeys().hasOnly([request.auth.uid])
         )
         || (
-          request.auth.uid == resource.data.hostUid &&
-          onlyUpdating(['cursed', 'narratorBroadcast']) &&
-          (resource.data.phase == 'night' || resource.data.phase == 'day')
+          request.auth.uid == resource.data.hostUid
+          && onlyUpdating(['cursed', 'narratorBroadcast'])
+          && (resource.data.phase == 'night' || resource.data.phase == 'day')
         )
         || (
-          resource.data.phase == 'ended' &&
-          resource.data.players.exists(p, p.uid == request.auth.uid)
+          resource.data.phase == 'ended' && resource.data.players.exists(p, p.uid == request.auth.uid)
         )
         || (
-          onlyUpdating(['hostUid', 'players']) &&
-          request.resource.data.hostUid == request.auth.uid &&
-          resource.data.phase != 'lobby' &&
-          resource.data.players.exists(p, p.uid == request.auth.uid)
+          onlyUpdating(['hostUid', 'players'])
+          && request.resource.data.hostUid == request.auth.uid
+          && resource.data.phase != 'lobby'
+          && resource.data.players.exists(p, p.uid == request.auth.uid)
         )
         || (
-          resource.data.phase == 'day' &&
-          onlyUpdating(['bansheePredictionUid']) &&
-          resource.data.players.exists(p, p.uid == request.auth.uid)
+          resource.data.phase == 'day' && onlyUpdating(['bansheePredictionUid'])
+          && resource.data.players.exists(p, p.uid == request.auth.uid)
         )
         || (
-          onlyUpdating(['fantasmaUsed', 'fantasmaPending']) &&
-          resource.data.players.exists(p, p.uid == request.auth.uid)
+          onlyUpdating(['fantasmaUsed', 'fantasmaPending'])
+          && resource.data.players.exists(p, p.uid == request.auth.uid)
         )
       );
 
       allow delete: if isAuth() && request.auth.uid == resource.data.hostUid;
     }
 
-    // Private role snapshots are authoritative server state once the match
-    // leaves the lobby. The host may create them during lobby setup, but can
-    // never mutate or delete them after the match starts. Server/Admin SDK
-    // writes (night/day resolution) bypass these client rules.
     match /games/{gameId}/playerRoles/{uid} {
-      allow read: if isAuth() && (
-        request.auth.uid == uid
-        || isHost(gameId)
-      );
+      allow read: if isAuth() && (request.auth.uid == uid || isHost(gameId));
       allow create: if isAuth()
         && isHost(gameId)
         && get(/databases/$(database)/documents/games/$(gameId)).data.phase == 'lobby'
@@ -205,7 +182,6 @@ service cloud.firestore {
       allow write: if isAuth() && isHost(gameId);
     }
 
-    // ── Day votes — server-only writes ────────────────────────────────────
     match /games/{gameId}/votes/{voterUid} {
       allow read: if isAuth();
       allow create, update, delete: if false;
@@ -219,10 +195,7 @@ service cloud.firestore {
 
     match /games/{gameId}/publicChat/{messageId} {
       allow read: if isAuth();
-      allow create: if isAuth() && (
-        request.auth.uid == request.resource.data.senderId
-        || isHost(gameId)
-      );
+      allow create: if isAuth() && (request.auth.uid == request.resource.data.senderId || isHost(gameId));
       allow update, delete: if false;
     }
 
@@ -230,17 +203,15 @@ service cloud.firestore {
       allow read: if isAuth() && (
         isHost(gameId)
         || (
-          request.auth.uid == request.resource.data.senderId &&
-          get(/databases/$(database)/documents/games/$(gameId)).data.players
-            .exists(p, p.uid == request.auth.uid && p.isAlive == false)
+          request.auth.uid == request.resource.data.senderId
+          && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid && p.isAlive == false)
         )
       );
       allow create: if isAuth() && (
         isHost(gameId)
         || (
-          request.auth.uid == request.resource.data.senderId &&
-          get(/databases/$(database)/documents/games/$(gameId)).data.players
-            .exists(p, p.uid == request.auth.uid && p.isAlive == false)
+          request.auth.uid == request.resource.data.senderId
+          && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid && p.isAlive == false)
         )
       );
       allow update, delete: if false;
@@ -248,17 +219,18 @@ service cloud.firestore {
 
     match /games/{gameId}/wolfChat/{messageId} {
       allow read: if isAuth() && (
-        isHost(gameId) ||
-        get(/databases/$(database)/documents/games/$(gameId)).data.wolfTeam[request.auth.uid] == true ||
-        (
-          get(/databases/$(database)/documents/games/$(gameId)).data.roles[request.auth.uid] == 'Espía' &&
-          get(/databases/$(database)/documents/games/$(gameId)).data.espiaUsed == true
+        isHost(gameId)
+        || get(/databases/$(database)/documents/games/$(gameId)).data.wolfTeam[request.auth.uid] == true
+        || (
+          get(/databases/$(database)/documents/games/$(gameId)).data.roles[request.auth.uid] == 'Espía'
+          && get(/databases/$(database)/documents/games/$(gameId)).data.espiaUsed == true
         )
       );
       allow create: if isAuth() && (
-        isHost(gameId) || (
-          request.auth.uid == request.resource.data.senderId &&
-          get(/databases/$(database)/documents/games/$(gameId)).data.wolfTeam[request.auth.uid] == true
+        isHost(gameId)
+        || (
+          request.auth.uid == request.resource.data.senderId
+          && get(/databases/$(database)/documents/games/$(gameId)).data.wolfTeam[request.auth.uid] == true
         )
       );
       allow update, delete: if false;
@@ -266,64 +238,53 @@ service cloud.firestore {
 
     match /games/{gameId}/loversChat/{messageId} {
       allow read: if isAuth() && (
-        isHost(gameId) ||
-        (
-          get(/databases/$(database)/documents/games/$(gameId)).data.lovers != null &&
-          (
-            get(/databases/$(database)/documents/games/$(gameId)).data.lovers[0] == request.auth.uid ||
-            get(/databases/$(database)/documents/games/$(gameId)).data.lovers[1] == request.auth.uid
+        isHost(gameId)
+        || (
+          get(/databases/$(database)/documents/games/$(gameId)).data.lovers != null
+          && (
+            get(/databases/$(database)/documents/games/$(gameId)).data.lovers[0] == request.auth.uid
+            || get(/databases/$(database)/documents/games/$(gameId)).data.lovers[1] == request.auth.uid
           )
         )
       );
-      allow create: if isAuth() &&
-        request.auth.uid == request.resource.data.senderId && (
-          get(/databases/$(database)/documents/games/$(gameId)).data.lovers != null &&
-          (
-            get(/databases/$(database)/documents/games/$(gameId)).data.lovers[0] == request.auth.uid ||
-            get(/databases/$(database)/documents/games/$(gameId)).data.lovers[1] == request.auth.uid
-          )
-        );
+      allow create: if isAuth() && request.auth.uid == request.resource.data.senderId && (
+        get(/databases/$(database)/documents/games/$(gameId)).data.lovers != null
+        && (
+          get(/databases/$(database)/documents/games/$(gameId)).data.lovers[0] == request.auth.uid
+          || get(/databases/$(database)/documents/games/$(gameId)).data.lovers[1] == request.auth.uid
+        )
+      );
       allow update, delete: if false;
     }
 
     match /games/{gameId}/twinChat/{messageId} {
       allow read: if isAuth() && (
-        isHost(gameId) ||
-        get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid)
+        isHost(gameId) || get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid)
       );
-      allow create: if isAuth()
-        && request.auth.uid == request.resource.data.senderId
+      allow create: if isAuth() && request.auth.uid == request.resource.data.senderId
         && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid);
       allow update, delete: if false;
     }
 
     match /games/{gameId}/fairyChat/{messageId} {
       allow read: if isAuth() && (
-        isHost(gameId) ||
-        get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid)
+        isHost(gameId) || get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid)
       );
-      allow create: if isAuth()
-        && request.auth.uid == request.resource.data.senderId
+      allow create: if isAuth() && request.auth.uid == request.resource.data.senderId
         && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid);
       allow update, delete: if false;
     }
 
     match /games/{gameId}/hermanosChat/{messageId} {
-      allow read: if isAuth() && (
-        isHost(gameId) ||
-        get(/databases/$(database)/documents/games/$(gameId)).data.roles[request.auth.uid] == 'Hermanos'
-      );
-      allow create: if isAuth()
-        && request.auth.uid == request.resource.data.senderId
+      allow read: if isAuth() && (isHost(gameId) || get(/databases/$(database)/documents/games/$(gameId)).data.roles[request.auth.uid] == 'Hermanos');
+      allow create: if isAuth() && request.auth.uid == request.resource.data.senderId
         && get(/databases/$(database)/documents/games/$(gameId)).data.roles[request.auth.uid] == 'Hermanos';
       allow update, delete: if false;
     }
 
     match /games/{gameId}/nightActions/{actionId} {
       allow read: if isAuth();
-      allow create, update: if isAuth() && (
-        isHost(gameId) || request.auth.uid == actionId
-      );
+      allow create, update: if isAuth() && (isHost(gameId) || request.auth.uid == actionId);
       allow delete: if false;
     }
 
@@ -333,24 +294,18 @@ service cloud.firestore {
     }
 
     match /games/{gameId}/voiceOffers/{offerId} {
-      allow read: if isAuth();
-      allow create: if isAuth();
-      allow delete: if isAuth();
+      allow read, create, delete: if isAuth();
       allow update: if false;
     }
 
     match /games/{gameId}/voiceAnswers/{answerId} {
-      allow read: if isAuth();
-      allow create: if isAuth();
-      allow delete: if isAuth();
+      allow read, create, delete: if isAuth();
       allow update: if false;
     }
 
     match /games/{gameId}/voiceIce/{pairId}/candidates/{candidateId} {
-      allow read: if isAuth();
-      allow create: if isAuth();
-      allow delete: if false;
-      allow update: if false;
+      allow read, create: if isAuth();
+      allow delete, update: if false;
     }
   }
 }
