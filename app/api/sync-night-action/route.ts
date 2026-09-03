@@ -29,12 +29,15 @@ export async function POST(req: NextRequest) {
       requestId?: string;
     };
 
-    if (!gameId || !uid || !requestedRole || !payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    if (!gameId || !uid || !payload || typeof payload !== 'object' || Array.isArray(payload)) {
       return NextResponse.json({ error: 'Solicitud inválida' }, { status: 400 });
     }
     if (tokenUid !== uid) return NextResponse.json({ error: 'UID no coincide con el token' }, { status: 403 });
-    if (gameId.length > 128 || uid.length > 128 || requestedRole.length > 128) {
+    if (gameId.length > 128 || uid.length > 128) {
       return NextResponse.json({ error: 'Identificador inválido' }, { status: 400 });
+    }
+    if (requestedRole !== undefined && (typeof requestedRole !== 'string' || requestedRole.length > 128)) {
+      return NextResponse.json({ error: 'Rol inválido' }, { status: 400 });
     }
     if (requestId !== undefined && (typeof requestId !== 'string' || requestId.length > 128)) {
       return NextResponse.json({ error: 'requestId inválido' }, { status: 400 });
@@ -69,7 +72,8 @@ export async function POST(req: NextRequest) {
         gameData.roles,
         uid,
       );
-      if (!authoritativeRole || authoritativeRole !== requestedRole) throw new Error('ROLE_MISMATCH');
+      if (!authoritativeRole) throw new Error('ROLE_MISMATCH');
+      if (requestedRole !== undefined && authoritativeRole !== requestedRole) throw new Error('ROLE_MISMATCH');
 
       const rule = getRoleAuthorityRule(authoritativeRole);
       if (!rule || !canUseRoleAtRound(authoritativeRole, round)) {
@@ -110,7 +114,7 @@ export async function POST(req: NextRequest) {
       const existingSnap = await transaction.get(submissionRef);
       if (existingSnap.exists) {
         const existing = existingSnap.data() ?? {};
-        if (Number(existing.roundNumber ?? 0) === round) return { duplicate: true, round };
+        if (Number(existing.roundNumber ?? 0) === round) return { duplicate: true, round, role: authoritativeRole };
       }
 
       const now = Date.now();
@@ -124,7 +128,7 @@ export async function POST(req: NextRequest) {
         ...(requestId ? { requestId } : {}),
       });
 
-      return { duplicate: false, round };
+      return { duplicate: false, round, role: authoritativeRole };
     });
 
     return NextResponse.json({
@@ -132,6 +136,7 @@ export async function POST(req: NextRequest) {
       duplicate: result.duplicate,
       actorUid: uid,
       roundNumber: result.round,
+      role: result.role,
     });
   } catch (err) {
     const code = err instanceof Error ? err.message : 'UNKNOWN';
