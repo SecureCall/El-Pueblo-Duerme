@@ -2,143 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { initAdminApp } from '@/lib/firebase/admin';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { getFirestore } from 'firebase-admin/firestore';
+import { readNightRoleSnapshot } from '@/lib/server/nightRoleSnapshot';
+import { createDayResolutionInput } from '@/lib/server/dayResolutionInput';
+import { resolveDay } from '@/lib/server/dayResolutionEngine';
 
-const LEASE_MS = 30_000;
-const MAX_PATCH_BYTES = 256_000;
-
-type LockDoc = { ownerUid: string; leaseId: string; round: number; expiresAt: number };
-
-function makeLeaseId(uid: string) {
-  return `${uid}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
-}
-
-const DAY_PATCH_KEYS = new Set([
-  'players', 'roles', 'eliminatedHistory', 'enchanted', 'cazadorPendingShot',
-  'chivoPendingChoice', 'voteBanned', 'alquimistaPotion', 'alquimistaRevealUid',
-  'juezUsed', 'alborotadoraFight', 'fantasmaPending', 'silencedPlayers',
-  'bansheePredictionUid', 'bansheePoints', 'phase', 'winners', 'winMessage',
-  'roundNumber', 'dayVotes', 'dayEliminatedUid', 'seerReveal', 'seerReveal2',
-  'profetaReveal', 'nightActions', 'nightSubmissions', 'bearGrowl',
-  'nightStartedAt', 'phaseEndsAt', 'currentEvent', 'eclipseActive',
-  'doubleSeerActive', 'anonymousVotesActive', 'noExileActive', 'saboteadorBan',
-  'cambiaformasTargets', 'wolfTeam', 'revealDeadResult',
-]);
-
-function sanitizePatch(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const patch = value as Record<string, unknown>;
-  const keys = Object.keys(patch);
-  if (!keys.length || keys.length > DAY_PATCH_KEYS.size) return null;
-  for (const key of keys) if (!DAY_PATCH_KEYS.has(key)) return null;
-  const encoded = JSON.stringify(patch);
-  if (!encoded || Buffer.byteLength(encoded, 'utf8') > MAX_PATCH_BYTES) return null;
-  return patch;
-}
-
-export async function POST(req: NextRequest) {
-  const tokenUid = await verifyAuthToken(req);
-  if (!tokenUid) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-
-  try {
-    const body = await req.json().catch(() => ({}));
-    const gameId = typeof body.gameId === 'string' ? body.gameId : '';
-    const action = body.action === 'release' || body.action === 'commit' ? body.action : 'claim';
-    const leaseId = typeof body.leaseId === 'string' ? body.leaseId : '';
-    const submittedRound = Number(body.round);
-    if (!gameId) return NextResponse.json({ error: 'gameId required' }, { status: 400 });
-
-    initAdminApp();
-    const db = getFirestore();
-    const gameRef = db.collection('games').doc(gameId);
-    const lockRef = gameRef.collection('locks').doc('dayResolution');
-
-    if (action === 'release') {
-      if (!leaseId) return NextResponse.json({ error: 'leaseId required' }, { status: 400 });
-      const released = await db.runTransaction(async tx => {
-        const snap = await tx.get(lockRef);
-        if (!snap.exists) return false;
-        const lock = snap.data() as LockDoc;
-        if (lock.ownerUid !== tokenUid || lock.leaseId !== leaseId) return false;
-        tx.delete(lockRef);
-        return true;
-      });
-      return NextResponse.json({ ok: true, released });
-    }
-
-    if (action === 'commit') {
-      if (!leaseId || !Number.isInteger(submittedRound)) return NextResponse.json({ error: 'leaseId and round required' }, { status: 400 });
-      const patch = sanitizePatch(body.patch);
-      if (!patch) return NextResponse.json({ error: 'Invalid day resolution patch' }, { status: 400 });
-
-      await db.runTransaction(async tx => {
-        const [gameSnap, lockSnap] = await Promise.all([tx.get(gameRef), tx.get(lockRef)]);
-        if (!gameSnap.exists) throw new Error('GAME_NOT_FOUND');
-        if (!lockSnap.exists) throw new Error('LEASE_LOST');
-        const game = gameSnap.data()!;
-        const lock = lockSnap.data() as LockDoc;
-        const now = Date.now();
-        if (lock.ownerUid !== tokenUid || lock.leaseId !== leaseId) throw new Error('LEASE_LOST');
-        if (lock.round !== submittedRound || Number(game.roundNumber ?? 1) !== submittedRound) throw new Error('ROUND_CHANGED');
-        if (lock.expiresAt <= now) throw new Error('LEASE_EXPIRED');
-        if (game.hostUid !== tokenUid) throw new Error('NOT_HOST');
-        if (game.phase !== 'day' && game.phase !== 'voting') throw new Error('PHASE_CHANGED');
-
-        const nextRound = Number(patch.roundNumber);
-        if (!Number.isInteger(nextRound) || nextRound !== submittedRound + 1) throw new Error('INVALID_NEXT_ROUND');
-        if (patch.phase !== 'night' && patch.phase !== 'ended') throw new Error('INVALID_NEXT_PHASE');
-
-        tx.update(gameRef, patch);
-        tx.delete(lockRef);
-      });
-      return NextResponse.json({ ok: true, committed: true });
-    }
-
-    const lease = makeLeaseId(tokenUid);
-    const result = await db.runTransaction(async tx => {
-      const [gameSnap, lockSnap] = await Promise.all([tx.get(gameRef), tx.get(lockRef)]);
-      if (!gameSnap.exists) throw new Error('GAME_NOT_FOUND');
-      const game = gameSnap.data()!;
-      const players = Array.isArray(game.players) ? game.players as { uid: string; isAlive: boolean }[] : [];
-      const host = players.find(p => p.uid === tokenUid);
-      if (game.hostUid !== tokenUid || !host) throw new Error('NOT_HOST');
-      if (game.phase !== 'day' && game.phase !== 'voting') throw new Error('NOT_DAY');
-
-      const round = Number(game.roundNumber ?? 1);
-      const now = Date.now();
-      if (lockSnap.exists) {
-        const lock = lockSnap.data() as LockDoc;
-        if (lock.expiresAt > now) throw new Error('LOCKED');
-      }
-      tx.set(lockRef, { ownerUid: tokenUid, leaseId: lease, round, expiresAt: now + LEASE_MS });
-      return { round, leaseId: lease };
-    });
-
-    const gameSnap = await gameRef.get();
-    const game = gameSnap.data()!;
-    const players = Array.isArray(game.players) ? game.players as { uid: string; isAlive: boolean }[] : [];
-    const alive = new Set(players.filter(p => p.isAlive).map(p => p.uid));
-    const votesSnap = await gameRef.collection('votes').get();
-    const votes: Record<string, string> = {};
-    votesSnap.forEach(snap => {
-      const data = snap.data();
-      const voter = snap.id;
-      const target = typeof data.target === 'string' ? data.target : '';
-      const voteRound = Number(data.round);
-      if (Number.isInteger(voteRound) && voteRound === result.round && alive.has(voter) && alive.has(target)) votes[voter] = target;
-    });
-
-    return NextResponse.json({ ok: true, leaseId: result.leaseId, round: result.round, votes });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'INTERNAL';
-    const map: Record<string, [string, number]> = {
-      GAME_NOT_FOUND: ['Partida no encontrada', 404], NOT_HOST: ['Solo el host puede resolver el día', 403],
-      NOT_DAY: ['No es fase de día', 409], LOCKED: ['La resolución del día ya está en curso', 409],
-      LEASE_LOST: ['La resolución del día perdió su lease', 409], LEASE_EXPIRED: ['El lease de resolución expiró', 409],
-      ROUND_CHANGED: ['La ronda cambió durante la resolución', 409], PHASE_CHANGED: ['La fase cambió durante la resolución', 409],
-      INVALID_NEXT_ROUND: ['Ronda de resolución inválida', 400], INVALID_NEXT_PHASE: ['Fase final inválida', 400],
-    };
-    const [error, status] = map[message] ?? ['Error interno', 500];
-    console.error('[day-resolve]', message);
-    return NextResponse.json({ error }, { status });
-  }
-}
+const LEASE_MS=30_000;
+type Lock={ownerUid:string;leaseId:string;round:number;expiresAt:number};
+const E:Record<string,[string,number]>={GAME_NOT_FOUND:['Partida no encontrada',404],NOT_HOST:['Solo el host puede resolver el día',403],NOT_DAY:['No es fase de día',409],LOCKED:['La resolución del día ya está en curso',409],LEASE_LOST:['La resolución perdió su lease',409],LEASE_EXPIRED:['El lease expiró',409],ROUND_CHANGED:['La ronda cambió durante la resolución',409],PHASE_CHANGED:['La fase cambió durante la resolución',409],PLAYER_SET_CHANGED:['La lista de jugadores cambió',409],INVALID_ROUND:['Ronda inválida',400]};
+const lease=(uid:string)=>`${uid}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+async function votes(ref:FirebaseFirestore.DocumentReference,round:number,ps:Array<Record<string,unknown>>){const alive=new Set(ps.filter(p=>p.isAlive===true&&typeof p.uid==='string').map(p=>p.uid as string));const s=await ref.collection('votes').get();const out:Record<string,string>={};s.forEach(d=>{const x=d.data();if(Number(x.round)===round&&alive.has(d.id)&&typeof x.target==='string'&&alive.has(x.target))out[d.id]=x.target;});return out;}
+export async function POST(req:NextRequest){const token=await verifyAuthToken(req);if(!token)return NextResponse.json({error:'No autorizado'},{status:401});try{const b=await req.json().catch(()=>({}));const gameId=typeof b.gameId==='string'?b.gameId:'';const action=b.action==='release'||b.action==='commit'?b.action:'claim';const leaseId=typeof b.leaseId==='string'?b.leaseId:'';const submitted=Number(b.round);if(!gameId)return NextResponse.json({error:'gameId required'},{status:400});initAdminApp();const db=getFirestore(),gr=db.collection('games').doc(gameId),lr=gr.collection('locks').doc('dayResolution');
+if(action==='release'){if(!leaseId)return NextResponse.json({error:'leaseId required'},{status:400});const released=await db.runTransaction(async tx=>{const s=await tx.get(lr);if(!s.exists)return false;const l=s.data() as Lock;if(l.ownerUid!==token||l.leaseId!==leaseId)return false;tx.delete(lr);return true;});return NextResponse.json({ok:true,released});}
+if(action==='claim'){const id=lease(token);const r=await db.runTransaction(async tx=>{const [g,l]=await Promise.all([tx.get(gr),tx.get(lr)]);if(!g.exists)throw Error('GAME_NOT_FOUND');const x=g.data()!,ps=Array.isArray(x.players)?x.players as Array<Record<string,unknown>>:[];if(x.hostUid!==token||!ps.some(p=>p.uid===token))throw Error('NOT_HOST');if(x.phase!=='day'&&x.phase!=='voting')throw Error('NOT_DAY');const round=Number(x.roundNumber??1);if(!Number.isInteger(round))throw Error('INVALID_ROUND');const now=Date.now();if(l.exists&&(l.data() as Lock).expiresAt>now)throw Error('LOCKED');tx.set(lr,{ownerUid:token,leaseId:id,round,expiresAt:now+LEASE_MS});return{round,leaseId:id};});return NextResponse.json({ok:true,leaseId:r.leaseId,round:r.round});}
+if(!leaseId||!Number.isInteger(submitted))return NextResponse.json({error:'leaseId and round required'},{status:400});
+const gs=await gr.get();if(!gs.exists)throw Error('GAME_NOT_FOUND');const g=gs.data()!,ps=Array.isArray(g.players)?g.players as Array<Record<string,unknown>>:[],round=Number(g.roundNumber??1);if(round!==submitted)throw Error('ROUND_CHANGED');if(g.hostUid!==token)throw Error('NOT_HOST');if(g.phase!=='day'&&g.phase!=='voting')throw Error('PHASE_CHANGED');
+const uids=ps.flatMap(p=>typeof p.uid==='string'?[p.uid]:[]),snapshot=await readNightRoleSnapshot(gameId,uids),result=resolveDay(createDayResolutionInput(gameId,g,snapshot.rolesByUid,await votes(gr,round,ps),Date.now()));
+await db.runTransaction(async tx=>{const [cg,ls]=await Promise.all([tx.get(gr),tx.get(lr)]);if(!cg.exists)throw Error('GAME_NOT_FOUND');if(!ls.exists)throw Error('LEASE_LOST');const current=cg.data()!,l=ls.data() as Lock,now=Date.now();if(l.ownerUid!==token||l.leaseId!==leaseId)throw Error('LEASE_LOST');if(l.round!==submitted||Number(current.roundNumber??1)!==submitted)throw Error('ROUND_CHANGED');if(l.expiresAt<=now)throw Error('LEASE_EXPIRED');if(current.hostUid!==token)throw Error('NOT_HOST');if(current.phase!=='day'&&current.phase!=='voting')throw Error('PHASE_CHANGED');const cp=Array.isArray(current.players)?current.players as Array<Record<string,unknown>>:[];const cu=cp.flatMap(p=>typeof p.uid==='string'?[p.uid]:[]);if(cu.length!==uids.length||cu.some(uid=>!uids.includes(uid)))throw Error('PLAYER_SET_CHANGED');const patch={...result.statePatch,players:result.statePatch.players.map(p=>({...p,role:result.statePatch.roles[p.uid]??p.role??null}))} as Record<string,unknown>;const wt:Record<string,boolean>={};for(const[uid,role]of Object.entries(result.statePatch.roles))if(role==='Lobo'||role==='Lobo Blanco'||role==='Cría de Lobo')wt[uid]=true;patch.wolfTeam=wt;tx.update(gr,patch);for(const[uid,role]of Object.entries(result.statePatch.roles))tx.set(gr.collection('playerRoles').doc(uid),{role,updatedAt:now},{merge:true});tx.delete(lr);});return NextResponse.json({ok:true,committed:true,result});
+}catch(err){const m=err instanceof Error?err.message:'INTERNAL';const[e,s]=E[m]??['Error interno',500];console.error('[day-resolve]',m);return NextResponse.json({error:e},{status:s});}}
