@@ -8,8 +8,11 @@ export type VoiceParticipant = {
   volume: number;
 };
 
+export type VoiceChannel = 'main' | 'wolves' | 'ghost';
+
 export type VoiceRoom = {
   gameId: string;
+  channel: VoiceChannel;
   maxParticipants: 35;
 };
 
@@ -23,9 +26,8 @@ export interface VoiceTransport {
 }
 
 /**
- * Production voice must be backed by an SFU/media service.
- * Do not implement a full-mesh 35-player topology here: 35 peers would
- * create 595 peer-to-peer relationships and is unsuitable for mobile.
+ * Production voice is SFU-backed. Channel membership is enforced server-side
+ * by minting a token for a channel-specific LiveKit room.
  */
 export const VOICE_LIMITS = {
   maxPlayers: 35,
