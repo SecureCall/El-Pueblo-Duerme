@@ -214,6 +214,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const wolfChatLastProcessed = useRef<string>('');
   const prevPhase = useRef<string | null>(null);
   const processingDayRef = useRef(false);
+  const dayResolutionLeaseRef = useRef<string | null>(null);
   const narratorInterruptAt = useRef<number>(0);
   const narratorInterruptRound = useRef<number>(-1);
   const processingNightRef = useRef(false);
@@ -1972,6 +1973,22 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (game.phase !== 'day' && game.phase !== 'voting') { return; }
     if (processingDayRef.current) return;
     processingDayRef.current = true;
+    let dayLeaseId: string | null = null;
+    try {
+      if (!user) throw new Error('AUTH_REQUIRED');
+      const idToken = await user.getIdToken();
+      const lockResponse = await fetch('/api/day-resolve', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` }, body: JSON.stringify({ gameId, action: 'claim' }) });
+      const lockData = await lockResponse.json().catch(() => ({}));
+      if (!lockResponse.ok || !lockData.ok || !lockData.leaseId) { processingDayRef.current = false; return; }
+      dayLeaseId = lockData.leaseId;
+      dayResolutionLeaseRef.current = dayLeaseId;
+      if (Number(lockData.round) !== (game.roundNumber ?? 1)) { processingDayRef.current = false; return; }
+      dayVotes = lockData.votes ?? {};
+    } catch (e) {
+      console.error('[DayResolution] lease claim failed:', e);
+      processingDayRef.current = false;
+      return;
+    }
     const roles = game.roles ?? {};
     const newRoles = { ...roles };
     const salvajeMentors = game.salvajeMentors ?? {};
@@ -2342,7 +2359,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }
 
     try {
-      await updateDoc(doc(db, 'games', gameId), {
+      const dayPatch = {
         players,
         roles: newRoles,
         eliminatedHistory: history,
@@ -2383,10 +2400,20 @@ export function GamePlay({ gameId }: { gameId: string }) {
           ? { ...(game.wolfTeam ?? {}), ...newWolfTeamEntriesDay }
           : (game.wolfTeam ?? {}),
         revealDeadResult: null,
-      });
+    };
+    const commitToken = await user.getIdToken();
+    const commitResponse = await fetch('/api/day-resolve', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${commitToken}` }, body: JSON.stringify({ gameId, action: 'commit', leaseId: dayLeaseId, round, patch: dayPatch }) });
+    if (!commitResponse.ok) { const commitData = await commitResponse.json().catch(() => ({})); throw new Error(commitData.error || 'DAY_COMMIT_REJECTED'); }
     } catch (e) {
-      console.error('processDayVotes updateDoc error:', e);
+      console.error('processDayVotes error:', e);
     } finally {
+      if (dayLeaseId) {
+        try {
+          const idToken = await user?.getIdToken();
+          if (idToken) await fetch('/api/day-resolve', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` }, body: JSON.stringify({ gameId, action: 'release', leaseId: dayLeaseId }) });
+        } catch (e) { console.warn('[DayResolution] lease release failed:', e); }
+        if (dayResolutionLeaseRef.current === dayLeaseId) dayResolutionLeaseRef.current = null;
+      }
       processingDayRef.current = false;
     }
   }
