@@ -149,10 +149,6 @@ service cloud.firestore {
           && resource.data.players.exists(p, p.uid == request.auth.uid)
         )
         || (
-          resource.data.phase == 'day' && onlyUpdating(['bansheePredictionUid'])
-          && resource.data.players.exists(p, p.uid == request.auth.uid)
-        )
-        || (
           onlyUpdating(['fantasmaUsed', 'fantasmaPending'])
           && resource.data.players.exists(p, p.uid == request.auth.uid)
         )
