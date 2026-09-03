@@ -5,12 +5,14 @@
  * Mecánica "firma": el jugador que muere tiene 7 segundos para decir su última palabra.
  * Los demás ven el contador en tiempo real.
  * Tras enviar (o que expire), opcionalmente se abre VenganzaModal.
+ *
+ * La escritura de la última palabra es server-authoritative: el cliente nunca
+ * escribe directamente en games/{gameId} ni publicChat.
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { db } from '@/lib/firebase/config';
-import { collection, addDoc, serverTimestamp, onSnapshot, doc, setDoc } from 'firebase/firestore';
-import { Skull, Send, Clock } from 'lucide-react';
+import { getAuth } from 'firebase/auth';
+import { Skull, Send } from 'lucide-react';
 
 interface Props {
   isVictim: boolean;
@@ -23,6 +25,7 @@ interface Props {
 }
 
 const TIMER_SECS = 7;
+const MAX_MESSAGE_LENGTH = 120;
 
 export function UltimasPalabras({ isVictim, victimName, victimUid, gameId, userId, round, onDone }: Props) {
   const [timeLeft, setTimeLeft] = useState(TIMER_SECS);
@@ -33,13 +36,11 @@ export function UltimasPalabras({ isVictim, victimName, victimUid, gameId, userI
   const onDoneRef = useRef(onDone);
   useEffect(() => { onDoneRef.current = onDone; }, [onDone]);
 
-  // Animación de entrada
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 60);
     return () => clearTimeout(t);
   }, []);
 
-  // Countdown
   useEffect(() => {
     if (sentRef.current) return;
     if (timeLeft <= 0) {
@@ -54,29 +55,44 @@ export function UltimasPalabras({ isVictim, victimName, victimUid, gameId, userI
   }, [timeLeft]);
 
   const handleSend = async () => {
-    if (sentRef.current || !msg.trim()) return;
-    sentRef.current = true;
-    setSent(true);
+    const message = msg.trim();
+    if (!isVictim || sentRef.current || !message || message.length > MAX_MESSAGE_LENGTH) return;
+    if (!userId || userId !== victimUid) return;
 
-    // Escribir mensaje en el chat público con sello especial
-    await addDoc(collection(db, 'games', gameId, 'publicChat'), {
-      senderId: victimUid,
-      senderName: victimName,
-      text: msg.trim(),
-      type: 'lastWords',
-      createdAt: serverTimestamp(),
-    }).catch(() => {});
+    try {
+      const currentUser = getAuth().currentUser;
+      const token = await currentUser?.getIdToken();
+      if (!token || sentRef.current) return;
 
-    // Escribir en narratorBroadcast para que todos vean la notificación
-    await setDoc(doc(db, 'games', gameId), {
-      narratorBroadcast: {
-        text: `"${msg.trim()}" — ${victimName}, en sus últimas palabras.`,
-        type: 'irony',
-        triggeredAt: Date.now(),
-      },
-    }, { merge: true }).catch(() => {});
+      const response = await fetch('/api/last-words', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: 'include',
+        body: JSON.stringify({ gameId, message, round }),
+      });
 
-    onDoneRef.current(true);
+      if (response.ok) {
+        sentRef.current = true;
+        setSent(true);
+        onDoneRef.current(true);
+        return;
+      }
+
+      if (response.status === 409) {
+        const data = await response.json().catch(() => null);
+        if (data?.error === 'Las últimas palabras ya fueron enviadas') {
+          sentRef.current = true;
+          setSent(true);
+          onDoneRef.current(false);
+        }
+      }
+    } catch (_) {
+      // Conservamos el intento si falla la red para permitir reintentar antes
+      // de que expire el contador.
+    }
   };
 
   const pct = timeLeft / TIMER_SECS;
@@ -85,37 +101,28 @@ export function UltimasPalabras({ isVictim, victimName, victimUid, gameId, userI
     <div
       className={`fixed inset-0 z-[60] flex flex-col items-center justify-center bg-black/95 transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`}
     >
-      {/* Glow oscuro */}
       <div className="absolute inset-0 bg-red-950/20 pointer-events-none" />
 
       <div className="relative z-10 w-full max-w-sm px-6 flex flex-col items-center gap-6">
-
-        {/* Ícono */}
         <div className="relative">
           <Skull className="h-14 w-14 text-red-400/80" />
           <div className="absolute inset-0 blur-2xl bg-red-600/20 rounded-full" />
         </div>
 
-        {/* Título */}
         <div className="text-center">
           {isVictim ? (
             <>
               <p className="text-red-400/60 text-xs uppercase tracking-widest mb-1">Tus últimas palabras</p>
-              <h2 className="text-2xl font-bold text-red-100/90 font-headline">
-                ¿Tienes algo que decir?
-              </h2>
+              <h2 className="text-2xl font-bold text-red-100/90 font-headline">¿Tienes algo que decir?</h2>
             </>
           ) : (
             <>
               <p className="text-white/40 text-xs uppercase tracking-widest mb-1">Últimas palabras</p>
-              <h2 className="text-2xl font-bold text-white/80 font-headline">
-                {victimName} habla por última vez…
-              </h2>
+              <h2 className="text-2xl font-bold text-white/80 font-headline">{victimName} habla por última vez…</h2>
             </>
           )}
         </div>
 
-        {/* Timer ring */}
         <div className="relative w-20 h-20">
           <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
             <circle cx="40" cy="40" r="34" fill="none" stroke="#ffffff10" strokeWidth="6" />
@@ -134,23 +141,19 @@ export function UltimasPalabras({ isVictim, victimName, victimUid, gameId, userI
           </div>
         </div>
 
-        {/* Input — solo para la víctima */}
         {isVictim && !sent && (
-          <form
-            onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-            className="w-full flex flex-col gap-3"
-          >
+          <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="w-full flex flex-col gap-3">
             <textarea
               value={msg}
-              onChange={(e) => setMsg(e.target.value.slice(0, 120))}
+              onChange={(e) => setMsg(e.target.value.slice(0, MAX_MESSAGE_LENGTH))}
               placeholder="Escribe tu última verdad…"
               autoFocus
               rows={3}
-              maxLength={120}
+              maxLength={MAX_MESSAGE_LENGTH}
               className="w-full bg-white/5 border border-red-900/40 rounded-xl px-4 py-3 text-white placeholder-white/25 text-sm resize-none focus:outline-none focus:border-red-600/60"
             />
             <div className="flex items-center justify-between">
-              <span className="text-white/25 text-xs">{msg.length}/120</span>
+              <span className="text-white/25 text-xs">{msg.length}/{MAX_MESSAGE_LENGTH}</span>
               <button
                 type="submit"
                 disabled={!msg.trim()}
@@ -168,9 +171,7 @@ export function UltimasPalabras({ isVictim, victimName, victimUid, gameId, userI
         )}
 
         {!isVictim && (
-          <p className="text-white/30 text-sm text-center italic">
-            El silencio del pueblo espera sus palabras…
-          </p>
+          <p className="text-white/30 text-sm text-center italic">El silencio del pueblo espera sus palabras…</p>
         )}
       </div>
     </div>
