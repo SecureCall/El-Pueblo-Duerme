@@ -10,6 +10,11 @@ import { RegisterSW } from '@/components/pwa/RegisterSW';
 import { WindowControlsOverlay } from '@/components/pwa/WindowControlsOverlay';
 import { cn } from '@/lib/utils';
 
+// The app is a real-time authenticated game. Rendering the root layout dynamically
+// prevents Next.js from prerendering client Firebase initialization at build time
+// when deployment/build-time Firebase environment variables are unavailable.
+export const dynamic = 'force-dynamic';
+
 const ptSans = PT_Sans({ 
   subsets: ['latin'], 
   weight: ['400', '700'],
