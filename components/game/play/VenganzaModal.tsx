@@ -5,11 +5,12 @@
  * Mecánica "firma": el jugador que muere elige a alguien para maldecir.
  * La maldición agrega +1 voto simbólico en la siguiente ronda de votación
  * y aparece en el narratorBroadcast con drama máximo.
+ *
+ * La mutación de la partida se realiza exclusivamente en /api/venganza.
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { db } from '@/lib/firebase/config';
-import { doc, setDoc } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import { Flame } from 'lucide-react';
 
 interface Player { uid: string; name: string; isAlive: boolean; isBot?: boolean; }
@@ -53,23 +54,46 @@ export function VenganzaModal({ gameId, victimName, victimUid, round, alivePlaye
 
   const handleConfirm = async () => {
     if (sentRef.current || !selected) return;
-    sentRef.current = true;
-    setConfirmed(true);
 
     const target = candidates.find(p => p.uid === selected);
-    if (target) {
-      // Guardar maldición en el juego: el procesador de votos sumará +1 a este jugador
-      await setDoc(doc(db, 'games', gameId), {
-        cursed: { uid: target.uid, byName: victimName, byUid: victimUid, round },
-        narratorBroadcast: {
-          text: `Con su último aliento, ${victimName} lanza su maldición sobre ${target.name}. El destino ya está escrito.`,
-          type: 'chaos',
-          triggeredAt: Date.now(),
-        },
-      }, { merge: true }).catch(() => {});
-    }
+    if (!target) return;
 
-    setTimeout(() => onDoneRef.current(), 1800);
+    const currentUser = getAuth().currentUser;
+    if (!currentUser || currentUser.uid !== victimUid) return;
+
+    try {
+      const token = await currentUser.getIdToken();
+      if (!token || sentRef.current) return;
+
+      const response = await fetch('/api/venganza', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: 'include',
+        body: JSON.stringify({ gameId, targetUid: target.uid, round }),
+      });
+
+      if (response.ok) {
+        sentRef.current = true;
+        setConfirmed(true);
+        setTimeout(() => onDoneRef.current(), 1800);
+        return;
+      }
+
+      // Si otra pestaña ya consumió la venganza, continuar evita soft-lock.
+      if (response.status === 409) {
+        const data = await response.json().catch(() => null);
+        if (data?.error === 'La venganza ya fue utilizada') {
+          sentRef.current = true;
+          onDoneRef.current();
+        }
+      }
+    } catch (_) {
+      // No consumimos el intento si falla la red: se puede reintentar mientras
+      // quede tiempo.
+    }
   };
 
   const pct = timeLeft / TIMER_SECS;
@@ -81,21 +105,17 @@ export function VenganzaModal({ gameId, victimName, victimUid, round, alivePlaye
       <div className="absolute inset-0 bg-purple-950/20 animate-pulse pointer-events-none" />
 
       <div className="relative z-10 w-full max-w-sm px-6 flex flex-col items-center gap-5">
-
-        {/* Ícono */}
         <div className="relative">
           <Flame className="h-14 w-14 text-purple-400 animate-bounce" style={{ animationDuration: '2s' }} />
           <div className="absolute inset-0 blur-2xl bg-purple-600/30 rounded-full" />
         </div>
 
-        {/* Título */}
         <div className="text-center">
           <p className="text-purple-400/60 text-xs uppercase tracking-widest mb-1">Poder final</p>
           <h2 className="text-2xl font-bold text-purple-100 font-headline">¿A quién maldices?</h2>
           <p className="text-white/35 text-sm mt-1">Tu maldición pesará en la próxima votación</p>
         </div>
 
-        {/* Timer */}
         <div className="relative w-14 h-14">
           <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
             <circle cx="28" cy="28" r="22" fill="none" stroke="#ffffff10" strokeWidth="5" />
@@ -114,7 +134,6 @@ export function VenganzaModal({ gameId, victimName, victimUid, round, alivePlaye
           </div>
         </div>
 
-        {/* Lista de jugadores */}
         {!confirmed ? (
           <>
             <div className="w-full flex flex-col gap-2 max-h-52 overflow-y-auto">
