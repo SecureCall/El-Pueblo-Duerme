@@ -15,10 +15,7 @@ export type LiveKitVoiceTransportOptions = {
   getDisplayName?: () => string | undefined;
 };
 
-type AttachedAudio = {
-  track: RemoteTrack;
-  element: HTMLMediaElement;
-};
+type AttachedAudio = { track: RemoteTrack; element: HTMLMediaElement };
 
 export class LiveKitVoiceTransport implements VoiceTransport {
   private room: Room | null = null;
@@ -31,10 +28,7 @@ export class LiveKitVoiceTransport implements VoiceTransport {
   private participantVolumes = new Map<string, number>();
   private attachedAudio = new Map<string, AttachedAudio>();
 
-  constructor(
-    roomFactory: LiveKitRoomFactory,
-    options: LiveKitVoiceTransportOptions,
-  ) {
+  constructor(roomFactory: LiveKitRoomFactory, options: LiveKitVoiceTransportOptions) {
     this.roomFactory = roomFactory;
     this.getIdToken = options.getIdToken;
     this.getDisplayName = options.getDisplayName;
@@ -51,23 +45,17 @@ export class LiveKitVoiceTransport implements VoiceTransport {
   }
 
   async connect(room: VoiceRoom, participantId: string) {
-    if (room.maxParticipants > 35) {
-      throw new Error('Voice room exceeds the 35-player limit');
-    }
-
+    if (room.maxParticipants > 35) throw new Error('Voice room exceeds the 35-player limit');
     await this.disconnect();
     this.emitState('connecting');
 
-    // LiveKit credentials are minted by the authenticated server and are
-    // deliberately not stored in VoiceRoom or Firestore.
     const credentials = await fetchVoiceToken(
       room.gameId,
+      room.channel,
       this.getIdToken,
       this.getDisplayName?.(),
     );
 
-    // The token endpoint derives the LiveKit identity from Firebase Auth.
-    // Refuse to connect if the controller and server disagree about identity.
     if (credentials.participant_identity !== participantId) {
       throw new Error('Voice participant identity mismatch');
     }
@@ -93,9 +81,7 @@ export class LiveKitVoiceTransport implements VoiceTransport {
       .on(RoomEvent.TrackMuted, () => this.emitParticipants())
       .on(RoomEvent.TrackUnmuted, () => this.emitParticipants())
       .on(RoomEvent.ActiveSpeakersChanged, speakers => {
-        this.activeSpeakerIds = new Set(
-          speakers.map(speaker => speaker.identity),
-        );
+        this.activeSpeakerIds = new Set(speakers.map(speaker => speaker.identity));
         this.emitParticipants();
       })
       .on(RoomEvent.Reconnecting, () => this.emitState('reconnecting'))
@@ -108,12 +94,7 @@ export class LiveKitVoiceTransport implements VoiceTransport {
         if (!playing) this.emitState('reconnecting');
       });
 
-    await roomInstance.connect(
-      credentials.server_url,
-      credentials.participant_token,
-      { autoSubscribe: true },
-    );
-
+    await roomInstance.connect(credentials.server_url, credentials.participant_token, { autoSubscribe: true });
     this.emitState('connected');
     this.emitParticipants();
   }
@@ -126,24 +107,16 @@ export class LiveKitVoiceTransport implements VoiceTransport {
   async setParticipantVolume(playerId: string, volume: number) {
     const normalized = Math.max(0, Math.min(1, volume));
     this.participantVolumes.set(playerId, normalized);
-
     const participant = this.room?.remoteParticipants.get(playerId);
     if (!participant) return;
-
-    // RemoteParticipant owns the playback volume API. RemoteTrack does not
-    // expose setVolume in the current LiveKit client typings.
     participant.setVolume(normalized);
-
     for (const attached of this.attachedAudio.values()) {
-      if (attached.element.dataset.voiceParticipantId === playerId) {
-        attached.element.volume = normalized;
-      }
+      if (attached.element.dataset.voiceParticipantId === playerId) attached.element.volume = normalized;
     }
   }
 
   async disconnect() {
     if (!this.room) return;
-
     this.detachAllAudio();
     await this.room.disconnect();
     this.room = null;
@@ -152,16 +125,10 @@ export class LiveKitVoiceTransport implements VoiceTransport {
     this.emitParticipants();
   }
 
-  private attachAudioTrack(
-    track: RemoteTrack,
-    publication: RemoteTrackPublication,
-    participantId: string,
-  ) {
+  private attachAudioTrack(track: RemoteTrack, publication: RemoteTrackPublication, participantId: string) {
     if (track.kind !== Track.Kind.Audio || typeof document === 'undefined') return;
-
     const key = publication.trackSid;
     this.detachAudioTrack(key);
-
     const element = track.attach();
     element.autoplay = true;
     element.setAttribute('aria-hidden', 'true');
@@ -172,19 +139,14 @@ export class LiveKitVoiceTransport implements VoiceTransport {
     element.style.opacity = '0';
     element.style.pointerEvents = 'none';
     document.body.appendChild(element);
-
-    const volume = this.participantVolumes.get(participantId) ?? 1;
-    element.volume = volume;
-
+    element.volume = this.participantVolumes.get(participantId) ?? 1;
     this.attachedAudio.set(key, { track, element });
   }
 
   private detachAudioTrack(trackSid?: string) {
     if (!trackSid) return;
-
     const attached = this.attachedAudio.get(trackSid);
     if (!attached) return;
-
     attached.track.detach(attached.element);
     attached.element.remove();
     this.attachedAudio.delete(trackSid);
@@ -204,22 +166,18 @@ export class LiveKitVoiceTransport implements VoiceTransport {
 
   private emitParticipants() {
     const participants: VoiceParticipant[] = [];
-
     if (this.room) {
       for (const participant of this.room.remoteParticipants.values()) {
         const volume = this.participantVolumes.get(participant.identity) ?? participant.getVolume() ?? 1;
         participants.push({
           playerId: participant.identity,
           displayName: participant.name || participant.identity,
-          muted: [...participant.audioTrackPublications.values()].every(
-            publication => publication.isMuted,
-          ),
+          muted: [...participant.audioTrackPublications.values()].every(publication => publication.isMuted),
           speaking: this.activeSpeakerIds.has(participant.identity),
           volume,
         });
       }
     }
-
     this.participantListeners.forEach(listener => listener(participants));
   }
 }
