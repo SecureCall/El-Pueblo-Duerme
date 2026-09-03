@@ -14,127 +14,43 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
-
-      - name: Patch client and remove temporary workflow
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Patch client
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
-
           p = Path('components/game/play/GamePlay.tsx')
           s = p.read_text(encoding='utf-8')
-
-          if 'dayResolutionLeaseRef' not in s:
-              anchor = '  const processingDayRef = useRef(false);\n'
-              if anchor not in s:
-                  raise SystemExit('processingDayRef anchor not found')
-              s = s.replace(anchor, anchor + '  const dayResolutionLeaseRef = useRef<string | null>(null);\n', 1)
-
-          start = '''  async function processDayVotes(dayVotes: Record<string, string>) {
-    if (!game) return;
-    if (game.phase !== 'day' && game.phase !== 'voting') { return; }
-    if (processingDayRef.current) return;
-    processingDayRef.current = true;
-    const roles = game.roles ?? {};
-'''
-          replacement = '''  async function processDayVotes(dayVotes: Record<string, string>) {
-    if (!game) return;
-    if (game.phase !== 'day' && game.phase !== 'voting') { return; }
-    if (processingDayRef.current) return;
-    processingDayRef.current = true;
-
-    let dayLeaseId: string | null = null;
-    try {
-      if (!user) throw new Error('AUTH_REQUIRED');
-      const idToken = await user.getIdToken();
-      const lockResponse = await fetch('/api/day-resolve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ gameId, action: 'claim' }),
-      });
-      const lockData = await lockResponse.json().catch(() => ({}));
-      if (!lockResponse.ok || !lockData.ok || !lockData.leaseId) {
-        processingDayRef.current = false;
-        return;
-      }
-      dayLeaseId = lockData.leaseId;
-      dayResolutionLeaseRef.current = dayLeaseId;
-      if (Number(lockData.round) !== (game.roundNumber ?? 1)) {
-        processingDayRef.current = false;
-        return;
-      }
-      dayVotes = lockData.votes ?? {};
-    } catch (e) {
-      console.error('[DayResolution] lease claim failed:', e);
-      processingDayRef.current = false;
-      return;
-    }
-
-    const roles = game.roles ?? {};
-'''
-          if start not in s:
-              raise SystemExit('processDayVotes start not found')
-          s = s.replace(start, replacement, 1)
-
-          marker = '        revealDeadResult: null,\n      });'
-          idx = s.find(marker)
-          if idx < 0:
-              raise SystemExit('final day update marker not found')
-          call_start = s.rfind("    await updateDoc(doc(db, 'games', gameId), {", 0, idx)
-          if call_start < 0:
-              raise SystemExit('final updateDoc start not found')
-          body_start = call_start + len("    await updateDoc(doc(db, 'games', gameId), {")
-          body_end = idx + len('        revealDeadResult: null,')
-          patch_body = s[body_start:body_end]
-          # Preserve indentation but convert the final object into a JSON-compatible JS value.
-          new_call = """    const dayPatch = {\n""" + patch_body + """\n    };\n    const commitToken = await user.getIdToken();\n    const commitResponse = await fetch('/api/day-resolve', {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${commitToken}` },\n      body: JSON.stringify({ gameId, action: 'commit', leaseId: dayLeaseId, round, patch: dayPatch }),\n    });\n    if (!commitResponse.ok) {\n      const commitData = await commitResponse.json().catch(() => ({}));\n      throw new Error(commitData.error || 'DAY_COMMIT_REJECTED');\n    }"""
-          s = s[:call_start] + new_call + s[idx + len(marker):]
-
-          old_finally = '''    } catch (e) {
-      console.error('processDayVotes updateDoc error:', e);
-    } finally {
-      processingDayRef.current = false;
-    }
-  }
-'''
-          new_finally = '''    } catch (e) {
-      console.error('processDayVotes error:', e);
-    } finally {
-      if (dayLeaseId) {
-        try {
-          const idToken = await user?.getIdToken();
-          if (idToken) {
-            await fetch('/api/day-resolve', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-              body: JSON.stringify({ gameId, action: 'release', leaseId: dayLeaseId }),
-            });
-          }
-        } catch (e) {
-          console.warn('[DayResolution] lease release failed; it will expire automatically:', e);
-        }
-        if (dayResolutionLeaseRef.current === dayLeaseId) dayResolutionLeaseRef.current = null;
-      }
-      processingDayRef.current = false;
-    }
-  }
-'''
-          if old_finally not in s:
-              raise SystemExit('day finalizer not found')
-          s = s.replace(old_finally, new_finally, 1)
-
-          p.write_text(s, encoding='utf-8')
+          if 'dayResolutionLeaseRef' in s and "action: 'commit'" in s:
+              print('already patched')
+          else:
+              if 'dayResolutionLeaseRef' not in s:
+                  s = s.replace('  const processingDayRef = useRef(false);\n', '  const processingDayRef = useRef(false);\n  const dayResolutionLeaseRef = useRef<string | null>(null);\n', 1)
+              start = """  async function processDayVotes(dayVotes: Record<string, string>) {\n    if (!game) return;\n    if (game.phase !== 'day' && game.phase !== 'voting') { return; }\n    if (processingDayRef.current) return;\n    processingDayRef.current = true;\n    const roles = game.roles ?? {};\n"""
+              replacement = """  async function processDayVotes(dayVotes: Record<string, string>) {\n    if (!game) return;\n    if (game.phase !== 'day' && game.phase !== 'voting') { return; }\n    if (processingDayRef.current) return;\n    processingDayRef.current = true;\n    let dayLeaseId: string | null = null;\n    try {\n      if (!user) throw new Error('AUTH_REQUIRED');\n      const idToken = await user.getIdToken();\n      const lockResponse = await fetch('/api/day-resolve', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` }, body: JSON.stringify({ gameId, action: 'claim' }) });\n      const lockData = await lockResponse.json().catch(() => ({}));\n      if (!lockResponse.ok || !lockData.ok || !lockData.leaseId) { processingDayRef.current = false; return; }\n      dayLeaseId = lockData.leaseId;\n      dayResolutionLeaseRef.current = dayLeaseId;\n      if (Number(lockData.round) !== (game.roundNumber ?? 1)) { processingDayRef.current = false; return; }\n      dayVotes = lockData.votes ?? {};\n    } catch (e) {\n      console.error('[DayResolution] lease claim failed:', e);\n      processingDayRef.current = false;\n      return;\n    }\n    const roles = game.roles ?? {};\n"""
+              if start not in s: raise SystemExit('start not found')
+              s = s.replace(start, replacement, 1)
+              marker = '        revealDeadResult: null,\n      });'
+              idx = s.find(marker)
+              if idx < 0: raise SystemExit('marker not found')
+              call_start = s.rfind("    await updateDoc(doc(db, 'games', gameId), {", 0, idx)
+              if call_start < 0: raise SystemExit('final update not found')
+              body_start = call_start + len("    await updateDoc(doc(db, 'games', gameId), {")
+              body_end = idx + len('        revealDeadResult: null,')
+              body = s[body_start:body_end]
+              new_call = "    const dayPatch = {" + body + "\n    };\n    const commitToken = await user.getIdToken();\n    const commitResponse = await fetch('/api/day-resolve', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${commitToken}` }, body: JSON.stringify({ gameId, action: 'commit', leaseId: dayLeaseId, round, patch: dayPatch }) });\n    if (!commitResponse.ok) { const commitData = await commitResponse.json().catch(() => ({})); throw new Error(commitData.error || 'DAY_COMMIT_REJECTED'); }"
+              s = s[:call_start] + new_call + s[idx + len(marker):]
+              oldf = """    } catch (e) {\n      console.error('processDayVotes updateDoc error:', e);\n    } finally {\n      processingDayRef.current = false;\n    }\n  }\n"""
+              newf = """    } catch (e) {\n      console.error('processDayVotes error:', e);\n    } finally {\n      if (dayLeaseId) {\n        try {\n          const idToken = await user?.getIdToken();\n          if (idToken) await fetch('/api/day-resolve', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` }, body: JSON.stringify({ gameId, action: 'release', leaseId: dayLeaseId }) });\n        } catch (e) { console.warn('[DayResolution] lease release failed:', e); }\n        if (dayResolutionLeaseRef.current === dayLeaseId) dayResolutionLeaseRef.current = null;\n      }\n      processingDayRef.current = false;\n    }\n  }\n"""
+              if oldf not in s: raise SystemExit('finally not found')
+              s = s.replace(oldf, newf, 1)
+              p.write_text(s, encoding='utf-8')
           PY
-
           git diff --check
           grep -q "action: 'commit'" components/game/play/GamePlay.tsx
-          grep -q "DAY_PATCH_KEYS" app/api/day-resolve/route.ts
-
           rm .github/workflows/wire-day-resolution-fencing.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add components/game/play/GamePlay.tsx app/api/day-resolve/route.ts .github/workflows/wire-day-resolution-fencing.yml
+          git add components/game/play/GamePlay.tsx .github/workflows/wire-day-resolution-fencing.yml
           git commit -m "security: fence day resolution final commit"
           git push
