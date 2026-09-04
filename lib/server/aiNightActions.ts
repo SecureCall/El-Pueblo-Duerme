@@ -17,6 +17,7 @@ export interface AiNightContext {
   players: AiNightPlayer[];
   roles: Record<string, string>;
   criaLoboRage?: boolean;
+  lobosBlocked?: boolean;
 }
 
 /**
@@ -54,6 +55,7 @@ export function generateAiNightActions(context: AiNightContext): Record<string, 
       case 'Lobo':
       case 'Lobo Blanco':
       case 'Cría de Lobo':
+        if (context.lobosBlocked) break;
         if (wolfTarget) actions.push({ action: 'wolfTarget', targetUid: wolfTarget.uid });
         if (role === 'Lobo Blanco' && context.roundNumber % 2 === 0 && wolfTarget) {
           const second = pick(nonWolves.filter((player) => player.uid !== wolfTarget.uid), `${seed}:white`);
