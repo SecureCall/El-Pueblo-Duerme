@@ -8,12 +8,147 @@ import { readNightRoleSnapshot } from '@/lib/server/nightRoleSnapshot';
 import { resolveNightActions } from '@/lib/server/nightResolutionEngine';
 import { claimNightResolution, releaseNightResolution, renewNightResolution } from '@/lib/server/nightResolutionLock';
 import { canonicalizeWolfTeam } from '@/lib/server/wolfTeam';
+import { generateAiNightActions } from '@/lib/server/aiNightActions';
+import { createNightActionSubmissions, validateNightActionSubmissions } from '@/lib/game/nightResolution';
+import { canUseRoleAtRound, getRoleAuthorityRule } from '@/lib/game/roleAuthority';
+import { validateNightAction } from '@/lib/game/nightActionValidation';
 
 const RESOLUTION_HEARTBEAT_MS = 30_000;
 
 function nextDayEnd(now: number, aliveCount: number): number {
   const base = Math.min(120, Math.max(60, aliveCount * 10));
   return now + base * 1000 + 2000;
+}
+
+/**
+ * Ensures every alive AI has an authoritative submission before resolution.
+ * This removes the host/browser as a dependency for bot turns. The operation
+ * is idempotent per actor+round and is fenced by the same game transaction.
+ */
+async function ensureAiNightSubmissions(
+  db: ReturnType<typeof getSdks>['db'],
+  gameRef: ReturnType<ReturnType<typeof getSdks>['db']['collection']>,
+  game: Record<string, unknown>,
+  players: Array<Record<string, unknown>>,
+  roundNumber: number,
+): Promise<void> {
+  const aiPlayers = players.filter((player) => player.isAI === true && player.isAlive === true && typeof player.uid === 'string');
+  if (aiPlayers.length === 0) return;
+
+  await db.runTransaction(async (tx) => {
+    const currentGameSnap = await tx.get(gameRef);
+    if (!currentGameSnap.exists) throw new Error('night_state_changed_before_ai_fill');
+    const currentGame = currentGameSnap.data() as Record<string, unknown>;
+    if (currentGame.phase !== 'night' || Number(currentGame.roundNumber ?? 1) !== roundNumber) {
+      throw new Error('night_state_changed_before_ai_fill');
+    }
+
+    const currentPlayers = Array.isArray(currentGame.players)
+      ? currentGame.players.filter((player): player is Record<string, unknown> => !!player && typeof player === 'object')
+      : players;
+    const currentAiPlayers = currentPlayers.filter(
+      (player) => player.isAI === true && player.isAlive === true && typeof player.uid === 'string',
+    );
+    if (currentAiPlayers.length === 0) return;
+
+    const roleRefs = currentAiPlayers.map((player) => gameRef.collection('playerRoles').doc(String(player.uid)));
+    const submissionRefs = currentAiPlayers.map((player) => gameRef.collection('nightSubmissions').doc(String(player.uid)));
+    const [roleSnaps, submissionSnaps] = await Promise.all([
+      tx.getAll(...roleRefs),
+      tx.getAll(...submissionRefs),
+    ]);
+
+    const roles: Record<string, string> = {};
+    for (let i = 0; i < currentAiPlayers.length; i += 1) {
+      const uid = String(currentAiPlayers[i].uid);
+      const privateRole = roleSnaps[i].exists ? roleSnaps[i].data()?.role : undefined;
+      const fallbackRole = currentGame.roles && typeof currentGame.roles === 'object'
+        ? (currentGame.roles as Record<string, unknown>)[uid]
+        : undefined;
+      if (typeof privateRole === 'string') roles[uid] = privateRole;
+      else if (typeof fallbackRole === 'string') roles[uid] = fallbackRole;
+    }
+
+    const generated = generateAiNightActions({
+      gameId: gameRef.id,
+      roundNumber,
+      players: currentPlayers.map((player) => ({
+        uid: String(player.uid),
+        isAlive: player.isAlive === true,
+        isAI: player.isAI === true,
+      })),
+      roles,
+      criaLoboRage: currentGame.criaLoboRage === true,
+    });
+
+    const now = Date.now();
+    for (let i = 0; i < currentAiPlayers.length; i += 1) {
+      const actor = currentAiPlayers[i];
+      const uid = String(actor.uid);
+      const existing = submissionSnaps[i];
+      if (existing.exists && Number(existing.data()?.roundNumber ?? 0) === roundNumber) continue;
+
+      const role = roles[uid];
+      const actions = generated[uid] ?? [{ action: '_skip' }];
+      const payload = Object.fromEntries(actions.map((action) => {
+        if (action.targetUid !== undefined) return [action.action, action.targetUid];
+        if (action.targetUids !== undefined) return [action.action, action.targetUids];
+        return [action.action, action.value ?? true];
+      }));
+      const submissions = createNightActionSubmissions(uid, payload);
+      if (!role || submissions.length === 0) {
+        tx.set(submissionRefs[i], {
+          actorUid: uid,
+          role: role ?? 'Aldeano',
+          roundNumber,
+          actions: [{ actorUid: uid, action: '_skip' }],
+          submittedAt: now,
+          syncedAt: now,
+          serverGenerated: true,
+        });
+        continue;
+      }
+
+      const isSkipOnly = submissions.every((submission) => submission.action === '_skip');
+      const rule = getRoleAuthorityRule(role);
+      if (!isSkipOnly && (!rule || !canUseRoleAtRound(role, roundNumber))) continue;
+
+      const submissionValidation = validateNightActionSubmissions(
+        currentPlayers.map((player) => ({ uid: String(player.uid), isAlive: player.isAlive === true })),
+        uid,
+        role,
+        submissions,
+      );
+      if (!submissionValidation.valid) continue;
+
+      if (!isSkipOnly) {
+        const targetIds = submissions.flatMap((submission) => [
+          ...(submission.targetUid ? [submission.targetUid] : []),
+          ...(submission.targetUids ?? []),
+        ]);
+        const targetValidation = validateNightAction({
+          phase: 'night',
+          round: roundNumber,
+          actor: { uid, isAlive: true },
+          targetIds,
+          players: currentPlayers.map((player) => ({ uid: String(player.uid), isAlive: player.isAlive === true })),
+          allowSelfTarget: rule!.allowSelfTarget,
+          maxTargets: rule!.maxTargets,
+        });
+        if (!targetValidation.ok) continue;
+      }
+
+      tx.set(submissionRefs[i], {
+        actorUid: uid,
+        role,
+        roundNumber,
+        actions: submissions,
+        submittedAt: now,
+        syncedAt: now,
+        serverGenerated: true,
+      });
+    }
+  });
 }
 
 /** Server-side, deterministic night-resolution boundary. */
@@ -68,6 +203,8 @@ export async function POST(request: Request) {
           leaseLost = true;
         });
     }, RESOLUTION_HEARTBEAT_MS);
+
+    await ensureAiNightSubmissions(db, gameRef, game, players as Array<Record<string, unknown>>, roundNumber);
 
     const submissions = await readNightSubmissions(gameId, roundNumber);
     const validation = validatePersistedNightSubmissions(
@@ -124,9 +261,6 @@ export async function POST(request: Request) {
       result.statePatch.wolfTeam,
     );
 
-    // The game state and the resolution lease are committed in one transaction.
-    // This is the fencing boundary: an expired/reclaimed resolver can calculate
-    // a result, but it cannot mutate the game after another resolver owns the lease.
     await db.runTransaction(async (tx) => {
       const lockRef = gameRef.collection('nightResolutions').doc(String(roundNumber));
       const [currentGameSnap, lockSnap] = await Promise.all([
@@ -207,7 +341,6 @@ export async function POST(request: Request) {
         bansheePredictionUid: null,
       });
 
-      // Keep the private role source synchronized with authoritative transformations.
       for (const [uid, role] of Object.entries(patch.roles)) {
         tx.set(
           gameRef.collection('playerRoles').doc(uid),
