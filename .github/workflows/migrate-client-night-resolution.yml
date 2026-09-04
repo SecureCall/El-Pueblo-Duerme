@@ -3,6 +3,9 @@ name: Migrate client night resolution
 on:
   pull_request:
     types: [opened, synchronize]
+  push:
+    branches:
+      - 'migration/**'
   workflow_dispatch:
 
 permissions:
