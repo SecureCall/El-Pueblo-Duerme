@@ -75,13 +75,17 @@ export async function POST(req: NextRequest) {
       if (!authoritativeRole) throw new Error('ROLE_MISMATCH');
       if (requestedRole !== undefined && authoritativeRole !== requestedRole) throw new Error('ROLE_MISMATCH');
 
-      const rule = getRoleAuthorityRule(authoritativeRole);
-      if (!rule || !canUseRoleAtRound(authoritativeRole, round)) {
-        throw new Error('ROLE_NOT_AVAILABLE');
-      }
-
       const submissions = createNightActionSubmissions(uid, payload);
       if (submissions.length === 0) throw new Error('ACTION_NOT_RECOGNIZED');
+
+      // A skip is a legitimate no-action submission for passive roles and for
+      // active roles whose player elects to pass. It does not require a role
+      // authority rule because no privileged action is being requested.
+      const isSkipOnly = submissions.every(submission => submission.action === '_skip');
+      const rule = getRoleAuthorityRule(authoritativeRole);
+      if (!isSkipOnly && (!rule || !canUseRoleAtRound(authoritativeRole, round))) {
+        throw new Error('ROLE_NOT_AVAILABLE');
+      }
 
       // Canonical role/action validation. This uses the private server role,
       // never a client-provided role as authority.
@@ -95,21 +99,23 @@ export async function POST(req: NextRequest) {
         throw new Error('ACTION_NOT_ALLOWED');
       }
 
-      const targets: string[] = [];
-      for (const submission of submissions) {
-        if (submission.targetUid) targets.push(submission.targetUid);
-        if (submission.targetUids) targets.push(...submission.targetUids);
+      if (!isSkipOnly) {
+        const targets: string[] = [];
+        for (const submission of submissions) {
+          if (submission.targetUid) targets.push(submission.targetUid);
+          if (submission.targetUids) targets.push(...submission.targetUids);
+        }
+        const targetValidation = validateNightAction({
+          phase: gameData.phase,
+          round,
+          actor,
+          targetIds: targets,
+          players,
+          allowSelfTarget: rule!.allowSelfTarget,
+          maxTargets: rule!.maxTargets,
+        });
+        if (!targetValidation.ok) throw new Error(targetValidation.code);
       }
-      const targetValidation = validateNightAction({
-        phase: gameData.phase,
-        round,
-        actor,
-        targetIds: targets,
-        players,
-        allowSelfTarget: rule.allowSelfTarget,
-        maxTargets: rule.maxTargets,
-      });
-      if (!targetValidation.ok) throw new Error(targetValidation.code);
 
       const existingSnap = await transaction.get(submissionRef);
       if (existingSnap.exists) {
