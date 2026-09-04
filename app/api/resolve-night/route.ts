@@ -12,6 +12,7 @@ import { generateAiNightActions } from '@/lib/server/aiNightActions';
 import { createNightActionSubmissions, validateNightActionSubmissions } from '@/lib/game/nightResolution';
 import { canUseRoleAtRound, getRoleAuthorityRule } from '@/lib/game/roleAuthority';
 import { validateNightAction } from '@/lib/game/nightActionValidation';
+import { canResolveNight } from '@/lib/server/nightResolutionTiming';
 
 const RESOLUTION_HEARTBEAT_MS = 30_000;
 
@@ -20,11 +21,6 @@ function nextDayEnd(now: number, aliveCount: number): number {
   return now + base * 1000 + 2000;
 }
 
-/**
- * Ensures every alive AI has an authoritative submission before resolution.
- * This removes the host/browser as a dependency for bot turns. The operation
- * is idempotent per actor+round and is fenced by the same game transaction.
- */
 async function ensureAiNightSubmissions(
   db: ReturnType<typeof getSdks>['db'],
   gameRef: ReturnType<ReturnType<typeof getSdks>['db']['collection']>,
@@ -79,6 +75,7 @@ async function ensureAiNightSubmissions(
       })),
       roles,
       criaLoboRage: currentGame.criaLoboRage === true,
+      lobosBlocked: currentGame.lobosBlocked === true,
     });
 
     const now = Date.now();
@@ -98,13 +95,8 @@ async function ensureAiNightSubmissions(
       const submissions = createNightActionSubmissions(uid, payload);
       if (!role || submissions.length === 0) {
         tx.set(submissionRefs[i], {
-          actorUid: uid,
-          role: role ?? 'Aldeano',
-          roundNumber,
-          actions: [{ actorUid: uid, action: '_skip' }],
-          submittedAt: now,
-          syncedAt: now,
-          serverGenerated: true,
+          actorUid: uid, role: role ?? 'Aldeano', roundNumber,
+          actions: [{ actorUid: uid, action: '_skip' }], submittedAt: now, syncedAt: now, serverGenerated: true,
         });
         continue;
       }
@@ -115,43 +107,30 @@ async function ensureAiNightSubmissions(
 
       const submissionValidation = validateNightActionSubmissions(
         currentPlayers.map((player) => ({ uid: String(player.uid), isAlive: player.isAlive === true })),
-        uid,
-        role,
-        submissions,
+        uid, role, submissions,
       );
       if (!submissionValidation.valid) continue;
 
       if (!isSkipOnly) {
         const targetIds = submissions.flatMap((submission) => [
-          ...(submission.targetUid ? [submission.targetUid] : []),
-          ...(submission.targetUids ?? []),
+          ...(submission.targetUid ? [submission.targetUid] : []), ...(submission.targetUids ?? []),
         ]);
         const targetValidation = validateNightAction({
-          phase: 'night',
-          round: roundNumber,
-          actor: { uid, isAlive: true },
-          targetIds,
+          phase: 'night', round: roundNumber, actor: { uid, isAlive: true }, targetIds,
           players: currentPlayers.map((player) => ({ uid: String(player.uid), isAlive: player.isAlive === true })),
-          allowSelfTarget: rule!.allowSelfTarget,
-          maxTargets: rule!.maxTargets,
+          allowSelfTarget: rule!.allowSelfTarget, maxTargets: rule!.maxTargets,
         });
         if (!targetValidation.ok) continue;
       }
 
       tx.set(submissionRefs[i], {
-        actorUid: uid,
-        role,
-        roundNumber,
-        actions: submissions,
-        submittedAt: now,
-        syncedAt: now,
-        serverGenerated: true,
+        actorUid: uid, role, roundNumber, actions: submissions,
+        submittedAt: now, syncedAt: now, serverGenerated: true,
       });
     }
   });
 }
 
-/** Server-side, deterministic night-resolution boundary. */
 export async function POST(request: Request) {
   let claimedGameId: string | null = null;
   let claimedRound: number | null = null;
@@ -181,6 +160,10 @@ export async function POST(request: Request) {
     const roundNumber = typeof game.roundNumber === 'number' ? game.roundNumber : null;
     if (roundNumber === null) return NextResponse.json({ error: 'Invalid night round' }, { status: 409 });
 
+    if (!canResolveNight({ phase: 'night', phaseEndsAt: typeof game.phaseEndsAt === 'number' ? game.phaseEndsAt : null })) {
+      return NextResponse.json({ error: 'Night timer has not expired' }, { status: 409 });
+    }
+
     const lock = await claimNightResolution(db, gameId, roundNumber);
     if (!lock.acquired || !lock.leaseId) {
       return NextResponse.json(
@@ -196,48 +179,26 @@ export async function POST(request: Request) {
     heartbeat = setInterval(() => {
       if (!claimedGameId || claimedRound === null || !claimedLeaseId) return;
       void renewNightResolution(db, claimedGameId, claimedRound, claimedLeaseId)
-        .then((renewed) => {
-          if (!renewed) leaseLost = true;
-        })
-        .catch(() => {
-          leaseLost = true;
-        });
+        .then((renewed) => { if (!renewed) leaseLost = true; })
+        .catch(() => { leaseLost = true; });
     }, RESOLUTION_HEARTBEAT_MS);
 
     await ensureAiNightSubmissions(db, gameRef, game, players as Array<Record<string, unknown>>, roundNumber);
 
     const submissions = await readNightSubmissions(gameId, roundNumber);
-    const validation = validatePersistedNightSubmissions(
-      players as Array<Record<string, unknown>>,
-      submissions,
-      roundNumber,
-    );
+    const validation = validatePersistedNightSubmissions(players as Array<Record<string, unknown>>, submissions, roundNumber);
     const groupedSubmissions = validation.valid.map((submission) => ({
-      actorUid: submission.actorUid,
-      role: submission.role,
-      actions: submission.actions,
-      roundNumber: submission.roundNumber,
-      submittedAt: submission.submittedAt,
-      syncedAt: submission.syncedAt,
+      actorUid: submission.actorUid, role: submission.role, actions: submission.actions,
+      roundNumber: submission.roundNumber, submittedAt: submission.submittedAt, syncedAt: submission.syncedAt,
     }));
 
-    const input = createNightResolutionInput(
-      gameId,
-      roundNumber,
-      players as Array<Record<string, unknown>>,
-      groupedSubmissions,
-      game,
-    );
-    const roleSnapshot = await readNightRoleSnapshot(
-      gameId,
-      input.players.map((player) => player.uid),
-    );
+    const input = createNightResolutionInput(gameId, roundNumber, players as Array<Record<string, unknown>>, groupedSubmissions, game);
+    const roleSnapshot = await readNightRoleSnapshot(gameId, input.players.map((player) => player.uid));
     const result = resolveNightActions(input, roleSnapshot);
 
     if (leaseLost) throw new Error('night_resolution_lease_lost');
 
-    const acceptedAction = (action: string) =>
-      result.acceptedActions.find((item) => item.action === action) ?? null;
+    const acceptedAction = (action: string) => result.acceptedActions.find((item) => item.action === action) ?? null;
     const ancianaTarget = acceptedAction('ancianaTarget')?.targetUid ?? null;
     const actorTarget = (action: string): string | null => {
       const item = acceptedAction(action);
@@ -246,40 +207,26 @@ export async function POST(request: Request) {
     const guardianLastTarget = actorTarget('guardianTarget');
     const doctorLastTarget = actorTarget('doctorTarget');
     const doctorAction = acceptedAction('doctorTarget');
-    const doctorSelfUsed = Boolean(
-      doctorAction?.targetUid && doctorAction.targetUid === doctorAction.actorUid,
-    );
+    const doctorSelfUsed = Boolean(doctorAction?.targetUid && doctorAction.targetUid === doctorAction.actorUid);
     const primaryWolfTarget = result.wolfResolution.targetUid;
-    const primaryWolfVictim = primaryWolfTarget
-      ? result.statePatch.players.find((player) => player.uid === primaryWolfTarget)
-      : null;
-    const dayEliminatedUid = primaryWolfVictim && !primaryWolfVictim.isAlive
-      ? primaryWolfTarget
-      : null;
-    const canonicalWolfTeam = canonicalizeWolfTeam(
-      result.statePatch.roles,
-      result.statePatch.wolfTeam,
-    );
+    const primaryWolfVictim = primaryWolfTarget ? result.statePatch.players.find((player) => player.uid === primaryWolfTarget) : null;
+    const dayEliminatedUid = primaryWolfVictim && !primaryWolfVictim.isAlive ? primaryWolfTarget : null;
+    const canonicalWolfTeam = canonicalizeWolfTeam(result.statePatch.roles, result.statePatch.wolfTeam);
 
     await db.runTransaction(async (tx) => {
       const lockRef = gameRef.collection('nightResolutions').doc(String(roundNumber));
-      const [currentGameSnap, lockSnap] = await Promise.all([
-        tx.get(gameRef),
-        tx.get(lockRef),
-      ]);
-
+      const [currentGameSnap, lockSnap] = await Promise.all([tx.get(gameRef), tx.get(lockRef)]);
       if (!currentGameSnap.exists) throw new Error('night_state_changed_before_commit');
       if (!lockSnap.exists) throw new Error('night_resolution_lock_missing');
 
       const currentGame = currentGameSnap.data() as Record<string, unknown>;
       const lockData = lockSnap.data() as Record<string, unknown>;
-
-      if (currentGame.phase !== 'night' || currentGame.roundNumber !== roundNumber) {
-        throw new Error('night_state_changed_before_commit');
-      }
-      if (lockData.status !== 'resolving' || lockData.leaseId !== claimedLeaseId) {
-        throw new Error('night_resolution_lease_lost');
-      }
+      if (currentGame.phase !== 'night' || currentGame.roundNumber !== roundNumber) throw new Error('night_state_changed_before_commit');
+      if (lockData.status !== 'resolving' || lockData.leaseId !== claimedLeaseId) throw new Error('night_resolution_lease_lost');
+      if (!canResolveNight({
+        phase: 'night',
+        phaseEndsAt: typeof currentGame.phaseEndsAt === 'number' ? currentGame.phaseEndsAt : null,
+      })) throw new Error('night_resolution_too_early');
 
       const patch = result.statePatch;
       const now = Date.now();
@@ -287,89 +234,38 @@ export async function POST(request: Request) {
       const nextPhase = finalWinner ? 'ended' : 'day';
       const aliveCount = patch.players.filter((player) => player.isAlive).length;
       const previousForenseResults = currentGame.forenseResults && typeof currentGame.forenseResults === 'object'
-        ? currentGame.forenseResults as Record<string, string>
-        : {};
+        ? currentGame.forenseResults as Record<string, string> : {};
 
       tx.update(gameRef, {
-        players: patch.players,
-        roles: patch.roles,
-        eliminatedHistory: patch.eliminatedHistory,
-        wolfTeam: canonicalWolfTeam,
-        antigoHit: patch.antigoHit,
-        cambiaformasTargets: patch.cambiaformasTargets,
-        salvajeMentors: patch.salvajeMentors,
-        virginiawoolFate: patch.virginiawoolFate,
-        perroLoboChoices: patch.perroLoboChoices,
-        cultMembers: patch.cultMembers,
-        vampiroBites: patch.vampiroBites,
-        vampiroKills: patch.vampiroKills,
-        pescadorBoat: patch.pescadorBoat,
-        enchanted: patch.enchanted,
-        hadaLinked: patch.hadaLinked,
-        bansheePoints: patch.bansheePoints,
-        vigiaUsed: patch.vigiaUsed,
-        vigiaKnowsWolves: patch.vigiaKnowsWolves,
-        angelResucitadorUsed: patch.angelResucitadorUsed,
-        espiaUsed: patch.espiaUsed,
-        sirenaUid: patch.sirenaUid,
-        sirenaLinked: patch.sirenaLinked,
-        lobosBlocked: result.deathEffects.nextNightWolfBlock,
-        criaLoboRage: patch.criaLoboRage,
-        hechiceraLifeUsed: patch.hechiceraLifeUsed,
-        hechiceraPoisonUsed: patch.hechiceraPoisonUsed,
-        brujaFoundVidente: patch.brujaFoundVidente,
-        brujaProtectedUid: patch.brujaProtectedUid,
-        guardianLastTarget,
-        doctorLastTarget,
-        doctorSelfUsed,
-        dayEliminatedUid,
-        cazadorPendingShot: patch.cazadorPendingShot,
-        seerReveal: patch.seerReveal,
-        seerReveal2: patch.seerReveal2,
-        profetaReveal: patch.profetaReveal,
-        silencedPlayers: patch.silencedPlayers,
-        forenseResults: { ...previousForenseResults, ...patch.forenseResults },
-        saboteadorBan: patch.saboteadorBan,
-        phase: nextPhase,
-        winners: finalWinner,
-        winMessage: result.winMessage,
-        nightActions: {},
-        nightSubmissions: {},
-        dayVotes: {},
-        dayStartedAt: finalWinner ? null : now,
-        phaseEndsAt: finalWinner ? null : nextDayEnd(now, aliveCount),
-        bansheePredictionUid: null,
+        players: patch.players, roles: patch.roles, eliminatedHistory: patch.eliminatedHistory, wolfTeam: canonicalWolfTeam,
+        antigoHit: patch.antigoHit, cambiaformasTargets: patch.cambiaformasTargets, salvajeMentors: patch.salvajeMentors,
+        virginiawoolFate: patch.virginiawoolFate, perroLoboChoices: patch.perroLoboChoices, cultMembers: patch.cultMembers,
+        vampiroBites: patch.vampiroBites, vampiroKills: patch.vampiroKills, pescadorBoat: patch.pescadorBoat,
+        enchanted: patch.enchanted, hadaLinked: patch.hadaLinked, bansheePoints: patch.bansheePoints,
+        vigiaUsed: patch.vigiaUsed, vigiaKnowsWolves: patch.vigiaKnowsWolves, angelResucitadorUsed: patch.angelResucitadorUsed,
+        espiaUsed: patch.espiaUsed, sirenaUid: patch.sirenaUid, sirenaLinked: patch.sirenaLinked,
+        lobosBlocked: result.deathEffects.nextNightWolfBlock, criaLoboRage: patch.criaLoboRage,
+        hechiceraLifeUsed: patch.hechiceraLifeUsed, hechiceraPoisonUsed: patch.hechiceraPoisonUsed,
+        brujaFoundVidente: patch.brujaFoundVidente, brujaProtectedUid: patch.brujaProtectedUid,
+        guardianLastTarget, doctorLastTarget, doctorSelfUsed, dayEliminatedUid, cazadorPendingShot: patch.cazadorPendingShot,
+        seerReveal: patch.seerReveal, seerReveal2: patch.seerReveal2, profetaReveal: patch.profetaReveal,
+        silencedPlayers: patch.silencedPlayers, forenseResults: { ...previousForenseResults, ...patch.forenseResults },
+        saboteadorBan: patch.saboteadorBan, phase: nextPhase, winners: finalWinner, winMessage: result.winMessage,
+        nightActions: {}, nightSubmissions: {}, dayVotes: {}, dayStartedAt: finalWinner ? null : now,
+        phaseEndsAt: finalWinner ? null : nextDayEnd(now, aliveCount), bansheePredictionUid: null,
       });
 
       for (const [uid, role] of Object.entries(patch.roles)) {
-        tx.set(
-          gameRef.collection('playerRoles').doc(uid),
-          { role, updatedAt: now },
-          { merge: true },
-        );
+        tx.set(gameRef.collection('playerRoles').doc(uid), { role, updatedAt: now }, { merge: true });
       }
-
-      tx.update(lockRef, {
-        status: 'resolved',
-        resolvedAt: new Date(now),
-        expiresAt: null,
-      });
+      tx.update(lockRef, { status: 'resolved', resolvedAt: new Date(now), expiresAt: null });
     });
 
-    claimedGameId = null;
-    claimedRound = null;
-    claimedLeaseId = null;
-
-    return NextResponse.json({
-      ok: true,
-      gameId,
-      result,
-      rejected: validation.rejected,
-    });
+    claimedGameId = null; claimedRound = null; claimedLeaseId = null;
+    return NextResponse.json({ ok: true, gameId, result, rejected: validation.rejected });
   } catch (error) {
     if (heartbeat) clearInterval(heartbeat);
     heartbeat = null;
-
     if (claimedGameId && claimedRound !== null && claimedLeaseId) {
       try {
         const { db } = getSdks();
@@ -378,14 +274,10 @@ export async function POST(request: Request) {
         console.error('[resolve-night] failed to release resolution lease', releaseError);
       }
     }
-
     console.error('[resolve-night] request failed', error);
     const message = error instanceof Error ? error.message : 'unknown_error';
     const status = message.startsWith('night_') ? 409 : 401;
-    return NextResponse.json(
-      { error: status === 409 ? message : 'Unauthorized or invalid request' },
-      { status },
-    );
+    return NextResponse.json({ error: status === 409 ? message : 'Unauthorized or invalid request' }, { status });
   } finally {
     if (heartbeat) clearInterval(heartbeat);
   }
