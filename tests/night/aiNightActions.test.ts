@@ -52,4 +52,17 @@ describe('generateAiNightActions', () => {
 
     expect(result['ai-villager']).toEqual([{ action: '_skip' }]);
   });
+
+  it('does not generate a wolf kill while wolves are blocked', () => {
+    const result = generateAiNightActions({
+      gameId: 'blocked-wolves',
+      roundNumber: 2,
+      players,
+      roles,
+      lobosBlocked: true,
+    });
+
+    expect(result['ai-wolf']).toEqual([{ action: '_skip' }]);
+    expect(result['ai-seer'][0]?.action).toBe('seerTarget');
+  });
 });
