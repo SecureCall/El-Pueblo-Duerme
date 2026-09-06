@@ -1,11 +1,5 @@
 export const HOST_ABSENCE_MS = 5 * 60 * 1000;
 
-export interface TakeoverPlayer {
-  uid?: unknown;
-  isAlive?: unknown;
-  isAI?: unknown;
-}
-
 export type TakeoverDecision =
   | { ok: true; takenOver: false; hostUid: string }
   | { ok: true; takenOver: true; hostUid: string; players: Record<string, unknown>[] }
@@ -35,7 +29,7 @@ export function getTakeoverDecision(
   const candidates = players
     .filter((p) => p.uid !== currentHostUid && p.isAlive !== false && p.isAI !== true && typeof p.uid === 'string')
     .map((p) => p.uid as string)
-    .sort((a, b) => a.localeCompare(b));
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 
   if (candidates[0] !== uid) return { ok: false, code: 'NOT_NEXT_CANDIDATE' };
 
