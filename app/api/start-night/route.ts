@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { initAdminApp } from '@/lib/firebase/admin';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { getFirestore } from 'firebase-admin/firestore';
+import { validateRoleSnapshot } from '@/lib/server/startNightValidation';
 
 /**
  * Server-authoritative roleReveal -> night transition.
@@ -29,7 +30,25 @@ export async function POST(req: NextRequest) {
       if (game.hostUid !== uid) throw new Error('NOT_HOST');
       if (game.phase !== 'roleReveal') throw new Error('INVALID_PHASE');
       if (!Array.isArray(game.players) || game.players.length < 1) throw new Error('NO_PLAYERS');
-      if (!game.roles || typeof game.roles !== 'object' || Object.keys(game.roles).length !== game.players.length) {
+      if (!game.roles || typeof game.roles !== 'object' || Array.isArray(game.roles) || Object.keys(game.roles).length !== game.players.length) {
+        throw new Error('ROLES_NOT_ASSIGNED');
+      }
+
+      const privateRoles: Record<string, unknown> = {};
+      for (const player of game.players) {
+        if (!player || typeof player !== 'object' || typeof player.uid !== 'string' || !player.uid) {
+          throw new Error('ROLES_NOT_ASSIGNED');
+        }
+        const roleSnap = await tx.get(gameRef.collection('playerRoles').doc(player.uid));
+        if (!roleSnap.exists) throw new Error('ROLES_NOT_ASSIGNED');
+        privateRoles[player.uid] = roleSnap.data()?.role;
+      }
+
+      if (!validateRoleSnapshot({
+        players: game.players,
+        publicRoles: game.roles as Record<string, unknown>,
+        privateRoles,
+      })) {
         throw new Error('ROLES_NOT_ASSIGNED');
       }
 
