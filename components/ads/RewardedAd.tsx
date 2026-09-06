@@ -2,13 +2,13 @@
 
 import { useState } from 'react';
 import { Coins, Play } from 'lucide-react';
-import { db } from '@/lib/firebase/config';
-import { doc, updateDoc, increment } from 'firebase/firestore';
+import { auth } from '@/lib/firebase/config';
 
 const BANNER_KEY = '62e20b1b19b6fefc4b9795ed79a64fab';
+const COINS_PER_VIDEO = 50;
 
 interface Props {
-  userId: string;
+  userId?: string;
   coinsReward?: number;
   onRewarded?: () => void;
 }
@@ -29,34 +29,73 @@ function AdSlot() {
   );
 }
 
-export function RewardedAd({ userId, coinsReward = 50, onRewarded }: Props) {
-  const [state, setState] = useState<'idle' | 'watching' | 'done'>('idle');
+export function RewardedAd({ onRewarded }: Props) {
+  const [state, setState] = useState<'idle' | 'watching' | 'done' | 'error'>('idle');
   const [seconds, setSeconds] = useState(0);
 
+  const giveReward = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      setState('error');
+      return;
+    }
+
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch('/api/award-coins', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        setState('error');
+        return;
+      }
+
+      setState('done');
+      onRewarded?.();
+    } catch (_) {
+      setState('error');
+    }
+  };
+
   const startAd = () => {
+    if (!auth.currentUser) {
+      setState('error');
+      return;
+    }
+
     setState('watching');
     setSeconds(15);
     const interval = setInterval(() => {
       setSeconds(prev => {
-        if (prev <= 1) { clearInterval(interval); giveReward(); return 0; }
+        if (prev <= 1) {
+          clearInterval(interval);
+          void giveReward();
+          return 0;
+        }
         return prev - 1;
       });
     }, 1000);
-  };
-
-  const giveReward = async () => {
-    try {
-      await updateDoc(doc(db, 'users', userId), { coins: increment(coinsReward) });
-    } catch (_) {}
-    setState('done');
-    onRewarded?.();
   };
 
   if (state === 'done') {
     return (
       <div className="w-full bg-yellow-900/20 border border-yellow-500/30 rounded-xl p-4 text-center">
         <div className="text-3xl mb-1">🪙</div>
-        <p className="text-yellow-300 font-semibold text-sm">¡+{coinsReward} monedas ganadas!</p>
+        <p className="text-yellow-300 font-semibold text-sm">¡+{COINS_PER_VIDEO} monedas ganadas!</p>
+      </div>
+    );
+  }
+
+  if (state === 'error') {
+    return (
+      <div className="w-full bg-red-900/20 border border-red-500/30 rounded-xl p-4 text-center">
+        <p className="text-red-300 font-semibold text-sm mb-2">No se pudo conceder la recompensa.</p>
+        <button onClick={() => setState('idle')} className="text-yellow-300 text-sm underline">Intentar de nuevo</button>
       </div>
     );
   }
@@ -66,7 +105,7 @@ export function RewardedAd({ userId, coinsReward = 50, onRewarded }: Props) {
       <div className="w-full bg-black/60 border border-white/10 rounded-xl p-4 text-center">
         <AdSlot />
         <p className="text-white/50 text-xs mt-2">
-          Cierra en {seconds}s... 🪙 +{coinsReward} monedas al terminar
+          Cierra en {seconds}s... 🪙 +{COINS_PER_VIDEO} monedas al terminar
         </p>
       </div>
     );
@@ -78,7 +117,7 @@ export function RewardedAd({ userId, coinsReward = 50, onRewarded }: Props) {
       className="w-full flex items-center justify-center gap-2 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/40 text-yellow-300 font-semibold py-3 rounded-xl transition-all text-sm"
     >
       <Play className="h-4 w-4" />
-      Ver anuncio — ganar <Coins className="h-3.5 w-3.5 inline" /> {coinsReward} monedas
+      Ver anuncio — ganar <Coins className="h-3.5 w-3.5 inline" /> {COINS_PER_VIDEO} monedas
     </button>
   );
 }
