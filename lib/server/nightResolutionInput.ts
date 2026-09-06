@@ -121,10 +121,31 @@ function readHistory(game: Record<string, unknown>): NightResolutionHistory {
   };
 }
 
-/** Builds server-owned input while preserving non-gameplay player fields for atomic state commits. */
-export function createNightResolutionInput(gameId: string, roundNumber: number, players: Array<Record<string, unknown>>, submissions: NightResolutionSubmission[], game: Record<string, unknown>): NightResolutionInput {
+/**
+ * Builds server-owned input. This is an invariant boundary: a night resolver
+ * must never receive a day-phase game or a stale/mismatched round.
+ */
+export function createNightResolutionInput(
+  gameId: string,
+  roundNumber: number,
+  players: Array<Record<string, unknown>>,
+  submissions: NightResolutionSubmission[],
+  game: Record<string, unknown>,
+): NightResolutionInput {
+  if (game.phase !== 'night') {
+    throw new Error('night_resolution_invalid_phase');
+  }
+  if (!Number.isInteger(roundNumber) || roundNumber < 1) {
+    throw new Error('night_resolution_invalid_round');
+  }
+  if (game.roundNumber !== roundNumber) {
+    throw new Error('night_resolution_round_mismatch');
+  }
+
   return {
-    gameId, roundNumber, phase: 'night',
+    gameId,
+    roundNumber,
+    phase: 'night',
     players: players.filter((player) => typeof player.uid === 'string').map((player) => ({
       ...player,
       uid: player.uid as string,
