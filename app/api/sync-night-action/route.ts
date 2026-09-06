@@ -1,13 +1,14 @@
 /**
  * POST /api/sync-night-action
- * Security: verifies Firebase Auth token, derives the role from server state,
- * and rejects actions that are not allowed for that role.
+ * Security: verifies Firebase Auth token, derives the role from private
+ * server state, validates the complete action contract, and stores one
+ * submission per actor+round.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { initAdminApp } from '@/lib/firebase/admin';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { getFirestore } from 'firebase-admin/firestore';
-import { createNightActionSubmissions, validateNightActionSubmissions } from '@/lib/game/nightResolution';
+import { validateCanonicalNightAction } from '@/lib/game/nightActionAuthority';
 
 export async function POST(req: NextRequest) {
   const tokenUid = await verifyAuthToken(req);
@@ -16,12 +17,13 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { gameId, uid, payload } = body as {
-      gameId: string;
-      uid: string;
-      payload: Record<string, unknown>;
+      gameId?: unknown;
+      uid?: unknown;
+      payload?: unknown;
     };
 
-    if (!gameId || !uid || !payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    if (typeof gameId !== 'string' || !gameId || typeof uid !== 'string' || !uid ||
+        !payload || typeof payload !== 'object' || Array.isArray(payload)) {
       return NextResponse.json({ error: 'gameId, uid y payload requeridos' }, { status: 400 });
     }
     if (tokenUid !== uid) {
@@ -46,8 +48,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Ronda nocturna inválida' }, { status: 409 });
     }
 
-    const players: { uid: string; isAlive: boolean }[] = Array.isArray(gameData.players) ? gameData.players : [];
-    const actor = players.find(p => p.uid === uid);
+    const players: { uid: string; isAlive: boolean }[] = Array.isArray(gameData.players)
+      ? gameData.players
+          .filter((player: unknown): player is Record<string, unknown> => Boolean(player) && typeof player === 'object')
+          .flatMap((player) => typeof player.uid === 'string'
+            ? [{ uid: player.uid, isAlive: player.isAlive === true }]
+            : [])
+      : [];
+    const actor = players.find((player) => player.uid === uid);
     if (!actor || !actor.isAlive) {
       return NextResponse.json({ error: 'Jugador no válido o muerto' }, { status: 403 });
     }
@@ -61,34 +69,31 @@ export async function POST(req: NextRequest) {
       : typeof roleData.rol === 'string' ? roleData.rol : null;
     if (!serverRole) return NextResponse.json({ error: 'Rol inválido en servidor' }, { status: 500 });
 
-    const submissions = createNightActionSubmissions(uid, payload);
-    if (submissions.length === 0) {
-      return NextResponse.json({ error: 'Acción nocturna no reconocida' }, { status: 400 });
-    }
-
-    // La validación recibe el rol privado obtenido por Admin SDK. Nunca usa
-    // gameData.roles, que no debe convertirse en una fuente de autoridad.
-    const validation = validateNightActionSubmissions(
+    const validation = validateCanonicalNightAction({
       players,
-      uid,
-      serverRole,
-      submissions,
-    );
+      actorUid: uid,
+      actorRole: serverRole,
+      roundNumber,
+      payload,
+    });
     if (!validation.valid) {
       return NextResponse.json({
-        error: 'Acción no permitida para este rol',
+        error: 'Acción no permitida',
         details: validation.errors,
       }, { status: 403 });
     }
 
-    const submissionRef = gameRef.collection('nightSubmissions').doc(uid);
+    // Round-scoped ID prevents a previous night's submission from being
+    // overwritten/reused by the current night.
+    const submissionRef = gameRef.collection('nightSubmissions').doc(`${uid}:${roundNumber}`);
+    const now = Date.now();
     await submissionRef.set({
       actorUid: uid,
       role: serverRole,
       roundNumber,
-      actions: submissions,
-      submittedAt: Date.now(),
-      syncedAt: Date.now(),
+      actions: validation.submissions,
+      submittedAt: now,
+      syncedAt: now,
     }, { merge: true });
 
     return NextResponse.json({
@@ -97,7 +102,7 @@ export async function POST(req: NextRequest) {
       actorUid: uid,
       role: serverRole,
       roundNumber,
-      actions: submissions.map(s => s.action),
+      actions: validation.submissions.map((submission) => submission.action),
     });
   } catch (err: unknown) {
     console.error('[sync-night-action]', err);
