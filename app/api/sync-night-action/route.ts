@@ -3,12 +3,18 @@
  * Security: verifies Firebase Auth token, derives the role from private
  * server state, validates the complete action contract, and stores one
  * immutable submission per actor+round.
+ *
+ * Resolution trigger: once every alive player has an immutable submission
+ * (including server-generated AI submissions), this endpoint asks the trusted
+ * night resolver to commit the round. The resolver remains the sole authority
+ * for applying night effects and advancing the FSM.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { initAdminApp } from '@/lib/firebase/admin';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { validateCanonicalNightAction } from '@/lib/game/nightActionAuthority';
+import { ensureServerAINightSubmissions } from '@/lib/server/aiNight';
 
 export async function POST(req: NextRequest) {
   const tokenUid = await verifyAuthToken(req);
@@ -48,11 +54,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Ronda nocturna inválida' }, { status: 409 });
     }
 
-    const players: { uid: string; isAlive: boolean }[] = Array.isArray(gameData.players)
+    const players: { uid: string; isAlive: boolean; isAI?: boolean }[] = Array.isArray(gameData.players)
       ? gameData.players
           .filter((player: unknown): player is Record<string, unknown> => Boolean(player) && typeof player === 'object')
           .flatMap((player) => typeof player.uid === 'string'
-            ? [{ uid: player.uid, isAlive: player.isAlive === true }]
+            ? [{ uid: player.uid, isAlive: player.isAlive === true, isAI: player.isAI === true }]
             : [])
       : [];
     const actor = players.find((player) => player.uid === uid);
@@ -87,9 +93,6 @@ export async function POST(req: NextRequest) {
     const now = Date.now();
     let created = false;
 
-    // Write-once: retries/reconnects must never replace a previously accepted
-    // action for this actor and round. The transaction also makes concurrent
-    // submissions deterministic.
     await db.runTransaction(async (tx) => {
       const existing = await tx.get(submissionRef);
       if (existing.exists) return;
@@ -104,10 +107,51 @@ export async function POST(req: NextRequest) {
       created = true;
     });
 
+    // Complete the AI side on the trusted server before deciding whether the
+    // round has enough submissions to be resolved.
+    const latestGameSnap = await gameRef.get();
+    const latestGame = latestGameSnap.data() as Record<string, unknown> | undefined;
+    let resolved = false;
+
+    if (latestGame && latestGame.phase === 'night') {
+      const latestPlayers = Array.isArray(latestGame.players) ? latestGame.players : [];
+      await ensureServerAINightSubmissions(
+        db,
+        gameId,
+        latestGame,
+        latestPlayers as Array<Record<string, unknown>>,
+        roundNumber,
+      );
+
+      const aliveUids = latestPlayers
+        .filter((player) => player && typeof player === 'object' && (player as Record<string, unknown>).isAlive === true)
+        .map((player) => (player as Record<string, unknown>).uid)
+        .filter((value): value is string => typeof value === 'string' && value.length > 0);
+
+      const submissionSnap = await gameRef.collection('nightSubmissions').get();
+      const submittedUids = new Set(
+        submissionSnap.docs
+          .map((submission) => submission.data().actorUid)
+          .filter((value): value is string => typeof value === 'string'),
+      );
+      const complete = aliveUids.length > 0 && aliveUids.every((aliveUid) => submittedUids.has(aliveUid));
+
+      if (complete) {
+        const authorization = req.headers.get('authorization');
+        const resolverUrl = new URL('/api/resolve-night', req.url);
+        const resolverResponse = await fetch(resolverUrl, {
+          method: 'POST',
+          headers: authorization ? { Authorization: authorization } : {},
+        });
+        resolved = resolverResponse.ok;
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       validated: true,
       created,
+      resolved,
       actorUid: uid,
       role: serverRole,
       roundNumber,
