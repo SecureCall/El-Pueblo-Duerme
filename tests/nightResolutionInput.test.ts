@@ -32,4 +32,37 @@ describe('night resolution input boundary', () => {
     expect(() => createNightResolutionInput('game', 0, players, [], game({ roundNumber: 0 })))
       .toThrow('night_resolution_invalid_round');
   });
+
+  it('drops an explicit false Vigía activation before the legacy resolver sees it', () => {
+    const result = createNightResolutionInput(
+      'game',
+      2,
+      players,
+      [{ actorUid: 'p1', role: 'Vigía', actions: [{ action: 'vigiaActivate', value: false }] }],
+      game(),
+    );
+    expect(result.submissions[0]?.actions).toEqual([]);
+  });
+
+  it('drops an explicit false Espía activation before the legacy resolver sees it', () => {
+    const result = createNightResolutionInput(
+      'game',
+      2,
+      players,
+      [{ actorUid: 'p1', role: 'Espía', actions: [{ action: 'espiaActivate', value: false }] }],
+      game(),
+    );
+    expect(result.submissions[0]?.actions).toEqual([]);
+  });
+
+  it('preserves a true activation action', () => {
+    const result = createNightResolutionInput(
+      'game',
+      2,
+      players,
+      [{ actorUid: 'p1', role: 'Vigía', actions: [{ action: 'vigiaActivate', value: true }] }],
+      game(),
+    );
+    expect(result.submissions[0]?.actions).toHaveLength(1);
+  });
 });
