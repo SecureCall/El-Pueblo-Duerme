@@ -122,6 +122,23 @@ function readHistory(game: Record<string, unknown>): NightResolutionHistory {
 }
 
 /**
+ * Boolean activation actions are semantically opt-in. The legacy resolver
+ * treats the presence of vigiaActivate/espiaActivate as activation, so an
+ * explicit false must never cross this boundary as an executable action.
+ */
+function sanitizeSubmissions(submissions: NightResolutionSubmission[]): NightResolutionSubmission[] {
+  return submissions.map((submission) => ({
+    ...submission,
+    actions: submission.actions.filter((action) => {
+      if ((action.action === 'vigiaActivate' || action.action === 'espiaActivate') && action.value === false) {
+        return false;
+      }
+      return true;
+    }),
+  }));
+}
+
+/**
  * Builds server-owned input. This is an invariant boundary: a night resolver
  * must never receive a day-phase game or a stale/mismatched round.
  */
@@ -152,7 +169,7 @@ export function createNightResolutionInput(
       ...(typeof player.name === 'string' ? { name: player.name } : {}),
       isAlive: player.isAlive === true,
     })),
-    submissions,
+    submissions: sanitizeSubmissions(submissions),
     history: readHistory(game),
   };
 }
