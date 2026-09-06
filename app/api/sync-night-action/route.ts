@@ -131,7 +131,9 @@ export async function POST(req: NextRequest) {
       const submissionSnap = await gameRef.collection('nightSubmissions').get();
       const submittedUids = new Set(
         submissionSnap.docs
-          .map((submission) => submission.data().actorUid)
+          .map((submission) => submission.data())
+          .filter((data) => data && data.roundNumber === roundNumber)
+          .map((data) => data.actorUid)
           .filter((value): value is string => typeof value === 'string'),
       );
       const complete = aliveUids.length > 0 && aliveUids.every((aliveUid) => submittedUids.has(aliveUid));
