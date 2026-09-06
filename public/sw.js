@@ -1,8 +1,6 @@
-const CACHE_NAME = 'elpueblo-v10';
+const CACHE_NAME = 'elpueblo-v11';
 
 // ─── Install ─────────────────────────────────────────────────────────────────
-// Only cache offline.html synchronously — it's tiny and guaranteed to exist.
-// Everything else is cached lazily on first fetch (see fetch handler below).
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
@@ -23,7 +21,6 @@ self.addEventListener('activate', (event) => {
 });
 
 // ─── Message handler ─────────────────────────────────────────────────────────
-// Pages send CACHE_PAGE to pre-warm the cache after first load.
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'CACHE_PAGE') {
     const urlToCache = event.data.url || '/';
@@ -39,66 +36,9 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// ─── launch_handler: focus existing client ───────────────────────────────────
-self.addEventListener('navigate', async (event) => {
-  const url = new URL(event.destination.url);
-  if (url.origin !== self.location.origin) return;
-
-  const allClients = await self.clients.matchAll({
-    includeUncontrolled: true,
-    type: 'window',
-  });
-
-  if (allClients.length > 0) {
-    const existing = allClients[0];
-    existing.postMessage({ type: 'NAVIGATE', url: url.href });
-    event.respondWith(existing.focus().then(() => Response.redirect(url.href)));
-  }
-});
-
-// ─── Background Sync ─────────────────────────────────────────────────────────
-// Tags: 'sync-vote', 'sync-night-action'
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-vote') {
-    event.waitUntil(flushPendingVotes());
-  } else if (event.tag === 'sync-night-action') {
-    event.waitUntil(flushPendingNightActions());
-  }
-});
-
-async function flushPendingVotes() {
-  const db = await openIDB();
-  const items = await idbGetAll(db, 'pending-votes');
-  for (const item of items) {
-    try {
-      await fetch('/api/sync-vote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(item),
-      });
-      await idbDelete(db, 'pending-votes', item.id);
-    } catch {
-      // Will retry on next sync event
-    }
-  }
-}
-
-async function flushPendingNightActions() {
-  const db = await openIDB();
-  const items = await idbGetAll(db, 'pending-night-actions');
-  for (const item of items) {
-    try {
-      await fetch('/api/sync-night-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(item),
-      });
-      await idbDelete(db, 'pending-night-actions', item.id);
-    } catch {
-      // Will retry on next sync event
-    }
-  }
-}
+// NOTE: Authenticated game mutations are intentionally NOT replayed here.
+// Firebase ID tokens belong to the active page session and must be obtained
+// freshly by page code before calling mutation APIs.
 
 // ─── Web Push Notifications ──────────────────────────────────────────────────
 self.addEventListener('push', (event) => {
@@ -126,7 +66,6 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
-// Open notification → navigate to URL stored in data
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
@@ -153,7 +92,6 @@ self.addEventListener('fetch', (event) => {
 
   if (!url.protocol.startsWith('http') || url.origin !== self.location.origin) return;
 
-  // Network-only: API calls, Firestore, auth, analytics
   if (
     url.pathname.startsWith('/api/') ||
     url.hostname.includes('firestore') ||
@@ -168,7 +106,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first for static assets
   if (
     url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/icons/') ||
@@ -190,7 +127,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-first with cache fallback for all HTML pages
   event.respondWith(
     fetch(request)
       .then((response) => {
@@ -204,11 +140,10 @@ self.addEventListener('fetch', (event) => {
         caches.match(request, { ignoreSearch: true })
           .then((cached) => cached ?? caches.match('/offline.html'))
       )
-
   );
 });
 
-// ─── Periodic Background Sync ─────────────────────────────────────────────────
+// ─── Periodic Background Sync ────────────────────────────────────────────────
 self.addEventListener('periodicsync', (event) => {
   if (event.tag === 'update-widget-data') {
     event.waitUntil(
@@ -241,39 +176,3 @@ self.addEventListener('periodicsync', (event) => {
     );
   }
 });
-
-// ─── IndexedDB helpers (for Background Sync queue) ───────────────────────────
-function openIDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open('elpueblo-sync', 1);
-    req.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains('pending-votes')) {
-        db.createObjectStore('pending-votes', { keyPath: 'id' });
-      }
-      if (!db.objectStoreNames.contains('pending-night-actions')) {
-        db.createObjectStore('pending-night-actions', { keyPath: 'id' });
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-function idbGetAll(db, storeName) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(storeName, 'readonly');
-    const req = tx.objectStore(storeName).getAll();
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-function idbDelete(db, storeName, id) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(storeName, 'readwrite');
-    const req = tx.objectStore(storeName).delete(id);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
-}
