@@ -49,7 +49,9 @@ service cloud.firestore {
     match /games/{gameId}/twinChat/{messageId} { allow read, create: if isAuth() && (isHost(gameId) || get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid)); allow update, delete: if false; }
     match /games/{gameId}/fairyChat/{messageId} { allow read, create: if isAuth() && (isHost(gameId) || get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid)); allow update, delete: if false; }
     match /games/{gameId}/hermanosChat/{messageId} { allow read: if isAuth() && (isHost(gameId) || get(/databases/$(database)/documents/games/$(gameId)).data.roles[request.auth.uid] == 'Hermanos'); allow create: if isAuth() && request.auth.uid == request.resource.data.senderId && get(/databases/$(database)/documents/games/$(gameId)).data.roles[request.auth.uid] == 'Hermanos'; allow update, delete: if false; }
-    match /games/{gameId}/nightActions/{actionId} { allow read: if isAuth(); allow create, update: if isAuth() && (isHost(gameId) || request.auth.uid == actionId); allow delete: if false; }
+    // Legacy nightActions subcollection is no longer a client-write surface.
+    // Night actions must use the server-authoritative night submission API.
+    match /games/{gameId}/nightActions/{actionId} { allow read: if isAuth(); allow create, update, delete: if false; }
     match /games/{gameId}/voicePresence/{uid} { allow read: if isAuth(); allow write: if isAuth() && request.auth.uid == uid; }
     match /games/{gameId}/voiceOffers/{offerId} { allow read, create, delete: if isAuth(); allow update: if false; }
     match /games/{gameId}/voiceAnswers/{answerId} { allow read, create, delete: if isAuth(); allow update: if false; }
