@@ -1,5 +1,5 @@
-import { doc, getDoc, updateDoc, serverTimestamp, Timestamp, increment, collection, addDoc } from 'firebase/firestore';
-import { db } from './config';
+import { doc, getDoc, Timestamp } from 'firebase/firestore';
+import { db, auth } from './config';
 
 export const DAILY_REWARDS = [25, 35, 50, 40, 60, 80, 150];
 
@@ -30,68 +30,32 @@ export async function getDailyRewardStatus(userId: string): Promise<DailyRewardS
   const now = Date.now();
   const todayStart = startOfDayMs(now);
   const yesterdayStart = todayStart - 86400000;
-
   const claimedToday = lastClaim >= todayStart;
   const claimedYesterday = lastClaim >= yesterdayStart && lastClaim < todayStart;
-  const streakLost = lastClaim > 0 && lastClaim < yesterdayStart;
-
-  const effectiveStreak = claimedToday
-    ? streak
-    : claimedYesterday
-    ? streak
-    : streakLost
-    ? 0
-    : 0;
-
+  const effectiveStreak = claimedToday || claimedYesterday ? streak : 0;
   const rewardIndex = effectiveStreak % DAILY_REWARDS.length;
-  const todayReward = DAILY_REWARDS[rewardIndex];
-  const nextReward = DAILY_REWARDS[(rewardIndex + 1) % DAILY_REWARDS.length];
 
   return {
     canClaim: !claimedToday,
     alreadyClaimed: claimedToday,
     streak: effectiveStreak,
-    todayReward,
-    nextReward,
+    todayReward: DAILY_REWARDS[rewardIndex],
+    nextReward: DAILY_REWARDS[(rewardIndex + 1) % DAILY_REWARDS.length],
   };
 }
 
 export async function claimDailyReward(userId: string): Promise<{ coins: number; newStreak: number } | null> {
-  const status = await getDailyRewardStatus(userId);
-  if (!status.canClaim) return null;
+  const currentUser = auth.currentUser;
+  if (!currentUser || currentUser.uid !== userId) throw new Error('No autenticado');
 
-  const userRef = doc(db, 'users', userId);
-  const snap = await getDoc(userRef);
-  const data = snap.data() ?? {};
-  const daily = data.dailyStreak ?? {};
-
-  const lastClaim: number = daily.lastClaim instanceof Timestamp
-    ? daily.lastClaim.toMillis()
-    : (daily.lastClaim ?? 0);
-  const prevStreak: number = daily.streak ?? 0;
-
-  const now = Date.now();
-  const todayStart = startOfDayMs(now);
-  const yesterdayStart = todayStart - 86400000;
-
-  const claimedYesterday = lastClaim >= yesterdayStart && lastClaim < todayStart;
-  const newStreak = claimedYesterday ? prevStreak + 1 : 1;
-  const rewardIndex = (newStreak - 1) % DAILY_REWARDS.length;
-  const coins = DAILY_REWARDS[rewardIndex];
-
-  // Single write: both dailyStreak + coins together (required by Firestore rules)
-  await updateDoc(userRef, {
-    'dailyStreak.lastClaim': serverTimestamp(),
-    'dailyStreak.streak': newStreak,
-    coins: increment(coins),
+  const token = await currentUser.getIdToken();
+  const response = await fetch('/api/claim-daily-reward', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
   });
 
-  // Separate history entry
-  await addDoc(collection(db, 'users', userId, 'coinHistory'), {
-    amount: coins,
-    reason: 'daily_reward',
-    createdAt: serverTimestamp(),
-  });
+  if (response.status === 409) return null;
+  if (!response.ok) throw new Error('No se pudo reclamar la recompensa diaria');
 
-  return { coins, newStreak };
+  return response.json();
 }
