@@ -2,7 +2,7 @@
  * POST /api/sync-night-action
  * Security: verifies Firebase Auth token, derives the role from private
  * server state, validates the complete action contract, and stores one
- * submission per actor+round.
+ * immutable submission per actor+round.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { initAdminApp } from '@/lib/firebase/admin';
@@ -83,22 +83,31 @@ export async function POST(req: NextRequest) {
       }, { status: 403 });
     }
 
-    // Round-scoped ID prevents a previous night's submission from being
-    // overwritten/reused by the current night.
     const submissionRef = gameRef.collection('nightSubmissions').doc(`${uid}:${roundNumber}`);
     const now = Date.now();
-    await submissionRef.set({
-      actorUid: uid,
-      role: serverRole,
-      roundNumber,
-      actions: validation.submissions,
-      submittedAt: now,
-      syncedAt: now,
-    }, { merge: true });
+    let created = false;
+
+    // Write-once: retries/reconnects must never replace a previously accepted
+    // action for this actor and round. The transaction also makes concurrent
+    // submissions deterministic.
+    await db.runTransaction(async (tx) => {
+      const existing = await tx.get(submissionRef);
+      if (existing.exists) return;
+      tx.create(submissionRef, {
+        actorUid: uid,
+        role: serverRole,
+        roundNumber,
+        actions: validation.submissions,
+        submittedAt: now,
+        syncedAt: now,
+      });
+      created = true;
+    });
 
     return NextResponse.json({
       ok: true,
       validated: true,
+      created,
       actorUid: uid,
       role: serverRole,
       roundNumber,
