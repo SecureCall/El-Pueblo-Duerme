@@ -82,7 +82,7 @@ function firstTarget(input: NightResolutionInput, actorRole: string, actionName:
 }
 
 function hasAction(input: NightResolutionInput, actorRole: string, actionName: string): boolean {
-  return actionsFor(input, actorRole, actionName).some((a) => a.value === true || a.action === actionName);
+  return actionsFor(input, actorRole, actionName).some((a) => a.value === true);
 }
 
 function playerName(players: NightResolutionPlayer[], uid: string): string {
@@ -130,7 +130,6 @@ export function resolveNightActions(
   const history = input.history.eliminatedHistory.map((h) => ({ ...h }));
   const round = input.roundNumber;
 
-  // Validate every individual action against the private server role snapshot.
   for (const submission of input.submissions) {
     const role = roles[submission.actorUid];
     if (!role) {
@@ -177,7 +176,7 @@ export function resolveNightActions(
   let espiaUsed = input.history.espiaUsed;
   let sirenaUid = input.history.sirenaUid;
   let sirenaLinked = input.history.sirenaLinked;
-  let lobosBlocked = false; // this is a one-night effect; route persists nextNightWolfBlock
+  let lobosBlocked = false;
   let criaLoboRage = false;
   let hechiceraLifeUsed = input.history.hechiceraLifeUsed;
   let hechiceraPoisonUsed = input.history.hechiceraPoisonUsed;
@@ -201,7 +200,6 @@ export function resolveNightActions(
     return Boolean(actor && blocked.has(actor.uid));
   };
 
-  // First-night identity links / side choices.
   if (round === 1) {
     const perro = players.find((p) => roles[p.uid] === 'Perro Lobo' && p.isAlive);
     const side = actionsFor(resolvedInput, 'Perro Lobo', 'perroLoboSide')[0]?.value;
@@ -235,7 +233,6 @@ export function resolveNightActions(
   let secondaryTarget = wolfResolution.secondaryTargetUid;
   let nextNightWolfBlock = false;
 
-  // Maldito transforms instead of dying to the primary wolf attack.
   if (primaryTarget && roles[primaryTarget] === 'Maldito' && input.history.malditoUid === primaryTarget) {
     roles[primaryTarget] = 'Lobo';
     wolfTeam[primaryTarget] = true;
@@ -243,7 +240,6 @@ export function resolveNightActions(
     primaryTarget = null;
   }
 
-  // Antiguo survives the first wolf hit.
   if (primaryTarget && roles[primaryTarget] === 'Antiguo' && !antiguoHit.includes(primaryTarget) &&
       !protectionResolution.protectedTargetUids.includes(primaryTarget)) {
     antigoHit.push(primaryTarget);
@@ -310,9 +306,7 @@ export function resolveNightActions(
   let vampiroKills = input.history.vampiroKills;
   if (vamp && vampTarget && !blocked.has(vamp.uid) && players.some((p) => p.uid === vampTarget && p.isAlive)) {
     vampiroBites[vampTarget] = (vampiroBites[vampTarget] ?? 0) + 1;
-    if (vampiroBites[vampTarget] >= 3 && addDeath(players, vampTarget, roles, history, round, 'vampire_bite', deathReasons)) {
-      vampiroKills += 1;
-    }
+    if (vampiroBites[vampTarget] >= 3 && addDeath(players, vampTarget, roles, history, round, 'vampire_bite', deathReasons)) vampiroKills += 1;
   }
 
   const cultLeader = players.find((p) => roles[p.uid] === 'Líder del Culto' && p.isAlive);
@@ -348,11 +342,9 @@ export function resolveNightActions(
 
   const prophet = players.find((p) => roles[p.uid] === 'Profeta' && p.isAlive);
   const prophetTarget = firstTarget(resolvedInput, 'Profeta', 'profetaTarget');
-  if (prophet && prophetTarget && !blocked.has(prophet.uid)) {
-    profetaReveal = { targetUid: prophetTarget, isWolf: wolfVision(prophetTarget) };
-  }
+  if (prophet && prophetTarget && !blocked.has(prophet.uid)) profetaReveal = { targetUid: prophetTarget, isWolf: wolfVision(prophetTarget) };
 
-  const vigia = players.find((p) => roles[p.uid] === 'Vigía' && p.isAlive);
+  const vigia = players.find((p) => p.isAlive && roles[p.uid] === 'Vigía');
   if (vigia && hasAction(resolvedInput, 'Vigía', 'vigiaActivate') && !vigiaUsed && !blocked.has(vigia.uid)) {
     vigiaUsed = true;
     vigiaKnowsWolves = true;
@@ -365,7 +357,6 @@ export function resolveNightActions(
     if (predictedDead) bansheePoints += 1;
   }
 
-  // Transformations must update both the authoritative role map and the player snapshot.
   for (const [cfUid, targetUid] of Object.entries(cambiaformasTargets)) {
     const cf = players.find((p) => p.uid === cfUid && p.isAlive);
     const target = players.find((p) => p.uid === targetUid);
@@ -390,44 +381,28 @@ export function resolveNightActions(
   const cria = players.find((p) => roles[p.uid] === 'Cría de Lobo');
   if (cria && !cria.isAlive && aliveBeforeNight.has(cria.uid)) criaLoboRage = true;
 
-  // Chain deaths are evaluated only from deaths that happened during THIS night.
   let changed = true;
   let iterations = 0;
   while (changed && iterations++ < 20) {
     changed = false;
-
     const lovers = input.history.lovers;
     if (lovers) {
       const [a, b] = lovers;
-      if (!players.find((p) => p.uid === a)?.isAlive && aliveBeforeNight.has(a)) {
-        changed = addDeath(players, b, roles, history, round, 'lover_cascade', deathReasons) || changed;
-      }
-      if (!players.find((p) => p.uid === b)?.isAlive && aliveBeforeNight.has(b)) {
-        changed = addDeath(players, a, roles, history, round, 'lover_cascade', deathReasons) || changed;
-      }
+      if (!players.find((p) => p.uid === a)?.isAlive && aliveBeforeNight.has(a)) changed = addDeath(players, b, roles, history, round, 'lover_cascade', deathReasons) || changed;
+      if (!players.find((p) => p.uid === b)?.isAlive && aliveBeforeNight.has(b)) changed = addDeath(players, a, roles, history, round, 'lover_cascade', deathReasons) || changed;
     }
-
     const gemelas = players.filter((p) => roles[p.uid] === 'Gemela' || roles[p.uid] === 'Gemelas');
     if (gemelas.length === 2) {
       const [g1, g2] = gemelas;
-      if (!g1.isAlive && aliveBeforeNight.has(g1.uid)) {
-        changed = addDeath(players, g2.uid, roles, history, round, 'gemelas_cascade', deathReasons) || changed;
-      }
-      if (!g2.isAlive && aliveBeforeNight.has(g2.uid)) {
-        changed = addDeath(players, g1.uid, roles, history, round, 'gemelas_cascade', deathReasons) || changed;
-      }
+      if (!g1.isAlive && aliveBeforeNight.has(g1.uid)) changed = addDeath(players, g2.uid, roles, history, round, 'gemelas_cascade', deathReasons) || changed;
+      if (!g2.isAlive && aliveBeforeNight.has(g2.uid)) changed = addDeath(players, g1.uid, roles, history, round, 'gemelas_cascade', deathReasons) || changed;
     }
-
     for (const [woolfUid, linkedUid] of Object.entries(virginiawoolFate)) {
-      if (!players.find((p) => p.uid === woolfUid)?.isAlive && aliveBeforeNight.has(woolfUid)) {
-        changed = addDeath(players, linkedUid, roles, history, round, 'virginia_woolf_cascade', deathReasons) || changed;
-      }
+      if (!players.find((p) => p.uid === woolfUid)?.isAlive && aliveBeforeNight.has(woolfUid)) changed = addDeath(players, linkedUid, roles, history, round, 'virginia_woolf_cascade', deathReasons) || changed;
     }
   }
-
   if (iterations >= 20) console.warn('[resolveNightActions] chain-death loop hit iteration cap');
 
-  // Angel resurrection happens after all night deaths/cascades.
   const angel = players.find((p) => roles[p.uid] === 'Ángel Resucitador' && p.isAlive);
   const reviveTarget = firstTarget(resolvedInput, 'Ángel Resucitador', 'angelResucitarTarget');
   if (angel && reviveTarget && !angelResucitadorUsed && !blocked.has(angel.uid)) {
@@ -441,7 +416,6 @@ export function resolveNightActions(
     }
   }
 
-  // Apprentice inherits the Seer role and the persisted player role must match.
   const seerDied = players.some((p) => !p.isAlive && aliveBeforeNight.has(p.uid) && roles[p.uid] === 'Vidente');
   const apprentice = players.find((p) => p.isAlive && roles[p.uid] === 'Aprendiz de Vidente');
   if (seerDied && apprentice) {
@@ -449,7 +423,6 @@ export function resolveNightActions(
     apprentice.role = 'Vidente';
   }
 
-  // Thief can permanently exchange the first-night role.
   const thief = players.find((p) => p.isAlive && roles[p.uid] === 'Ladrón');
   const thiefTarget = firstTarget(resolvedInput, 'Ladrón', 'ladronTarget');
   if (round === 1 && thief && thiefTarget && !blocked.has(thief.uid)) {
@@ -476,9 +449,7 @@ export function resolveNightActions(
 
   const saboteador = players.find((p) => p.isAlive && roles[p.uid] === 'Saboteador');
   const sabotageTarget = firstTarget(resolvedInput, 'Saboteador', 'saboteadorTarget');
-  if (saboteador && sabotageTarget && !blocked.has(saboteador.uid) && players.some((p) => p.uid === sabotageTarget && p.isAlive)) {
-    saboteadorBan = sabotageTarget;
-  }
+  if (saboteador && sabotageTarget && !blocked.has(saboteador.uid) && players.some((p) => p.uid === sabotageTarget && p.isAlive)) saboteadorBan = sabotageTarget;
 
   const hunter = players.find((p) => !p.isAlive && aliveBeforeNight.has(p.uid) && roles[p.uid] === 'Cazador');
   cazadorPendingShot = hunter?.uid ?? null;
@@ -488,12 +459,9 @@ export function resolveNightActions(
     if (IS_WOLF(role) || role === 'Bruja') wolfTeam[uid] = true;
   }
 
-  // Ensure every persisted player role agrees with the private authoritative role map.
   syncPlayerRoles(players, roles);
 
-  const nightKilledUids = players
-    .filter((p) => !p.isAlive && aliveBeforeNight.has(p.uid))
-    .map((p) => p.uid);
+  const nightKilledUids = players.filter((p) => !p.isAlive && aliveBeforeNight.has(p.uid)).map((p) => p.uid);
   const winResult = checkWinCondition(players, roles, {
     enchanted,
     round,
@@ -505,9 +473,7 @@ export function resolveNightActions(
     lovers: input.history.lovers ?? [],
   });
   const winner = bansheePoints >= 2 ? 'banshee' : winResult.winner;
-  const winMessage = bansheePoints >= 2
-    ? '¡La Banshee predijo 2 muertes correctamente y gana sola!'
-    : winResult.message;
+  const winMessage = bansheePoints >= 2 ? '¡La Banshee predijo 2 muertes correctamente y gana sola!' : winResult.message;
 
   const deathEffects = {
     initialDeaths: [...new Set(pendingWolfDeaths.filter((uid) => !players.find((p) => p.uid === uid)?.isAlive))],
