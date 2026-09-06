@@ -92,7 +92,7 @@ export async function ensureServerAINightSubmissions(
 ): Promise<{ accepted: string[]; rejected: Array<{ uid: string; errors: string[] }> }> {
   const gameRef = db.collection('games').doc(gameId);
   const aiPlayers = players.filter((p) => p.isAI === true && p.isAlive === true && typeof p.uid === 'string');
-  const accepted: string[] = [];
+  const accepted = new Set<string>();
   const rejected: Array<{ uid: string; errors: string[] }> = [];
   const roleSnapshots = await Promise.all(aiPlayers.map(async (p) => ({ uid: String(p.uid), snap: await gameRef.collection('playerRoles').doc(String(p.uid)).get() })));
   const writes: Array<{ uid: string; role: string; actions: unknown[] }> = [];
@@ -130,9 +130,9 @@ export async function ensureServerAINightSubmissions(
         syncedAt: now,
         source: 'server-ai',
       });
-      accepted.push(write.uid);
+      accepted.add(write.uid);
     }
   });
 
-  return { accepted, rejected };
+  return { accepted: Array.from(accepted), rejected };
 }
