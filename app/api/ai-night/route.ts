@@ -43,8 +43,6 @@ function buildPayload(
   const others = candidateTargets(players, uid);
 
   if (WOLF_ROLES.has(role)) {
-    // Exactly one AI wolf owns the shared kill when no human wolf has submitted.
-    // This prevents multiple AI wolves from racing to overwrite one another.
     if (aiWolfUids[0] !== uid || game.lobosBlocked === true) return { _skip: true };
     const targets = others.filter((p) => !WOLF_ROLES.has(p.role));
     const target = pick(targets.length ? targets : others);
@@ -155,7 +153,6 @@ export async function POST(request: NextRequest) {
       : null;
     if (round === null) return NextResponse.json({ error: 'Invalid round' }, { status: 409 });
 
-    // Roles used for AI decisions come exclusively from private server documents.
     const aiCandidates = playerBase.filter((p) => p.isAI === true && p.isAlive === true);
     const roleEntries = await Promise.all(aiCandidates.map(async (p) => {
       const roleSnap = await gameRef.collection('playerRoles').doc(String(p.uid)).get();
@@ -192,26 +189,31 @@ export async function POST(request: NextRequest) {
         continue;
       }
       writes.push({ uid: ai.uid, role: ai.role, actions: validation.submissions });
-      accepted.push(ai.uid);
     }
 
-    // Persist all AI submissions atomically. Repeated calls are idempotent for the
-    // same uid+round and can never leave half of the AI team submitted.
-    const batch = db.batch();
+    // AI decisions are write-once for a game round. This prevents repeated host
+    // triggers, reconnects, or racing requests from replacing an already chosen
+    // action with a new random action. Existing submissions are intentionally kept.
     const now = Date.now();
-    for (const write of writes) {
-      const ref = gameRef.collection('nightSubmissions').doc(`${write.uid}:${round}`);
-      batch.set(ref, {
-        actorUid: write.uid,
-        role: write.role,
-        roundNumber: round,
-        actions: write.actions,
-        submittedAt: now,
-        syncedAt: now,
-        source: 'server-ai',
-      }, { merge: true });
-    }
-    if (writes.length) await batch.commit();
+    await db.runTransaction(async (tx) => {
+      const refs = writes.map((write) => gameRef.collection('nightSubmissions').doc(`${write.uid}:${round}`));
+      const snapshots = await Promise.all(refs.map((ref) => tx.get(ref)));
+
+      for (let i = 0; i < writes.length; i++) {
+        if (snapshots[i].exists) continue;
+        const write = writes[i];
+        tx.create(refs[i], {
+          actorUid: write.uid,
+          role: write.role,
+          roundNumber: round,
+          actions: write.actions,
+          submittedAt: now,
+          syncedAt: now,
+          source: 'server-ai',
+        });
+        accepted.push(write.uid);
+      }
+    });
 
     return NextResponse.json({ ok: true, roundNumber: round, accepted, rejected });
   } catch (error) {
