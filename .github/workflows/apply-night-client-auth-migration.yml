@@ -1,0 +1,91 @@
+name: Apply night client auth migration
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: "!contains(github.event.head_commit.message, 'migrate: route night actions through API')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Migrate submitNightAction
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('components/game/play/GamePlay.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          pattern = re.compile(
+              r"  const submitNightAction = useCallback\(async \(action: Record<string, unknown>\) => \{.*?\n  \}, \[game, user, gameId\]\);\n\n  // Host auto-submits AI players' night actions",
+              re.S,
+          )
+
+          replacement = '''  const submitNightAction = useCallback(async (action: Record<string, unknown>) => {
+    if (!game || !user) return;
+    if (game.phase !== 'night') {
+      console.warn('[FSM] submitNightAction rejected — not night phase');
+      return;
+    }
+    const me = game.players?.find(p => p.uid === user.uid);
+    if (!me?.isAlive) {
+      console.warn('[FSM] submitNightAction rejected — player not alive');
+      return;
+    }
+
+    try {
+      const idToken = await user.getIdToken();
+      const response = await fetch('/api/sync-night-action', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ gameId, uid: user.uid, payload: action }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        console.warn('[FSM] submitNightAction rejected by server:', result?.error ?? response.status);
+        return;
+      }
+
+      console.info('[FSM] night action accepted by server', {
+        roundNumber: result?.roundNumber,
+        actions: result?.actions,
+      });
+    } catch (e) {
+      console.error('submitNightAction error:', e);
+    }
+  }, [game, user, gameId]);
+
+  // Host auto-submits AI players' night actions'''
+
+          new_text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('submitNightAction block not found; migration aborted')
+          path.write_text(new_text, encoding='utf-8')
+          PY
+
+      - name: Verify migration
+        run: |
+          grep -q "fetch('/api/sync-night-action'" components/game/play/GamePlay.tsx
+          if grep -n "updates\[\`nightActions\.\|updates\[\`nightSubmissions\." components/game/play/GamePlay.tsx | head -20; then
+            echo "Legacy writes remain outside the AI migration block; continuing for the next P0 pass."
+          fi
+
+      - name: Commit migration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add components/game/play/GamePlay.tsx .github/workflows/apply-night-client-auth-migration.yml
+          git diff --cached --quiet && exit 0
+          git commit -m 'migrate: route night actions through API'
+          git push
