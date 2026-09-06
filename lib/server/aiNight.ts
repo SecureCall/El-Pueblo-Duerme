@@ -95,8 +95,8 @@ export async function ensureServerAINightSubmissions(
   const accepted: string[] = [];
   const rejected: Array<{ uid: string; errors: string[] }> = [];
   const roleSnapshots = await Promise.all(aiPlayers.map(async (p) => ({ uid: String(p.uid), snap: await gameRef.collection('playerRoles').doc(String(p.uid)).get() })));
-  const batch = db.batch();
-  let writes = 0;
+  const writes: Array<{ uid: string; role: string; actions: unknown[] }> = [];
+
   for (const { uid, snap } of roleSnapshots) {
     if (!snap.exists) { rejected.push({ uid, errors: ['missing_private_role'] }); continue; }
     const role = typeof snap.data()?.role === 'string' ? snap.data()!.role as string : null;
@@ -107,10 +107,32 @@ export async function ensureServerAINightSubmissions(
       actorUid: uid, actorRole: role, roundNumber: round, payload,
     });
     if (!validation.valid) { rejected.push({ uid, errors: validation.errors }); continue; }
-    const ref = gameRef.collection('nightSubmissions').doc(`${uid}:${round}`);
-    batch.set(ref, { actorUid: uid, role, roundNumber: round, actions: validation.submissions, submittedAt: Date.now(), syncedAt: Date.now(), source: 'server-ai' }, { merge: true });
-    accepted.push(uid); writes++;
+    writes.push({ uid, role, actions: validation.submissions });
   }
-  if (writes) await batch.commit();
+
+  // The resolver can call this function repeatedly (timer, reconnect, takeover,
+  // or concurrent resolution attempts). AI decisions are immutable once written
+  // for a round, so this path must never overwrite an existing submission.
+  const now = Date.now();
+  await db.runTransaction(async (tx) => {
+    const refs = writes.map((write) => gameRef.collection('nightSubmissions').doc(`${write.uid}:${round}`));
+    const snapshots = await Promise.all(refs.map((ref) => tx.get(ref)));
+
+    for (let i = 0; i < writes.length; i++) {
+      if (snapshots[i].exists) continue;
+      const write = writes[i];
+      tx.create(refs[i], {
+        actorUid: write.uid,
+        role: write.role,
+        roundNumber: round,
+        actions: write.actions,
+        submittedAt: now,
+        syncedAt: now,
+        source: 'server-ai',
+      });
+      accepted.push(write.uid);
+    }
+  });
+
   return { accepted, rejected };
 }
