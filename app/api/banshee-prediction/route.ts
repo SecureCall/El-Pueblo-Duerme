@@ -16,10 +16,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const gameId = typeof body?.gameId === 'string' ? body.gameId : '';
-    const targetUid = typeof body?.targetUid === 'string' ? body.targetUid : '';
+    const gameId = typeof body?.gameId === 'string' ? body.gameId.trim() : '';
+    const targetUid = typeof body?.targetUid === 'string' ? body.targetUid.trim() : '';
     const round = Number(body?.round);
-    if (!gameId || !targetUid || !Number.isInteger(round)) {
+    if (!gameId || !targetUid || !Number.isInteger(round) || round < 1) {
       return NextResponse.json({ error: 'gameId, targetUid y round son obligatorios' }, { status: 400 });
     }
 
@@ -57,9 +57,13 @@ export async function POST(req: NextRequest) {
       if (roles[tokenUid] !== 'Banshee') throw new Error('ROLE_FORBIDDEN');
 
       // Prediction is one-shot per round. A retry with the same value is
-      // idempotent; changing an already submitted prediction is forbidden.
+      // idempotent; changing an already submitted prediction in the same
+      // round is forbidden. A prediction from an older round is replaceable.
       const existing = typeof game.bansheePredictionUid === 'string' ? game.bansheePredictionUid : '';
-      if (existing && existing !== targetUid) throw new Error('ALREADY_SUBMITTED');
+      const existingRound = Number(game.bansheePredictionRound ?? 0);
+      if (existingRound === currentRound && existing && existing !== targetUid) {
+        throw new Error('ALREADY_SUBMITTED');
+      }
 
       tx.update(gameRef, {
         bansheePredictionUid: targetUid,
