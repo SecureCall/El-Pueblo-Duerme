@@ -3,6 +3,12 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 describe('GamePlay authority guard', () => {
+
+  it('does not assign roles or write playerRoles directly from the client', () => {
+    expect(source).not.toMatch(/assignRoles\(game\.players/);
+    expect(source).not.toMatch(/setDoc\(doc\(db,\s*['"]games['"][\s\S]{0,300}playerRoles/);
+    expect(source).not.toMatch(/updateDoc\(doc\(db,\s*['"]games['"][\s\S]{0,300}roles:\s*assigned/);
+  });
   const source = readFileSync(resolve(process.cwd(), 'components/game/play/GamePlay.tsx'), 'utf8');
 
   it('does not directly transition roleReveal to night in the client', () => {
