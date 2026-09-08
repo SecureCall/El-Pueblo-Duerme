@@ -1,0 +1,70 @@
+name: Repair GamePlay Role Authority
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Remove client role assignment bypass
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          path = Path('components/game/play/GamePlay.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          pattern = re.compile(r"  // Host assigns roles on game start\n  useEffect\(\(\) => \{.*?\n  \}, \[game, user, gameId\]\);\n", re.S)
+          text, count = pattern.subn('', text, count=1)
+          if count != 1:
+              raise SystemExit('client role assignment effect not found')
+
+          path.write_text(text, encoding='utf-8')
+
+      - name: Add regression guard
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('tests/gameplayAuthorityGuard.test.ts')
+          text = p.read_text(encoding='utf-8')
+          needle = "  it('does not assign roles or write playerRoles directly from the client', () => {"
+          if needle not in text:
+              insert = '''\n  it('does not assign roles or write playerRoles directly from the client', () => {\n    expect(source).not.toMatch(/assignRoles\\(game\\.players/);\n    expect(source).not.toMatch(/setDoc\\(doc\\(db,\\s*['\"]games['\"][\\s\\S]{0,300}playerRoles/);\n    expect(source).not.toMatch(/updateDoc\\(doc\\(db,\\s*['\"]games['\"][\\s\\S]{0,300}roles:\\s*assigned/);\n  });\n'''
+              marker = "describe('GamePlay authority guard', () => {\n"
+              if marker not in text:
+                  raise SystemExit('test marker not found')
+              text = text.replace(marker, marker + insert, 1)
+              p.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit migration
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add components/game/play/GamePlay.tsx tests/gameplayAuthorityGuard.test.ts
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo 'No changes required.'
+            exit 0
+          fi
+          git commit -m 'fix: remove client role assignment bypass'
+          git push origin main
+
+      - name: Remove one-time migration workflow
+        shell: bash
+        run: |
+          git rm .github/workflows/repair-gameplay-role-authority.yml
+          git commit -m 'chore: remove one-time GamePlay role migration'
+          git push origin main
