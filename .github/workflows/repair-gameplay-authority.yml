@@ -1,7 +1,8 @@
 name: Repair GamePlay Authority
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
 
 permissions:
   contents: write
