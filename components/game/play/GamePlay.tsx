@@ -27,6 +27,7 @@ import { MomentBanner, buildMoment, type Moment } from './MomentBanner';
 import { playNightAmbience, playDayAmbience, stopAllAmbience, playDeathSting, playVoteAlarm, playGameStart, playVictory, playDefeat } from '@/lib/gameAudio';
 import { requestNightAction } from '@/lib/game/nightActions';
 import { requestStartNight } from '@/lib/game/startNight';
+import { requestNarratorBroadcast } from '@/lib/game/narratorBroadcast';
 
 export interface Player {
   uid: string;
@@ -1692,9 +1693,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
               const spotlights = BOT_NARRATOR_SPOTLIGHTS[bTypeSpot];
               const spot = spotlights[Math.floor(Math.random() * spotlights.length)];
               const spotText = spot.text.replace(/\{name\}/g, botPlayer.name);
-              updateDoc(doc(db, 'games', gameId), {
-                narratorBroadcast: { text: spotText, type: spot.type, triggeredAt: Date.now() },
-              }).catch(() => {});
+              requestNarratorBroadcast(gameId, spotText, spot.type).catch(() => {});
             }
           }
         } catch { /* ignore */ }
@@ -1759,13 +1758,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
           });
           const data = await res.json();
           if (data.narration) {
-            updateDoc(doc(db, 'games', gameId), {
-              narratorBroadcast: {
-                text: data.narration,
-                type: interruptType,
-                triggeredAt: Date.now(),
-              },
-            }).catch(() => {});
+            requestNarratorBroadcast(gameId, data.narration, interruptType).catch(() => {});
           }
         } catch { /* silencioso */ }
       }, waitMs);
