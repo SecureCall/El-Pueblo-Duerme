@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Coins, Play } from 'lucide-react';
 import { auth } from '@/lib/firebase/config';
 
@@ -32,8 +32,60 @@ function AdSlot() {
 export function RewardedAd({ onRewarded }: Props) {
   const [state, setState] = useState<'idle' | 'watching' | 'done' | 'error'>('idle');
   const [seconds, setSeconds] = useState(0);
+  const rewardIdRef = useRef<string | null>(null);
 
-  const giveReward = async () => {
+  const claimReward = async () => {
+    const currentUser = auth.currentUser;
+    const rewardId = rewardIdRef.current;
+    if (!currentUser || !rewardId) {
+      setState('error');
+      return;
+    }
+
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch('/api/award-coins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'claim', rewardId }),
+      });
+
+      rewardIdRef.current = null;
+      if (!response.ok) {
+        setState('error');
+        return;
+      }
+
+      setState('done');
+      onRewarded?.();
+    } catch (_) {
+      rewardIdRef.current = null;
+      setState('error');
+    }
+  };
+
+  useEffect(() => {
+    if (state !== 'watching') return;
+
+    const interval = window.setInterval(() => {
+      setSeconds(prev => {
+        if (prev <= 1) {
+          window.clearInterval(interval);
+          void claimReward();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [state]);
+
+  useEffect(() => () => {
+    rewardIdRef.current = null;
+  }, []);
+
+  const startAd = async () => {
     const currentUser = auth.currentUser;
     if (!currentUser) {
       setState('error');
@@ -44,42 +96,21 @@ export function RewardedAd({ onRewarded }: Props) {
       const token = await currentUser.getIdToken();
       const response = await fetch('/api/award-coins', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'start' }),
       });
-
-      if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      if (!response.ok || typeof data?.rewardId !== 'string') {
         setState('error');
         return;
       }
 
-      setState('done');
-      onRewarded?.();
+      rewardIdRef.current = data.rewardId;
+      setState('watching');
+      setSeconds(typeof data.waitSeconds === 'number' ? data.waitSeconds : 15);
     } catch (_) {
       setState('error');
     }
-  };
-
-  const startAd = () => {
-    if (!auth.currentUser) {
-      setState('error');
-      return;
-    }
-
-    setState('watching');
-    setSeconds(15);
-    const interval = setInterval(() => {
-      setSeconds(prev => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          void giveReward();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
   };
 
   if (state === 'done') {
@@ -113,7 +144,7 @@ export function RewardedAd({ onRewarded }: Props) {
 
   return (
     <button
-      onClick={startAd}
+      onClick={() => void startAd()}
       className="w-full flex items-center justify-center gap-2 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/40 text-yellow-300 font-semibold py-3 rounded-xl transition-all text-sm"
     >
       <Play className="h-4 w-4" />
