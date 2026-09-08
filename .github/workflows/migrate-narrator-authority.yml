@@ -1,0 +1,73 @@
+name: Migrate narrator broadcast authority
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'components/game/play/GamePlay.tsx'
+      - '.github/workflows/migrate-narrator-authority.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Migrate narrator writes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('components/game/play/GamePlay.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          if "import { requestNarratorBroadcast } from '@/lib/game/narratorBroadcast';" not in text:
+              text = text.replace(
+                  "import { requestStartNight } from '@/lib/game/startNight';",
+                  "import { requestStartNight } from '@/lib/game/startNight';\nimport { requestNarratorBroadcast } from '@/lib/game/narratorBroadcast';",
+                  1,
+              )
+
+          old_spot = """              updateDoc(doc(db, 'games', gameId), {\n                narratorBroadcast: { text: spotText, type: spot.type, triggeredAt: Date.now() },\n              }).catch(() => {});"""
+          new_spot = """              requestNarratorBroadcast(gameId, spotText, spot.type).catch(() => {});"""
+          if old_spot in text:
+              text = text.replace(old_spot, new_spot, 1)
+
+          old_interrupt = """            updateDoc(doc(db, 'games', gameId), {\n              narratorBroadcast: {\n                text: data.narration,\n                type: interruptType,\n                triggeredAt: Date.now(),\n              },\n            }).catch(() => {});"""
+          new_interrupt = """            requestNarratorBroadcast(gameId, data.narration, interruptType).catch(() => {});"""
+          if old_interrupt in text:
+              text = text.replace(old_interrupt, new_interrupt, 1)
+
+          path.write_text(text, encoding='utf-8')
+
+          if "narratorBroadcast: {" in text:
+              raise SystemExit('Direct narratorBroadcast write remains')
+          if "requestNarratorBroadcast(gameId" not in text:
+              raise SystemExit('Narrator helper migration did not apply')
+
+      - name: Commit migration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git diff --quiet -- components/game/play/GamePlay.tsx; then
+            echo 'No migration changes needed.'
+            exit 0
+          fi
+          git add components/game/play/GamePlay.tsx
+          git commit -m 'fix: route narrator broadcasts through server authority'
+          git push
+
+      - name: Remove migration workflow
+        if: success()
+        run: |
+          git rm .github/workflows/migrate-narrator-authority.yml
+          git commit -m 'chore: remove one-time narrator migration workflow'
+          git push
