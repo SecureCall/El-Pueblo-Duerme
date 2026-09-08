@@ -90,12 +90,26 @@ export async function POST(req: NextRequest) {
     }
 
     const submissionRef = gameRef.collection('nightSubmissions').doc(`${uid}:${roundNumber}`);
+    const resolutionLockRef = gameRef.collection('nightResolutions').doc(String(roundNumber));
     const now = Date.now();
     let created = false;
 
     await db.runTransaction(async (tx) => {
-      const existing = await tx.get(submissionRef);
+      // The submission and resolution lock are checked in the same transaction.
+      // Whichever transaction wins the race establishes the ordering: a submission
+      // already committed before resolution is included; a submission racing after
+      // the resolver has claimed the lock is rejected.
+      const [existing, resolutionLock] = await Promise.all([
+        tx.get(submissionRef),
+        tx.get(resolutionLockRef),
+      ]);
       if (existing.exists) return;
+      if (resolutionLock.exists) {
+        const lockData = resolutionLock.data() as Record<string, unknown>;
+        if (lockData.status === 'resolving' || lockData.status === 'resolved') {
+          throw new Error('night_resolution_in_progress');
+        }
+      }
       tx.create(submissionRef, {
         actorUid: uid,
         role: serverRole,
@@ -161,6 +175,10 @@ export async function POST(req: NextRequest) {
     });
   } catch (err: unknown) {
     console.error('[sync-night-action]', err);
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'night_resolution_in_progress') {
+      return NextResponse.json({ error: 'La resolución de la noche ya está en curso' }, { status: 409 });
+    }
     return NextResponse.json({ error: 'Error interno' }, { status: 500 });
   }
 }
