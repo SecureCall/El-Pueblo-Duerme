@@ -28,6 +28,7 @@ import { playNightAmbience, playDayAmbience, stopAllAmbience, playDeathSting, pl
 import { requestNightAction } from '@/lib/game/nightActions';
 import { requestStartNight } from '@/lib/game/startNight';
 import { requestNarratorBroadcast } from '@/lib/game/narratorBroadcast';
+import { requestHostTakeover } from '@/lib/game/hostTakeover';
 
 export interface Player {
   uid: string;
@@ -368,9 +369,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
         candidates.sort((a, b) => a.uid.localeCompare(b.uid));
         if (candidates[0].uid !== user.uid) return;
 
-        console.warn('[Host absent] Auto-claiming host after 5min absence');
-        const newPlayers = (game.players ?? []).map(p => ({ ...p, isHost: p.uid === user.uid }));
-        await updateDoc(doc(db, 'games', gameId), { hostUid: user.uid, players: newPlayers });
+        console.warn('[Host absent] Requesting server-authoritative host takeover');
+        await requestHostTakeover(gameId);
       } catch { /* ignore */ }
     };
 
