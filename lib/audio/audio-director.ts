@@ -32,7 +32,12 @@ class AudioDirector {
     }
 
     try {
-      await cue.play();
+      // Playback is intentionally fire-and-forget: an Audio element/Howler/etc.
+      // may remain active for the entire duration of the cue.
+      void Promise.resolve(cue.play()).catch((error) => {
+        console.error('[audioDirector] cue playback failed', error);
+        this.stopCue(cue);
+      });
     } catch (error) {
       this.stopCue(cue);
       throw error;
