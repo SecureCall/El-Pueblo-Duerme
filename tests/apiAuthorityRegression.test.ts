@@ -25,7 +25,7 @@ describe('API authority regression guards', () => {
 
     expect(source).toContain('verifyAuthToken');
     expect(source).toContain('tokenUid !== uid');
-    expect(source).toContain('gameData.phase !== \'day\' && gameData.phase !== \'voting\'');
+    expect(source).toContain("gameData.phase !== 'day' && gameData.phase !== 'voting'");
     expect(source).toContain('submittedRound !== currentRound');
     expect(source).toContain('p.uid === uid && p.isAlive');
     expect(source).toContain('p.uid === target && p.isAlive');
@@ -59,5 +59,23 @@ describe('API authority regression guards', () => {
     expect(source).toContain('night_resolution_lease_expired');
     expect(source).toContain("status: 'resolved'");
     expect(source).toContain("phase: nextPhase");
+  });
+
+  it('does not allow any alive caller to resolve an incomplete night before its deadline', () => {
+    const source = read('app/api/resolve-night/route.ts');
+
+    expect(source).toContain('caller.isAlive !== true');
+    expect(source).toContain('const complete = aliveUids.length > 0 && aliveUids.every((uid) => submittedUids.has(uid));');
+    expect(source).toContain("const phaseEndsAt = typeof game.phaseEndsAt === 'number' ? game.phaseEndsAt : null;");
+    expect(source).toContain('const deadlineReached = phaseEndsAt !== null && Date.now() >= phaseEndsAt;');
+    expect(source).toContain('if (!complete && !deadlineReached)');
+  });
+
+  it('keeps automatic resolution available to non-host players only after completion', () => {
+    const source = read('app/api/sync-night-action/route.ts');
+
+    expect(source).toContain('if (complete)');
+    expect(source).toContain("new URL('/api/resolve-night', req.url)");
+    expect(source).toContain('Authorization: authorization');
   });
 });
