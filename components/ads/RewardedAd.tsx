@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Coins, Play } from 'lucide-react';
 import { auth } from '@/lib/firebase/config';
 
@@ -34,7 +34,7 @@ export function RewardedAd({ onRewarded }: Props) {
   const [seconds, setSeconds] = useState(0);
   const rewardIdRef = useRef<string | null>(null);
 
-  const claimReward = async () => {
+  const claimReward = useCallback(async () => {
     const currentUser = auth.currentUser;
     const rewardId = rewardIdRef.current;
     if (!currentUser || !rewardId) {
@@ -62,7 +62,7 @@ export function RewardedAd({ onRewarded }: Props) {
       rewardIdRef.current = null;
       setState('error');
     }
-  };
+  }, [onRewarded]);
 
   useEffect(() => {
     if (state !== 'watching') return;
@@ -79,7 +79,7 @@ export function RewardedAd({ onRewarded }: Props) {
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [state]);
+  }, [claimReward, state]);
 
   useEffect(() => () => {
     rewardIdRef.current = null;
