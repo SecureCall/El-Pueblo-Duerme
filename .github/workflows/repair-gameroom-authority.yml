@@ -1,8 +1,6 @@
 name: Repair GameRoom Authority
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -33,48 +31,32 @@ jobs:
                   raise SystemExit('GameRoom import marker not found')
               text = text.replace(marker, marker + imports, 1)
 
-          kick = re.compile(r"  const kickPlayer = async \(targetUid: string\) => \{.*?\n  \};", re.S)
-          text, count = kick.subn("""  const kickPlayer = async (targetUid: string) => {
+          replacements = [
+            (r"  const kickPlayer = async \(targetUid: string\) => \{.*?\n  \};", """  const kickPlayer = async (targetUid: string) => {
     if (!isHost || !game || targetUid === user?.uid) return;
     try {
       await requestLobbyKick(gameId, targetUid);
     } catch (error) {
       console.error('Error expulsando jugador:', error);
     }
-  };""", text, count=1)
-          if count != 1:
-              raise SystemExit('kickPlayer block not found')
-
-          join = re.compile(r"      getDoc\(doc\(db, 'users', user\.uid\)\)\.then\(snap => \{.*?\n      \}\)\.catch\(\(\) => \{\}\);", re.S)
-          text, count = join.subn("""      requestLobbyJoin(gameId, resolvedName).catch((error) => {
+  };""", 'kickPlayer'),
+            (r"      getDoc\(doc\(db, 'users', user\.uid\)\)\.then\(snap => \{.*?\n      \}\)\.catch\(\(\) => \{\}\);", """      requestLobbyJoin(gameId, resolvedName).catch((error) => {
         console.error('Error entrando en sala:', error);
-      });""", text, count=1)
-          if count != 1:
-              raise SystemExit('join block not found')
-
-          presence = re.compile(r"    const updatePresence = \(\) => \{.*?\n    \};", re.S)
-          text, count = presence.subn("""    const updatePresence = () => {
+      });""", 'join'),
+            (r"    const updatePresence = \(\) => \{.*?\n    \};", """    const updatePresence = () => {
       const me = game.players?.find(p => p.uid === user.uid);
       if (!me) return;
       requestLobbyPresence(gameId).catch((error) => {
         console.error('Error actualizando presencia:', error);
       });
-    };""", text, count=1)
-          if count != 1:
-              raise SystemExit('presence block not found')
-
-          autofill = re.compile(r"    const realNow = \(game\.players \?\? \[\]\)\.filter\(p => !p\.isAI\);.*?\n    setRetentionCountdown\(null\);", re.S)
-          text, count = autofill.subn("""    const realNow = (game.players ?? []).filter(p => !p.isAI);
+    };""", 'presence'),
+            (r"    const realNow = \(game\.players \?\? \[\]\)\.filter\(p => !p\.isAI\);.*?\n    setRetentionCountdown\(null\);", """    const realNow = (game.players ?? []).filter(p => !p.isAI);
     if (realNow.length >= 4) return;
     await requestLobbyFillBots(gameId).catch((error) => {
       console.error('Error rellenando bots:', error);
     });
-    setRetentionCountdown(null);""", text, count=1)
-          if count != 1:
-              raise SystemExit('autoFill body not found')
-
-          leave = re.compile(r"  const leaveGame = async \(\) => \{.*?\n  \};", re.S)
-          text, count = leave.subn("""  const leaveGame = async () => {
+    setRetentionCountdown(null);""", 'autoFill'),
+            (r"  const leaveGame = async \(\) => \{.*?\n  \};", """  const leaveGame = async () => {
     if (!user || !game) return;
     try {
       await requestLobbyLeave(gameId);
@@ -82,12 +64,8 @@ jobs:
       console.error('Error saliendo de sala:', error);
     }
     router.push('/');
-  };""", text, count=1)
-          if count != 1:
-              raise SystemExit('leaveGame block not found')
-
-          start = re.compile(r"  const startGame = async \(\) => \{.*?\n  \};", re.S)
-          text, count = start.subn("""  const startGame = async () => {
+  };""", 'leaveGame'),
+            (r"  const startGame = async \(\) => \{.*?\n  \};", """  const startGame = async () => {
     if (!user || !game || game.hostUid !== user.uid) return;
     stop();
     setStarting(true);
@@ -97,17 +75,19 @@ jobs:
       console.error('Error starting game:', err);
       setStarting(false);
     }
-  };""", text, count=1)
-          if count != 1:
-              raise SystemExit('startGame block not found')
+  };""", 'startGame'),
+          ]
 
-          # Remove imports that are now unused by the migrated lobby mutations.
+          for pattern, replacement, label in replacements:
+              text, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
+              if count != 1:
+                  raise SystemExit(f'{label} block not found')
+
           text = text.replace("  doc, onSnapshot, updateDoc, arrayUnion, arrayRemove, serverTimestamp,\n  collection, addDoc, query, orderBy, limit, onSnapshot as onSnap, deleteDoc,\n  getDoc,\n", "  doc, onSnapshot, serverTimestamp,\n  collection, addDoc, query, orderBy, limit, onSnapshot as onSnap,\n")
           text = text.replace("import { xpToLevel, levelEmoji } from '@/lib/firebase/xp';", "import { levelEmoji } from '@/lib/firebase/xp';")
           text = text.replace("import { BOT_NAMES, assignBotType, type BotType } from '@/lib/bots/botSystem';", "")
           text = text.replace("import { getBehaviorProfile } from '@/lib/bots/playerStats';\n", "")
 
-          # generateAIPlayers is no longer needed: bot creation is server-authoritative.
           generator = re.compile(r"function biasedBotType\(.*?\n\}\n\nfunction generateAIPlayers\(.*?\n\}\n\n", re.S)
           text, count = generator.subn('', text, count=1)
           if count != 1:
@@ -121,7 +101,38 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           p = Path('tests/gameRoomAuthorityGuard.test.ts')
-          p.write_text('''import { describe, expect, it } from 'vitest';\nimport { readFileSync } from 'node:fs';\nimport { resolve } from 'node:path';\n\nconst source = readFileSync(resolve(process.cwd(), 'components/game/GameRoom.tsx'), 'utf8');\n\ndescribe('GameRoom authority guard', () => {\n  it('routes lobby mutations through server helpers', () => {\n    expect(source).toContain('requestLobbyJoin');\n    expect(source).toContain('requestLobbyLeave');\n    expect(source).toContain('requestLobbyKick');\n    expect(source).toContain('requestLobbyPresence');\n    expect(source).toContain('requestLobbyFillBots');\n    expect(source).toContain('requestGameStart');\n  });\n\n  it('does not directly mutate the game document for lobby authority', () => {\n    expect(source).not.toMatch(/updateDoc\\(doc\\(db,\\s*['\"]games['\"]/);\n    expect(source).not.toMatch(/setDoc\\(doc\\(db,\\s*['\"]games['\"]/);\n    expect(source).not.toMatch(/deleteDoc\\(doc\\(db,\\s*['\"]games['\"]/);\n    expect(source).not.toMatch(/arrayUnion/);\n    expect(source).not.toMatch(/arrayRemove/);\n  });\n\n  it('does not generate or assign AI players in the browser', () => {\n    expect(source).not.toMatch(/generateAIPlayers/);\n    expect(source).not.toMatch(/BOT_NAMES/);\n    expect(source).not.toMatch(/assignBotType/);\n  });\n});\n''', encoding='utf-8')\n          PY
+          p.write_text('''import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+const source = readFileSync(resolve(process.cwd(), 'components/game/GameRoom.tsx'), 'utf8');
+
+describe('GameRoom authority guard', () => {
+  it('routes lobby mutations through server helpers', () => {
+    expect(source).toContain('requestLobbyJoin');
+    expect(source).toContain('requestLobbyLeave');
+    expect(source).toContain('requestLobbyKick');
+    expect(source).toContain('requestLobbyPresence');
+    expect(source).toContain('requestLobbyFillBots');
+    expect(source).toContain('requestGameStart');
+  });
+
+  it('does not directly mutate the game document for lobby authority', () => {
+    expect(source).not.toMatch(/updateDoc\\(doc\\(db,\\s*['\"]games['\"]/);
+    expect(source).not.toMatch(/setDoc\\(doc\\(db,\\s*['\"]games['\"]/);
+    expect(source).not.toMatch(/deleteDoc\\(doc\\(db,\\s*['\"]games['\"]/);
+    expect(source).not.toMatch(/arrayUnion/);
+    expect(source).not.toMatch(/arrayRemove/);
+  });
+
+  it('does not generate or assign AI players in the browser', () => {
+    expect(source).not.toMatch(/generateAIPlayers/);
+    expect(source).not.toMatch(/BOT_NAMES/);
+    expect(source).not.toMatch(/assignBotType/);
+  });
+});
+''', encoding='utf-8')
+          PY
 
       - name: Commit migration
         shell: bash
