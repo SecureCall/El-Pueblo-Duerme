@@ -29,43 +29,36 @@ export async function POST(request: Request) {
     if (!gameSnap.exists) return NextResponse.json({ error: 'Game not found' }, { status: 404 });
     const game = gameSnap.data() as Record<string, unknown>; const players = Array.isArray(game.players) ? game.players : [];
     const caller = players.find((p) => p && typeof p === 'object' && 'uid' in p && p.uid === user.uid) as Record<string, unknown> | undefined;
-    if (!caller) return NextResponse.json({ error: 'Not a player in this game' }, { status: 403 });
+    if (!caller || caller.isAlive !== true) return NextResponse.json({ error: 'Only an alive player can resolve the night' }, { status: 403 });
     if (game.phase !== 'night') return NextResponse.json({ error: 'Night phase is not active' }, { status: 409 });
     const roundNumber = typeof game.roundNumber === 'number' ? game.roundNumber : null; if (roundNumber === null) return NextResponse.json({ error: 'Invalid night round' }, { status: 409 });
 
-    // Manual resolution remains available to the current host. Non-host resolution is
-    // permitted only through the legitimate automatic-completion condition below.
-    const isHost = game.hostUid === user.uid;
-    if (!isHost && caller.isAlive !== true) return NextResponse.json({ error: 'Only the host or a complete night can resolve' }, { status: 403 });
-
-    // Generate trusted AI submissions before checking completion. This keeps the
-    // automatic path independent from the host and safe across host takeover.
+    // AI submissions are trusted server state. Completion is evaluated before the
+    // lock so a legitimate last submission can trigger resolution without giving
+    // any caller a way to resolve an incomplete night early.
     await ensureServerAINightSubmissions(db, gameId, game, players as Array<Record<string, unknown>>, roundNumber);
-    if (!isHost) {
-      const aliveUids = players
-        .filter((player) => player && typeof player === 'object' && (player as Record<string, unknown>).isAlive === true)
-        .map((player) => (player as Record<string, unknown>).uid)
-        .filter((value): value is string => typeof value === 'string' && value.length > 0);
-      const submissionSnap = await gameRef.collection('nightSubmissions').get();
-      const submittedUids = new Set(
-        submissionSnap.docs
-          .map((submission) => submission.data())
-          .filter((data) => data && data.roundNumber === roundNumber)
-          .map((data) => data.actorUid)
-          .filter((value): value is string => typeof value === 'string'),
-      );
-      if (aliveUids.length === 0 || !aliveUids.every((aliveUid) => submittedUids.has(aliveUid))) {
-        return NextResponse.json({ error: 'Night submissions are not complete' }, { status: 409 });
-      }
+    const submissionsBeforeClaim = await readNightSubmissions(gameId, roundNumber);
+    const aliveUids = players
+      .filter((player) => player && typeof player === 'object' && (player as Record<string, unknown>).isAlive === true)
+      .map((player) => (player as Record<string, unknown>).uid)
+      .filter((value): value is string => typeof value === 'string' && value.length > 0);
+    const submittedUids = new Set(
+      submissionsBeforeClaim
+        .filter((submission) => submission.roundNumber === roundNumber)
+        .map((submission) => submission.actorUid)
+        .filter((value): value is string => typeof value === 'string' && value.length > 0),
+    );
+    const complete = aliveUids.length > 0 && aliveUids.every((uid) => submittedUids.has(uid));
+    const phaseEndsAt = typeof game.phaseEndsAt === 'number' ? game.phaseEndsAt : null;
+    const deadlineReached = phaseEndsAt !== null && Date.now() >= phaseEndsAt;
+    if (!complete && !deadlineReached) {
+      return NextResponse.json({ error: 'Night submissions are not complete and the night deadline has not been reached' }, { status: 409 });
     }
 
     const lock = await claimNightResolution(db, gameId, roundNumber); if (!lock.acquired || !lock.leaseId) return NextResponse.json({ error: lock.reason === 'already_resolved' ? 'Night already resolved' : 'Night resolution already in progress' }, { status: 409 });
     claimedGameId = gameId; claimedRound = roundNumber; claimedLeaseId = lock.leaseId;
     const renew = async () => { if (!claimedGameId || claimedRound === null || !claimedLeaseId) return; if (!await renewNightResolution(db, claimedGameId, claimedRound, claimedLeaseId)) console.error('[resolve-night] lease fencing detected'); };
     heartbeat = setInterval(() => { void renew().catch((error) => console.error('[resolve-night] lease renewal failed', error)); }, HEARTBEAT_MS);
-
-    // AI is generated here, on the trusted server, immediately before reading submissions.
-    await ensureServerAINightSubmissions(db, gameId, game, players as Array<Record<string, unknown>>, roundNumber);
 
     const submissions = await readNightSubmissions(gameId, roundNumber);
     const validation = validatePersistedNightSubmissions(players as Array<Record<string, unknown>>, submissions, roundNumber);
@@ -104,6 +97,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, gameId, result, rejected: validation.rejected });
   } catch (error) {
     if (claimedGameId && claimedRound !== null && claimedLeaseId) { try { const { db } = getSdks(); await releaseNightResolution(db, claimedGameId, claimedRound, claimedLeaseId); } catch (releaseError) { console.error('[resolve-night] failed to release resolution lease', releaseError); } }
-    console.error('[resolve-night] request failed', error); const message = error instanceof Error ? error.message : 'unknown_error'; const status = message.startsWith('night_') ? 409 : 401; return NextResponse.json({ error: status === 409 ? message : 'Unauthorized or invalid request' }, { status });
-  } finally { if (heartbeat) clearInterval(heartbeat); }
+    console.error('[resolve-night] request failed', error); const message = error instanceof Error ? error.message : 'unknown_error'; const status = message.startsWith('night_') ? 409 : 401; return NextResponse.json({ error: status === 409 ? message : 'Unauthorized or invalid request' }, { status }); }
+  finally { if (heartbeat) clearInterval(heartbeat); }
 }
