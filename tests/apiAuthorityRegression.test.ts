@@ -50,4 +50,14 @@ describe('API authority regression guards', () => {
     expect(source).toContain('awardSnap.exists');
     expect(source).toContain('tx.create(awardRef');
   });
+
+  it('fences an expired night-resolution lease before applying the night result', () => {
+    const source = read('app/api/resolve-night/route.ts');
+
+    expect(source).toContain('night_resolution_lease_lost');
+    expect(source).toContain('leaseExpiresMillis(lockData.expiresAt) <= Date.now()');
+    expect(source).toContain('night_resolution_lease_expired');
+    expect(source).toContain("status: 'resolved'");
+    expect(source).toContain("phase: nextPhase");
+  });
 });
