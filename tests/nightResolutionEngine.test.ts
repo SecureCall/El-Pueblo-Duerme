@@ -101,17 +101,18 @@ describe('night resolution engine', () => {
     const game = input(
       [
         { uid: 'wolf', name: 'Wolf', isAlive: true },
+        { uid: 'witch', name: 'Witch', isAlive: true },
         { uid: 'cf', name: 'Cambiaformas', isAlive: true },
         { uid: 'victim', name: 'Victim', isAlive: true },
         { uid: 'villager', name: 'Villager', isAlive: true },
       ],
-      [action('wolf', 'Lobo', 'wolfTarget', 'victim')],
+      [action('witch', 'Hechicera', 'witchPoison', 'victim')],
       history,
     );
 
     const result = resolveNightActions(
       game,
-      snapshot({ wolf: 'Lobo', cf: 'Cambiaformas', victim: 'Lobo Blanco', villager: 'Aldeano' }),
+      snapshot({ wolf: 'Lobo', witch: 'Hechicera', cf: 'Cambiaformas', victim: 'Lobo Blanco', villager: 'Aldeano' }),
     );
 
     expect(result.statePatch.roles.cf).toBe('Lobo Blanco');
