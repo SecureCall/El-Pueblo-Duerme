@@ -28,17 +28,43 @@ export async function POST(request: Request) {
     const { db } = getSdks(); const gameRef = db.collection('games').doc(gameId); const gameSnap = await gameRef.get();
     if (!gameSnap.exists) return NextResponse.json({ error: 'Game not found' }, { status: 404 });
     const game = gameSnap.data() as Record<string, unknown>; const players = Array.isArray(game.players) ? game.players : [];
-    if (!players.some((p) => p && typeof p === 'object' && 'uid' in p && p.uid === user.uid)) return NextResponse.json({ error: 'Not a player in this game' }, { status: 403 });
+    const caller = players.find((p) => p && typeof p === 'object' && 'uid' in p && p.uid === user.uid) as Record<string, unknown> | undefined;
+    if (!caller) return NextResponse.json({ error: 'Not a player in this game' }, { status: 403 });
     if (game.phase !== 'night') return NextResponse.json({ error: 'Night phase is not active' }, { status: 409 });
     const roundNumber = typeof game.roundNumber === 'number' ? game.roundNumber : null; if (roundNumber === null) return NextResponse.json({ error: 'Invalid night round' }, { status: 409 });
+
+    // Manual resolution remains available to the current host. Non-host resolution is
+    // permitted only through the legitimate automatic-completion condition below.
+    const isHost = game.hostUid === user.uid;
+    if (!isHost && caller.isAlive !== true) return NextResponse.json({ error: 'Only the host or a complete night can resolve' }, { status: 403 });
+
+    // Generate trusted AI submissions before checking completion. This keeps the
+    // automatic path independent from the host and safe across host takeover.
+    await ensureServerAINightSubmissions(db, gameId, game, players as Array<Record<string, unknown>>, roundNumber);
+    if (!isHost) {
+      const aliveUids = players
+        .filter((player) => player && typeof player === 'object' && (player as Record<string, unknown>).isAlive === true)
+        .map((player) => (player as Record<string, unknown>).uid)
+        .filter((value): value is string => typeof value === 'string' && value.length > 0);
+      const submissionSnap = await gameRef.collection('nightSubmissions').get();
+      const submittedUids = new Set(
+        submissionSnap.docs
+          .map((submission) => submission.data())
+          .filter((data) => data && data.roundNumber === roundNumber)
+          .map((data) => data.actorUid)
+          .filter((value): value is string => typeof value === 'string'),
+      );
+      if (aliveUids.length === 0 || !aliveUids.every((aliveUid) => submittedUids.has(aliveUid))) {
+        return NextResponse.json({ error: 'Night submissions are not complete' }, { status: 409 });
+      }
+    }
+
     const lock = await claimNightResolution(db, gameId, roundNumber); if (!lock.acquired || !lock.leaseId) return NextResponse.json({ error: lock.reason === 'already_resolved' ? 'Night already resolved' : 'Night resolution already in progress' }, { status: 409 });
     claimedGameId = gameId; claimedRound = roundNumber; claimedLeaseId = lock.leaseId;
     const renew = async () => { if (!claimedGameId || claimedRound === null || !claimedLeaseId) return; if (!await renewNightResolution(db, claimedGameId, claimedRound, claimedLeaseId)) console.error('[resolve-night] lease fencing detected'); };
     heartbeat = setInterval(() => { void renew().catch((error) => console.error('[resolve-night] lease renewal failed', error)); }, HEARTBEAT_MS);
 
     // AI is generated here, on the trusted server, immediately before reading submissions.
-    // This removes the host/client as an authority for AI night actions and also makes
-    // AI submission generation resilient to host disconnect/takeover.
     await ensureServerAINightSubmissions(db, gameId, game, players as Array<Record<string, unknown>>, roundNumber);
 
     const submissions = await readNightSubmissions(gameId, roundNumber);
@@ -46,6 +72,12 @@ export async function POST(request: Request) {
     const groupedSubmissions = validation.valid.map((s) => ({ actorUid: s.actorUid, role: s.role, actions: s.actions, roundNumber: s.roundNumber, submittedAt: s.submittedAt, syncedAt: s.syncedAt }));
     const input = createNightResolutionInput(gameId, roundNumber, players as Array<Record<string, unknown>>, groupedSubmissions, game);
     const roleSnapshot = await readNightRoleSnapshot(gameId, input.players.map((player) => player.uid));
+
+    // Persisted roles are an untrusted boundary. The private server snapshot is the
+    // only canonical role authority allowed to influence the night engine.
+    const roleTampering = groupedSubmissions.find((submission) => roleSnapshot.rolesByUid[submission.actorUid] !== submission.role);
+    if (roleTampering) throw new Error(`night_submission_role_mismatch:${roleTampering.actorUid}`);
+
     const result = resolveNightActions(input, roleSnapshot);
     const acceptedAction = (action: string) => result.acceptedActions.find((item) => item.action === action) ?? null;
     const ancianaTarget = acceptedAction('ancianaTarget')?.targetUid ?? null;
