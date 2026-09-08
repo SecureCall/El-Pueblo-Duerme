@@ -13,6 +13,12 @@ import { ensureServerAINightSubmissions } from '@/lib/server/aiNight';
 const HEARTBEAT_MS = 30_000;
 function nextDayEnd(now: number, aliveCount: number): number { const base = Math.min(120, Math.max(60, aliveCount * 10)); return now + base * 1000 + 2000; }
 
+function leaseExpiresMillis(value: unknown): number {
+  if (!value || typeof value !== 'object') return 0;
+  const toMillis = (value as { toMillis?: unknown }).toMillis;
+  return typeof toMillis === 'function' ? toMillis.call(value) : 0;
+}
+
 export async function POST(request: Request) {
   let claimedGameId: string | null = null; let claimedRound: number | null = null; let claimedLeaseId: string | null = null; let heartbeat: ReturnType<typeof setInterval> | null = null;
   try {
@@ -55,6 +61,7 @@ export async function POST(request: Request) {
       if (!lockData) throw new Error('night_resolution_lock_missing');
       if (currentGame.phase !== 'night' || currentGame.roundNumber !== roundNumber) throw new Error('night_state_changed_before_commit');
       if (lockData.status !== 'resolving' || lockData.leaseId !== claimedLeaseId) throw new Error('night_resolution_lease_lost');
+      if (leaseExpiresMillis(lockData.expiresAt) <= Date.now()) throw new Error('night_resolution_lease_expired');
       const patch = result.statePatch; const now = Date.now(); const finalWinner = result.winner; const nextPhase = finalWinner ? 'ended' : 'day'; const aliveCount = patch.players.filter((p) => p.isAlive).length;
       const previousForenseResults = currentGame.forenseResults && typeof currentGame.forenseResults === 'object' ? currentGame.forenseResults as Record<string, string> : {};
       tx.update(gameRef, { players: patch.players, roles: patch.roles, eliminatedHistory: patch.eliminatedHistory, wolfTeam: canonicalWolfTeam, antigoHit: patch.antigoHit, cambiaformasTargets: patch.cambiaformasTargets, salvajeMentors: patch.salvajeMentors, virginiawoolFate: patch.virginiawoolFate, perroLoboChoices: patch.perroLoboChoices, cultMembers: patch.cultMembers, vampiroBites: patch.vampiroBites, vampiroKills: patch.vampiroKills, pescadorBoat: patch.pescadorBoat, enchanted: patch.enchanted, hadaLinked: patch.hadaLinked, bansheePoints: patch.bansheePoints, vigiaUsed: patch.vigiaUsed, vigiaKnowsWolves: patch.vigiaKnowsWolves, angelResucitadorUsed: patch.angelResucitadorUsed, espiaUsed: patch.espiaUsed, sirenaUid: patch.sirenaUid, sirenaLinked: patch.sirenaLinked, lobosBlocked: result.deathEffects.nextNightWolfBlock, criaLoboRage: patch.criaLoboRage, hechiceraLifeUsed: patch.hechiceraLifeUsed, hechiceraPoisonUsed: patch.hechiceraPoisonUsed, brujaFoundVidente: patch.brujaFoundVidente, brujaProtectedUid: patch.brujaProtectedUid, guardianLastTarget, doctorLastTarget, doctorSelfUsed, dayEliminatedUid, cazadorPendingShot: patch.cazadorPendingShot, seerReveal: patch.seerReveal, seerReveal2: patch.seerReveal2, profetaReveal: patch.profetaReveal, silencedPlayers: patch.silencedPlayers, forenseResults: { ...previousForenseResults, ...patch.forenseResults }, saboteadorBan: patch.saboteadorBan, phase: nextPhase, winners: finalWinner, winMessage: result.winMessage, nightActions: {}, nightSubmissions: {}, dayVotes: {}, dayStartedAt: finalWinner ? null : now, phaseEndsAt: finalWinner ? null : nextDayEnd(now, aliveCount), bansheePredictionUid: null });
