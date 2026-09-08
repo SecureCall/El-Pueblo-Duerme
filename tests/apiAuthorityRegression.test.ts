@@ -78,4 +78,13 @@ describe('API authority regression guards', () => {
     expect(source).toContain("new URL('/api/resolve-night', req.url)");
     expect(source).toContain('Authorization: authorization');
   });
+
+  it('closes server-authoritative night submissions at the phase deadline', () => {
+    const source = read('app/api/sync-night-action/route.ts');
+
+    expect(source).toContain("const phaseEndsAt = typeof gameData.phaseEndsAt === 'number' ? gameData.phaseEndsAt : null;");
+    expect(source).toContain('Date.now() >= phaseEndsAt');
+    expect(source).toContain("return NextResponse.json({ error: 'La noche ya ha terminado; la acción llegó después del límite' }, { status: 409 });");
+    expect(source).toContain('const [existing, resolutionLock] = await Promise.all([');
+  });
 });
