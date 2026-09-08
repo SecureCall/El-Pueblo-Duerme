@@ -7,11 +7,12 @@ const resolveNight = readFileSync(resolve(repoRoot, 'app/api/resolve-night/route
 const syncNight = readFileSync(resolve(repoRoot, 'app/api/sync-night-action/route.ts'), 'utf8');
 
 describe('night resolution authority regressions', () => {
-  it('does not allow a non-host to resolve before every alive player submitted', () => {
-    expect(resolveNight).toContain("const isHost = game.hostUid === user.uid;");
-    expect(resolveNight).toContain("if (!isHost && caller.isAlive !== true)");
-    expect(resolveNight).toContain("if (!aliveUids.every((aliveUid) => submittedUids.has(aliveUid)))");
-    expect(resolveNight).toContain("return NextResponse.json({ error: 'Night submissions are not complete' }, { status: 409 });");
+  it('does not allow an alive caller to resolve before every alive player submitted or the deadline', () => {
+    expect(resolveNight).toContain("if (!caller || caller.isAlive !== true)");
+    expect(resolveNight).toContain("const complete = aliveUids.length > 0 &&");
+    expect(resolveNight).toContain('const submittedUids = new Set');
+    expect(resolveNight).toContain('const deadlineReached = phaseEndsAt !== null && Date.now() >= phaseEndsAt;');
+    expect(resolveNight).toContain('if (!complete && !deadlineReached)');
   });
 
   it('uses the private role snapshot as the final role authority', () => {
