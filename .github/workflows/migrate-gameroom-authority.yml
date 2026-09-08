@@ -9,9 +9,8 @@ permissions:
 
 jobs:
   migrate:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,49 +27,49 @@ jobs:
           s = s.replace("import { xpToLevel, levelEmoji } from '@/lib/firebase/xp';", "import { levelEmoji } from '@/lib/firebase/xp';")
           s = s.replace("import { BOT_NAMES, assignBotType, type BotType } from '@/lib/bots/botSystem';\n", "")
           s = s.replace("import { getBehaviorProfile } from '@/lib/bots/playerStats';\n", "")
-          s = s.replace("import { useAuth } from '@/app/providers/AuthProvider';\n", "import { useAuth } from '@/app/providers/AuthProvider';\nimport { requestLobbyJoin, requestLobbyLeave, requestLobbyKick, requestLobbyPresence, requestLobbyFillBots, requestGameStart } from '@/lib/firebase/lobbyActions';\n")
+          s = s.replace("import { useAuth } from '@/app/providers/AuthProvider';", "import { useAuth } from '@/app/providers/AuthProvider';\nimport { requestLobbyJoin, requestLobbyLeave, requestLobbyKick, requestLobbyPresence, requestLobbyFillBots, requestGameStart } from '@/lib/firebase/lobbyActions';")
           s = s.replace("  doc, onSnapshot, updateDoc, arrayUnion, arrayRemove, serverTimestamp,\n  collection, addDoc, query, orderBy, limit, onSnapshot as onSnap, deleteDoc,\n  getDoc,\n", "  doc, onSnapshot, serverTimestamp,\n  collection, addDoc, query, orderBy, limit, onSnapshot as onSnap,\n")
           s, n = re.subn(r"\n// Bias de personalidad.*?\nfunction generateAIPlayers\(.*?\n\}\n\n", "\n", s, count=1, flags=re.S)
           if n != 1: raise SystemExit('AI generator block not found')
           s, n = re.subn(r"  const kickPlayer = async \(targetUid: string\) => \{.*?\n  \};", """  const kickPlayer = async (targetUid: string) => {
-    if (!isHost || !game || targetUid === user?.uid) return;
-    try { await requestLobbyKick(gameId, targetUid); }
-    catch (error) { console.error('Error expulsando jugador:', error); }
-  };""", s, count=1, flags=re.S)
+            if (!isHost || !game || targetUid === user?.uid) return;
+            try { await requestLobbyKick(gameId, targetUid); }
+            catch (error) { console.error('Error expulsando jugador:', error); }
+          };""", s, count=1, flags=re.S)
           if n != 1: raise SystemExit('kick block not found')
           s, n = re.subn(r"      getDoc\(doc\(db, 'users', user\.uid\)\)\.then\(snap => \{.*?\n      \}\)\.catch\(\(\) => \{\}\);", """      requestLobbyJoin(gameId, resolvedName).catch((error) => {
-        console.error('Error entrando en sala:', error);
-      });""", s, count=1, flags=re.S)
+            console.error('Error entrando en sala:', error);
+          });""", s, count=1, flags=re.S)
           if n != 1: raise SystemExit('join block not found')
           s, n = re.subn(r"    const updatePresence = \(\) => \{.*?\n    \};", """    const updatePresence = () => {
-      const me = game.players?.find(p => p.uid === user.uid);
-      if (!me) return;
-      requestLobbyPresence(gameId).catch((error) => {
-        console.error('Error actualizando presencia:', error);
-      });
-    };""", s, count=1, flags=re.S)
+            const me = game.players?.find(p => p.uid === user.uid);
+            if (!me) return;
+            requestLobbyPresence(gameId).catch((error) => {
+              console.error('Error actualizando presencia:', error);
+            });
+          };""", s, count=1, flags=re.S)
           if n != 1: raise SystemExit('presence block not found')
           s, n = re.subn(r"    const realNow = \(game\.players \?\? \[\]\)\.filter\(p => !p\.isAI\);.*?\n    setRetentionCountdown\(null\);", """    const realNow = (game.players ?? []).filter(p => !p.isAI);
-    if (realNow.length >= 4) return;
-    await requestLobbyFillBots(gameId).catch((error) => {
-      console.error('Error rellenando bots:', error);
-    });
-    setRetentionCountdown(null);""", s, count=1, flags=re.S)
+            if (realNow.length >= 4) return;
+            await requestLobbyFillBots(gameId).catch((error) => {
+              console.error('Error rellenando bots:', error);
+            });
+            setRetentionCountdown(null);""", s, count=1, flags=re.S)
           if n != 1: raise SystemExit('autofill block not found')
           s, n = re.subn(r"  const leaveGame = async \(\) => \{.*?\n  \};", """  const leaveGame = async () => {
-    if (!user || !game) return;
-    try { await requestLobbyLeave(gameId); }
-    catch (error) { console.error('Error saliendo de sala:', error); }
-    router.push('/');
-  };""", s, count=1, flags=re.S)
+            if (!user || !game) return;
+            try { await requestLobbyLeave(gameId); }
+            catch (error) { console.error('Error saliendo de sala:', error); }
+            router.push('/');
+          };""", s, count=1, flags=re.S)
           if n != 1: raise SystemExit('leave block not found')
           s, n = re.subn(r"  const startGame = async \(\) => \{.*?\n  \};", """  const startGame = async () => {
-    if (!user || !game || game.hostUid !== user.uid) return;
-    stop();
-    setStarting(true);
-    try { await requestGameStart(gameId); }
-    catch (error) { console.error('Error starting game:', error); setStarting(false); }
-  };""", s, count=1, flags=re.S)
+            if (!user || !game || game.hostUid !== user.uid) return;
+            stop();
+            setStarting(true);
+            try { await requestGameStart(gameId); }
+            catch (error) { console.error('Error starting game:', error); setStarting(false); }
+          };""", s, count=1, flags=re.S)
           if n != 1: raise SystemExit('start block not found')
           p.write_text(s, encoding='utf-8')
           PY
