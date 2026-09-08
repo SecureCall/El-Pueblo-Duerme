@@ -20,15 +20,21 @@ describe('API authority regression guards', () => {
     expect(source).toContain('RESOLUTION_LOCKED');
   });
 
-  it('keeps background vote replay bound to the authenticated player', () => {
+  it('keeps background vote replay authenticated, deadline-fenced and resolution-fenced', () => {
     const source = read('app/api/sync-vote/route.ts');
 
     expect(source).toContain('verifyAuthToken');
     expect(source).toContain('tokenUid !== uid');
-    expect(source).toContain("gameData.phase !== 'day' && gameData.phase !== 'voting'");
+    expect(source).toContain('ALLOWED_PHASES');
     expect(source).toContain('submittedRound !== currentRound');
-    expect(source).toContain('p.uid === uid && p.isAlive');
-    expect(source).toContain('p.uid === target && p.isAlive');
+    expect(source).toContain('VOTE_DEADLINE_PASSED');
+    expect(source).toContain("const phaseEndsAt = typeof game.phaseEndsAt === 'number' ? game.phaseEndsAt : null;");
+    expect(source).toContain('Date.now() >= phaseEndsAt');
+    expect(source).toContain('RESOLUTION_LOCKED');
+    expect(source).toContain("gameRef.collection('locks').doc('dayResolution')");
+    expect(source).toContain('db.runTransaction');
+    expect(source).toContain('p.uid === uid');
+    expect(source).toContain('p.uid === target');
   });
 
   it('keeps host takeover authenticated and transactionally decided by server policy', () => {
