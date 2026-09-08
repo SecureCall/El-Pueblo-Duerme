@@ -1,6 +1,8 @@
 name: Repair GamePlay Role Authority
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -26,10 +28,10 @@ jobs:
 
           pattern = re.compile(r"  // Host assigns roles on game start\n  useEffect\(\(\) => \{.*?\n  \}, \[game, user, gameId\]\);\n", re.S)
           text, count = pattern.subn('', text, count=1)
-          if count != 1:
-              raise SystemExit('client role assignment effect not found')
-
-          path.write_text(text, encoding='utf-8')
+          if count == 1:
+              path.write_text(text, encoding='utf-8')
+          elif 'assignRoles(game.players' in text or "playerRoles')" in text:
+              raise SystemExit('role assignment bypass remains but expected effect was not found')
 
       - name: Add regression guard
         shell: bash
@@ -57,14 +59,16 @@ jobs:
           git diff --cached --check
           if git diff --cached --quiet; then
             echo 'No changes required.'
-            exit 0
+          else
+            git commit -m 'fix: remove client role assignment bypass'
+            git push origin main
           fi
-          git commit -m 'fix: remove client role assignment bypass'
-          git push origin main
 
       - name: Remove one-time migration workflow
         shell: bash
         run: |
-          git rm .github/workflows/repair-gameplay-role-authority.yml
-          git commit -m 'chore: remove one-time GamePlay role migration'
-          git push origin main
+          if [ -f .github/workflows/repair-gameplay-role-authority.yml ]; then
+            git rm .github/workflows/repair-gameplay-role-authority.yml
+            git commit -m 'chore: remove one-time GamePlay role migration'
+            git push origin main
+          fi
