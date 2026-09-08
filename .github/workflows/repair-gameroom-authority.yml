@@ -1,6 +1,8 @@
 name: Repair GameRoom Authority
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -24,39 +26,45 @@ jobs:
           path = Path('components/game/GameRoom.tsx')
           text = path.read_text(encoding='utf-8')
 
-          imports = "import { requestLobbyJoin, requestLobbyLeave, requestLobbyKick, requestLobbyPresence, requestLobbyFillBots, requestGameStart } from '@/lib/firebase/lobbyActions';\n"
-          if 'from \'@/lib/firebase/lobbyActions\'' not in text:
-              marker = "import { getBehaviorProfile } from '@/lib/bots/playerStats';\n"
-              if marker not in text:
-                  raise SystemExit('GameRoom import marker not found')
-              text = text.replace(marker, marker + imports, 1)
+          helper_import = "import { requestLobbyJoin, requestLobbyLeave, requestLobbyKick, requestLobbyPresence, requestLobbyFillBots, requestGameStart } from '@/lib/firebase/lobbyActions';\n"
+          if 'requestLobbyJoin' not in text:
+              text = text.replace("import { FriendsPanel } from '@/components/friends/FriendsPanel';\n", "import { FriendsPanel } from '@/components/friends/FriendsPanel';\n" + helper_import, 1)
 
-          replacements = [
-            (r"  const kickPlayer = async \(targetUid: string\) => \{.*?\n  \};", """  const kickPlayer = async (targetUid: string) => {
+          def replace_once(pattern, replacement, label):
+              nonlocal_text[0], count = re.subn(pattern, replacement, nonlocal_text[0], count=1, flags=re.S)
+              if count != 1:
+                  raise SystemExit(f'{label} block not found')
+
+          nonlocal_text = [text]
+          replace_once(r"  const kickPlayer = async \(targetUid: string\) => \{.*?\n  \};", """  const kickPlayer = async (targetUid: string) => {
     if (!isHost || !game || targetUid === user?.uid) return;
     try {
       await requestLobbyKick(gameId, targetUid);
     } catch (error) {
       console.error('Error expulsando jugador:', error);
     }
-  };""", 'kickPlayer'),
-            (r"      getDoc\(doc\(db, 'users', user\.uid\)\)\.then\(snap => \{.*?\n      \}\)\.catch\(\(\) => \{\}\);", """      requestLobbyJoin(gameId, resolvedName).catch((error) => {
+  };""", 'kickPlayer')
+
+          replace_once(r"      getDoc\(doc\(db, 'users', user\.uid\)\)\.then\(snap => \{.*?\n      \}\)\.catch\(\(\) => \{\}\);", """      requestLobbyJoin(gameId, resolvedName).catch((error) => {
         console.error('Error entrando en sala:', error);
-      });""", 'join'),
-            (r"    const updatePresence = \(\) => \{.*?\n    \};", """    const updatePresence = () => {
+      });""", 'join')
+
+          replace_once(r"    const updatePresence = \(\) => \{.*?\n    \};", """    const updatePresence = () => {
       const me = game.players?.find(p => p.uid === user.uid);
       if (!me) return;
       requestLobbyPresence(gameId).catch((error) => {
         console.error('Error actualizando presencia:', error);
       });
-    };""", 'presence'),
-            (r"    const realNow = \(game\.players \?\? \[\]\)\.filter\(p => !p\.isAI\);.*?\n    setRetentionCountdown\(null\);", """    const realNow = (game.players ?? []).filter(p => !p.isAI);
+    };""", 'presence')
+
+          replace_once(r"    const realNow = \(game\.players \?\? \[\]\)\.filter\(p => !p\.isAI\);.*?\n    setRetentionCountdown\(null\);", """    const realNow = (game.players ?? []).filter(p => !p.isAI);
     if (realNow.length >= 4) return;
     await requestLobbyFillBots(gameId).catch((error) => {
       console.error('Error rellenando bots:', error);
     });
-    setRetentionCountdown(null);""", 'autoFill'),
-            (r"  const leaveGame = async \(\) => \{.*?\n  \};", """  const leaveGame = async () => {
+    setRetentionCountdown(null);""", 'autoFill')
+
+          replace_once(r"  const leaveGame = async \(\) => \{.*?\n  \};", """  const leaveGame = async () => {
     if (!user || !game) return;
     try {
       await requestLobbyLeave(gameId);
@@ -64,8 +72,9 @@ jobs:
       console.error('Error saliendo de sala:', error);
     }
     router.push('/');
-  };""", 'leaveGame'),
-            (r"  const startGame = async \(\) => \{.*?\n  \};", """  const startGame = async () => {
+  };""", 'leaveGame')
+
+          replace_once(r"  const startGame = async \(\) => \{.*?\n  \};", """  const startGame = async () => {
     if (!user || !game || game.hostUid !== user.uid) return;
     stop();
     setStarting(true);
@@ -75,64 +84,59 @@ jobs:
       console.error('Error starting game:', err);
       setStarting(false);
     }
-  };""", 'startGame'),
-          ]
+  };""", 'startGame')
 
-          for pattern, replacement, label in replacements:
-              text, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
-              if count != 1:
-                  raise SystemExit(f'{label} block not found')
-
-          text = text.replace("  doc, onSnapshot, updateDoc, arrayUnion, arrayRemove, serverTimestamp,\n  collection, addDoc, query, orderBy, limit, onSnapshot as onSnap, deleteDoc,\n  getDoc,\n", "  doc, onSnapshot, serverTimestamp,\n  collection, addDoc, query, orderBy, limit, onSnapshot as onSnap,\n")
+          text = nonlocal_text[0]
+          text = re.sub(r"function biasedBotType\(.*?\n\}\n\nfunction generateAIPlayers\(.*?\n\}\n\n", '', text, count=1, flags=re.S)
+          text = re.sub(r"import \{\n  doc, onSnapshot, updateDoc, arrayUnion, arrayRemove, serverTimestamp,\n  collection, addDoc, query, orderBy, limit, onSnapshot as onSnap, deleteDoc,\n  getDoc,\n\} from 'firebase/firestore';", "import {\n  doc, onSnapshot, serverTimestamp,\n  collection, addDoc, query, orderBy, limit, onSnapshot as onSnap,\n} from 'firebase/firestore';", text, count=1)
           text = text.replace("import { xpToLevel, levelEmoji } from '@/lib/firebase/xp';", "import { levelEmoji } from '@/lib/firebase/xp';")
-          text = text.replace("import { BOT_NAMES, assignBotType, type BotType } from '@/lib/bots/botSystem';", "")
+          text = text.replace("import { BOT_NAMES, assignBotType, type BotType } from '@/lib/bots/botSystem';\n", "")
           text = text.replace("import { getBehaviorProfile } from '@/lib/bots/playerStats';\n", "")
-
-          generator = re.compile(r"function biasedBotType\(.*?\n\}\n\nfunction generateAIPlayers\(.*?\n\}\n\n", re.S)
-          text, count = generator.subn('', text, count=1)
-          if count != 1:
-              raise SystemExit('client bot generator block not found')
-
           path.write_text(text, encoding='utf-8')
 
       - name: Add authority regression guard
         shell: bash
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('tests/gameRoomAuthorityGuard.test.ts')
-          p.write_text('''import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+          cat > tests/gameRoomAuthorityGuard.test.ts <<'EOF'
+          import { describe, expect, it } from 'vitest';
+          import { readFileSync } from 'node:fs';
+          import { resolve } from 'node:path';
 
-const source = readFileSync(resolve(process.cwd(), 'components/game/GameRoom.tsx'), 'utf8');
+          const source = readFileSync(resolve(process.cwd(), 'components/game/GameRoom.tsx'), 'utf8');
 
-describe('GameRoom authority guard', () => {
-  it('routes lobby mutations through server helpers', () => {
-    expect(source).toContain('requestLobbyJoin');
-    expect(source).toContain('requestLobbyLeave');
-    expect(source).toContain('requestLobbyKick');
-    expect(source).toContain('requestLobbyPresence');
-    expect(source).toContain('requestLobbyFillBots');
-    expect(source).toContain('requestGameStart');
-  });
+          describe('GameRoom authority guard', () => {
+            it('routes lobby mutations through server helpers', () => {
+              expect(source).toContain('requestLobbyJoin');
+              expect(source).toContain('requestLobbyLeave');
+              expect(source).toContain('requestLobbyKick');
+              expect(source).toContain('requestLobbyPresence');
+              expect(source).toContain('requestLobbyFillBots');
+              expect(source).toContain('requestGameStart');
+            });
 
-  it('does not directly mutate the game document for lobby authority', () => {
-    expect(source).not.toMatch(/updateDoc\\(doc\\(db,\\s*['\"]games['\"]/);
-    expect(source).not.toMatch(/setDoc\\(doc\\(db,\\s*['\"]games['\"]/);
-    expect(source).not.toMatch(/deleteDoc\\(doc\\(db,\\s*['\"]games['\"]/);
-    expect(source).not.toMatch(/arrayUnion/);
-    expect(source).not.toMatch(/arrayRemove/);
-  });
+            it('does not directly mutate the game document for lobby authority', () => {
+              expect(source).not.toMatch(/updateDoc\(doc\(db,\s*['"]games['"]/);
+              expect(source).not.toMatch(/setDoc\(doc\(db,\s*['"]games['"]/);
+              expect(source).not.toMatch(/deleteDoc\(doc\(db,\s*['"]games['"]/);
+              expect(source).not.toMatch(/arrayUnion/);
+              expect(source).not.toMatch(/arrayRemove/);
+            });
 
-  it('does not generate or assign AI players in the browser', () => {
-    expect(source).not.toMatch(/generateAIPlayers/);
-    expect(source).not.toMatch(/BOT_NAMES/);
-    expect(source).not.toMatch(/assignBotType/);
-  });
-});
-''', encoding='utf-8')
-          PY
+            it('does not generate or assign AI players in the browser', () => {
+              expect(source).not.toMatch(/generateAIPlayers/);
+              expect(source).not.toMatch(/BOT_NAMES/);
+              expect(source).not.toMatch(/assignBotType/);
+            });
+          });
+          EOF
+
+      - name: Validate migration before commit
+        shell: bash
+        run: |
+          grep -q "requestLobbyJoin" components/game/GameRoom.tsx
+          ! grep -q "updateDoc(doc(db, 'games'" components/game/GameRoom.tsx
+          ! grep -q "generateAIPlayers" components/game/GameRoom.tsx
+          git diff --check
 
       - name: Commit migration
         shell: bash
@@ -140,7 +144,6 @@ describe('GameRoom authority guard', () => {
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add components/game/GameRoom.tsx tests/gameRoomAuthorityGuard.test.ts
-          git diff --cached --check
           if git diff --cached --quiet; then
             echo 'No changes required.'
           else
