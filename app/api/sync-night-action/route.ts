@@ -54,6 +54,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Ronda nocturna inválida' }, { status: 409 });
     }
 
+    const phaseEndsAt = typeof gameData.phaseEndsAt === 'number' ? gameData.phaseEndsAt : null;
+    if (phaseEndsAt !== null && Date.now() >= phaseEndsAt) {
+      return NextResponse.json({ error: 'La noche ya ha terminado; la acción llegó después del límite' }, { status: 409 });
+    }
+
     const players: { uid: string; isAlive: boolean; isAI?: boolean }[] = Array.isArray(gameData.players)
       ? gameData.players
           .filter((player: unknown): player is Record<string, unknown> => Boolean(player) && typeof player === 'object')
