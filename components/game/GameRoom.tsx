@@ -3,20 +3,18 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/providers/AuthProvider';
+import { requestLobbyJoin, requestLobbyLeave, requestLobbyKick, requestLobbyPresence, requestLobbyFillBots, requestGameStart } from '@/lib/firebase/lobbyActions';
 import { db } from '@/lib/firebase/config';
 import {
-  doc, onSnapshot, updateDoc, arrayUnion, arrayRemove, serverTimestamp,
-  collection, addDoc, query, orderBy, limit, onSnapshot as onSnap, deleteDoc,
-  getDoc,
+  doc, onSnapshot, serverTimestamp,
+  collection, addDoc, query, orderBy, limit, onSnapshot as onSnap,
 } from 'firebase/firestore';
 import { Copy, Crown, LogOut, Send, Users, Loader2, Bot, Share2, MessageCircle, Facebook, Link, Check, UserPlus } from 'lucide-react';
 import { useNarrator, waitForAudio } from '@/hooks/useNarrator';
 import { useAudio } from '@/app/providers/AudioProvider';
 import { FriendsPanel } from '@/components/friends/FriendsPanel';
 import { sendFriendRequest } from '@/lib/firebase/friends';
-import { xpToLevel, levelEmoji } from '@/lib/firebase/xp';
-import { BOT_NAMES, assignBotType, type BotType } from '@/lib/bots/botSystem';
-import { getBehaviorProfile } from '@/lib/bots/playerStats';
+import { levelEmoji } from '@/lib/firebase/xp';
 
 interface Player {
   uid: string;
@@ -56,37 +54,6 @@ interface ChatMsg {
   createdAt: any;
 }
 
-// Bias de personalidad según perfil del host: complementar su estilo
-function biasedBotType(aggressionLevel: 'fast' | 'medium' | 'slow', i: number): BotType {
-  // Host agresivo → más bots callados y listos para crear contraste
-  // Host pasivo → más acusadores para animar el debate
-  // Host medio → mezcla variada
-  const pools: Record<string, BotType[]> = {
-    fast:   ['callado', 'callado', 'listo', 'acusador', 'caotico'],
-    slow:   ['acusador', 'acusador', 'caotico', 'listo', 'callado'],
-    medium: ['callado', 'acusador', 'listo', 'caotico', 'acusador'],
-  };
-  const pool = pools[aggressionLevel];
-  return pool[i % pool.length];
-}
-
-function generateAIPlayers(current: Player[], maxPlayers: number, aggressionLevel?: 'fast' | 'medium' | 'slow'): Player[] {
-  const count = maxPlayers - current.length;
-  if (count <= 0) return [];
-  const used = new Set(current.map(p => p.name));
-  const available = BOT_NAMES.filter(n => !used.has(n));
-  return Array.from({ length: count }, (_, i) => ({
-    uid: `ai_${Date.now()}_${i}`,
-    name: available[i % available.length] ?? `Jugador ${i + 1}`,
-    photoURL: '',
-    isHost: false,
-    isAlive: true,
-    role: null,
-    isAI: true,
-    botType: aggressionLevel ? biasedBotType(aggressionLevel, i) : assignBotType(),
-  }));
-}
-
 export function GameRoom({ gameId }: { gameId: string }) {
   const router = useRouter();
   const { user } = useAuth();
@@ -116,14 +83,10 @@ export function GameRoom({ gameId }: { gameId: string }) {
   };
 
   const kickPlayer = async (targetUid: string) => {
-    if (!isHost || !game || targetUid === user?.uid) return;
-    const target = game.players?.find(p => p.uid === targetUid);
-    if (!target) return;
-    await updateDoc(doc(db, 'games', gameId), {
-      players: arrayRemove(target),
-      playerCount: Math.max(0, (game.playerCount ?? 1) - 1),
-    }).catch(() => {});
-  };
+  if (!isHost || !game || targetUid === user?.uid) return;
+  try { await requestLobbyKick(gameId, targetUid); }
+  catch (error) { console.error('Error expulsando jugador:', error); }
+};
 
   useEffect(() => {
     if (salasPlayed.current) return;
@@ -169,23 +132,9 @@ export function GameRoom({ gameId }: { gameId: string }) {
     const already = game.players?.some(p => p.uid === user.uid);
     if (!already) {
       const resolvedName = user.displayName || user.email?.split('@')[0] || 'Jugador';
-      getDoc(doc(db, 'users', user.uid)).then(snap => {
-        const xp = snap.exists() ? (snap.data().xp ?? 0) : 0;
-        const newPlayer: Player = {
-          uid: user.uid,
-          name: resolvedName,
-          photoURL: user.photoURL ?? '',
-          isHost: false,
-          isAlive: true,
-          role: null,
-          level: xpToLevel(xp),
-          lastSeen: Date.now(),
-        };
-        updateDoc(doc(db, 'games', gameId), {
-          players: arrayUnion(newPlayer),
-          playerCount: (game.playerCount ?? 1) + 1,
-        }).catch(() => {});
-      }).catch(() => {});
+      requestLobbyJoin(gameId, resolvedName).catch((error) => {
+  console.error('Error entrando en sala:', error);
+});
     }
   }, [user, game, gameId]);
 
@@ -193,11 +142,12 @@ export function GameRoom({ gameId }: { gameId: string }) {
   useEffect(() => {
     if (!user || !game) return;
     const updatePresence = () => {
-      const me = game.players?.find(p => p.uid === user.uid);
-      if (!me) return;
-      const updated = game.players?.map(p => p.uid === user.uid ? { ...p, lastSeen: Date.now() } : p);
-      updateDoc(doc(db, 'games', gameId), { players: updated }).catch(() => {});
-    };
+  const me = game.players?.find(p => p.uid === user.uid);
+  if (!me) return;
+  requestLobbyPresence(gameId).catch((error) => {
+    console.error('Error actualizando presencia:', error);
+  });
+};
     updatePresence();
     const id = setInterval(updatePresence, 60000);
     return () => clearInterval(id);
@@ -210,16 +160,11 @@ export function GameRoom({ gameId }: { gameId: string }) {
     if (game.hostUid !== user.uid) return;
     retentionFiredRef.current = true;
     const realNow = (game.players ?? []).filter(p => !p.isAI);
-    if (realNow.length >= 4) return;
-    const targetTotal = Math.min(game.maxPlayers ?? 10, Math.max(6, realNow.length + 3));
-    const newBots = generateAIPlayers(realNow, targetTotal);
-    if (newBots.length === 0) return;
-    await updateDoc(doc(db, 'games', gameId), {
-      players: [...realNow, ...newBots],
-      playerCount: realNow.length + newBots.length,
-      fillWithAI: true,
-    }).catch(() => {});
-    setRetentionCountdown(null);
+  if (realNow.length >= 4) return;
+  await requestLobbyFillBots(gameId).catch((error) => {
+    console.error('Error rellenando bots:', error);
+  });
+  setRetentionCountdown(null);
   };
 
   // Retención: si el host está solo < 4 jugadores por 45s, muestra aviso y rellena en 60s
@@ -276,32 +221,11 @@ export function GameRoom({ gameId }: { gameId: string }) {
   };
 
   const leaveGame = async () => {
-    if (!user || !game) return;
-    const me = game.players?.find(p => p.uid === user.uid);
-
-    const remainingHumans = (game.players ?? []).filter(p => !p.isAI && p.uid !== user.uid);
-
-    if (remainingHumans.length === 0 && game.isPublic) {
-      await deleteDoc(doc(db, 'games', gameId)).catch(() => {});
-    } else if (me) {
-      const updates: Record<string, unknown> = {
-        playerCount: Math.max(0, (game.playerCount ?? 1) - 1),
-      };
-      if (me.isHost && remainingHumans.length > 0) {
-        const newHost = remainingHumans[0];
-        updates['hostUid'] = newHost.uid;
-        updates['hostName'] = newHost.name;
-        // Rebuild players array: remove leaver, mark new host isHost:true
-        updates['players'] = (game.players ?? [])
-          .filter(p => p.uid !== user.uid)
-          .map(p => ({ ...p, isHost: p.uid === newHost.uid }));
-      } else {
-        updates['players'] = arrayRemove(me);
-      }
-      await updateDoc(doc(db, 'games', gameId), updates).catch(() => {});
-    }
-    router.push('/');
-  };
+  if (!user || !game) return;
+  try { await requestLobbyLeave(gameId); }
+  catch (error) { console.error('Error saliendo de sala:', error); }
+  router.push('/');
+};
 
   const getShareData = () => {
     const code = game?.code ?? '';
@@ -349,32 +273,12 @@ export function GameRoom({ gameId }: { gameId: string }) {
   };
 
   const startGame = async () => {
-    if (!user || !game || game.hostUid !== user.uid) return;
-    stop();
-    setStarting(true);
-    try {
-      const realPlayers = game.players ?? [];
-      let allPlayers = realPlayers;
-
-      if (game.fillWithAI && realPlayers.length < game.maxPlayers) {
-        // Leer perfil del host para ajustar personalidades de bots
-        const profile = await getBehaviorProfile(user.uid).catch(() => null);
-        const aggressionLevel = profile?.aggressionLevel ?? 'medium';
-        const aiPlayers = generateAIPlayers(realPlayers, game.maxPlayers, aggressionLevel);
-        allPlayers = [...realPlayers, ...aiPlayers];
-      }
-
-      await updateDoc(doc(db, 'games', gameId), {
-        status: 'playing',
-        players: allPlayers,
-        playerCount: allPlayers.length,
-        startedAt: serverTimestamp(),
-      });
-    } catch (err) {
-      console.error('Error starting game:', err);
-      setStarting(false);
-    }
-  };
+  if (!user || !game || game.hostUid !== user.uid) return;
+  stop();
+  setStarting(true);
+  try { await requestGameStart(gameId); }
+  catch (error) { console.error('Error starting game:', error); setStarting(false); }
+};
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-[#05080f]">
