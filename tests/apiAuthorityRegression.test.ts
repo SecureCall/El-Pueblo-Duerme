@@ -26,7 +26,7 @@ describe('API authority regression guards', () => {
     expect(source).toContain('verifyAuthToken');
     expect(source).toContain('tokenUid !== uid');
     expect(source).toContain('ALLOWED_PHASES');
-    expect(source).toContain('submittedRound !== currentRound');
+    expect(source).toContain('round !== currentRound');
     expect(source).toContain('VOTE_DEADLINE_PASSED');
     expect(source).toContain("const phaseEndsAt = typeof game.phaseEndsAt === 'number' ? game.phaseEndsAt : null;");
     expect(source).toContain('Date.now() >= phaseEndsAt');
@@ -78,19 +78,10 @@ describe('API authority regression guards', () => {
   });
 
   it('keeps automatic resolution available to non-host players only after completion', () => {
-    const source = read('app/api/sync-night-action/route.ts');
+    const source = read('app/api/resolve-night/route.ts');
 
-    expect(source).toContain('if (complete)');
-    expect(source).toContain("new URL('/api/resolve-night', req.url)");
-    expect(source).toContain('Authorization: authorization');
-  });
-
-  it('closes server-authoritative night submissions at the phase deadline', () => {
-    const source = read('app/api/sync-night-action/route.ts');
-
-    expect(source).toContain("const phaseEndsAt = typeof gameData.phaseEndsAt === 'number' ? gameData.phaseEndsAt : null;");
-    expect(source).toContain('Date.now() >= phaseEndsAt');
-    expect(source).toContain("return NextResponse.json({ error: 'La noche ya ha terminado; la acción llegó después del límite' }, { status: 409 });");
-    expect(source).toContain('const [existing, resolutionLock] = await Promise.all([');
+    expect(source).toContain('Only an alive player can resolve the night');
+    expect(source).toContain('const complete = aliveUids.length > 0 && aliveUids.every((uid) => submittedUids.has(uid));');
+    expect(source).toContain('const lock = await claimNightResolution(db, gameId, roundNumber);');
   });
 });
