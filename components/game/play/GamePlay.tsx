@@ -25,6 +25,8 @@ import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
 import { DeathOverlay } from './DeathOverlay';
 import { MomentBanner, buildMoment, type Moment } from './MomentBanner';
 import { playNightAmbience, playDayAmbience, stopAllAmbience, playDeathSting, playVoteAlarm, playGameStart, playVictory, playDefeat } from '@/lib/gameAudio';
+import { requestNightAction } from '@/lib/game/nightActions';
+import { requestStartNight } from '@/lib/game/startNight';
 
 export interface Player {
   uid: string;
@@ -495,8 +497,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (game.hostUid !== user?.uid) return;
     if (!isValidTransition(game.phase, 'night')) { console.warn(`[FSM] Blocked roleReveal→night (current: ${game.phase})`); return; }
     try {
-      const now = Date.now();
-      await updateDoc(doc(db, 'games', gameId), { phase: 'night', nightActions: {}, nightSubmissions: {}, nightStartedAt: now, phaseEndsAt: now + 60000 });
+      await requestStartNight(gameId);
     } catch (e) { console.error('advanceFromRoleReveal error:', e); }
   }, [game, user, gameId]);
 
@@ -505,21 +506,10 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (game.phase !== 'night') { console.warn('[FSM] submitNightAction rejected — not night phase'); return; }
     const me = game.players?.find(p => p.uid === user.uid);
     if (!me?.isAlive) { console.warn('[FSM] submitNightAction rejected — player not alive'); return; }
-    const myRole = game.roles?.[user.uid] ?? 'Aldeano';
-    const submissionKey = ROLE_SUBMISSION_KEY[myRole] ?? user.uid;
 
-    const updates: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(action)) {
-      if (k !== '_skip') updates[`nightActions.${k}`] = v;
-    }
-    updates[`nightSubmissions.${submissionKey}`] = true;
-
-    if (myRole === 'Lobo Blanco' && (game.roundNumber ?? 1) % 2 === 0) {
-      updates[`nightSubmissions.loboblanco`] = true;
-    }
-
-    try { await updateDoc(doc(db, 'games', gameId), updates); }
-    catch (e) { console.error('submitNightAction error:', e); }
+    try {
+      await requestNightAction(gameId, action);
+    } catch (e) { console.error('submitNightAction error:', e); }
   }, [game, user, gameId]);
 
   // Host auto-submits AI players' night actions
