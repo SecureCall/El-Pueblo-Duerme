@@ -1,0 +1,28 @@
+name: Repair GamePlay integrity
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    if: ${{ github.event.head_commit.id == '872370239c955571ed6095bf72c0d9d506f57468' || github.event.head_commit.id == 'd7f0b7e9b6b0f7a2d0b6a7e4f5c3d2e1a0b9c8d7' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Restore intact GamePlay from known-good parent
+        run: |
+          set -euo pipefail
+          git checkout afb229f713df1b47f903bf32738b41953b09b371 -- components/game/play/GamePlay.tsx
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/game/play/GamePlay.tsx
+          git commit -m "fix: restore intact GamePlay after migration guard"
+          git push origin HEAD:main
