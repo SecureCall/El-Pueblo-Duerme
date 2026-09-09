@@ -12,26 +12,36 @@ describe('Firestore security rules — regression guards', () => {
     expect(rules).not.toContain("match /games/{gameId}/nightLogs/{round} { allow read: if isAuth();");
   });
 
-  it('restricts private twin chat to the twin roles', () => {
-    expect(rules).toContain("get(/databases/$(database)/documents/games/$(gameId)).data.roles[request.auth.uid] == 'Gemela'");
-    expect(rules).toContain("get(/databases/$(database)/documents/games/$(gameId)).data.roles[request.auth.uid] == 'Gemelas'");
+  it('authorizes secret role chats from private playerRoles snapshots', () => {
+    expect(rules).toContain("function privateRole(gameId, uid)");
+    expect(rules).toContain("privateRole(gameId, request.auth.uid) in ['Gemela', 'Gemelas']");
+    expect(rules).toContain("privateRole(gameId, request.auth.uid) == 'Hada Buscadora'");
+    expect(rules).toContain("privateRole(gameId, request.auth.uid) == 'Médium'");
+    expect(rules).not.toContain("data.roles[request.auth.uid] == 'Gemela'");
+    expect(rules).not.toContain("data.roles[request.auth.uid] == 'Hada Buscadora'");
+    expect(rules).not.toContain("data.roles[request.auth.uid] == 'Médium'");
   });
 
-  it('restricts fairy chat to the linked Hada Buscadora', () => {
-    expect(rules).toContain("get(/databases/$(database)/documents/games/$(gameId)).data.roles[request.auth.uid] == 'Hada Buscadora'");
-    expect(rules).toContain("get(/databases/$(database)/documents/games/$(gameId)).data.hadaLinked == true");
+  it('authorizes wolf chat from the canonical private role snapshot', () => {
+    expect(rules).toContain("privateRole(gameId, request.auth.uid) in ['Lobo', 'Lobo Blanco', 'Cría de Lobo']");
+    expect(rules).toContain("privateRole(gameId, request.auth.uid) == 'Espía'");
+    expect(rules).not.toContain(".data.wolfTeam[request.auth.uid] == true");
+  });
+
+  it('forbids client mutation of public secret role fields and player role snapshots', () => {
+    expect(rules).toContain("request.resource.data.roles == resource.data.roles && request.resource.data.wolfTeam == resource.data.wolfTeam");
+    expect(rules).toContain("allow create, update, delete: if false;");
   });
 
   it('prevents cross-game access to chat and voice signaling', () => {
     expect(rules).toContain("allow read: if isAuth() && (isHost(gameId) || get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid));");
     expect(rules).not.toContain("match /games/{gameId}/publicChat/{messageId} { allow read: if isAuth();");
     expect(rules).not.toContain("match /games/{gameId}/voiceOffers/{offerId} { allow read, create, delete: if isAuth();");
-    expect(rules).not.toContain("match /games/{gameId}/voiceAnswers/{answerId} { allow read, create, delete: if isAuth();");
+    expect(rules).not.toContain("match /games/{gameId}/voiceAnswers/{offerId} { allow read, create, delete: if isAuth();");
     expect(rules).not.toContain("match /games/{gameId}/voiceIce/{pairId}/candidates/{candidateId} { allow read, create: if isAuth();");
   });
 
-  it('allows the Médium to read ghost chat while keeping writes restricted to dead players/host', () => {
-    expect(rules).toContain("data.roles[request.auth.uid] == 'Médium'");
+  it('keeps ghost writes restricted to dead players/host', () => {
     expect(rules).toContain("p.uid == request.auth.uid && p.isAlive == false");
   });
 });
