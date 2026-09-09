@@ -15,6 +15,12 @@ describe('game-private-state authority', () => {
     expect(source).not.toMatch(/game\.roles\?\./);
   });
 
+  it('computes one canonical team value for both active and ended responses', () => {
+    expect(source).toMatch(/const myTeam: 'wolves' \| 'village'/);
+    expect(source).toMatch(/myTeam,\n      wolfRoster,/);
+    expect(source).toMatch(/phase: 'ended', myRole, myTeam, roles, wolfTeam/);
+  });
+
   it('does not expose the complete role map in the active response', () => {
     expect(source).toMatch(/return NextResponse\.json\(\{\n      ok: true,\n      phase: String\(game\.phase \?\? ''\),\n      myRole,\n      myTeam,/);
     expect(source).toMatch(/wolfRoster,\n    \}\);/);
@@ -22,6 +28,6 @@ describe('game-private-state authority', () => {
 
   it('allows the complete role reveal only after the game has ended', () => {
     expect(source).toMatch(/if \(game\.phase === 'ended' \|\| game\.status === 'ended'\)/);
-    expect(source).toMatch(/return NextResponse\.json\(\{ ok: true, phase: 'ended', myRole, roles, wolfTeam \}\)/);
+    expect(source).toMatch(/return NextResponse\.json\(\{ ok: true, phase: 'ended', myRole, myTeam, roles, wolfTeam \}\)/);
   });
 });
