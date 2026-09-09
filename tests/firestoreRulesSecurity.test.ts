@@ -33,6 +33,10 @@ describe('Firestore security rules — regression guards', () => {
     expect(rules).toContain("allow create, update, delete: if false;");
   });
 
+  it('forbids the legacy unrestricted participant update after a game has ended', () => {
+    expect(rules).not.toContain("(resource.data.phase == 'ended' && resource.data.players.exists(p, p.uid == request.auth.uid))");
+  });
+
   it('prevents cross-game access to chat and voice signaling', () => {
     expect(rules).toContain("allow read: if isAuth() && (isHost(gameId) || get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid));");
     expect(rules).not.toContain("match /games/{gameId}/publicChat/{messageId} { allow read: if isAuth();");
