@@ -48,12 +48,15 @@ export async function GET(req: NextRequest) {
     }
 
     const myRole = roles[tokenUid] ?? null;
+    const myTeam: 'wolves' | 'village' =
+      myRole && (WOLF_ROLES.has(myRole) || WOLF_ALLY_ROLES.has(myRole)) ? 'wolves' : 'village';
+
     if (game.phase === 'ended' || game.status === 'ended') {
       const wolfTeam: Record<string, boolean> = {};
       for (const [uid, role] of Object.entries(roles)) {
         if (WOLF_ROLES.has(role)) wolfTeam[uid] = true;
       }
-      return NextResponse.json({ ok: true, phase: 'ended', myRole, roles, wolfTeam });
+      return NextResponse.json({ ok: true, phase: 'ended', myRole, myTeam, roles, wolfTeam });
     }
 
     const canSeeWolfRoster = !!myRole && (WOLF_ROLES.has(myRole) || WOLF_ALLY_ROLES.has(myRole));
@@ -67,7 +70,7 @@ export async function GET(req: NextRequest) {
       ok: true,
       phase: String(game.phase ?? ''),
       myRole,
-      myTeam: myRole && (WOLF_ROLES.has(myRole) || WOLF_ALLY_ROLES.has(myRole)) ? 'wolves' : 'village',
+      myTeam,
       wolfRoster,
     });
   } catch (err) {
