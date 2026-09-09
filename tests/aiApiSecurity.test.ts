@@ -21,4 +21,13 @@ describe('AI API authentication regression guards', () => {
     expect(provider).toContain('getIdToken()');
     expect(provider).toContain('Authorization');
   });
+
+  it('authorizes wolf-agree from private playerRoles, never public wolfTeam', () => {
+    const source = read('app/api/wolf-agree/route.ts');
+    expect(source).toContain("collection('playerRoles').doc(uid)");
+    expect(source).toContain("collection('playerRoles').doc(bot.uid)");
+    expect(source).not.toContain('game.wolfTeam');
+    expect(source).toContain('const canonicalAlivePlayers');
+    expect(source).toContain('caller.name');
+  });
 });
