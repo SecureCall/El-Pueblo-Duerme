@@ -27,9 +27,14 @@ export async function POST(req: NextRequest) {
     const db = getFirestore();
     const gameRef = db.collection('games').doc(gameId);
     const lockRef = gameRef.collection('locks').doc('dayResolution');
+    const roleRef = gameRef.collection('playerRoles').doc(tokenUid);
 
     await db.runTransaction(async tx => {
-      const [gameSnap, lockSnap] = await Promise.all([tx.get(gameRef), tx.get(lockRef)]);
+      const [gameSnap, lockSnap, roleSnap] = await Promise.all([
+        tx.get(gameRef),
+        tx.get(lockRef),
+        tx.get(roleRef),
+      ]);
       if (!gameSnap.exists) throw new Error('GAME_NOT_FOUND');
 
       const game = gameSnap.data()!;
@@ -53,8 +58,8 @@ export async function POST(req: NextRequest) {
       if (!actor?.isAlive || actor.isAI === true) throw new Error('ACTOR_INVALID');
       if (!target?.isAlive) throw new Error('TARGET_INVALID');
 
-      const roles = game.roles && typeof game.roles === 'object' ? game.roles as Record<string, string> : {};
-      if (roles[tokenUid] !== 'Banshee') throw new Error('ROLE_FORBIDDEN');
+      const role = roleSnap.exists ? roleSnap.data()?.role : undefined;
+      if (role !== 'Banshee') throw new Error('ROLE_FORBIDDEN');
 
       // Prediction is one-shot per round. A retry with the same value is
       // idempotent; changing an already submitted prediction in the same
