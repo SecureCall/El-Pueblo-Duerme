@@ -108,27 +108,28 @@ export async function POST(req: NextRequest) {
       const nextPlayers = allPlayers.map(p => ({
         ...p,
         isAlive: true,
-        role: assigned[p.uid] ?? 'Aldeano',
+        role: null,
         isHost: p.uid === uid,
       }));
 
-      const wolfTeam = canonicalizeWolfTeam(assigned);
       const now = new Date();
       for (const player of nextPlayers) {
+        const role = assigned[player.uid] ?? 'Aldeano';
         tx.set(
           gameRef.collection('playerRoles').doc(player.uid),
-          { role: player.role, assignedAt: now, updatedAt: now },
+          { role, assignedAt: now, updatedAt: now },
           { merge: true },
         );
       }
 
+      // Roles and wolf-team membership are secret. They live only in private
+      // playerRoles snapshots; never publish them on games/{gameId}.
       tx.update(gameRef, {
         status: 'playing',
         phase: 'night',
         roundNumber: 1,
         players: nextPlayers,
         playerCount: nextPlayers.length,
-        wolfTeam,
         startedAt: now,
         nightStartedAt: now,
       });
