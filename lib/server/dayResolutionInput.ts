@@ -1,5 +1,7 @@
 import type { DayResolutionInput } from '@/lib/server/dayResolutionEngine';
 
+const WOLF_ROLES = new Set(['Lobo', 'Lobo Blanco', 'Cría de Lobo']);
+
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
@@ -8,9 +10,6 @@ function strings(value: unknown): string[] {
 }
 function stringRecord(value: unknown): Record<string, string> {
   return Object.fromEntries(Object.entries(record(value)).filter(([, v]) => typeof v === 'string')) as Record<string, string>;
-}
-function boolRecord(value: unknown): Record<string, boolean> {
-  return Object.fromEntries(Object.entries(record(value)).filter(([, v]) => v === true)) as Record<string, boolean>;
 }
 function readLovers(value: unknown): [string, string] | null {
   if (!Array.isArray(value) || value.length !== 2 || typeof value[0] !== 'string' || typeof value[1] !== 'string' || value[0] === value[1]) return null;
@@ -32,6 +31,9 @@ export function createDayResolutionInput(gameId: string, game: Record<string, un
     if (typeof h.uid !== 'string' || typeof h.name !== 'string' || typeof h.role !== 'string') return [];
     return [{ uid: h.uid, name: h.name, role: h.role, ...(typeof h.round === 'number' ? { round: h.round } : {}) }];
   });
+  const wolfTeam = Object.fromEntries(
+    Object.entries(roles).filter(([, role]) => WOLF_ROLES.has(role)).map(([uid]) => [uid, true]),
+  ) as Record<string, boolean>;
   return {
     gameId,
     roundNumber: Number.isInteger(game.roundNumber) ? Number(game.roundNumber) : 1,
@@ -39,7 +41,7 @@ export function createDayResolutionInput(gameId: string, game: Record<string, un
     players,
     votes,
     roles,
-    wolfTeam: boolRecord(game.wolfTeam),
+    wolfTeam,
     eliminatedHistory,
     enchanted: strings(game.enchanted),
     salvajeMentors: stringRecord(game.salvajeMentors),
