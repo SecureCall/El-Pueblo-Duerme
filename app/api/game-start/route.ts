@@ -4,7 +4,6 @@ import { randomUUID } from 'crypto';
 import { initAdminApp } from '@/lib/firebase/admin';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { assignRoles } from '@/components/game/play/roles';
-import { canonicalizeWolfTeam } from '@/lib/server/wolfTeam';
 import { BOT_NAMES, assignBotType } from '@/lib/bots/botSystem';
 
 type Player = {
