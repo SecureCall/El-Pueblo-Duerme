@@ -35,21 +35,20 @@ export async function GET(req: NextRequest) {
     const actor = players.find((p: any) => p.uid === tokenUid);
     if (!actor) return NextResponse.json({ error: 'Jugador no autorizado' }, { status: 403 });
 
-    const roleSnap = await gameRef.collection('playerRoles').doc(tokenUid).get();
-    const myRole = typeof roleSnap.data()?.role === 'string' ? roleSnap.data()!.role : null;
+    const roleEntries = await Promise.all(
+      players.map(async (player: any) => {
+        const snap = await gameRef.collection('playerRoles').doc(player.uid).get();
+        const role = snap.data()?.role;
+        return typeof role === 'string' ? [player.uid, role] as const : null;
+      }),
+    );
+    const roles: Record<string, string> = {};
+    for (const entry of roleEntries) {
+      if (entry) roles[entry[0]] = entry[1];
+    }
 
+    const myRole = roles[tokenUid] ?? null;
     if (game.phase === 'ended' || game.status === 'ended') {
-      const roleEntries = await Promise.all(
-        players.map(async (player: any) => {
-          const snap = await gameRef.collection('playerRoles').doc(player.uid).get();
-          const role = snap.data()?.role;
-          return typeof role === 'string' ? [player.uid, role] as const : null;
-        }),
-      );
-      const roles: Record<string, string> = {};
-      for (const entry of roleEntries) {
-        if (entry) roles[entry[0]] = entry[1];
-      }
       const wolfTeam: Record<string, boolean> = {};
       for (const [uid, role] of Object.entries(roles)) {
         if (WOLF_ROLES.has(role)) wolfTeam[uid] = true;
@@ -60,10 +59,7 @@ export async function GET(req: NextRequest) {
     const canSeeWolfRoster = !!myRole && (WOLF_ROLES.has(myRole) || WOLF_ALLY_ROLES.has(myRole));
     const wolfRoster = canSeeWolfRoster
       ? players
-          .filter((player: any) => {
-            const role = game.roles?.[player.uid];
-            return WOLF_ROLES.has(role);
-          })
+          .filter((player: any) => WOLF_ROLES.has(roles[player.uid]))
           .map((player: any) => ({ uid: player.uid, name: player.name }))
       : [];
 
@@ -71,7 +67,7 @@ export async function GET(req: NextRequest) {
       ok: true,
       phase: String(game.phase ?? ''),
       myRole,
-      myTeam: myRole && WOLF_ROLES.has(myRole) ? 'wolves' : 'village',
+      myTeam: myRole && (WOLF_ROLES.has(myRole) || WOLF_ALLY_ROLES.has(myRole)) ? 'wolves' : 'village',
       wolfRoster,
     });
   } catch (err) {
