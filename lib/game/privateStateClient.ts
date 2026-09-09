@@ -1,14 +1,20 @@
 import { getAuth } from 'firebase/auth';
 
-export type PrivateGameState = {
+export type PrivateGameStateBase = {
   ok: true;
   phase: string;
   myRole: string | null;
   myTeam: 'wolves' | 'village';
   wolfRoster: Array<{ uid: string; name: string }>;
-  roles?: Record<string, string>;
-  wolfTeam?: Record<string, boolean>;
 };
+
+export type PrivateGameState =
+  | (PrivateGameStateBase & {
+      phase: 'ended';
+      roles: Record<string, string>;
+      wolfTeam: Record<string, boolean>;
+    })
+  | PrivateGameStateBase;
 
 export async function getPrivateGameState(gameId: string): Promise<PrivateGameState> {
   const user = getAuth().currentUser;
