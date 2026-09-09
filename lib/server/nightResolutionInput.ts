@@ -62,10 +62,6 @@ function readStringRecord(value: unknown): Record<string, string> {
   const source = readRecord(value);
   return Object.fromEntries(Object.entries(source).filter(([, item]) => typeof item === 'string')) as Record<string, string>;
 }
-function readBooleanRecord(value: unknown): Record<string, boolean> {
-  const source = readRecord(value);
-  return Object.fromEntries(Object.entries(source).filter(([, item]) => item === true)) as Record<string, boolean>;
-}
 function readNumberRecord(value: unknown): Record<string, number> {
   const source = readRecord(value);
   return Object.fromEntries(Object.entries(source).filter(([, item]) => typeof item === 'number' && Number.isFinite(item))) as Record<string, number>;
@@ -79,7 +75,7 @@ function readLovers(game: Record<string, unknown>): [string, string] | null {
   if (typeof value[0] !== 'string' || typeof value[1] !== 'string' || value[0] === value[1]) return null;
   return [value[0], value[1]];
 }
-function readHistory(game: Record<string, unknown>): NightResolutionHistory {
+function readHistory(game: Record<string, unknown>, canonicalRoles: Record<string, string>): NightResolutionHistory {
   const rawHistory = Array.isArray(game.eliminatedHistory) ? game.eliminatedHistory : [];
   const eliminatedHistory = rawHistory.flatMap((entry) => {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return [];
@@ -87,6 +83,10 @@ function readHistory(game: Record<string, unknown>): NightResolutionHistory {
     if (typeof item.uid !== 'string' || typeof item.name !== 'string' || typeof item.role !== 'string') return [];
     return [{ uid: item.uid, name: item.name, role: item.role, ...(typeof item.round === 'number' ? { round: item.round } : {}) }];
   });
+  const wolfRoles = new Set(['Lobo', 'Lobo Blanco', 'Cría de Lobo']);
+  const wolfTeam = Object.fromEntries(
+    Object.entries(canonicalRoles).filter(([, role]) => wolfRoles.has(role)).map(([uid]) => [uid, true]),
+  ) as Record<string, boolean>;
   return {
     guardianLastTarget: typeof game.guardianLastTarget === 'string' ? game.guardianLastTarget : null,
     doctorLastTarget: typeof game.doctorLastTarget === 'string' ? game.doctorLastTarget : null,
@@ -117,47 +117,31 @@ function readHistory(game: Record<string, unknown>): NightResolutionHistory {
     sirenaLinked: typeof game.sirenaLinked === 'string' ? game.sirenaLinked : null,
     lobosBlocked: game.lobosBlocked === true,
     criaLoboRage: game.criaLoboRage === true,
-    wolfTeam: readBooleanRecord(game.wolfTeam),
+    wolfTeam,
   };
 }
 
-/**
- * Boolean activation actions are semantically opt-in. The legacy resolver
- * treats the presence of vigiaActivate/espiaActivate as activation, so an
- * explicit false must never cross this boundary as an executable action.
- */
 function sanitizeSubmissions(submissions: NightResolutionSubmission[]): NightResolutionSubmission[] {
   return submissions.map((submission) => ({
     ...submission,
     actions: submission.actions.filter((action) => {
-      if ((action.action === 'vigiaActivate' || action.action === 'espiaActivate') && action.value === false) {
-        return false;
-      }
+      if ((action.action === 'vigiaActivate' || action.action === 'espiaActivate') && action.value === false) return false;
       return true;
     }),
   }));
 }
 
-/**
- * Builds server-owned input. This is an invariant boundary: a night resolver
- * must never receive a day-phase game or a stale/mismatched round.
- */
 export function createNightResolutionInput(
   gameId: string,
   roundNumber: number,
   players: Array<Record<string, unknown>>,
   submissions: NightResolutionSubmission[],
   game: Record<string, unknown>,
+  canonicalRoles: Record<string, string>,
 ): NightResolutionInput {
-  if (game.phase !== 'night') {
-    throw new Error('night_resolution_invalid_phase');
-  }
-  if (!Number.isInteger(roundNumber) || roundNumber < 1) {
-    throw new Error('night_resolution_invalid_round');
-  }
-  if (game.roundNumber !== roundNumber) {
-    throw new Error('night_resolution_round_mismatch');
-  }
+  if (game.phase !== 'night') throw new Error('night_resolution_invalid_phase');
+  if (!Number.isInteger(roundNumber) || roundNumber < 1) throw new Error('night_resolution_invalid_round');
+  if (game.roundNumber !== roundNumber) throw new Error('night_resolution_round_mismatch');
 
   return {
     gameId,
@@ -170,6 +154,6 @@ export function createNightResolutionInput(
       isAlive: player.isAlive === true,
     })),
     submissions: sanitizeSubmissions(submissions),
-    history: readHistory(game),
+    history: readHistory(game, canonicalRoles),
   };
 }
