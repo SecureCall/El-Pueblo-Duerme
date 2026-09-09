@@ -21,8 +21,6 @@ function getGameId(req: NextRequest, body: unknown): string | null {
     if (typeof candidate === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(candidate)) return candidate;
   }
 
-  // Web fallback: EndGame already runs on /game/{gameId}/play.
-  // The server never trusts the client for the result, only for locating the game.
   const referer = req.headers.get('referer');
   if (!referer) return null;
   try {
@@ -77,12 +75,14 @@ export async function POST(req: NextRequest) {
     const gameRef = db.collection('games').doc(gameId);
     const userRef = db.collection('users').doc(uid);
     const awardRef = userRef.collection('xpAwards').doc(gameId);
+    const roleRef = gameRef.collection('playerRoles').doc(uid);
 
     const result = await db.runTransaction(async (tx) => {
-      const [gameSnap, userSnap, awardSnap] = await Promise.all([
+      const [gameSnap, userSnap, awardSnap, roleSnap] = await Promise.all([
         tx.get(gameRef),
         tx.get(userRef),
         tx.get(awardRef),
+        tx.get(roleRef),
       ]);
 
       if (!gameSnap.exists) throw new Error('xp_game_not_found');
@@ -97,10 +97,7 @@ export async function POST(req: NextRequest) {
       const player = players.find((item) => item && typeof item === 'object' && (item as Record<string, unknown>).uid === uid) as Record<string, unknown> | undefined;
       if (!player) throw new Error('xp_not_a_player');
 
-      const roles = game.roles;
-      const role = roles && typeof roles === 'object' && !Array.isArray(roles)
-        ? (roles as Record<string, unknown>)[uid]
-        : player.role;
+      const role = roleSnap.exists ? roleSnap.data()?.role : undefined;
       if (typeof role !== 'string' || !ROLES[role]) throw new Error('xp_role_unavailable');
 
       const isWin = didPlayerWin(game.winners, role, uid, game);
