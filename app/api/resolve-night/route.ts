@@ -52,10 +52,10 @@ export async function POST(request: Request) {
     const submissions = await readNightSubmissions(gameId, roundNumber);
     const validation = validatePersistedNightSubmissions(players as Array<Record<string, unknown>>, submissions, roundNumber);
     const groupedSubmissions = validation.valid.map((s) => ({ actorUid: s.actorUid, role: s.role, actions: s.actions, roundNumber: s.roundNumber, submittedAt: s.submittedAt, syncedAt: s.syncedAt }));
-    const input = createNightResolutionInput(gameId, roundNumber, players as Array<Record<string, unknown>>, groupedSubmissions, game);
-    const roleSnapshot = await readNightRoleSnapshot(gameId, input.players.map((player) => player.uid));
+    const roleSnapshot = await readNightRoleSnapshot(gameId, aliveUids);
     const roleTampering = groupedSubmissions.find((submission) => roleSnapshot.rolesByUid[submission.actorUid] !== submission.role);
     if (roleTampering) throw new Error(`night_submission_role_mismatch:${roleTampering.actorUid}`);
+    const input = createNightResolutionInput(gameId, roundNumber, players as Array<Record<string, unknown>>, groupedSubmissions, game, roleSnapshot.rolesByUid);
 
     const result = resolveNightActions(input, roleSnapshot);
     const acceptedAction = (action: string) => result.acceptedActions.find((item) => item.action === action) ?? null;
