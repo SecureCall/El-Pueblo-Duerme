@@ -22,30 +22,63 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('components/game/play/EndGame.tsx')
-          s = p.read_text()
-          original = s
 
+          ep = Path('components/game/play/EndGame.tsx')
+          s = ep.read_text()
+          original = s
           s = s.replace(
               "import { recordGameResult } from '@/lib/bots/playerStats';",
               "import { recordGameResult } from '@/lib/bots/playerStats';\nimport { getPrivateGameState } from '@/lib/game/privateStateClient';",
               1,
           )
           s = s.replace(
-              "  const shareCardRef = useRef<HTMLDivElement>(null);",
-              "  const shareCardRef = useRef<HTMLDivElement>(null);\n  const [revealedRoles, setRevealedRoles] = useState<Record<string, string>>({});\n  const [revealedWolfTeam, setRevealedWolfTeam] = useState<Record<string, boolean>>({});\n\n  useEffect(() => {\n    if (game.phase !== 'ended' && game.status !== 'ended') return;\n    let cancelled = false;\n    getPrivateGameState(game.name ? (game as any).id ?? '' : '').then((state) => {\n      if (cancelled || state.phase !== 'ended') return;\n      setRevealedRoles(state.roles ?? {});\n      setRevealedWolfTeam(state.wolfTeam ?? {});\n    }).catch((err) => console.error('[EndGame] private reveal error:', err));\n    return () => { cancelled = true; };\n  }, [game]);",
+              "  onPlayAgainSameRoom?: () => void;\n}",
+              "  onPlayAgainSameRoom?: () => void;\n  gameId: string;\n}",
               1,
           )
+          s = s.replace(
+              "export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winners, winMessage, onPlayAgain, onPlayAgainSameRoom }: Props) {",
+              "export function EndGame({ game, gameId, myRole, myUid, isHost, hostInGame = true, winners, winMessage, onPlayAgain, onPlayAgainSameRoom }: Props) {",
+              1,
+          )
+          s = s.replace(
+              "  const shareCardRef = useRef<HTMLDivElement>(null);",
+              "  const shareCardRef = useRef<HTMLDivElement>(null);\n  const [revealedRoles, setRevealedRoles] = useState<Record<string, string>>({});\n  const [revealedWolfTeam, setRevealedWolfTeam] = useState<Record<string, boolean>>({});\n\n  useEffect(() => {\n    if (game.phase !== 'ended' && game.status !== 'ended') return;\n    let cancelled = false;\n    getPrivateGameState(gameId).then((state) => {\n      if (cancelled || state.phase !== 'ended') return;\n      setRevealedRoles(state.roles ?? {});\n      setRevealedWolfTeam(state.wolfTeam ?? {});\n    }).catch((err) => console.error('[EndGame] private reveal error:', err));\n    return () => { cancelled = true; };\n  }, [game.phase, game.status, gameId]);",
+              1,
+          )
+          s = s.replace(
+              "  const dramaMsg = buildDramaMessage(myUid, myRole, winners, game, iWon);",
+              "  const revealedGame = { ...game, roles: revealedRoles, wolfTeam: revealedWolfTeam };\n  const dramaMsg = buildDramaMessage(myUid, myRole, winners, revealedGame, iWon);",
+              1,
+          )
+          s = s.replace(
+              "  const wolfTeamUids = new Set(Object.keys(game.wolfTeam ?? {}));\n  const rounds = game.roundNumber ?? eliminated.length;",
+              "  const wolfTeamUids = new Set(Object.keys(revealedWolfTeam));\n  const rounds = game.roundNumber ?? eliminated.length;",
+              1,
+          )
+          s = s.replace("const text = buildShareText(game, winners, winMessage, myUid, myRole, iWon);", "const text = buildShareText(revealedGame, winners, winMessage, myUid, myRole, iWon);", 1)
+          s = s.replace("const role = game.roles?.[p.uid] ?? 'Lobo';", "const role = revealedRoles[p.uid] ?? 'Lobo';", 1)
+          s = s.replace("const role = game.roles?.[p.uid] ?? 'Aldeano';", "const role = revealedRoles[p.uid] ?? 'Aldeano';", 1)
+          s = s.replace("const role = game.roles?.[p.uid] ?? 'Aldeano';", "const role = revealedRoles[p.uid] ?? 'Aldeano';", 1)
           if s == original:
-              raise SystemExit('no replacements applied')
-          if 'getPrivateGameState' not in s:
-              raise SystemExit('private state import missing')
-          p.write_text(s)
+              raise SystemExit('EndGame: no replacements applied')
+          if s.count("getPrivateGameState") != 2:
+              raise SystemExit('EndGame: private-state import/effect missing')
+          ep.write_text(s)
+
+          gp = Path('components/game/play/GamePlay.tsx')
+          g = gp.read_text()
+          marker = "        game={game}\n        myRole={myRole}"
+          replacement = "        game={game}\n        gameId={gameId}\n        myRole={myRole}"
+          if marker not in g:
+              raise SystemExit('GamePlay: EndGame invocation marker not found')
+          g = g.replace(marker, replacement, 1)
+          gp.write_text(g)
           PY
           git diff --check
-          git diff -- components/game/play/EndGame.tsx
+          grep -n "gameId={gameId}\|revealedRoles\|revealedWolfTeam\|getPrivateGameState" components/game/play/EndGame.tsx components/game/play/GamePlay.tsx
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add components/game/play/EndGame.tsx
-          git commit -m "fix: load EndGame role reveal from private state"
+          git add components/game/play/EndGame.tsx components/game/play/GamePlay.tsx
+          git commit -m "fix: load EndGame reveal from private state"
           git push origin HEAD:main
