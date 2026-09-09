@@ -11,6 +11,7 @@ import { NativeBanner } from '@/components/ads/NativeBanner';
 import { RewardedAd } from '@/components/ads/RewardedAd';
 import { xpToLevel, levelEmoji, getPlayerTitle, type XPResult } from '@/lib/firebase/xp';
 import { recordGameResult } from '@/lib/bots/playerStats';
+import { getPrivateGameState } from '@/lib/game/privateStateClient';
 
 /** Genera un mensaje de drama personalizado al terminar la partida */
 function buildDramaMessage(
@@ -194,6 +195,19 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
   const [sharingImg, setSharingImg] = useState(false);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const shareCardRef = useRef<HTMLDivElement>(null);
+  const [revealedRoles, setRevealedRoles] = useState<Record<string, string>>({});
+  const [revealedWolfTeam, setRevealedWolfTeam] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (game.phase !== 'ended' && game.status !== 'ended') return;
+    let cancelled = false;
+    getPrivateGameState(game.name ? (game as any).id ?? '' : '').then((state) => {
+      if (cancelled || state.phase !== 'ended') return;
+      setRevealedRoles(state.roles ?? {});
+      setRevealedWolfTeam(state.wolfTeam ?? {});
+    }).catch((err) => console.error('[EndGame] private reveal error:', err));
+    return () => { cancelled = true; };
+  }, [game]);
 
   // Drama message derived from current game data
   const dramaMsg = buildDramaMessage(myUid, myRole, winners, game, iWon);
