@@ -1,0 +1,51 @@
+name: Migrate EndGame private reveal
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Patch EndGame deterministically
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('components/game/play/EndGame.tsx')
+          s = p.read_text()
+          original = s
+
+          s = s.replace(
+              "import { recordGameResult } from '@/lib/bots/playerStats';",
+              "import { recordGameResult } from '@/lib/bots/playerStats';\nimport { getPrivateGameState } from '@/lib/game/privateStateClient';",
+              1,
+          )
+          s = s.replace(
+              "  const shareCardRef = useRef<HTMLDivElement>(null);",
+              "  const shareCardRef = useRef<HTMLDivElement>(null);\n  const [revealedRoles, setRevealedRoles] = useState<Record<string, string>>({});\n  const [revealedWolfTeam, setRevealedWolfTeam] = useState<Record<string, boolean>>({});\n\n  useEffect(() => {\n    if (game.phase !== 'ended' && game.status !== 'ended') return;\n    let cancelled = false;\n    getPrivateGameState(game.name ? (game as any).id ?? '' : '').then((state) => {\n      if (cancelled || state.phase !== 'ended') return;\n      setRevealedRoles(state.roles ?? {});\n      setRevealedWolfTeam(state.wolfTeam ?? {});\n    }).catch((err) => console.error('[EndGame] private reveal error:', err));\n    return () => { cancelled = true; };\n  }, [game]);",
+              1,
+          )
+          if s == original:
+              raise SystemExit('no replacements applied')
+          if 'getPrivateGameState' not in s:
+              raise SystemExit('private state import missing')
+          p.write_text(s)
+          PY
+          git diff --check
+          git diff -- components/game/play/EndGame.tsx
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/game/play/EndGame.tsx
+          git commit -m "fix: load EndGame role reveal from private state"
+          git push origin HEAD:main
