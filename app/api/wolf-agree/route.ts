@@ -3,6 +3,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { initAdminApp } from '@/lib/firebase/admin';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { getFirestore } from 'firebase-admin/firestore';
+import { validateCanonicalNightAction } from '@/lib/game/nightActionAuthority';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 const WOLF_ROLES = new Set(['Lobo', 'Lobo Blanco', 'Cría de Lobo']);
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Equipo IA inválido' }, { status: 400 });
     }
 
-    if (aiWolves.length === 0) return NextResponse.json({ messages: [], targetUid: null });
+    if (aiWolves.length === 0) return NextResponse.json({ messages: [], targetUid: null, submitted: false, resolved: false });
 
     const canonicalAlivePlayers: AlivePl[] = players
       .filter((p: any) => p.isAlive !== false)
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
     const result = await model.generateContent(prompt);
     const raw = result.response.text();
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return NextResponse.json({ messages: [], targetUid: null });
+    if (!jsonMatch) return NextResponse.json({ messages: [], targetUid: null, submitted: false, resolved: false });
     const parsed = JSON.parse(jsonMatch[0]);
     const proposedName: string | null = typeof parsed.proposedTarget === 'string' ? parsed.proposedTarget : null;
     let targetUid: string | null = null;
@@ -104,9 +105,79 @@ export async function POST(req: NextRequest) {
         }))
         .filter((m: any) => m.text)
       : [];
-    return NextResponse.json({ messages, targetUid });
+
+    // The browser must not persist the wolf decision in the public game
+    // document. If the AI identifies a concrete target, validate and persist
+    // the human wolf submission server-side in the private subcollection.
+    let submitted = false;
+    let resolved = false;
+    if (targetUid) {
+      const roundNumber = typeof game.roundNumber === 'number' && Number.isInteger(game.roundNumber)
+        ? game.roundNumber
+        : null;
+      if (roundNumber === null || roundNumber < 1) {
+        return NextResponse.json({ messages, targetUid: null, submitted: false, resolved: false });
+      }
+
+      const validation = validateCanonicalNightAction({
+        players: players.map((p: any) => ({ uid: p.uid, isAlive: p.isAlive === true, isAI: p.isAI === true })),
+        actorUid: uid,
+        actorRole: callerRole,
+        roundNumber,
+        payload: { wolfTarget: targetUid },
+      });
+      if (!validation.valid) {
+        return NextResponse.json({ messages, targetUid: null, submitted: false, resolved: false, error: 'Objetivo de lobo inválido' }, { status: 403 });
+      }
+
+      const phaseEndsAt = typeof game.phaseEndsAt === 'number' ? game.phaseEndsAt : null;
+      if (phaseEndsAt !== null && Date.now() >= phaseEndsAt) {
+        return NextResponse.json({ messages, targetUid: null, submitted: false, resolved: false, error: 'La noche ya ha terminado' }, { status: 409 });
+      }
+
+      const submissionRef = gameRef.collection('nightSubmissions').doc(`${uid}:${roundNumber}`);
+      const lockRef = gameRef.collection('nightResolutions').doc(String(roundNumber));
+      await db.runTransaction(async (tx) => {
+        const [existing, lock] = await Promise.all([tx.get(submissionRef), tx.get(lockRef)]);
+        if (existing.exists) return;
+        if (lock.exists) {
+          const lockData = lock.data() as Record<string, unknown>;
+          if (lockData.status === 'resolving' || lockData.status === 'resolved') {
+            throw new Error('night_resolution_in_progress');
+          }
+        }
+        const now = Date.now();
+        tx.create(submissionRef, {
+          actorUid: uid,
+          role: callerRole,
+          roundNumber,
+          actions: validation.submissions,
+          submittedAt: now,
+          syncedAt: now,
+          source: 'server-wolf-chat',
+        });
+        submitted = true;
+      });
+
+      if (submitted) {
+        const authorization = req.headers.get('authorization');
+        if (authorization) {
+          const resolverUrl = new URL('/api/resolve-night', req.url);
+          const resolverResponse = await fetch(resolverUrl, {
+            method: 'POST',
+            headers: { Authorization: authorization },
+          });
+          resolved = resolverResponse.ok;
+        }
+      }
+    }
+
+    return NextResponse.json({ messages, targetUid, submitted, resolved });
   } catch (err) {
     console.error('wolf-agree error:', err);
-    return NextResponse.json({ messages: [], targetUid: null });
+    if (err instanceof Error && err.message === 'night_resolution_in_progress') {
+      return NextResponse.json({ error: 'La resolución de la noche ya está en curso' }, { status: 409 });
+    }
+    return NextResponse.json({ messages: [], targetUid: null, submitted: false, resolved: false });
   }
 }
