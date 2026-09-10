@@ -26,7 +26,6 @@ interface Props {
 export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost, onSubmitAction }: Props) {
   const [privateRole, setPrivateRole] = useState<string | null>(myRole || null);
   const [wolfRoster, setWolfRoster] = useState<Array<{ uid: string; name: string }>>([]);
-  const [submitted, setSubmitted] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
   const [witchChoice, setWitchChoice] = useState<'save' | 'poison' | 'pass' | null>(null);
   const [cupidTargets, setCupidTargets] = useState<string[]>([]);
@@ -50,7 +49,6 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
 
   const effectiveRole = privateRole || myRole;
   const round = game.roundNumber ?? 1;
-  const subs = game.nightSubmissions ?? {};
   const alivePlayers = (game.players ?? []).filter(p => p.isAlive && p.uid !== userId);
   const allAlivePlayers = (game.players ?? []).filter(p => p.isAlive);
 
