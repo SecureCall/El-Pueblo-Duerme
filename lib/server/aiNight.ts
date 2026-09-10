@@ -95,15 +95,29 @@ export async function ensureServerAINightSubmissions(
   const accepted = new Set<string>();
   const rejected: Array<{ uid: string; errors: string[] }> = [];
   const roleSnapshots = await Promise.all(aiPlayers.map(async (p) => ({ uid: String(p.uid), snap: await gameRef.collection('playerRoles').doc(String(p.uid)).get() })));
+
+  // The public game document must not contain secret roles. Build a server-only
+  // player view enriched from playerRoles so AI decisions (especially wolf
+  // coordination and target filtering) never depend on client-visible role data.
+  const privateRoleByUid = new Map<string, string>();
+  for (const { uid, snap } of roleSnapshots) {
+    const role = snap.exists ? snap.data()?.role : null;
+    if (typeof role === 'string' && role.length > 0) privateRoleByUid.set(uid, role);
+  }
+  const authoritativePlayers = players.map((player) => ({
+    ...player,
+    ...(privateRoleByUid.has(String(player.uid)) ? { role: privateRoleByUid.get(String(player.uid)) } : {}),
+  }));
+
   const writes: Array<{ uid: string; role: string; actions: unknown[] }> = [];
 
   for (const { uid, snap } of roleSnapshots) {
     if (!snap.exists) { rejected.push({ uid, errors: ['missing_private_role'] }); continue; }
     const role = typeof snap.data()?.role === 'string' ? snap.data()!.role as string : null;
     if (!role) { rejected.push({ uid, errors: ['invalid_private_role'] }); continue; }
-    const payload = buildPayload(role, uid, round, players, game);
+    const payload = buildPayload(role, uid, round, authoritativePlayers, game);
     const validation = validateCanonicalNightAction({
-      players: players.map((p) => ({ uid: String(p.uid), isAlive: p.isAlive === true })),
+      players: authoritativePlayers.map((p) => ({ uid: String(p.uid), isAlive: p.isAlive === true })),
       actorUid: uid, actorRole: role, roundNumber: round, payload,
     });
     if (!validation.valid) { rejected.push({ uid, errors: validation.errors }); continue; }
