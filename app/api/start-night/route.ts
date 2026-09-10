@@ -6,8 +6,9 @@ import { validatePrivateRoleSnapshot } from '@/lib/server/startNightValidation';
 
 /**
  * Server-authoritative roleReveal -> night transition.
- * The client may request the transition, but never decides the authoritative
- * phase timestamps or resets the night submission state.
+ * Secret night submissions live exclusively in the server-side
+ * nightSubmissions subcollection; they are never initialized on the public
+ * games/{gameId} document because Firestore reads are document-wide.
  */
 export async function POST(req: NextRequest) {
   const uid = await verifyAuthToken(req);
@@ -56,8 +57,6 @@ export async function POST(req: NextRequest) {
         roundNumber,
         nightStartedAt: now,
         phaseEndsAt: now + 60_000,
-        nightActions: {},
-        nightSubmissions: {},
       });
 
       return { roundNumber, nightStartedAt: now, phaseEndsAt: now + 60_000 };
