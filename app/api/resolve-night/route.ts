@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyAuthToken } from '@/lib/server/auth';
+import { isAuthorizedServerRequest, verifyAuthToken } from '@/lib/server/auth';
 import { getSdks } from '@/lib/server/firebase-admin';
 import { readNightSubmissions } from '@/lib/server/nightSubmissions';
 import { validatePersistedNightSubmissions } from '@/lib/server/nightResolveValidation';
@@ -21,14 +21,18 @@ function leaseExpiresMillis(value: unknown): number {
 export async function POST(request: Request) {
   let claimedGameId: string | null = null; let claimedRound: number | null = null; let claimedLeaseId: string | null = null; let heartbeat: ReturnType<typeof setInterval> | null = null;
   try {
-    const user = await verifyAuthToken(request); const body = await request.json().catch(() => null); const gameId = typeof body?.gameId === 'string' ? body.gameId.trim() : '';
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const serverAuthorized = isAuthorizedServerRequest(request);
+    const user = serverAuthorized ? null : await verifyAuthToken(request);
+    const body = await request.json().catch(() => null); const gameId = typeof body?.gameId === 'string' ? body.gameId.trim() : '';
+    if (!serverAuthorized && !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!gameId) return NextResponse.json({ error: 'gameId is required' }, { status: 400 });
     const { db } = getSdks(); const gameRef = db.collection('games').doc(gameId); const gameSnap = await gameRef.get();
     if (!gameSnap.exists) return NextResponse.json({ error: 'Game not found' }, { status: 404 });
     const game = gameSnap.data() as Record<string, unknown>; const players = Array.isArray(game.players) ? game.players : [];
-    const caller = players.find((p) => p && typeof p === 'object' && 'uid' in p && p.uid === user.uid) as Record<string, unknown> | undefined;
-    if (!caller || caller.isAlive !== true) return NextResponse.json({ error: 'Only an alive player can resolve the night' }, { status: 403 });
+    if (!serverAuthorized) {
+      const caller = players.find((p) => p && typeof p === 'object' && 'uid' in p && p.uid === user?.uid) as Record<string, unknown> | undefined;
+      if (!caller || caller.isAlive !== true) return NextResponse.json({ error: 'Only an alive player can resolve the night' }, { status: 403 });
+    }
     if (game.phase !== 'night') return NextResponse.json({ error: 'Night phase is not active' }, { status: 409 });
     const roundNumber = typeof game.roundNumber === 'number' ? game.roundNumber : null; if (roundNumber === null) return NextResponse.json({ error: 'Invalid night round' }, { status: 409 });
 
