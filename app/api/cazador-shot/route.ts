@@ -5,12 +5,6 @@ import { checkWinCondition } from '@/components/game/play/roles';
 
 type Player = { uid: string; name?: string; isAlive: boolean; [key: string]: unknown };
 
-const WOLF_ROLES = new Set(['Lobo', 'Lobo Blanco', 'Cría de Lobo']);
-
-function isWolf(role?: string): boolean {
-  return Boolean(role && WOLF_ROLES.has(role));
-}
-
 export async function POST(request: Request) {
   try {
     const serverAuthorized = isAuthorizedServerRequest(request);
