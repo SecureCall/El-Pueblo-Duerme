@@ -30,4 +30,10 @@ describe('GamePlay authority guard', () => {
     expect(source).not.toMatch(/Host processes night when all required submissions received/);
     expect(source).not.toMatch(/requestResolveNight\(gameId\)/);
   });
+
+  it('does not contain the legacy client-side day resolver', () => {
+    expect(source).not.toMatch(/async function processDayVotes/);
+    expect(source).not.toMatch(/Host processes day votes when all eligible alive players have voted/);
+    expect(source).not.toMatch(/action:\s*['"]commit['"][\s\S]{0,500}patch:\s*dayPatch/);
+  });
 });
