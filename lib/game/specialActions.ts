@@ -25,3 +25,8 @@ export function requestCazadorShot(user: User, gameId: string, targetUid: string
 export function requestChivoChoice(user: User, gameId: string, targetUid: string): Promise<void> {
   return postSpecialAction(user, '/api/chivo-choice', { gameId, targetUid });
 }
+
+/** Request the Juez's authoritative second-vote window. */
+export function requestJuezSecondVote(user: User, gameId: string): Promise<void> {
+  return postSpecialAction(user, '/api/juez-second-vote', { gameId });
+}
