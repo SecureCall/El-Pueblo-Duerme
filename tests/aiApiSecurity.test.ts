@@ -29,5 +29,16 @@ describe('AI API authentication regression guards', () => {
     expect(source).not.toContain('game.wolfTeam');
     expect(source).toContain('const canonicalAlivePlayers');
     expect(source).toContain('caller.name');
+    expect(source).toContain("caller.isAI === true");
+    expect(source).toContain('player.isAI !== true');
+  });
+
+  it('keeps the authoritative wolf target private on the server', () => {
+    const source = read('app/api/wolf-agree/route.ts');
+    expect(source).toContain("payload: { wolfTarget: targetUid }");
+    expect(source).toContain("source: 'server-wolf-chat'");
+    expect(source).toContain('// Deliberately do not return targetUid');
+    expect(source).toContain('return NextResponse.json({ messages, submitted, resolved });');
+    expect(source).not.toContain('return NextResponse.json({ messages, targetUid, submitted, resolved });');
   });
 });
