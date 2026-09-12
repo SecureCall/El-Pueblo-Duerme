@@ -35,6 +35,9 @@ export async function POST(req: NextRequest) {
       if (!ALLOWED_PHASES.has(String(game.phase))) throw new Error('PHASE_CLOSED');
       if (game.juezUsed === true) throw new Error('ALREADY_USED');
 
+      const phaseEndsAt = typeof game.phaseEndsAt === 'number' ? game.phaseEndsAt : null;
+      if (phaseEndsAt !== null && now >= phaseEndsAt) throw new Error('PHASE_EXPIRED');
+
       tx.update(gameRef, {
         dayVotes: {},
         juezUsed: true,
@@ -52,6 +55,7 @@ export async function POST(req: NextRequest) {
       PLAYER_INVALID: ['El Juez no está vivo o no pertenece a la partida', 403],
       PHASE_CLOSED: ['La segunda votación no está disponible en esta fase', 409],
       ALREADY_USED: ['El Juez ya utilizó su segunda votación', 409],
+      PHASE_EXPIRED: ['El tiempo de la votación ya ha terminado', 409],
     };
     const [message, status] = errors[code] ?? ['Error interno', 500];
     if (status >= 500) console.error('[juez-second-vote]', err);
