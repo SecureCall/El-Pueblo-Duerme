@@ -6,7 +6,7 @@ import type { NightResolutionInput, NightResolutionPlayer } from '@/lib/server/n
 import type { NightRoleSnapshot } from '@/lib/server/nightRoleSnapshot';
 import { resolveWolfNightTarget, type WolfNightResolution } from '@/lib/server/wolfNightResolution';
 import { resolveNightProtections, type NightProtectionResolution } from '@/lib/server/nightProtectionResolution';
-import { checkWinCondition } from '@/components/game/play/roles';
+import { checkWinCondition } from '@/lib/server/gameRules';
 
 export interface NightResolutionStatePatch {
   players: NightResolutionPlayer[];
