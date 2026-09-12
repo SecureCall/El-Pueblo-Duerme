@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
-import { initAdminApp } from '@/lib/firebase/admin';
+import { initAdminApp } from '@/lib/server/firebase-admin';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
-import { assignRoles } from '@/components/game/play/roles';
+import { assignRoles } from '@/lib/server/roleCatalog';
 import { BOT_NAMES, assignBotType } from '@/lib/bots/botSystem';
 
 type Player = {
