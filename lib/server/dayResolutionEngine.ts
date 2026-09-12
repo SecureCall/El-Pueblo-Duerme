@@ -1,4 +1,4 @@
-import { checkWinCondition } from '@/components/game/play/roles';
+import { checkWinCondition } from '@/lib/server/gameRules';
 
 export interface DayResolutionPlayer {
   uid: string;
