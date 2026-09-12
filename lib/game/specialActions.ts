@@ -30,3 +30,8 @@ export function requestChivoChoice(user: User, gameId: string, targetUid: string
 export function requestJuezSecondVote(user: User, gameId: string): Promise<void> {
   return postSpecialAction(user, '/api/juez-second-vote', { gameId });
 }
+
+/** Submit the Alborotadora's authoritative fight selection. */
+export function requestAlborotadoraFight(user: User, gameId: string, firstUid: string, secondUid: string): Promise<void> {
+  return postSpecialAction(user, '/api/alborotadora-fight', { gameId, firstUid, secondUid });
+}
