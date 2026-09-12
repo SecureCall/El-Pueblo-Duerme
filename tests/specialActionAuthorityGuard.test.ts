@@ -27,6 +27,8 @@ describe('authoritative special-action guards', () => {
     expect(juezRoute).toContain('db.runTransaction');
     expect(juezRoute).toContain('dayStartedAt: now');
     expect(juezRoute).toContain('phaseEndsAt: now + SECOND_VOTE_MS');
+    expect(juezRoute).toContain('now >= phaseEndsAt');
+    expect(juezRoute).toContain("PHASE_EXPIRED");
   });
 
   it('provides a client helper instead of direct Juez state mutation', () => {
