@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { isAuthorizedServerRequest, verifyAuthToken } from '@/lib/server/auth';
 import { getSdks } from '@/lib/server/firebase-admin';
-import { checkWinCondition } from '@/components/game/play/roles';
+import { checkWinCondition } from '@/lib/server/gameRules';
 
 type Player = { uid: string; name?: string; isAlive: boolean; [key: string]: unknown };
 
@@ -55,7 +55,6 @@ export async function POST(request: Request) {
         history.push({ uid: targetUid, name: nextTarget.name ?? targetUid, role: roles[targetUid] ?? 'Aldeano', round });
       }
 
-      // Preserve the existing death cascades used by the game: lovers, twins and Virginia Woolf links.
       const lovers = Array.isArray(game.lovers) && game.lovers.length === 2 ? game.lovers as [string, string] : null;
       const virginiaFate = game.virginiawoolFate && typeof game.virginiawoolFate === 'object' ? game.virginiawoolFate as Record<string, string> : {};
       const cascade = new Set<string>();
