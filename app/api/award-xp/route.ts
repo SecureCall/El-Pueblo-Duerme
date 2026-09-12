@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { initAdminApp } from '@/lib/firebase/admin';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { getFirestore } from 'firebase-admin/firestore';
-import { ROLES } from '@/components/game/play/roles';
+import { ROLES } from '@/lib/server/roleCatalog';
 
 const XP_PER_GAME = 50;
 const XP_PER_WIN = 100;
