@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
       ? game.players.filter((p: any) => p && typeof p.uid === 'string' && typeof p.name === 'string')
       : [];
     const caller = players.find((p: any) => p.uid === uid);
-    if (!caller || caller.isAlive === false || game.phase !== 'night') {
+    if (!caller || caller.isAlive === false || caller.isAI === true || game.phase !== 'night') {
       return NextResponse.json({ error: 'No autorizado para esta acción' }, { status: 403 });
     }
 
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       aiWolves.map(async (bot) => {
         if (!bot || typeof bot.uid !== 'string' || typeof bot.name !== 'string') return null;
         const player = playerByUid.get(bot.uid);
-        if (!player || player.isAlive === false || player.name !== bot.name) return null;
+        if (!player || player.isAlive === false || player.name !== bot.name || player.isAI !== true) return null;
         const roleSnap = await gameRef.collection('playerRoles').doc(bot.uid).get();
         const role = roleSnap.data()?.role;
         return typeof role === 'string' && WOLF_ROLES.has(role) ? { player, role } : null;
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Equipo IA inválido' }, { status: 400 });
     }
 
-    if (aiWolves.length === 0) return NextResponse.json({ messages: [], targetUid: null, submitted: false, resolved: false });
+    if (aiWolves.length === 0) return NextResponse.json({ messages: [], submitted: false, resolved: false });
 
     const canonicalAlivePlayers: AlivePl[] = players
       .filter((p: any) => p.isAlive !== false)
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     const result = await model.generateContent(prompt);
     const raw = result.response.text();
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return NextResponse.json({ messages: [], targetUid: null, submitted: false, resolved: false });
+    if (!jsonMatch) return NextResponse.json({ messages: [], submitted: false, resolved: false });
     const parsed = JSON.parse(jsonMatch[0]);
     const proposedName: string | null = typeof parsed.proposedTarget === 'string' ? parsed.proposedTarget : null;
     let targetUid: string | null = null;
@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
         ? game.roundNumber
         : null;
       if (roundNumber === null || roundNumber < 1) {
-        return NextResponse.json({ messages, targetUid: null, submitted: false, resolved: false });
+        return NextResponse.json({ messages, submitted: false, resolved: false });
       }
 
       const validation = validateCanonicalNightAction({
@@ -127,12 +127,12 @@ export async function POST(req: NextRequest) {
         payload: { wolfTarget: targetUid },
       });
       if (!validation.valid) {
-        return NextResponse.json({ messages, targetUid: null, submitted: false, resolved: false, error: 'Objetivo de lobo inválido' }, { status: 403 });
+        return NextResponse.json({ messages, submitted: false, resolved: false, error: 'Objetivo de lobo inválido' }, { status: 403 });
       }
 
       const phaseEndsAt = typeof game.phaseEndsAt === 'number' ? game.phaseEndsAt : null;
       if (phaseEndsAt !== null && Date.now() >= phaseEndsAt) {
-        return NextResponse.json({ messages, targetUid: null, submitted: false, resolved: false, error: 'La noche ya ha terminado' }, { status: 409 });
+        return NextResponse.json({ messages, submitted: false, resolved: false, error: 'La noche ya ha terminado' }, { status: 409 });
       }
 
       const submissionRef = gameRef.collection('nightSubmissions').doc(`${uid}:${roundNumber}`);
@@ -172,12 +172,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ messages, targetUid, submitted, resolved });
+    // Deliberately do not return targetUid: the authoritative wolf decision
+    // remains private and is persisted/read only by the server resolver.
+    return NextResponse.json({ messages, submitted, resolved });
   } catch (err) {
     console.error('wolf-agree error:', err);
     if (err instanceof Error && err.message === 'night_resolution_in_progress') {
       return NextResponse.json({ error: 'La resolución de la noche ya está en curso' }, { status: 409 });
     }
-    return NextResponse.json({ messages: [], targetUid: null, submitted: false, resolved: false });
+    return NextResponse.json({ messages: [], submitted: false, resolved: false });
   }
 }
