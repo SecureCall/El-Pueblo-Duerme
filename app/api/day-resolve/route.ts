@@ -6,6 +6,7 @@ import { getFirestore, type DocumentReference } from 'firebase-admin/firestore';
 import { readNightRoleSnapshot } from '@/lib/server/nightRoleSnapshot';
 import { createDayResolutionInput } from '@/lib/server/dayResolutionInput';
 import { resolveDay } from '@/lib/server/dayResolutionEngine';
+import { chaosEventAppliesToPhase, type ChaosEvent } from '@/lib/server/chaosEvents';
 
 const LEASE_MS = 30_000;
 const SCHEDULER_OWNER = '__scheduler__';
@@ -126,7 +127,15 @@ export async function POST(req: NextRequest) {
         ...publicPatch
       } = result.statePatch;
       const sanitizedPlayers = resolvedPlayers.map(({ role: _privateRole, ...player }) => player);
-      const patch = { ...publicPatch, principeUsed, players: sanitizedPlayers } as Record<string, unknown>;
+      const currentEvent = current.currentEvent && typeof current.currentEvent === 'object' ? current.currentEvent as ChaosEvent : null;
+      const nextNightEvent = chaosEventAppliesToPhase(currentEvent, 'night') ? currentEvent : null;
+      const patch = {
+        ...publicPatch,
+        principeUsed,
+        players: sanitizedPlayers,
+        currentEvent: nextNightEvent,
+        eventRound: nextNightEvent ? Number(result.roundNumber) + 1 : null,
+      } as Record<string, unknown>;
 
       tx.update(gr, patch);
       for (const [uid, role] of Object.entries(result.statePatch.roles)) {
