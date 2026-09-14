@@ -32,6 +32,6 @@ describe('server chaos event catalog', () => {
   it('allows deterministic selection for server tests', () => {
     const values = [0.1, 0.5];
     const event = drawChaosEvent(() => values.shift() ?? 0);
-    expect(event?.id).toBe('doble_ejecucion');
+    expect(event?.id).toBe('presagio');
   });
 });
