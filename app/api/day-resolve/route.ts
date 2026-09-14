@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initAdminApp } from '@/lib/firebase/admin';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
+import { isAuthorizedServerRequest } from '@/lib/server/auth';
 import { getFirestore, type DocumentReference } from 'firebase-admin/firestore';
 import { readNightRoleSnapshot } from '@/lib/server/nightRoleSnapshot';
 import { createDayResolutionInput } from '@/lib/server/dayResolutionInput';
 import { resolveDay } from '@/lib/server/dayResolutionEngine';
 
 const LEASE_MS = 30_000;
+const SCHEDULER_OWNER = '__scheduler__';
 type Lock = { ownerUid: string; leaseId: string; round: number; expiresAt: number };
 const E: Record<string, [string, number]> = {
   GAME_NOT_FOUND: ['Partida no encontrada', 404], NOT_HOST: ['Solo el host puede resolver el día', 403],
@@ -29,8 +31,16 @@ async function votes(ref: DocumentReference, round: number, ps: Array<Record<str
 }
 
 export async function POST(req: NextRequest) {
-  const token = await verifyAuthToken(req);
-  if (!token) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  const trustedServer = isAuthorizedServerRequest(req);
+  let actorUid = '';
+  if (trustedServer) {
+    actorUid = SCHEDULER_OWNER;
+  } else {
+    const tokenUid = await verifyAuthToken(req);
+    if (!tokenUid) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    actorUid = tokenUid;
+  }
+
   try {
     const b = await req.json().catch(() => ({}));
     const gameId = typeof b.gameId === 'string' ? b.gameId : '';
@@ -47,7 +57,7 @@ export async function POST(req: NextRequest) {
         const s = await tx.get(lr);
         if (!s.exists) return false;
         const l = s.data() as Lock;
-        if (l.ownerUid !== token || l.leaseId !== leaseId) return false;
+        if (l.ownerUid !== actorUid || l.leaseId !== leaseId) return false;
         tx.delete(lr);
         return true;
       });
@@ -55,18 +65,18 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'claim') {
-      const id = lease(token);
+      const id = lease(actorUid);
       const r = await db.runTransaction(async tx => {
         const [g, l] = await Promise.all([tx.get(gr), tx.get(lr)]);
         if (!g.exists) throw Error('GAME_NOT_FOUND');
         const x = g.data()!, ps = Array.isArray(x.players) ? x.players as Array<Record<string, unknown>> : [];
-        if (x.hostUid !== token || !ps.some(p => p.uid === token)) throw Error('NOT_HOST');
+        if (!trustedServer && (x.hostUid !== actorUid || !ps.some(p => p.uid === actorUid))) throw Error('NOT_HOST');
         if (x.phase !== 'day' && x.phase !== 'voting') throw Error('NOT_DAY');
         const round = Number(x.roundNumber ?? 1);
         if (!Number.isInteger(round)) throw Error('INVALID_ROUND');
         const now = Date.now();
         if (l.exists && (l.data() as Lock).expiresAt > now) throw Error('LOCKED');
-        tx.set(lr, { ownerUid: token, leaseId: id, round, expiresAt: now + LEASE_MS });
+        tx.set(lr, { ownerUid: actorUid, leaseId: id, round, expiresAt: now + LEASE_MS });
         return { round, leaseId: id };
       });
       return NextResponse.json({ ok: true, leaseId: r.leaseId, round: r.round });
@@ -78,7 +88,7 @@ export async function POST(req: NextRequest) {
     const g = gs.data()!, ps = Array.isArray(g.players) ? g.players as Array<Record<string, unknown>> : [];
     const round = Number(g.roundNumber ?? 1);
     if (round !== submitted) throw Error('ROUND_CHANGED');
-    if (g.hostUid !== token) throw Error('NOT_HOST');
+    if (!trustedServer && g.hostUid !== actorUid) throw Error('NOT_HOST');
     if (g.phase !== 'day' && g.phase !== 'voting') throw Error('PHASE_CHANGED');
 
     const uids = ps.flatMap(p => typeof p.uid === 'string' ? [p.uid] : []);
@@ -90,10 +100,10 @@ export async function POST(req: NextRequest) {
       if (!cg.exists) throw Error('GAME_NOT_FOUND');
       if (!ls.exists) throw Error('LEASE_LOST');
       const current = cg.data()!, l = ls.data() as Lock, now = Date.now();
-      if (l.ownerUid !== token || l.leaseId !== leaseId) throw Error('LEASE_LOST');
+      if (l.ownerUid !== actorUid || l.leaseId !== leaseId) throw Error('LEASE_LOST');
       if (l.round !== submitted || Number(current.roundNumber ?? 1) !== submitted) throw Error('ROUND_CHANGED');
       if (l.expiresAt <= now) throw Error('LEASE_EXPIRED');
-      if (current.hostUid !== token) throw Error('NOT_HOST');
+      if (!trustedServer && current.hostUid !== actorUid) throw Error('NOT_HOST');
       if (current.phase !== 'day' && current.phase !== 'voting') throw Error('PHASE_CHANGED');
       const cp = Array.isArray(current.players) ? current.players as Array<Record<string, unknown>> : [];
       const cu = cp.flatMap(p => typeof p.uid === 'string' ? [p.uid] : []);
