@@ -107,9 +107,14 @@ export async function POST(req: NextRequest) {
         else if (!g.noExileActive && result.eliminated === null && max > 0 && result.tally[prince] === max) princeUsed = true;
       }
 
-      // result.statePatch.roles is authoritative server-only working state.
-      // Never copy it into games/{gameId}; Firestore game reads are document-wide.
-      const { roles: _privateRoles, wolfTeam: _privateWolfTeam, players: resolvedPlayers, ...publicPatch } = result.statePatch;
+      const {
+        roles: _privateRoles,
+        wolfTeam: _privateWolfTeam,
+        players: resolvedPlayers,
+        nightActions: _legacyNightActions,
+        nightSubmissions: _legacyNightSubmissions,
+        ...publicPatch
+      } = result.statePatch;
       const sanitizedPlayers = resolvedPlayers.map(({ role: _privateRole, ...player }) => player);
       const patch = { ...publicPatch, principeUsed, players: sanitizedPlayers } as Record<string, unknown>;
 
