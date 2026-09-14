@@ -44,6 +44,7 @@ export interface NightResolutionHistory {
   lobosBlocked: boolean;
   criaLoboRage: boolean;
   wolfTeam: Record<string, boolean>;
+  chaosMechanical: string | null;
 }
 
 export interface NightResolutionInput {
@@ -87,6 +88,7 @@ function readHistory(game: Record<string, unknown>, canonicalRoles: Record<strin
   const wolfTeam = Object.fromEntries(
     Object.entries(canonicalRoles).filter(([, role]) => wolfRoles.has(role)).map(([uid]) => [uid, true]),
   ) as Record<string, boolean>;
+  const currentEvent = readRecord(game.currentEvent);
   return {
     guardianLastTarget: typeof game.guardianLastTarget === 'string' ? game.guardianLastTarget : null,
     doctorLastTarget: typeof game.doctorLastTarget === 'string' ? game.doctorLastTarget : null,
@@ -118,14 +120,22 @@ function readHistory(game: Record<string, unknown>, canonicalRoles: Record<strin
     lobosBlocked: game.lobosBlocked === true,
     criaLoboRage: game.criaLoboRage === true,
     wolfTeam,
+    chaosMechanical: typeof currentEvent.mechanical === 'string' ? currentEvent.mechanical : null,
   };
 }
 
-function sanitizeSubmissions(submissions: NightResolutionSubmission[]): NightResolutionSubmission[] {
+function sanitizeSubmissions(
+  submissions: NightResolutionSubmission[],
+  chaosMechanical: string | null,
+): NightResolutionSubmission[] {
   return submissions.map((submission) => ({
     ...submission,
     actions: submission.actions.filter((action) => {
       if ((action.action === 'vigiaActivate' || action.action === 'espiaActivate') && action.value === false) return false;
+      if (action.action === 'wolfTarget2' && chaosMechanical !== 'doubleKill' && !submission.actions.some((item) => item.action === 'wolfTarget2' && item.value === true)) {
+        return false;
+      }
+      if (action.action === 'seerTarget2' && chaosMechanical !== 'doubleSeer') return false;
       return true;
     }),
   }));
@@ -143,6 +153,9 @@ export function createNightResolutionInput(
   if (!Number.isInteger(roundNumber) || roundNumber < 1) throw new Error('night_resolution_invalid_round');
   if (game.roundNumber !== roundNumber) throw new Error('night_resolution_round_mismatch');
 
+  const currentEvent = readRecord(game.currentEvent);
+  const chaosMechanical = typeof currentEvent.mechanical === 'string' ? currentEvent.mechanical : null;
+
   return {
     gameId,
     roundNumber,
@@ -153,7 +166,7 @@ export function createNightResolutionInput(
       ...(typeof player.name === 'string' ? { name: player.name } : {}),
       isAlive: player.isAlive === true,
     })),
-    submissions: sanitizeSubmissions(submissions),
+    submissions: sanitizeSubmissions(submissions, chaosMechanical),
     history: readHistory(game, canonicalRoles),
   };
 }
