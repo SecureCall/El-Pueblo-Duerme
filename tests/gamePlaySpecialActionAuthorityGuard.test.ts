@@ -20,6 +20,12 @@ describe('GamePlay special-action authority guard', () => {
     expect(source).not.toMatch(/juezUsed:\s*true[\s\S]{0,250}dayStartedAt:/);
   });
 
+  it('does not resolve Alborotadora fights by directly mutating the game document', () => {
+    expect(source).not.toMatch(/alborotadoraChooseFight/);
+    expect(source).not.toMatch(/alborotadoraFight:\s*\[/);
+    expect(source).not.toMatch(/alborotadoraUsed:\s*true/);
+  });
+
   it('does not send Fantasma messages by directly writing anonymous chat or consuming its pending state', () => {
     expect(source).not.toMatch(/sendGhostMessage/);
     expect(source).not.toMatch(/fantasmaPending:\s*newPending/);
