@@ -31,6 +31,19 @@ async function votes(ref: DocumentReference, round: number, ps: Array<Record<str
   return out;
 }
 
+function chooseRevealDead(history: Array<{ uid: string; name: string; role: string; round?: number }>, gameId: string, round: number) {
+  const candidates = history.filter((entry) => typeof entry.uid === 'string' && entry.name && entry.role && (entry.round ?? 0) < round);
+  if (!candidates.length) return null;
+  const ordered = [...candidates].sort((a, b) => a.uid.localeCompare(b.uid));
+  let hash = 2166136261;
+  for (const char of `${gameId}:${round}`) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  const selected = ordered[(hash >>> 0) % ordered.length];
+  return { uid: selected.uid, name: selected.name, role: selected.role };
+}
+
 export async function POST(req: NextRequest) {
   const trustedServer = isAuthorizedServerRequest(req);
   let actorUid = '';
@@ -129,12 +142,16 @@ export async function POST(req: NextRequest) {
       const sanitizedPlayers = resolvedPlayers.map(({ role: _privateRole, ...player }) => player);
       const currentEvent = current.currentEvent && typeof current.currentEvent === 'object' ? current.currentEvent as ChaosEvent : null;
       const nextNightEvent = chaosEventAppliesToPhase(currentEvent, 'night') ? currentEvent : null;
+      const revealDeadResult = currentEvent?.mechanical === 'revealDead'
+        ? chooseRevealDead(result.statePatch.eliminatedHistory, gameId, round)
+        : null;
       const patch = {
         ...publicPatch,
         principeUsed,
         players: sanitizedPlayers,
         currentEvent: nextNightEvent,
         eventRound: nextNightEvent ? Number(result.roundNumber) + 1 : null,
+        revealDeadResult,
       } as Record<string, unknown>;
 
       tx.update(gr, patch);
