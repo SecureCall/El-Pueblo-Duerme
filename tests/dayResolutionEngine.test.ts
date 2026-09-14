@@ -105,4 +105,24 @@ describe('resolveDay', () => {
     expect(result.statePatch.wolfTeam.villager).toBeUndefined();
     expect(result.statePatch.wolfTeam.wolf).toBe(true);
   });
+
+  it('applies roleSwap only to living players and rebuilds wolfTeam authoritatively', () => {
+    const result = resolveDay(input({
+      gameId: 'role-swap-test',
+      currentEvent: { mechanical: 'roleSwap' },
+      votes: { wolf: 'villager', villager: 'seer', seer: 'villager' },
+    }));
+
+    expect(result.eliminated).toBe('villager');
+    expect(result.statePatch.players.find((p) => p.uid === 'villager')?.isAlive).toBe(false);
+    expect(result.statePatch.roles.villager).toBe('Aldeano');
+    expect(Object.values(result.statePatch.roles)).toEqual(expect.arrayContaining(['Lobo', 'Vidente']));
+    expect(result.statePatch.wolfTeam).toEqual(
+      Object.fromEntries(
+        Object.entries(result.statePatch.roles)
+          .filter(([, role]) => ['Lobo', 'Lobo Blanco', 'Cría de Lobo'].includes(role))
+          .map(([uid]) => [uid, true]),
+      ),
+    );
+  });
 });
