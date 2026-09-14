@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createNightResolutionInput } from '@/lib/server/nightResolutionInput';
 
-const players = [{ uid: 'p1', name: 'Player', isAlive: true }];
+const players = [
+  { uid: 'p1', name: 'Player', isAlive: true },
+  { uid: 'p2', name: 'Target 1', isAlive: true },
+  { uid: 'p3', name: 'Target 2', isAlive: true },
+];
 const roles = { p1: 'Lobo', p2: 'Bruja', p3: 'Vidente' };
 
 function game(overrides: Record<string, unknown> = {}) {
@@ -76,5 +80,71 @@ describe('night resolution input boundary', () => {
       roles,
     );
     expect(result.submissions[0]?.actions).toHaveLength(1);
+  });
+
+  it('rejects the second wolf target unless doubleKill is the active chaos mechanic', () => {
+    const submission = [{
+      actorUid: 'p1',
+      role: 'Lobo',
+      actions: [
+        { action: 'wolfTarget', targetUid: 'p2' },
+        { action: 'wolfTarget2', targetUid: 'p3' },
+      ],
+    }];
+
+    const normal = createNightResolutionInput('game', 2, players, submission, game(), roles);
+    expect(normal.submissions[0]?.actions).toEqual([{ action: 'wolfTarget', targetUid: 'p2' }]);
+
+    const chaos = createNightResolutionInput(
+      'game',
+      2,
+      players,
+      submission,
+      game({ currentEvent: { mechanical: 'doubleKill' } }),
+      roles,
+    );
+    expect(chaos.submissions[0]?.actions).toHaveLength(2);
+    expect(chaos.history.chaosMechanical).toBe('doubleKill');
+  });
+
+  it('preserves Cría de Lobo rage independently of the doubleKill event', () => {
+    const submission = [{
+      actorUid: 'p1',
+      role: 'Cría de Lobo',
+      actions: [{ action: 'wolfTarget2', targetUid: 'p3' }],
+    }];
+    const result = createNightResolutionInput(
+      'game',
+      2,
+      players,
+      submission,
+      game({ criaLoboRage: true }),
+      { ...roles, p1: 'Cría de Lobo' },
+    );
+    expect(result.submissions[0]?.actions).toHaveLength(1);
+  });
+
+  it('rejects the second seer target unless doubleSeer is the active chaos mechanic', () => {
+    const submission = [{
+      actorUid: 'p3',
+      role: 'Vidente',
+      actions: [
+        { action: 'seerTarget', targetUid: 'p1' },
+        { action: 'seerTarget2', targetUid: 'p2' },
+      ],
+    }];
+
+    const normal = createNightResolutionInput('game', 2, players, submission, game(), roles);
+    expect(normal.submissions[0]?.actions).toEqual([{ action: 'seerTarget', targetUid: 'p1' }]);
+
+    const chaos = createNightResolutionInput(
+      'game',
+      2,
+      players,
+      submission,
+      game({ currentEvent: { mechanical: 'doubleSeer' } }),
+      roles,
+    );
+    expect(chaos.submissions[0]?.actions).toHaveLength(2);
   });
 });
