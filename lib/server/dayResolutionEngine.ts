@@ -1,4 +1,5 @@
 import { checkWinCondition } from '@/lib/server/gameRules';
+import { applyRoleSwap } from '@/lib/server/chaosRoleSwap';
 
 export interface DayResolutionPlayer {
   uid: string;
@@ -234,6 +235,13 @@ export function resolveDay(input: DayResolutionInput): DayResolutionEngineResult
   if (videnteDied) {
     const apprentice = players.find((p) => roles[p.uid] === 'Aprendiz de Vidente' && p.isAlive);
     if (apprentice) roles[apprentice.uid] = 'Vidente';
+  }
+
+  if (input.currentEvent?.mechanical === 'roleSwap') {
+    const swapped = applyRoleSwap(input.gameId, round, players, roles);
+    for (const uid of Object.keys(roles)) roles[uid] = swapped.roles[uid] ?? roles[uid];
+    for (const uid of Object.keys(newWolfTeam)) delete newWolfTeam[uid];
+    Object.assign(newWolfTeam, swapped.wolfTeam);
   }
 
   const hunter = players.find((p) => !p.isAlive && aliveBeforeDay.has(p.uid) && roles[p.uid] === 'Cazador');
