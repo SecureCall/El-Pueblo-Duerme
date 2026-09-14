@@ -127,14 +127,13 @@ function readHistory(game: Record<string, unknown>, canonicalRoles: Record<strin
 function sanitizeSubmissions(
   submissions: NightResolutionSubmission[],
   chaosMechanical: string | null,
+  criaLoboRage: boolean,
 ): NightResolutionSubmission[] {
   return submissions.map((submission) => ({
     ...submission,
     actions: submission.actions.filter((action) => {
       if ((action.action === 'vigiaActivate' || action.action === 'espiaActivate') && action.value === false) return false;
-      if (action.action === 'wolfTarget2' && chaosMechanical !== 'doubleKill' && !submission.actions.some((item) => item.action === 'wolfTarget2' && item.value === true)) {
-        return false;
-      }
+      if (action.action === 'wolfTarget2' && chaosMechanical !== 'doubleKill' && !criaLoboRage) return false;
       if (action.action === 'seerTarget2' && chaosMechanical !== 'doubleSeer') return false;
       return true;
     }),
@@ -155,6 +154,7 @@ export function createNightResolutionInput(
 
   const currentEvent = readRecord(game.currentEvent);
   const chaosMechanical = typeof currentEvent.mechanical === 'string' ? currentEvent.mechanical : null;
+  const history = readHistory(game, canonicalRoles);
 
   return {
     gameId,
@@ -166,7 +166,7 @@ export function createNightResolutionInput(
       ...(typeof player.name === 'string' ? { name: player.name } : {}),
       isAlive: player.isAlive === true,
     })),
-    submissions: sanitizeSubmissions(submissions, chaosMechanical),
-    history: readHistory(game, canonicalRoles),
+    submissions: sanitizeSubmissions(submissions, chaosMechanical, history.criaLoboRage),
+    history: { ...history, chaosMechanical },
   };
 }
