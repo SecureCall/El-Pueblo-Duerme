@@ -19,4 +19,11 @@ describe('GamePlay special-action authority guard', () => {
     expect(source).not.toMatch(/juezCallSecondVote/);
     expect(source).not.toMatch(/juezUsed:\s*true[\s\S]{0,250}dayStartedAt:/);
   });
+
+  it('does not send Fantasma messages by directly writing anonymous chat or consuming its pending state', () => {
+    expect(source).not.toMatch(/sendGhostMessage/);
+    expect(source).not.toMatch(/fantasmaPending:\s*newPending/);
+    expect(source).not.toMatch(/senderId:\s*['\"]ghost['\"]/);
+    expect(source).not.toMatch(/text:\s*['\"]👻 Mensaje Anónimo['\"]/);
+  });
 });
