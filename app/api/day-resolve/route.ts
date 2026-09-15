@@ -192,6 +192,7 @@ export async function POST(req: NextRequest) {
         currentEvent: nextNightEvent,
         eventRound: nextNightEvent ? Number(result.roundNumber) + 1 : null,
         confessionUid: null,
+        confessionEndsAt: null,
       } as Record<string, unknown>;
 
       tx.update(gr, patch);
