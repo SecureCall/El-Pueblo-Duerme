@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getRemainingDaySeconds } from '@/lib/game/dayTimer';
+import { getDayTimerProgress, getRemainingDaySeconds } from '@/lib/game/dayTimer';
 
 describe('day timer', () => {
   it('derives remaining time from the authoritative phase deadline', () => {
@@ -14,5 +14,11 @@ describe('day timer', () => {
   it('returns zero when no authoritative deadline exists', () => {
     expect(getRemainingDaySeconds(null, 100_000)).toBe(0);
     expect(getRemainingDaySeconds(undefined, 100_000)).toBe(0);
+  });
+
+  it('derives progress from the same authoritative deadline', () => {
+    expect(getDayTimerProgress(110_000, 20, 100_000)).toBe(0.5);
+    expect(getDayTimerProgress(100_000, 20, 100_001)).toBe(0);
+    expect(getDayTimerProgress(null, 20, 100_000)).toBe(0);
   });
 });
