@@ -6,6 +6,8 @@ import { getFirestore, type DocumentReference } from 'firebase-admin/firestore';
 import { readNightRoleSnapshot } from '@/lib/server/nightRoleSnapshot';
 import { createDayResolutionInput } from '@/lib/server/dayResolutionInput';
 import { resolveDay } from '@/lib/server/dayResolutionEngine';
+import { applyChaosRevive } from '@/lib/server/chaosReviveApply';
+import { checkWinCondition } from '@/lib/server/gameRules';
 import { chaosEventAppliesToPhase, type ChaosEvent } from '@/lib/server/chaosEvents';
 
 const LEASE_MS = 30_000;
@@ -94,7 +96,7 @@ export async function POST(req: NextRequest) {
 
     const uids = ps.flatMap(p => typeof p.uid === 'string' ? [p.uid] : []);
     const snapshot = await readNightRoleSnapshot(gameId, uids);
-    const result = resolveDay(createDayResolutionInput(gameId, g, snapshot.rolesByUid, await votes(gr, round, ps), Date.now()));
+    let result = resolveDay(createDayResolutionInput(gameId, g, snapshot.rolesByUid, await votes(gr, round, ps), Date.now()));
 
     await db.runTransaction(async tx => {
       const [cg, ls] = await Promise.all([tx.get(gr), tx.get(lr)]);
@@ -104,7 +106,7 @@ export async function POST(req: NextRequest) {
       if (l.ownerUid !== actorUid || l.leaseId !== leaseId) throw Error('LEASE_LOST');
       if (l.round !== submitted || Number(current.roundNumber ?? 1) !== submitted) throw Error('ROUND_CHANGED');
       if (l.expiresAt <= now) throw Error('LEASE_EXPIRED');
-      if (!trustedServer && current.hostUid !== actorUid) throw Error('NOT_HOST');
+      if (!trustedServer && current.hostUid !== actorUid) throw Error('PHASE_CHANGED');
       if (current.phase !== 'day' && current.phase !== 'voting') throw Error('PHASE_CHANGED');
       const cp = Array.isArray(current.players) ? current.players as Array<Record<string, unknown>> : [];
       const cu = cp.flatMap(p => typeof p.uid === 'string' ? [p.uid] : []);
@@ -126,13 +128,67 @@ export async function POST(req: NextRequest) {
         nightSubmissions: _legacyNightSubmissions,
         ...publicPatch
       } = result.statePatch;
-      const sanitizedPlayers = resolvedPlayers.map(({ role: _privateRole, ...player }) => player);
+      let sanitizedPlayers = resolvedPlayers.map(({ role: _privateRole, ...player }) => player);
+      let resolvedHistory = result.statePatch.eliminatedHistory;
+      let resolvedWolfTeam = result.statePatch.wolfTeam;
+      let cazadorPendingShot = result.statePatch.cazadorPendingShot;
+      let chivoPendingChoice = result.statePatch.chivoPendingChoice;
+      let finalWinner = result.winner;
+      let finalMsg = result.winMessage;
+
       const currentEvent = current.currentEvent && typeof current.currentEvent === 'object' ? current.currentEvent as ChaosEvent : null;
+      if (currentEvent?.mechanical === 'revive') {
+        const revived = applyChaosRevive(
+          gameId,
+          round,
+          resolvedPlayers,
+          resolvedHistory,
+          result.statePatch.roles,
+          resolvedWolfTeam,
+        );
+        if (revived.targetUid) {
+          sanitizedPlayers = revived.players.map(({ role: _privateRole, ...player }) => player);
+          resolvedHistory = revived.eliminatedHistory;
+          resolvedWolfTeam = revived.wolfTeam;
+          const revivedTarget = revived.targetUid;
+          cazadorPendingShot = cazadorPendingShot === revivedTarget ? null : cazadorPendingShot;
+          chivoPendingChoice = chivoPendingChoice === revivedTarget ? null : chivoPendingChoice;
+
+          const revivedElimination = result.eliminated === revivedTarget ? null : result.eliminated;
+          const revivedSecondElimination = result.secondEliminated === revivedTarget ? null : result.secondEliminated;
+          const winResult = checkWinCondition(revived.players, result.statePatch.roles, {
+            enchanted: result.statePatch.enchanted,
+            round,
+            dayEliminatedUid: revivedElimination,
+            secondEliminatedUid: revivedSecondElimination,
+            eliminatedByVote: true,
+            perroLoboChoices: createDayResolutionInput(gameId, current, snapshot.rolesByUid, {}, now).perroLoboChoices,
+            cultMembers: createDayResolutionInput(gameId, current, snapshot.rolesByUid, {}, now).cultMembers,
+            vampiroKills: createDayResolutionInput(gameId, current, snapshot.rolesByUid, {}, now).vampiroKills,
+            pescadorBoat: createDayResolutionInput(gameId, current, snapshot.rolesByUid, {}, now).pescadorBoat,
+            hadaLinked: createDayResolutionInput(gameId, current, snapshot.rolesByUid, {}, now).hadaLinked,
+            lovers: createDayResolutionInput(gameId, current, snapshot.rolesByUid, {}, now).lovers ?? [],
+          });
+          finalWinner = winResult.winner;
+          finalMsg = winResult.message;
+          result = { ...result, winner: finalWinner, winMessage: finalMsg };
+        }
+      }
+
       const nextNightEvent = chaosEventAppliesToPhase(currentEvent, 'night') ? currentEvent : null;
       const patch = {
         ...publicPatch,
         principeUsed,
         players: sanitizedPlayers,
+        eliminatedHistory: resolvedHistory,
+        wolfTeam: resolvedWolfTeam,
+        cazadorPendingShot: cazadorPendingShot && !finalWinner ? cazadorPendingShot : null,
+        chivoPendingChoice: chivoPendingChoice && !finalWinner ? chivoPendingChoice : null,
+        winners: finalWinner,
+        winMessage: finalMsg,
+        phase: finalWinner ? 'ended' : 'night',
+        nightStartedAt: finalWinner ? null : now,
+        phaseEndsAt: finalWinner ? null : now + 60_000,
         currentEvent: nextNightEvent,
         eventRound: nextNightEvent ? Number(result.roundNumber) + 1 : null,
       } as Record<string, unknown>;
