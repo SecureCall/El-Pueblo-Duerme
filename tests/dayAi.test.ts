@@ -98,4 +98,49 @@ describe('server AI day voting', () => {
       gameId: 'game-5', round: 1, bot, alivePlayers: [bot], currentVotes: {}, now: 100_000,
     })).toBeNull();
   });
+
+  it('forces a Sirena-linked AI voter to copy the Sirena vote', () => {
+    const sirena: DayAiPlayer = { uid: 'bot-sirena', isAI: true, isAlive: true, botType: 'acusador' };
+    const linked: DayAiPlayer = { uid: 'bot-linked', isAI: true, isAlive: true, botType: 'caotico' };
+    const human: DayAiPlayer = { uid: 'human', isAlive: true };
+    expect(getServerAiDayVote({
+      gameId: 'game-sirena', round: 2, bot: linked,
+      alivePlayers: [sirena, linked, human],
+      currentVotes: { 'bot-sirena': 'human' },
+      sirenaUid: 'bot-sirena', sirenaLinkedUid: 'bot-linked', now: 100_000,
+    })).toBe('human');
+  });
+
+  it('does not invent a linked vote before the Sirena has voted', () => {
+    const sirena: DayAiPlayer = { uid: 'bot-sirena', isAI: true, isAlive: true, botType: 'acusador' };
+    const linked: DayAiPlayer = { uid: 'bot-linked', isAI: true, isAlive: true, botType: 'caotico' };
+    expect(getServerAiDayVote({
+      gameId: 'game-sirena', round: 2, bot: linked,
+      alivePlayers: [sirena, linked], currentVotes: {},
+      sirenaUid: 'bot-sirena', sirenaLinkedUid: 'bot-linked', now: 100_000,
+    })).toBeNull();
+  });
+
+  it('generates an AI Sirena vote before her linked AI voter regardless of UID order', () => {
+    const sirena: DayAiPlayer = { uid: 'z-sirena', isAI: true, isAlive: true, botType: 'acusador' };
+    const linked: DayAiPlayer = { uid: 'a-linked', isAI: true, isAlive: true, botType: 'caotico' };
+    const human: DayAiPlayer = { uid: 'human', isAlive: true };
+    const votes = ensureServerAiDayVotes({
+      gameId: 'game-sirena', round: 2,
+      bots: [linked, sirena], alivePlayers: [sirena, linked, human], currentVotes: {}, now: 100_000,
+      sirenaUid: 'z-sirena', sirenaLinkedUid: 'a-linked',
+    });
+    expect(votes['z-sirena']).toBeTruthy();
+    expect(votes['a-linked']).toBe(votes['z-sirena']);
+  });
+
+  it('does not copy a Sirena vote targeting a dead player', () => {
+    const linked: DayAiPlayer = { uid: 'bot-linked', isAI: true, isAlive: true, botType: 'caotico' };
+    const human: DayAiPlayer = { uid: 'human', isAlive: true };
+    expect(getServerAiDayVote({
+      gameId: 'game-sirena', round: 2, bot: linked,
+      alivePlayers: [linked, human], currentVotes: { 'sirena': 'dead' },
+      sirenaUid: 'sirena', sirenaLinkedUid: 'bot-linked', now: 100_000,
+    })).toBeNull();
+  });
 });
