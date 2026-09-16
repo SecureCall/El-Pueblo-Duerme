@@ -6,7 +6,7 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   migrate:
@@ -82,11 +82,14 @@ jobs:
           grep -n "requestResolveDay" components/game/play/GamePlay.tsx
           if grep -nE 'processDayVotes|BOT_VOTE_CONFIG|pickBotVoteTarget|dayResolutionLeaseRef|processingDayRef|aiDayVotedRound' components/game/play/GamePlay.tsx; then exit 1; fi
           git diff --check
-      - name: Commit migration
+      - name: Package transformed file
         run: |
-          git config user.name 'El pueblo Duerme'
-          git config user.email 'zalenatarot@gmail.com'
-          git add components/game/play/GamePlay.tsx
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'refactor: make GamePlay day resolution host-independent'
-          git push origin HEAD:audit/role-swap-authority
+          mkdir -p migration-artifact/components/game/play
+          cp components/game/play/GamePlay.tsx migration-artifact/components/game/play/GamePlay.tsx
+          cp package.json migration-artifact/package.json
+          git diff --no-index -- /dev/null components/game/play/GamePlay.tsx > migration-artifact/GamePlay.patch || true
+      - name: Upload transformed artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gameplay-day-migration
+          path: migration-artifact
