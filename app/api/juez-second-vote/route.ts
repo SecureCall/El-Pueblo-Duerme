@@ -38,6 +38,20 @@ export async function POST(req: NextRequest) {
       const phaseEndsAt = typeof game.phaseEndsAt === 'number' ? game.phaseEndsAt : null;
       if (phaseEndsAt !== null && now >= phaseEndsAt) throw new Error('PHASE_EXPIRED');
 
+      const currentRound = Number(game.roundNumber ?? 1);
+      if (!Number.isInteger(currentRound) || currentRound < 1) throw new Error('ROUND_INVALID');
+
+      // The authoritative vote store is games/{gameId}/votes/{uid}. A Judge
+      // second vote starts a fresh voting window in the same game round, so
+      // stale first-vote submissions must be removed atomically before the
+      // new vote window opens. Otherwise old votes could satisfy day-resolve.
+      const voteSnap = await tx.get(
+        gameRef.collection('votes').where('round', '==', currentRound),
+      );
+      voteSnap.docs.forEach(vote => tx.delete(vote.ref));
+
+      // Keep the legacy field only as migration compatibility. It is no
+      // longer the authoritative vote source.
       tx.update(gameRef, {
         dayVotes: {},
         juezUsed: true,
@@ -56,6 +70,7 @@ export async function POST(req: NextRequest) {
       PHASE_CLOSED: ['La segunda votación no está disponible en esta fase', 409],
       ALREADY_USED: ['El Juez ya utilizó su segunda votación', 409],
       PHASE_EXPIRED: ['El tiempo de la votación ya ha terminado', 409],
+      ROUND_INVALID: ['Ronda de juego no válida', 409],
     };
     const [message, status] = errors[code] ?? ['Error interno', 500];
     if (status >= 500) console.error('[juez-second-vote]', err);
