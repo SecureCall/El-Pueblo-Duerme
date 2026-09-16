@@ -23,26 +23,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Checkout audit branch for migration verification
-        uses: actions/checkout@v4
-        with:
-          ref: audit/role-swap-authority
-          path: audit-worktree
-          fetch-depth: 0
-
-      - name: Transform and verify GamePlay
-        working-directory: audit-worktree
-        run: |
-          python3 scripts/migrate-gameplay-day.py
-          grep -n 'requestResolveDay' components/game/play/GamePlay.tsx
-          git diff --check
-
-      - name: Upload transformed GamePlay
-        uses: actions/upload-artifact@v4
-        with:
-          name: gameplay-day-migration
-          path: audit-worktree/components/game/play/GamePlay.tsx
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -60,5 +40,3 @@ jobs:
 
       - name: Build
         run: npm run build
-
-      # Temporary audit runner: remove after GamePlay migration is verified.
