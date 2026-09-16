@@ -6,6 +6,7 @@ import { getFirestore, type DocumentReference } from 'firebase-admin/firestore';
 import { readNightRoleSnapshot } from '@/lib/server/nightRoleSnapshot';
 import { createDayResolutionInput } from '@/lib/server/dayResolutionInput';
 import { resolveDay } from '@/lib/server/dayResolutionEngine';
+import { ensureServerAiDayVotes } from '@/lib/server/dayAi';
 import { applyChaosRevive } from '@/lib/server/chaosReviveApply';
 import { checkWinCondition } from '@/lib/server/gameRules';
 import { chaosEventAppliesToPhase, type ChaosEvent } from '@/lib/server/chaosEvents';
@@ -96,7 +97,26 @@ export async function POST(req: NextRequest) {
 
     const uids = ps.flatMap(p => typeof p.uid === 'string' ? [p.uid] : []);
     const snapshot = await readNightRoleSnapshot(gameId, uids);
-    let result = resolveDay(createDayResolutionInput(gameId, g, snapshot.rolesByUid, await votes(gr, round, ps), Date.now()));
+    const currentVotes = await votes(gr, round, ps);
+    const alivePlayers = ps.filter(p => p.isAlive === true).map(p => ({
+      uid: String(p.uid ?? ''),
+      botType: typeof p.botType === 'string' ? p.botType : null,
+      isAI: p.isAI === true,
+      isAlive: p.isAlive === true,
+      voteBanned: p.voteBanned === true,
+      saboteadorBan: p.saboteadorBan === true,
+    }));
+    const aiPlayers = alivePlayers.filter(p => p.isAI === true);
+    const authoritativeVotes = ensureServerAiDayVotes({
+      gameId,
+      round,
+      bots: aiPlayers,
+      alivePlayers,
+      currentVotes,
+      dayStartedAt: typeof g.dayStartedAt === 'number' ? g.dayStartedAt : null,
+      now: Date.now(),
+    });
+    let result = resolveDay(createDayResolutionInput(gameId, g, snapshot.rolesByUid, authoritativeVotes, Date.now()));
 
     await db.runTransaction(async tx => {
       const [cg, ls] = await Promise.all([tx.get(gr), tx.get(lr)]);
