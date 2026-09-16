@@ -1,0 +1,89 @@
+name: tmp-migrate-gameplay-day-v3
+
+on:
+  push:
+    branches:
+      - audit/role-swap-authority
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Migrate GamePlay
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('components/game/play/GamePlay.tsx')
+          s = p.read_text(encoding='utf-8')
+          original = s
+          s = s.replace("import { BOT_VOTE_CONFIG, pickBotVoteTarget, type BotType, FALLBACK_BOT_MESSAGES, BOT_NARRATOR_SPOTLIGHTS } from '@/lib/bots/botSystem';", "import { type BotType, FALLBACK_BOT_MESSAGES, BOT_NARRATOR_SPOTLIGHTS } from '@/lib/bots/botSystem';", 1)
+          if "import { requestResolveDay } from '@/lib/game/resolveDay';" not in s:
+              s = s.replace("import { requestResolveNight } from '@/lib/game/resolveNight';", "import { requestResolveNight } from '@/lib/game/resolveNight';\nimport { requestResolveDay } from '@/lib/game/resolveDay';", 1)
+          for pattern in [r'^  const aiDayVotedRound = useRef<number>\(-1\);\r?\n', r'^  const processingDayRef = useRef\(false\);\r?\n', r'^  const dayResolutionLeaseRef = useRef<string \| null>\(null\);\r?\n']:
+              s = re.sub(pattern, '', s, count=1, flags=re.M)
+          s, n = re.subn(r"\n  async function processDayVotes\(dayVotes: Record<string, string>\) \{.*?\n  \}\n\n  // Cazador fires last shot", "\n  // Cazador fires last shot", s, count=1, flags=re.S)
+          assert n == 1, n
+          s, n = re.subn(r"\n  // Host processes day votes when all eligible alive players have voted\n  useEffect\(\(\) => \{.*?\n  \}, \[votesFromSub, game\?\.phase\]\);\n", "\n", s, count=1, flags=re.S)
+          assert n == 1, n
+          s, n = re.subn(r"\n  // ── Anti-softlock: force processDayVotes when day timer expires ───────────\n  useEffect\(\(\) => \{.*?\n  \}, \[game\?\.phase, game\?\.roundNumber, game\?\.dayStartedAt, game\?\.phaseEndsAt\]\);\n", "\n", s, count=1, flags=re.S)
+          assert n == 1, n
+          s, n = re.subn(r"\n  // Host auto-votes for AI players during day — personality-based timing\n  useEffect\(\(\) => \{.*?\n  \}, \[game\?\.phase, game\?\.roundNumber, game\?\.dayStartedAt\]\);\n", "\n", s, count=1, flags=re.S)
+          assert n == 1, n
+          s = s.replace("""          onTimerEnd={() => {
+            if (game.hostUid === user.uid) {
+              processDayVotes(votesFromSub);
+            }
+          }}""", "          onTimerEnd={() => {}}", 1)
+          marker = "  // ── Host absence detection: check /presence every 30s, auto-claim after 5min ─"
+          if 'const dayResolveInFlightRef = useRef(false);' not in s:
+              effect = """  // ── Server-authoritative day resolver trigger ───────────────────────────
+  const dayResolveInFlightRef = useRef(false);
+  useEffect(() => {
+    if (!game || !user || game.phase !== 'day') return;
+    const me = (game.players ?? []).find(p => p.uid === user.uid);
+    if (!me?.isAlive) return;
+    const attempt = async () => {
+      if (dayResolveInFlightRef.current) return;
+      dayResolveInFlightRef.current = true;
+      try {
+        await requestResolveDay(gameId);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message !== 'INCOMPLETE_DAY') console.warn('[DayResolution] server trigger did not commit:', message);
+      } finally {
+        dayResolveInFlightRef.current = false;
+      }
+    };
+    void attempt();
+    const timer = setInterval(() => { void attempt(); }, 2000);
+    return () => clearInterval(timer);
+  }, [game?.phase, game?.roundNumber, game?.phaseEndsAt, game?.players, user?.uid, gameId]);
+
+"""
+              assert s.count(marker) == 1
+              s = s.replace(marker, effect + marker, 1)
+          forbidden = ['async function processDayVotes', 'Host processes day votes when all eligible alive players have voted', 'Host auto-votes for AI players during day', 'BOT_VOTE_CONFIG', 'pickBotVoteTarget', 'processDayVotes(', 'dayResolutionLeaseRef', 'processingDayRef', 'aiDayVotedRound']
+          for token in forbidden:
+              assert token not in s, token
+          assert s != original
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Verify
+        run: |
+          grep -n "requestResolveDay" components/game/play/GamePlay.tsx
+          if grep -nE 'processDayVotes|BOT_VOTE_CONFIG|pickBotVoteTarget|dayResolutionLeaseRef|processingDayRef|aiDayVotedRound' components/game/play/GamePlay.tsx; then exit 1; fi
+          git diff --check
+      - name: Commit
+        run: |
+          git config user.name 'El pueblo Duerme'
+          git config user.email 'zalenatarot@gmail.com'
+          git add components/game/play/GamePlay.tsx
+          git commit -m 'refactor: make GamePlay day resolution host-independent'
+          git push origin HEAD:audit/role-swap-authority
