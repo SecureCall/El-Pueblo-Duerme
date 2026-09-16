@@ -1,8 +1,7 @@
 name: tmp-migrate-gameplay-day-pr
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  push:
     branches:
       - main
 
@@ -11,14 +10,12 @@ permissions:
 
 jobs:
   migrate:
-    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout PR head
+      - name: Checkout audit branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          repository: ${{ github.repository }}
+          ref: audit/role-swap-authority
           fetch-depth: 0
       - name: Migrate GamePlay safely
         run: |
@@ -85,11 +82,11 @@ jobs:
           grep -n "requestResolveDay" components/game/play/GamePlay.tsx
           if grep -nE 'processDayVotes|BOT_VOTE_CONFIG|pickBotVoteTarget|dayResolutionLeaseRef|processingDayRef|aiDayVotedRound' components/game/play/GamePlay.tsx; then exit 1; fi
           git diff --check
-      - name: Commit migration to PR branch
+      - name: Commit migration
         run: |
           git config user.name 'El pueblo Duerme'
           git config user.email 'zalenatarot@gmail.com'
           git add components/game/play/GamePlay.tsx
           if git diff --cached --quiet; then exit 0; fi
           git commit -m 'refactor: make GamePlay day resolution host-independent'
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          git push origin HEAD:audit/role-swap-authority
