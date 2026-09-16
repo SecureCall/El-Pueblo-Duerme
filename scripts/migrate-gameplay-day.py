@@ -18,8 +18,9 @@ for pattern in [
     r'^  const aiDayVotedRound = useRef<number>\(-1\);\r?\n',
     r'^  const processingDayRef = useRef\(false\);\r?\n',
     r'^  const dayResolutionLeaseRef = useRef<string \| null>\(null\);\r?\n',
+    r'^\s*processingDayRef\.current = false;\r?\n',
 ]:
-    s = re.sub(pattern, '', s, count=1, flags=re.M)
+    s = re.sub(pattern, '', s, count=0 if 'processingDayRef' in pattern and 'const' not in pattern else 1, flags=re.M)
 
 s, n = re.subn(
     r"\n  async function processDayVotes\(dayVotes: Record<string, string>\) \{.*?\n  \}\n\n  // Cazador fires last shot",
@@ -71,7 +72,7 @@ if 'const dayResolveInFlightRef = useRef(false);' not in s:
         await requestResolveDay(gameId);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if (message != 'INCOMPLETE_DAY') console.warn('[DayResolution] server trigger did not commit:', message);
+        if (message !== 'INCOMPLETE_DAY') console.warn('[DayResolution] server trigger did not commit:', message);
       } finally {
         dayResolveInFlightRef.current = false;
       }
