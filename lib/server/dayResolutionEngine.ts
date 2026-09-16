@@ -1,5 +1,6 @@
 import { checkWinCondition } from '@/lib/server/gameRules';
 import { applyRoleSwap } from '@/lib/server/chaosRoleSwap';
+import { applyChaosRevive } from '@/lib/server/chaosReviveApply';
 
 export interface DayResolutionPlayer {
   uid: string;
@@ -242,6 +243,23 @@ export function resolveDay(input: DayResolutionInput): DayResolutionEngineResult
     for (const uid of Object.keys(roles)) roles[uid] = swapped.roles[uid] ?? roles[uid];
     for (const uid of Object.keys(newWolfTeam)) delete newWolfTeam[uid];
     Object.assign(newWolfTeam, swapped.wolfTeam);
+  }
+
+  if (input.currentEvent?.mechanical === 'revive') {
+    const revived = applyChaosRevive(input.gameId, round, players, history, roles, newWolfTeam);
+    if (revived.targetUid) {
+      const revivedUid = revived.targetUid;
+      players.splice(0, players.length, ...revived.players);
+      history.splice(0, history.length, ...revived.eliminatedHistory);
+      for (const uid of Object.keys(newWolfTeam)) delete newWolfTeam[uid];
+      Object.assign(newWolfTeam, revived.wolfTeam);
+      if (eliminated === revivedUid) {
+        eliminated = null;
+        chivoPendingChoice = null;
+      }
+      if (secondEliminated === revivedUid) secondEliminated = null;
+      fantasmaPending.splice(0, fantasmaPending.length, ...fantasmaPending.filter((uid) => uid !== revivedUid));
+    }
   }
 
   const hunter = players.find((p) => !p.isAlive && aliveBeforeDay.has(p.uid) && roles[p.uid] === 'Cazador');
