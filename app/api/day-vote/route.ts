@@ -40,9 +40,7 @@ export async function POST(req: NextRequest) {
       const targetPlayer = players.find(p => p.uid === target);
       if (!voter?.isAlive) throw new Error('VOTER_INVALID');
       if (!targetPlayer?.isAlive) throw new Error('TARGET_INVALID');
-      const authorizedHuman = tokenUid === uid;
-      const authorizedAI = voter.isAI === true && tokenUid === game.hostUid;
-      if (!authorizedHuman && !authorizedAI) throw new Error('UID_FORBIDDEN');
+      if (tokenUid !== uid) throw new Error('UID_FORBIDDEN');
       const banned = new Set<string>([
         ...(Array.isArray(game.voteBanned) ? game.voteBanned : []),
         ...(typeof game.saboteadorBan === 'string' && game.saboteadorBan ? [game.saboteadorBan] : []),
