@@ -1,0 +1,123 @@
+name: tmp-migrate-gameplay-day-v2
+on:
+  workflow_dispatch:
+  push:
+    branches: [audit/role-swap-authority]
+permissions:
+  contents: write
+jobs:
+  migrate:
+    name: Apply GamePlay day authority migration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout audit branch
+        uses: actions/checkout@v4
+        with:
+          ref: audit/role-swap-authority
+          fetch-depth: 0
+      - name: Migrate GamePlay.tsx safely
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('components/game/play/GamePlay.tsx')
+          s = p.read_text(encoding='utf-8')
+          original = s
+
+          if 'async function processDayVotes' not in s and 'const dayResolveInFlightRef = useRef(false);' in s:
+              print('Migration already present.')
+              raise SystemExit(0)
+
+          old_import = "import { BOT_VOTE_CONFIG, pickBotVoteTarget, type BotType, FALLBACK_BOT_MESSAGES, BOT_NARRATOR_SPOTLIGHTS } from '@/lib/bots/botSystem';"
+          if old_import in s:
+              s = s.replace(old_import, "import { type BotType, FALLBACK_BOT_MESSAGES, BOT_NARRATOR_SPOTLIGHTS } from '@/lib/bots/botSystem';", 1)
+          else:
+              assert 'BOT_VOTE_CONFIG' not in s and 'pickBotVoteTarget' not in s
+
+          if "import { requestResolveDay } from '@/lib/game/resolveDay';" not in s:
+              night_import = "import { requestResolveNight } from '@/lib/game/resolveNight';"
+              assert s.count(night_import) == 1
+              s = s.replace(night_import, night_import + "\nimport { requestResolveDay } from '@/lib/game/resolveDay';", 1)
+
+          for pattern in [
+              r'^  const aiDayVotedRound = useRef<number>\(-1\);\r?\n',
+              r'^  const processingDayRef = useRef\(false\);\r?\n',
+              r'^  const dayResolutionLeaseRef = useRef<string \| null>\(null\);\r?\n',
+          ]:
+              s, _ = re.subn(pattern, '', s, count=1, flags=re.M)
+
+          s, n = re.subn(r"\n  async function processDayVotes\(dayVotes: Record<string, string>\) \{.*?\n  \}\n\n  // Cazador fires last shot", "\n  // Cazador fires last shot", s, count=1, flags=re.S)
+          assert n == 1, f'processDayVotes removal matched {n}'
+
+          s, n = re.subn(r"\n  // Host processes day votes when all eligible alive players have voted\n  useEffect\(\(\) => \{.*?\n  \}, \[votesFromSub, game\?\.phase\]\);\n", "\n", s, count=1, flags=re.S)
+          assert n == 1, f'host vote effect removal matched {n}'
+
+          s, n = re.subn(r"\n  // ── Anti-softlock: force processDayVotes when day timer expires ───────────\n  useEffect\(\(\) => \{.*?\n  \}, \[game\?\.phase, game\?\.roundNumber, game\?\.dayStartedAt, game\?\.phaseEndsAt\]\);\n", "\n", s, count=1, flags=re.S)
+          assert n == 1, f'deadline effect removal matched {n}'
+
+          s, n = re.subn(r"\n  // Host auto-votes for AI players during day — personality-based timing\n  useEffect\(\(\) => \{.*?\n  \}, \[game\?\.phase, game\?\.roundNumber, game\?\.dayStartedAt\]\);\n", "\n", s, count=1, flags=re.S)
+          assert n == 1, f'browser AI effect removal matched {n}'
+
+          old_timer = """          onTimerEnd={() => {
+            if (game.hostUid === user.uid) {
+              processDayVotes(votesFromSub);
+            }
+          }}"""
+          if old_timer in s:
+              s = s.replace(old_timer, '          onTimerEnd={() => {}}', 1)
+
+          marker = "  // ── Host absence detection: check /presence every 30s, auto-claim after 5min ─"
+          if 'const dayResolveInFlightRef = useRef(false);' not in s:
+              assert s.count(marker) == 1
+              effect = """  // ── Server-authoritative day resolver trigger ───────────────────────────
+  // Any alive player may ask the server to resolve. The server decides whether
+  // votes, AI timing, or the authoritative deadline are sufficient.
+  const dayResolveInFlightRef = useRef(false);
+  useEffect(() => {
+    if (!game || !user || game.phase !== 'day') return;
+    const me = (game.players ?? []).find(p => p.uid === user.uid);
+    if (!me?.isAlive) return;
+    const attempt = async () => {
+      if (dayResolveInFlightRef.current) return;
+      dayResolveInFlightRef.current = true;
+      try {
+        await requestResolveDay(gameId);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message !== 'INCOMPLETE_DAY') console.warn('[DayResolution] server trigger did not commit:', message);
+      } finally {
+        dayResolveInFlightRef.current = false;
+      }
+    };
+    void attempt();
+    const timer = setInterval(() => { void attempt(); }, 2000);
+    return () => clearInterval(timer);
+  }, [game?.phase, game?.roundNumber, game?.phaseEndsAt, game?.players, user?.uid, gameId]);
+
+"""
+              s = s.replace(marker, effect + marker, 1)
+
+          forbidden = [
+              'async function processDayVotes', 'Host processes day votes when all eligible alive players have voted',
+              'Host auto-votes for AI players during day', 'BOT_VOTE_CONFIG', 'pickBotVoteTarget',
+              'processDayVotes(', 'dayResolutionLeaseRef', 'processingDayRef', 'aiDayVotedRound'
+          ]
+          for token in forbidden:
+              assert token not in s, token
+          assert s != original
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Verify migration and diff safety
+        run: |
+          ! grep -nE 'processDayVotes|Host processes day votes|Host auto-votes for AI players|BOT_VOTE_CONFIG|pickBotVoteTarget|dayResolutionLeaseRef|processingDayRef|aiDayVotedRound' components/game/play/GamePlay.tsx
+          grep -n 'requestResolveDay' components/game/play/GamePlay.tsx
+          git diff --check
+      - name: Commit migration
+        run: |
+          git config user.name 'El pueblo Duerme'
+          git config user.email 'zalenatarot@gmail.com'
+          git add components/game/play/GamePlay.tsx
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'refactor: make GamePlay day resolution host-independent'
+          git push origin HEAD:audit/role-swap-authority
