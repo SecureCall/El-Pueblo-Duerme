@@ -110,6 +110,8 @@ export async function POST(req: NextRequest) {
           currentVotes,
           dayStartedAt: typeof x.dayStartedAt === 'number' ? x.dayStartedAt : null,
           now,
+          sirenaUid: typeof x.sirenaUid === 'string' ? x.sirenaUid : null,
+          sirenaLinkedUid: typeof x.sirenaLinked === 'string' ? x.sirenaLinked : null,
         });
         const eligible = ps.filter(p => p.isAlive === true && typeof p.uid === 'string' && !isVoteBanned(x, p.uid as string));
         const complete = eligible.length > 0 && eligible.every(p => typeof p.uid === 'string' && !!authoritativeVotes[p.uid as string]);
@@ -155,6 +157,8 @@ export async function POST(req: NextRequest) {
       currentVotes,
       dayStartedAt: typeof g.dayStartedAt === 'number' ? g.dayStartedAt : null,
       now: Date.now(),
+      sirenaUid: typeof g.sirenaUid === 'string' ? g.sirenaUid : null,
+      sirenaLinkedUid: typeof g.sirenaLinked === 'string' ? g.sirenaLinked : null,
     });
     let result = resolveDay(createDayResolutionInput(gameId, g, snapshot.rolesByUid, authoritativeVotes, Date.now()));
 
