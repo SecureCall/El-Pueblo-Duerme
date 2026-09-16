@@ -125,4 +125,25 @@ describe('resolveDay', () => {
       ),
     );
   });
+
+  it('applies revive authoritatively and removes the resurrected player from elimination history', () => {
+    const result = resolveDay(input({
+      gameId: 'revive-test',
+      currentEvent: { mechanical: 'revive' },
+      players: [
+        { uid: 'wolf', name: 'Wolf', isAlive: true },
+        { uid: 'dead', name: 'Dead', isAlive: false },
+        { uid: 'seer', name: 'Seer', isAlive: true },
+      ],
+      votes: {},
+      roles: { wolf: 'Lobo', dead: 'Aldeano', seer: 'Vidente' },
+      wolfTeam: { wolf: true },
+      eliminatedHistory: [{ uid: 'dead', name: 'Dead', role: 'Aldeano', round: 1 }],
+    }));
+
+    const revived = result.statePatch.players.find((player) => player.uid === 'dead');
+    expect(revived?.isAlive).toBe(true);
+    expect(result.statePatch.eliminatedHistory.some((entry) => entry.uid === 'dead')).toBe(false);
+    expect(result.statePatch.wolfTeam).toEqual({ wolf: true });
+  });
 });
