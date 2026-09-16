@@ -1,0 +1,114 @@
+name: One-off day authority migration
+
+on:
+  push:
+    branches: [audit/role-swap-authority]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.event.head_commit.message != 'chore: migrate day authority client'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: audit/role-swap-authority
+      - name: Rewrite GamePlay day authority
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('components/game/play/GamePlay.tsx')
+          source = path.read_text()
+          original = source
+
+          # Remove the client-only day AI scheduler. Server dayAi is authoritative.
+          ai_start = source.find('  // Host auto-votes for AI players during day — personality-based timing')
+          ai_end = source.find('  // ── Host: narrador IA interrumpe el debate en tiempo real ──────────────', ai_start)
+          if ai_start < 0 or ai_end < 0 or ai_end <= ai_start:
+              raise SystemExit('AI day block boundaries not found; aborting')
+          source = source[:ai_start] + source[ai_end:]
+
+          # Remove the old host-only "all voted" trigger and replace it with an
+          # any-alive-player trigger. The server still owns the actual resolution.
+          old_start = source.find('  // Host processes day votes when all eligible alive players have voted')
+          old_end = source.find('  // ── Micro-momento: duda en votación ──────────────────────────────────', old_start)
+          if old_start < 0 or old_end < 0 or old_end <= old_start:
+              raise SystemExit('day vote trigger boundaries not found; aborting')
+          replacement = '''  // Any alive player may ask the authoritative server to resolve once all
+  // eligible voters have submitted. The server decides the result.
+  useEffect(() => {
+    if (!game || !user || game.phase !== 'day') return;
+    const me = (game.players ?? []).find(p => p.uid === user.uid);
+    if (!me?.isAlive) return;
+    const alivePlayers = (game.players ?? []).filter(p => p.isAlive);
+    const voteBanned = game.voteBanned ?? [];
+    const eligible = alivePlayers.filter(p => !voteBanned.includes(p.uid));
+    if (eligible.length === 0 || !eligible.every(p => !!votesFromSub[p.uid])) return;
+    requestResolveDay(gameId).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [votesFromSub, game?.phase, game?.roundNumber, user?.uid, gameId]);
+
+  // ── Anti-softlock: the trusted scheduler resolves at phaseEndsAt ───────
+  // No browser computes a deadline or mutates game state locally.
+
+'''
+          source = source[:old_start] + replacement + source[old_end:]
+
+          # Remove the old local day resolver and replace it with nothing: all
+          # resolution state is now produced by /api/day-resolve.
+          fn_start = source.find('  async function processDayVotes(dayVotes: Record<string, string>) {')
+          if fn_start < 0:
+              raise SystemExit('processDayVotes function not found; aborting')
+          # Brace-aware removal so unrelated functions/rendering remain intact.
+          brace = source.find('{', fn_start)
+          depth = 0
+          end = None
+          for i in range(brace, len(source)):
+              if source[i] == '{': depth += 1
+              elif source[i] == '}':
+                  depth -= 1
+                  if depth == 0:
+                      end = i + 1
+                      break
+          if end is None:
+              raise SystemExit('processDayVotes closing brace not found; aborting')
+          source = source[:fn_start] + source[end:]
+
+          # Remove refs that existed only for the local resolver.
+          source = source.replace('  const aiDayVotedRound = useRef<number>(-1);\n', '')
+          source = source.replace('  const processingDayRef = useRef(false);\n', '')
+          source = source.replace('  const dayResolutionLeaseRef = useRef<string | null>(null);\n', '')
+          source = source.replace('      processingDayRef.current = false;\n', '')
+
+          # Remove imports that were used only by the deleted browser AI voter.
+          source = source.replace("import { BOT_VOTE_CONFIG, pickBotVoteTarget, type BotType, FALLBACK_BOT_MESSAGES, BOT_NARRATOR_SPOTLIGHTS } from '@/lib/bots/botSystem';", "import { type BotType } from '@/lib/bots/botSystem';")
+
+          if 'async function processDayVotes' in source:
+              raise SystemExit('legacy processDayVotes still present')
+          if 'Host processes day votes when all eligible alive players have voted' in source:
+              raise SystemExit('legacy host day trigger still present')
+          if 'Host auto-votes for AI players during day' in source:
+              raise SystemExit('legacy browser AI voter still present')
+          if 'processDayVotes(' in source:
+              raise SystemExit('legacy processDayVotes call still present')
+          if source == original:
+              raise SystemExit('no source changes made')
+
+          path.write_text(source)
+          PY
+      - name: Verify migration guards
+        run: |
+          ! grep -n "async function processDayVotes\|Host processes day votes when all eligible alive players have voted\|Host auto-votes for AI players during day\|processDayVotes(" components/game/play/GamePlay.tsx
+          grep -n "requestResolveDay(gameId)" components/game/play/GamePlay.tsx
+      - name: Commit migration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/game/play/GamePlay.tsx .github/workflows/oneoff-day-authority-migration.yml
+          git commit -m "chore: migrate day authority client" 
+          git push origin audit/role-swap-authority
