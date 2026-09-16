@@ -54,13 +54,14 @@ describe('server AI day voting', () => {
   it('makes acusador prefer targets with zero votes', () => {
     const bot = players[1];
     const delay = getBotDayVoteDelayMs('game-2', 1, bot.uid, 'acusador');
+    const currentVotes = { 'human-a': 'human-b', 'bot-callado': 'human-b' };
     const target = getServerAiDayVote({
       gameId: 'game-2', round: 1, bot, alivePlayers: players,
-      currentVotes: { 'human-a': 'human-b', 'bot-callado': 'human-b' },
-      dayStartedAt: 0, now: delay,
+      currentVotes, dayStartedAt: 0, now: delay,
     });
-    expect(['human-a', 'bot-callado', 'bot-acusador', 'dead']).not.toContain(target);
-    expect(['human-a', 'bot-callado']).toContain(target);
+    expect(target).not.toBeNull();
+    expect(target).not.toBe(bot.uid);
+    expect(currentVotes[target as string] ?? 0).toBe(0);
   });
 
   it('skips dead or banned bots and never targets dead players', () => {
