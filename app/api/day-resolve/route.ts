@@ -39,15 +39,18 @@ function isVoteBanned(game: Record<string, unknown>, uid: string): boolean {
   return typeof game.saboteadorBan === 'string' && game.saboteadorBan === uid;
 }
 
-function buildAuthoritativeAiPlayers(ps: Array<Record<string, unknown>>) {
-  return ps.filter(p => p.isAlive === true).map(p => ({
-    uid: String(p.uid ?? ''),
-    botType: typeof p.botType === 'string' ? p.botType : null,
-    isAI: p.isAI === true,
-    isAlive: p.isAlive === true,
-    voteBanned: isVoteBanned({ voteBanned: p.voteBanned === true ? [String(p.uid ?? '')] : [] }, String(p.uid ?? '')),
-    saboteadorBan: false,
-  }));
+function buildAuthoritativeAiPlayers(ps: Array<Record<string, unknown>>, game: Record<string, unknown>) {
+  return ps.filter(p => p.isAlive === true).map(p => {
+    const uid = String(p.uid ?? '');
+    return {
+      uid,
+      botType: typeof p.botType === 'string' ? p.botType : null,
+      isAI: p.isAI === true,
+      isAlive: p.isAlive === true,
+      voteBanned: isVoteBanned(game, uid),
+      saboteadorBan: typeof game.saboteadorBan === 'string' && game.saboteadorBan === uid,
+    };
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -98,7 +101,7 @@ export async function POST(req: NextRequest) {
         const phaseEndsAt = typeof x.phaseEndsAt === 'number' ? x.phaseEndsAt : null;
         const deadlineReached = phaseEndsAt !== null && now >= phaseEndsAt;
         const currentVotes = await votes(gr, round, ps);
-        const alivePlayers = buildAuthoritativeAiPlayers(ps);
+        const alivePlayers = buildAuthoritativeAiPlayers(ps, x);
         const authoritativeVotes = ensureServerAiDayVotes({
           gameId,
           round,
@@ -143,7 +146,7 @@ export async function POST(req: NextRequest) {
     const uids = ps.flatMap(p => typeof p.uid === 'string' ? [p.uid] : []);
     const snapshot = await readNightRoleSnapshot(gameId, uids);
     const currentVotes = await votes(gr, round, ps);
-    const alivePlayers = buildAuthoritativeAiPlayers(ps);
+    const alivePlayers = buildAuthoritativeAiPlayers(ps, g);
     const authoritativeVotes = ensureServerAiDayVotes({
       gameId,
       round,
@@ -163,7 +166,7 @@ export async function POST(req: NextRequest) {
       if (l.ownerUid !== actorUid || l.leaseId !== leaseId) throw Error('LEASE_LOST');
       if (l.round !== submitted || Number(current.roundNumber ?? 1) !== submitted) throw Error('ROUND_CHANGED');
       if (l.expiresAt <= now) throw Error('LEASE_EXPIRED');
-      if (!trustedServer && !Array.isArray(current.players) || (!trustedServer && !(current.players as Array<Record<string, unknown>>).some(p => p.uid === actorUid && p.isAlive === true))) throw Error('PHASE_CHANGED');
+      if (!trustedServer && !(Array.isArray(current.players) && (current.players as Array<Record<string, unknown>>).some(p => p.uid === actorUid && p.isAlive === true))) throw Error('PHASE_CHANGED');
       if (current.phase !== 'day' && current.phase !== 'voting') throw Error('PHASE_CHANGED');
       const cp = Array.isArray(current.players) ? current.players as Array<Record<string, unknown>> : [];
       const cu = cp.flatMap(p => typeof p.uid === 'string' ? [p.uid] : []);
