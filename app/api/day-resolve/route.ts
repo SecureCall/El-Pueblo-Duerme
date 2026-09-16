@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
       const actor = ps.find(p => p.uid === actorUid);
       if (!trustedServer && actor?.isAlive !== true) throw Error('NOT_HOST');
 
-      if (!trustedServer && x.hostUid !== actorUid) {
+      if (!trustedServer) {
         const round = Number(x.roundNumber ?? 1);
         if (!Number.isInteger(round)) throw Error('INVALID_ROUND');
         const now = Date.now();
