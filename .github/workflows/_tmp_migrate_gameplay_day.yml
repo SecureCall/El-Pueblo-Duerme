@@ -1,7 +1,6 @@
 name: tmp-migrate-gameplay-day
 on:
-  push:
-    branches: [audit/role-swap-authority]
+  workflow_dispatch:
 permissions:
   contents: write
 jobs:
