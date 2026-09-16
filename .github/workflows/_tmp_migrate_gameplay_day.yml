@@ -8,7 +8,6 @@ permissions:
   contents: write
 jobs:
   migrate:
-    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, 'refactor: make GamePlay day resolution host-independent')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,6 +21,11 @@ jobs:
           import re
           p = Path('components/game/play/GamePlay.tsx')
           s = p.read_text(encoding='utf-8')
+
+          if 'const dayResolveInFlightRef = useRef(false);' in s and 'async function processDayVotes' not in s:
+              print('Migration already applied; nothing to do.')
+              raise SystemExit(0)
+
           original = s
 
           old_import = "import { BOT_VOTE_CONFIG, pickBotVoteTarget, type BotType, FALLBACK_BOT_MESSAGES, BOT_NARRATOR_SPOTLIGHTS } from '@/lib/bots/botSystem';"
@@ -40,8 +44,7 @@ jobs:
               r'^  const processingDayRef = useRef\(false\);\r?\n',
               r'^  const dayResolutionLeaseRef = useRef<string \| null>\(null\);\r?\n',
           ]:
-              s, n = re.subn(pattern, '', s, count=1, flags=re.M)
-              assert n in (0, 1)
+              s, _ = re.subn(pattern, '', s, count=1, flags=re.M)
 
           s, n = re.subn(r"\n  async function processDayVotes\(dayVotes: Record<string, string>\) \{.*?\n  \}\n\n  // Cazador fires last shot", "\n  // Cazador fires last shot", s, count=1, flags=re.S)
           assert n in (0, 1), 'processDayVotes removal ambiguity'
