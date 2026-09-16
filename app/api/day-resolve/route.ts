@@ -15,8 +15,8 @@ const LEASE_MS = 30_000;
 const SCHEDULER_OWNER = '__scheduler__';
 type Lock = { ownerUid: string; leaseId: string; round: number; expiresAt: number };
 const E: Record<string, [string, number]> = {
-  GAME_NOT_FOUND: ['Partida no encontrada', 404], NOT_HOST: ['Solo el host puede resolver el día', 403],
-  NOT_DAY: ['No es fase de día', 409], LOCKED: ['La resolución del día ya está en curso', 409],
+  GAME_NOT_FOUND: ['Partida no encontrada', 404], NOT_HOST: ['Solo un jugador vivo puede resolver el día', 403],
+  NOT_DAY: ['No es fase de día', 409], INCOMPLETE_DAY: ['La votación del día todavía no está completa', 409], LOCKED: ['La resolución del día ya está en curso', 409],
   LEASE_LOST: ['La resolución perdió su lease', 409], LEASE_EXPIRED: ['El lease expiró', 409],
   ROUND_CHANGED: ['La ronda cambió durante la resolución', 409], PHASE_CHANGED: ['La fase cambió durante la resolución', 409],
   PLAYER_SET_CHANGED: ['La lista de jugadores cambió', 409], INVALID_ROUND: ['Ronda inválida', 400],
@@ -32,6 +32,22 @@ async function votes(ref: DocumentReference, round: number, ps: Array<Record<str
     if (Number(x.round) === round && alive.has(d.id) && typeof x.target === 'string' && alive.has(x.target)) out[d.id] = x.target;
   });
   return out;
+}
+
+function isVoteBanned(game: Record<string, unknown>, uid: string): boolean {
+  if (Array.isArray(game.voteBanned) && game.voteBanned.includes(uid)) return true;
+  return typeof game.saboteadorBan === 'string' && game.saboteadorBan === uid;
+}
+
+function buildAuthoritativeAiPlayers(ps: Array<Record<string, unknown>>) {
+  return ps.filter(p => p.isAlive === true).map(p => ({
+    uid: String(p.uid ?? ''),
+    botType: typeof p.botType === 'string' ? p.botType : null,
+    isAI: p.isAI === true,
+    isAlive: p.isAlive === true,
+    voteBanned: isVoteBanned({ voteBanned: p.voteBanned === true ? [String(p.uid ?? '')] : [] }, String(p.uid ?? '')),
+    saboteadorBan: false,
+  }));
 }
 
 export async function POST(req: NextRequest) {
@@ -69,14 +85,43 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'claim') {
+      const gameSnap = await gr.get();
+      if (!gameSnap.exists) throw Error('GAME_NOT_FOUND');
+      const x = gameSnap.data()!, ps = Array.isArray(x.players) ? x.players as Array<Record<string, unknown>> : [];
+      const actor = ps.find(p => p.uid === actorUid);
+      if (!trustedServer && actor?.isAlive !== true) throw Error('NOT_HOST');
+
+      if (!trustedServer && x.hostUid !== actorUid) {
+        const round = Number(x.roundNumber ?? 1);
+        if (!Number.isInteger(round)) throw Error('INVALID_ROUND');
+        const now = Date.now();
+        const phaseEndsAt = typeof x.phaseEndsAt === 'number' ? x.phaseEndsAt : null;
+        const deadlineReached = phaseEndsAt !== null && now >= phaseEndsAt;
+        const currentVotes = await votes(gr, round, ps);
+        const alivePlayers = buildAuthoritativeAiPlayers(ps);
+        const authoritativeVotes = ensureServerAiDayVotes({
+          gameId,
+          round,
+          bots: alivePlayers.filter(p => p.isAI),
+          alivePlayers,
+          currentVotes,
+          dayStartedAt: typeof x.dayStartedAt === 'number' ? x.dayStartedAt : null,
+          now,
+        });
+        const eligible = ps.filter(p => p.isAlive === true && typeof p.uid === 'string' && !isVoteBanned(x, p.uid as string));
+        const complete = eligible.length > 0 && eligible.every(p => typeof p.uid === 'string' && !!authoritativeVotes[p.uid as string]);
+        if (!complete && !deadlineReached) throw Error('INCOMPLETE_DAY');
+      }
+
       const id = lease(actorUid);
       const r = await db.runTransaction(async tx => {
         const [g, l] = await Promise.all([tx.get(gr), tx.get(lr)]);
         if (!g.exists) throw Error('GAME_NOT_FOUND');
-        const x = g.data()!, ps = Array.isArray(x.players) ? x.players as Array<Record<string, unknown>> : [];
-        if (!trustedServer && (x.hostUid !== actorUid || !ps.some(p => p.uid === actorUid))) throw Error('NOT_HOST');
-        if (x.phase !== 'day' && x.phase !== 'voting') throw Error('NOT_DAY');
-        const round = Number(x.roundNumber ?? 1);
+        const current = g.data()!;
+        const players = Array.isArray(current.players) ? current.players as Array<Record<string, unknown>> : [];
+        if (!trustedServer && !players.some(p => p.uid === actorUid && p.isAlive === true)) throw Error('NOT_HOST');
+        if (current.phase !== 'day' && current.phase !== 'voting') throw Error('NOT_DAY');
+        const round = Number(current.roundNumber ?? 1);
         if (!Number.isInteger(round)) throw Error('INVALID_ROUND');
         const now = Date.now();
         if (l.exists && (l.data() as Lock).expiresAt > now) throw Error('LOCKED');
@@ -92,25 +137,17 @@ export async function POST(req: NextRequest) {
     const g = gs.data()!, ps = Array.isArray(g.players) ? g.players as Array<Record<string, unknown>> : [];
     const round = Number(g.roundNumber ?? 1);
     if (round !== submitted) throw Error('ROUND_CHANGED');
-    if (!trustedServer && g.hostUid !== actorUid) throw Error('NOT_HOST');
+    if (!trustedServer && !ps.some(p => p.uid === actorUid && p.isAlive === true)) throw Error('NOT_HOST');
     if (g.phase !== 'day' && g.phase !== 'voting') throw Error('PHASE_CHANGED');
 
     const uids = ps.flatMap(p => typeof p.uid === 'string' ? [p.uid] : []);
     const snapshot = await readNightRoleSnapshot(gameId, uids);
     const currentVotes = await votes(gr, round, ps);
-    const alivePlayers = ps.filter(p => p.isAlive === true).map(p => ({
-      uid: String(p.uid ?? ''),
-      botType: typeof p.botType === 'string' ? p.botType : null,
-      isAI: p.isAI === true,
-      isAlive: p.isAlive === true,
-      voteBanned: p.voteBanned === true,
-      saboteadorBan: p.saboteadorBan === true,
-    }));
-    const aiPlayers = alivePlayers.filter(p => p.isAI === true);
+    const alivePlayers = buildAuthoritativeAiPlayers(ps);
     const authoritativeVotes = ensureServerAiDayVotes({
       gameId,
       round,
-      bots: aiPlayers,
+      bots: alivePlayers.filter(p => p.isAI),
       alivePlayers,
       currentVotes,
       dayStartedAt: typeof g.dayStartedAt === 'number' ? g.dayStartedAt : null,
@@ -126,7 +163,7 @@ export async function POST(req: NextRequest) {
       if (l.ownerUid !== actorUid || l.leaseId !== leaseId) throw Error('LEASE_LOST');
       if (l.round !== submitted || Number(current.roundNumber ?? 1) !== submitted) throw Error('ROUND_CHANGED');
       if (l.expiresAt <= now) throw Error('LEASE_EXPIRED');
-      if (!trustedServer && current.hostUid !== actorUid) throw Error('PHASE_CHANGED');
+      if (!trustedServer && !Array.isArray(current.players) || (!trustedServer && !(current.players as Array<Record<string, unknown>>).some(p => p.uid === actorUid && p.isAlive === true))) throw Error('PHASE_CHANGED');
       if (current.phase !== 'day' && current.phase !== 'voting') throw Error('PHASE_CHANGED');
       const cp = Array.isArray(current.players) ? current.players as Array<Record<string, unknown>> : [];
       const cu = cp.flatMap(p => typeof p.uid === 'string' ? [p.uid] : []);
@@ -158,14 +195,7 @@ export async function POST(req: NextRequest) {
 
       const currentEvent = current.currentEvent && typeof current.currentEvent === 'object' ? current.currentEvent as ChaosEvent : null;
       if (currentEvent?.mechanical === 'revive') {
-        const revived = applyChaosRevive(
-          gameId,
-          round,
-          resolvedPlayers,
-          resolvedHistory,
-          result.statePatch.roles,
-          resolvedWolfTeam,
-        );
+        const revived = applyChaosRevive(gameId, round, resolvedPlayers, resolvedHistory, result.statePatch.roles, resolvedWolfTeam);
         if (revived.targetUid) {
           sanitizedPlayers = revived.players.map(({ role: _privateRole, ...player }) => player);
           resolvedHistory = revived.eliminatedHistory;
@@ -173,7 +203,6 @@ export async function POST(req: NextRequest) {
           const revivedTarget = revived.targetUid;
           cazadorPendingShot = cazadorPendingShot === revivedTarget ? null : cazadorPendingShot;
           chivoPendingChoice = chivoPendingChoice === revivedTarget ? null : chivoPendingChoice;
-
           const revivedElimination = result.eliminated === revivedTarget ? null : result.eliminated;
           const revivedSecondElimination = result.secondEliminated === revivedTarget ? null : result.secondEliminated;
           const winResult = checkWinCondition(revived.players, result.statePatch.roles, {
