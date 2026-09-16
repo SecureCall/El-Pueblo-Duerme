@@ -17,6 +17,8 @@ export type DayAiVoteInput = {
   currentVotes: Record<string, string>;
   dayStartedAt?: number | null;
   now?: number;
+  sirenaUid?: string | null;
+  sirenaLinkedUid?: string | null;
 };
 
 export const BOT_DAY_VOTE_WINDOWS: Record<BotType, readonly [number, number]> = {
@@ -73,6 +75,12 @@ export function getServerAiDayVote(input: DayAiVoteInput): string | null {
     .sort((a, b) => a.uid.localeCompare(b.uid));
   if (candidates.length === 0) return null;
 
+  if (input.sirenaLinkedUid === bot.uid && input.sirenaUid) {
+    const sirenaTarget = currentVotes[input.sirenaUid];
+    if (typeof sirenaTarget === 'string' && candidates.some(p => p.uid === sirenaTarget)) return sirenaTarget;
+    return null;
+  }
+
   const counts = voteCounts(currentVotes);
   const leader = () => {
     const max = Math.max(0, ...candidates.map(p => counts[p.uid] ?? 0));
@@ -100,6 +108,17 @@ export function ensureServerAiDayVotes(
 ): Record<string, string> {
   const next = { ...input.currentVotes };
   const bots = [...input.bots].sort((a, b) => a.uid.localeCompare(b.uid));
+
+  // Sirena's vote is authoritative for a linked voter. Generate the Sirena first
+  // when she is an AI so the result is independent of UID ordering.
+  if (input.sirenaUid) {
+    const sirena = bots.find(bot => bot.uid === input.sirenaUid);
+    if (sirena && !next[sirena.uid]) {
+      const target = getServerAiDayVote({ ...input, bot: sirena, currentVotes: next });
+      if (target) next[sirena.uid] = target;
+    }
+  }
+
   for (const bot of bots) {
     if (next[bot.uid]) continue;
     const target = getServerAiDayVote({ ...input, bot, currentVotes: next });
