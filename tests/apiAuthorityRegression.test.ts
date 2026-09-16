@@ -14,8 +14,9 @@ describe('API authority regression guards', () => {
 
     expect(source).toContain('verifyAuthToken');
     expect(source).toContain("if (!tokenUid) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });");
-    expect(source).toContain('const authorizedHuman = tokenUid === uid;');
-    expect(source).toContain('const authorizedAI = voter.isAI === true && tokenUid === game.hostUid;');
+    expect(source).toContain('if (tokenUid !== uid) throw new Error(\'UID_FORBIDDEN\');');
+    expect(source).not.toContain('authorizedAI');
+    expect(source).not.toContain('tokenUid === game.hostUid');
     expect(source).toContain('currentRound');
     expect(source).toContain('RESOLUTION_LOCKED');
   });
