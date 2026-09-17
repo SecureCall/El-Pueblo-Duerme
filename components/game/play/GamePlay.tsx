@@ -10,7 +10,7 @@ import {
 } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
 import { assignRoles, checkWinCondition, ROLES, ROLE_SUBMISSION_KEY, drawRandomEvent } from './roles';
-import { BOT_VOTE_CONFIG, pickBotVoteTarget, type BotType, FALLBACK_BOT_MESSAGES, BOT_NARRATOR_SPOTLIGHTS } from '@/lib/bots/botSystem';
+import { type BotType, FALLBACK_BOT_MESSAGES, BOT_NARRATOR_SPOTLIGHTS } from '@/lib/bots/botSystem';
 import { recordVote, recordGameResult } from '@/lib/bots/playerStats';
 import { sendPushToMany } from '@/lib/firebase/push';
 import { RoleReveal } from './RoleReveal';
@@ -27,6 +27,7 @@ import { MomentBanner, buildMoment, type Moment } from './MomentBanner';
 import { playNightAmbience, playDayAmbience, stopAllAmbience, playDeathSting, playVoteAlarm, playGameStart, playVictory, playDefeat } from '@/lib/gameAudio';
 import { requestNightAction } from '@/lib/game/nightActions';
 import { requestResolveNight } from '@/lib/game/resolveNight';
+import { requestResolveDay } from '@/lib/game/resolveDay';
 import { requestStartNight } from '@/lib/game/startNight';
 import { requestNarratorBroadcast } from '@/lib/game/narratorBroadcast';
 import { requestHostTakeover } from '@/lib/game/hostTakeover';
@@ -215,11 +216,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
   };
   const aiChatSentRound = useRef<number>(-1);
   const aiNightSubmittedRound = useRef<number>(-1);
-  const aiDayVotedRound = useRef<number>(-1);
   const wolfChatLastProcessed = useRef<string>('');
   const prevPhase = useRef<string | null>(null);
-  const processingDayRef = useRef(false);
-  const dayResolutionLeaseRef = useRef<string | null>(null);
   const narratorInterruptAt = useRef<number>(0);
   const narratorInterruptRound = useRef<number>(-1);
   const processingNightRef = useRef(false);
@@ -274,7 +272,6 @@ export function GamePlay({ gameId }: { gameId: string }) {
       playVoteAlarm();
     }
     if (prevPhase.current === 'day' && phase === 'night') {
-      processingDayRef.current = false;
       stopAllAmbience();
       const history = game.eliminatedHistory ?? [];
       const lastElim = history[history.length - 1];
@@ -346,6 +343,29 @@ export function GamePlay({ gameId }: { gameId: string }) {
     return () => unsub();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.phase, game?.roundNumber, gameId]);
+
+  // ── Server-authoritative day resolver trigger ───────────────────────────
+  const dayResolveInFlightRef = useRef(false);
+  useEffect(() => {
+    if (!game || !user || game.phase !== 'day') return;
+    const me = (game.players ?? []).find(p => p.uid === user.uid);
+    if (!me?.isAlive) return;
+    const attempt = async () => {
+      if (dayResolveInFlightRef.current) return;
+      dayResolveInFlightRef.current = true;
+      try {
+        await requestResolveDay(gameId);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message !== 'INCOMPLETE_DAY') console.warn('[DayResolution] server trigger did not commit:', message);
+      } finally {
+        dayResolveInFlightRef.current = false;
+      }
+    };
+    void attempt();
+    const timer = setInterval(() => { void attempt(); }, 2000);
+    return () => clearInterval(timer);
+  }, [game?.phase, game?.roundNumber, game?.phaseEndsAt, game?.players, user?.uid, gameId]);
 
   // ── Host absence detection: check /presence every 30s, auto-claim after 5min ─
   useEffect(() => {
@@ -919,78 +939,6 @@ export function GamePlay({ gameId }: { gameId: string }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.phase, game?.roundNumber]);
 
-  // Host auto-votes for AI players during day — personality-based timing
-  useEffect(() => {
-    if (!game || !user || game.hostUid !== user.uid) return;
-    if (game.phase !== 'day') return;
-
-    const round = game.roundNumber ?? 1;
-    if (aiDayVotedRound.current === round) return;
-
-    const alivePlayers = (game.players ?? []).filter(p => p.isAlive);
-    const aiAlive = alivePlayers.filter(p => p.isAI);
-    if (aiAlive.length === 0) return;
-
-    const dayStarted = game.dayStartedAt ?? Date.now();
-    const elapsed = Date.now() - dayStarted;
-    const voteBanned = game.voteBanned ?? [];
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    const alreadyVoted = new Set<string>(Object.keys(votesFromSub));
-
-    for (const ai of aiAlive) {
-      if (alreadyVoted.has(ai.uid) || voteBanned.includes(ai.uid)) continue;
-      const bType = (ai.botType ?? 'caotico') as BotType;
-      const cfg = BOT_VOTE_CONFIG[bType];
-      const targetDelay = cfg.minDelay + Math.random() * (cfg.maxDelay - cfg.minDelay);
-      const waitMs = Math.max(500, targetDelay - elapsed);
-      const capturedUid = ai.uid;
-
-      const t = setTimeout(async () => {
-        try {
-          const snap = await getDoc(doc(db, 'games', gameId));
-          if (!snap.exists()) return;
-          const freshGame = snap.data() as GameState;
-          if (freshGame.phase !== 'day' || (freshGame.roundNumber ?? 1) !== round) return;
-
-          const freshAlive = (freshGame.players ?? []).filter(p => p.isAlive);
-          const allCurrentVotes: Record<string, string> = freshGame.dayVotes ?? {};
-
-          // Verdugo AI: 80% de probabilidad de votar a su objetivo secreto si sigue vivo
-          const verdugoTarget = freshGame.verdugos?.[capturedUid];
-          const verdugoTargetAlive = verdugoTarget && freshAlive.some(p => p.uid === verdugoTarget);
-          const targetUid = (verdugoTargetAlive && Math.random() < 0.8)
-            ? verdugoTarget!
-            : pickBotVoteTarget(bType, capturedUid, freshAlive, allCurrentVotes);
-          if (!targetUid) return;
-
-          const idToken = await user.getIdToken();
-          const voteResponse = await fetch('/api/day-vote', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-            body: JSON.stringify({ gameId, uid: capturedUid, target: targetUid, round }),
-          });
-          if (!voteResponse.ok) return;
-
-          // Narrador spotlight: 28% de probabilidad de mencionar al bot
-          if (Math.random() < 0.28) {
-            const botPlayer = aiAlive.find(p => p.uid === capturedUid);
-            if (botPlayer) {
-              const bTypeSpot = (botPlayer.botType ?? 'caotico') as BotType;
-              const spotlights = BOT_NARRATOR_SPOTLIGHTS[bTypeSpot];
-              const spot = spotlights[Math.floor(Math.random() * spotlights.length)];
-              const spotText = spot.text.replace(/\{name\}/g, botPlayer.name);
-              requestNarratorBroadcast(gameId, spotText, spot.type).catch(() => {});
-            }
-          }
-        } catch { /* ignore */ }
-      }, waitMs);
-      timers.push(t);
-    }
-
-    aiDayVotedRound.current = round;
-    return () => timers.forEach(clearTimeout);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.phase, game?.roundNumber, game?.dayStartedAt]);
 
   // ── Host: narrador IA interrumpe el debate en tiempo real ──────────────
   useEffect(() => {
@@ -1055,43 +1003,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.phase, game?.roundNumber, game?.dayStartedAt]);
 
-  // Host processes day votes when all eligible alive players have voted
-  useEffect(() => {
-    if (!game || !user || game.hostUid !== user.uid) return;
-    if (game.phase !== 'day') return;
-    const alivePlayers = (game.players ?? []).filter(p => p.isAlive);
-    const voteBanned = game.voteBanned ?? [];
-    const eligible = alivePlayers.filter(p => !voteBanned.includes(p.uid));
-    const votedCount = eligible.filter(p => !!votesFromSub[p.uid]).length;
-    if (votedCount >= eligible.length && eligible.length > 0) {
-      processDayVotes(votesFromSub);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [votesFromSub, game?.phase]);
 
-  // ── Anti-softlock: force processDayVotes when day timer expires ───────────
-  useEffect(() => {
-    if (!game || !user || game.hostUid !== user.uid) return;
-    if (game.phase !== 'day') return;
-    // Use server phaseEndsAt if available, else compute locally
-    const endsAt = game.phaseEndsAt ?? (() => {
-      const alive = (game.players ?? []).filter(p => p.isAlive).length;
-      const base = Math.min(300, Math.max(60, alive * 20));
-      const mech = game.currentEvent?.mechanical;
-      const dur = mech === 'extraTime' ? Math.min(300, base + 30)
-        : mech === 'halfTime' ? Math.max(30, Math.floor(base / 2))
-        : base;
-      return (game.dayStartedAt ?? Date.now()) + dur * 1000 + 2000;
-    })();
-    const remaining = Math.max(0, endsAt - Date.now());
-    const t = setTimeout(() => {
-      if (game.phase !== 'day' || processingDayRef.current) return;
-      console.warn('[Anti-softlock] Day timer expired → forcing processDayVotes');
-      processDayVotes(votesFromSub);
-    }, remaining);
-    return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.phase, game?.roundNumber, game?.dayStartedAt, game?.phaseEndsAt]);
 
   // ── Micro-momento: duda en votación ──────────────────────────────────────
   const hesitationFiredRef = useRef(false);
@@ -1125,456 +1037,6 @@ export function GamePlay({ gameId }: { gameId: string }) {
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.phase, game?.roundNumber]);
-
-  async function processDayVotes(dayVotes: Record<string, string>) {
-    if (!game) return;
-    if (game.phase !== 'day' && game.phase !== 'voting') { return; }
-    if (processingDayRef.current) return;
-    processingDayRef.current = true;
-    let dayLeaseId: string | null = null;
-    try {
-      if (!user) throw new Error('AUTH_REQUIRED');
-      const idToken = await user.getIdToken();
-      const lockResponse = await fetch('/api/day-resolve', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` }, body: JSON.stringify({ gameId, action: 'claim' }) });
-      const lockData = await lockResponse.json().catch(() => ({}));
-      if (!lockResponse.ok || !lockData.ok || !lockData.leaseId) { processingDayRef.current = false; return; }
-      dayLeaseId = lockData.leaseId;
-      dayResolutionLeaseRef.current = dayLeaseId;
-      if (Number(lockData.round) !== (game.roundNumber ?? 1)) { processingDayRef.current = false; return; }
-      dayVotes = lockData.votes ?? {};
-    } catch (e) {
-      console.error('[DayResolution] lease claim failed:', e);
-      processingDayRef.current = false;
-      return;
-    }
-    const roles = game.roles ?? {};
-    const newRoles = { ...roles };
-    const salvajeMentors = game.salvajeMentors ?? {};
-    const perroLoboChoices = game.perroLoboChoices ?? {};
-    const round = game.roundNumber ?? 1;
-    const aliveBeforeDay = new Set((game.players ?? []).filter(p => p.isAlive).map(p => p.uid));
-    const verdugos = game.verdugos ?? {};
-    const virginiawoolFate = game.virginiawoolFate ?? {};
-    let fantasmaPending = [...(game.fantasmaPending ?? [])];
-    const fantasmaUsed = [...(game.fantasmaUsed ?? [])];
-    const lovers = game.lovers; // ✅ CORREGIDO: declarado al inicio para evitar TDZ
-
-    // Sirena: force sirena-linked player to vote same as sirena
-    const sirenaLinked = game.sirenaLinked;
-    const sirenaUid = game.sirenaUid;
-    const effectiveDayVotes = { ...dayVotes };
-    if (sirenaLinked && sirenaUid && effectiveDayVotes[sirenaUid]) {
-      effectiveDayVotes[sirenaLinked] = effectiveDayVotes[sirenaUid];
-    }
-
-    // Apply vote ban (includes Saboteador's nightly ban)
-    const voteBanned = [...(game.voteBanned ?? [])];
-    if (game.saboteadorBan && !voteBanned.includes(game.saboteadorBan)) voteBanned.push(game.saboteadorBan);
-    const effectiveVotes: Record<string, string> = {};
-    for (const [voter, target] of Object.entries(effectiveDayVotes)) {
-      if (!voteBanned.includes(voter)) effectiveVotes[voter] = target;
-    }
-
-    // Tally (Alcalde gets double vote)
-    const tally: Record<string, number> = {};
-    for (const [voterUid, target] of Object.entries(effectiveVotes)) {
-      const multiplier = newRoles[voterUid] === 'Alcalde' ? 2 : 1;
-      tally[target] = (tally[target] ?? 0) + multiplier;
-    }
-
-    // Maldición de Venganza: +1 voto al maldito si la maldición es de esta ronda
-    const cursed = game.cursed;
-    if (cursed?.uid && (cursed.round === round || cursed.round === round - 1)) {
-      if (aliveBeforeDay.has(cursed.uid)) {
-        tally[cursed.uid] = (tally[cursed.uid] ?? 0) + 1;
-      }
-    }
-
-    let maxVotes = 0;
-    let eliminated: string | null = null;
-    let isTie = false;
-
-    // Evento: Democracia Inversa — el menos votado es exiliado
-    if (game.currentEvent?.mechanical === 'inverterVotes' && Object.keys(tally).length > 0) {
-      let minVotes = Infinity;
-      for (const [uid, count] of Object.entries(tally)) {
-        if (count < minVotes) { minVotes = count; eliminated = uid; isTie = false; }
-        else if (count === minVotes) { isTie = true; }
-      }
-      if (isTie) eliminated = null;
-    } else {
-      for (const [uid, count] of Object.entries(tally)) {
-        if (count > maxVotes) { maxVotes = count; eliminated = uid; isTie = false; }
-        else if (count === maxVotes && maxVotes > 0) { isTie = true; }
-      }
-      if (isTie) eliminated = null;
-    }
-
-    // Evento: Doble Ejecución — los 2 más votados son exiliados
-    let secondEliminated: string | null = null;
-    if (game.currentEvent?.mechanical === 'dobleEjecucion' && Object.keys(tally).length >= 2) {
-      const sorted = Object.entries(tally).sort((a, b) => b[1] - a[1]);
-      if (sorted.length >= 2 && sorted[1][1] > 0) {
-        secondEliminated = sorted[1][0];
-      }
-    }
-
-    // Evento: Tormenta — nadie puede ser exiliado hoy
-    if (game.noExileActive) { eliminated = null; secondEliminated = null; }
-
-    // Chivo Expiatorio: dies on tie
-    let chivoPendingChoice: string | null = null;
-    let players = [...(game.players ?? [])];
-    const history = [...(game.eliminatedHistory ?? [])];
-    const enchanted = [...(game.enchanted ?? [])];
-
-    if (isTie && !game.noExileActive) {
-      const chivoPlayer = players.find(p => p.isAlive && newRoles[p.uid] === 'Chivo Expiatorio');
-      if (chivoPlayer) { eliminated = chivoPlayer.uid; chivoPendingChoice = chivoPlayer.uid; }
-    }
-
-    // Alborotadora fight: both fighters die (Prince check applies to fighters too)
-    const alborotadoraFight = game.alborotadoraFight;
-    if (alborotadoraFight) {
-      for (const fightUid of alborotadoraFight) {
-        const fighter = players.find(p => p.uid === fightUid && p.isAlive);
-        if (fighter) {
-          // Príncipe sobrevive la pelea si no ha usado su poder
-          if (newRoles[fightUid] === 'Príncipe' && !game.principeUsed) {
-            await updateDoc(doc(db, 'games', gameId), { principeUsed: true }).catch(() => {});
-            continue; // El Príncipe no muere en la pelea
-          }
-          players = players.map(p => p.uid === fightUid ? { ...p, isAlive: false } : p);
-          history.push({ uid: fighter.uid, name: fighter.name, role: newRoles[fighter.uid] ?? 'Aldeano', round });
-          if (newRoles[fightUid] === 'Fantasma' && !fantasmaUsed.includes(fightUid)) {
-            fantasmaPending.push(fightUid);
-          }
-        }
-      }
-    }
-
-    // Cascada Enamorados / Gemelas / Virginia Woolf para muertes de Alborotadora
-    if (alborotadoraFight) {
-      for (const fightUid of alborotadoraFight) {
-        if (!players.find(p => p.uid === fightUid)?.isAlive && aliveBeforeDay.has(fightUid)) {
-          if (lovers) {
-            const [l1, l2] = lovers;
-            const partnerUid = fightUid === l1 ? l2 : fightUid === l2 ? l1 : null;
-            if (partnerUid && players.find(p => p.uid === partnerUid && p.isAlive)) {
-              players = players.map(p => p.uid === partnerUid ? { ...p, isAlive: false } : p);
-              const partner = players.find(p => p.uid === partnerUid);
-              if (partner) history.push({ uid: partnerUid, name: partner.name, role: newRoles[partnerUid] ?? 'Aldeano', round });
-            }
-          }
-          const gemelas = players.filter(p => newRoles[p.uid] === 'Gemela' || newRoles[p.uid] === 'Gemelas');
-          if (gemelas.length === 2) {
-            const [g1, g2] = gemelas;
-            const partnerGemela = fightUid === g1.uid ? g2 : fightUid === g2.uid ? g1 : null;
-            if (partnerGemela && players.find(p => p.uid === partnerGemela.uid && p.isAlive)) {
-              players = players.map(p => p.uid === partnerGemela.uid ? { ...p, isAlive: false } : p);
-              history.push({ uid: partnerGemela.uid, name: partnerGemela.name, role: newRoles[partnerGemela.uid] ?? 'Aldeano', round });
-            }
-          }
-          for (const [woolUid, linkedUid] of Object.entries(virginiawoolFate)) {
-            if (fightUid === woolUid && players.find(p => p.uid === linkedUid && p.isAlive)) {
-              players = players.map(p => p.uid === linkedUid ? { ...p, isAlive: false } : p);
-              const linked = players.find(p => p.uid === linkedUid);
-              if (linked) history.push({ uid: linkedUid, name: linked.name, role: newRoles[linkedUid] ?? 'Aldeano', round });
-            }
-          }
-        }
-      }
-    }
-
-    // Si el más votado murió en la pelea de la Alborotadora, cancelar eliminación normal (evitar doble historia y cascada)
-    if (eliminated && alborotadoraFight?.includes(eliminated)) {
-      if (!players.find(p => p.uid === eliminated && p.isAlive)) {
-        eliminated = null;
-      }
-    }
-
-    if (eliminated) {
-      const victim = players.find(p => p.uid === eliminated);
-      if (victim && victim.isAlive) {
-
-        // Príncipe: survives one lynch
-        if (newRoles[eliminated] === 'Príncipe' && !game.principeUsed) {
-          // Prince reveals and survives — don't eliminate
-          eliminated = null;
-          await updateDoc(doc(db, 'games', gameId), {
-            principeUsed: true,
-            alborotadoraFight: null,
-          }).catch(() => {});
-          processingDayRef.current = false;
-          return;
-        }
-
-        // Antiguo: if eliminated by village, all special roles lose powers
-        if (newRoles[eliminated] === 'Antiguo') {
-          for (const uid of Object.keys(newRoles)) {
-            const role = newRoles[uid];
-            if (role !== 'Lobo' && role !== 'Lobo Blanco' && role !== 'Cría de Lobo' && role !== 'Aldeano') {
-              newRoles[uid] = 'Aldeano';
-            }
-          }
-        }
-
-        players = players.map(p => p.uid === eliminated ? { ...p, isAlive: false } : p);
-        history.push({ uid: victim.uid, name: victim.name, role: newRoles[victim.uid] ?? 'Aldeano', round });
-
-        // Fantasma pending
-        if (newRoles[eliminated!] === 'Fantasma' && !fantasmaUsed.includes(eliminated!)) {
-          fantasmaPending.push(eliminated!);
-        }
-      }
-    }
-
-    // Doble Ejecución: también eliminar al segundo más votado
-    if (secondEliminated && secondEliminated !== eliminated) {
-      const victim2 = players.find(p => p.uid === secondEliminated && p.isAlive);
-      if (victim2) {
-        players = players.map(p => p.uid === secondEliminated ? { ...p, isAlive: false } : p);
-        history.push({ uid: victim2.uid, name: victim2.name, role: newRoles[victim2.uid] ?? 'Aldeano', round });
-        if (newRoles[secondEliminated] === 'Fantasma' && !fantasmaUsed.includes(secondEliminated)) {
-          fantasmaPending.push(secondEliminated);
-        }
-        // Cascada Enamorados para secondEliminated
-        if (lovers) {
-          const [l1, l2] = lovers;
-          const partnerUid2 = secondEliminated === l1 ? l2 : secondEliminated === l2 ? l1 : null;
-          if (partnerUid2 && players.find(p => p.uid === partnerUid2 && p.isAlive)) {
-            players = players.map(p => p.uid === partnerUid2 ? { ...p, isAlive: false } : p);
-            const partner2 = players.find(p => p.uid === partnerUid2);
-            if (partner2) history.push({ uid: partnerUid2, name: partner2.name, role: newRoles[partnerUid2] ?? 'Aldeano', round });
-          }
-        }
-        // Cascada Gemelas para secondEliminated
-        const gemelas2 = players.filter(p => newRoles[p.uid] === 'Gemela' || newRoles[p.uid] === 'Gemelas');
-        if (gemelas2.length === 2) {
-          const [g1, g2] = gemelas2;
-          const partnerGemela2 = secondEliminated === g1.uid ? g2 : secondEliminated === g2.uid ? g1 : null;
-          if (partnerGemela2 && players.find(p => p.uid === partnerGemela2.uid && p.isAlive)) {
-            players = players.map(p => p.uid === partnerGemela2.uid ? { ...p, isAlive: false } : p);
-            history.push({ uid: partnerGemela2.uid, name: partnerGemela2.name, role: newRoles[partnerGemela2.uid] ?? 'Aldeano', round });
-          }
-        }
-      }
-    }
-
-    // Track new wolf team members added during day phase
-    const newWolfTeamEntriesDay: Record<string, boolean> = {};
-
-    // Niño Salvaje: if mentor eliminated, convert to wolf
-    for (const [salvajeUid, mentorUid] of Object.entries(salvajeMentors)) {
-      const mentor = players.find(p => p.uid === mentorUid);
-      if (mentor && !mentor.isAlive && newRoles[salvajeUid] === 'Niño Salvaje') {
-        newRoles[salvajeUid] = 'Lobo';
-        players = players.map(p => p.uid === salvajeUid ? { ...p, role: 'Lobo' } : p);
-        newWolfTeamEntriesDay[salvajeUid] = true;
-      }
-    }
-
-    // Cambiaformas: adopt role if followed player was lynched/killed during day
-    const cambiaformasTargetsDay = { ...(game.cambiaformasTargets ?? {}) };
-    for (const [cfUid, targetUid] of Object.entries(cambiaformasTargetsDay)) {
-      const cf = players.find(p => p.uid === cfUid && p.isAlive);
-      const target = players.find(p => p.uid === targetUid);
-      if (cf && target && !target.isAlive && aliveBeforeDay.has(targetUid)) {
-        newRoles[cfUid] = roles[targetUid] ?? 'Aldeano';
-        players = players.map(p => p.uid === cfUid ? { ...p, role: newRoles[cfUid] } : p);
-        if (['Lobo', 'Lobo Blanco', 'Cría de Lobo'].includes(newRoles[cfUid])) {
-          newWolfTeamEntriesDay[cfUid] = true;
-        }
-        delete cambiaformasTargetsDay[cfUid];
-      }
-    }
-
-    // Lovers cascade
-    // const lovers = game.lovers; // ❌ ELIMINADO: ya declarado al inicio
-    if (lovers && eliminated) {
-      const [l1, l2] = lovers;
-      const partnerUid = eliminated === l1 ? l2 : eliminated === l2 ? l1 : null;
-      if (partnerUid && players.find(p => p.uid === partnerUid && p.isAlive)) {
-        players = players.map(p => p.uid === partnerUid ? { ...p, isAlive: false } : p);
-        const partner = players.find(p => p.uid === partnerUid);
-        if (partner) history.push({ uid: partnerUid, name: partner.name, role: newRoles[partnerUid] ?? 'Aldeano', round });
-      }
-    }
-
-    // Gemela cascade
-    const gemelas = players.filter(p => newRoles[p.uid] === 'Gemela' || newRoles[p.uid] === 'Gemelas');
-    if (gemelas.length === 2 && eliminated) {
-      const [g1, g2] = gemelas;
-      const partnerGemela = eliminated === g1.uid ? g2 : eliminated === g2.uid ? g1 : null;
-      if (partnerGemela && players.find(p => p.uid === partnerGemela.uid && p.isAlive)) {
-        players = players.map(p => p.uid === partnerGemela.uid ? { ...p, isAlive: false } : p);
-        history.push({ uid: partnerGemela.uid, name: partnerGemela.name, role: newRoles[partnerGemela.uid] ?? 'Aldeano', round });
-      }
-    }
-
-    // Virginia Woolf fate cascade
-    if (eliminated) {
-      for (const [woolUid, linkedUid] of Object.entries(virginiawoolFate)) {
-        if (eliminated === woolUid) {
-          const linked = players.find(p => p.uid === linkedUid && p.isAlive);
-          if (linked) {
-            players = players.map(p => p.uid === linkedUid ? { ...p, isAlive: false } : p);
-            history.push({ uid: linkedUid, name: linked.name, role: newRoles[linkedUid] ?? 'Aldeano', round });
-          }
-        }
-      }
-    }
-
-    // ── Aprendiz de Vidente: inherit if Vidente was lynched ──────────────
-    {
-      const videnteDiedDay = players.some(
-        p => (newRoles[p.uid] === 'Vidente' || roles[p.uid] === 'Vidente') &&
-          !p.isAlive && aliveBeforeDay.has(p.uid)
-      );
-      if (videnteDiedDay) {
-        const aprendiz = players.find(p => newRoles[p.uid] === 'Aprendiz de Vidente' && p.isAlive);
-        if (aprendiz) {
-          newRoles[aprendiz.uid] = 'Vidente';
-          players = players.map(p => p.uid === aprendiz.uid ? { ...p, role: 'Vidente' } : p);
-        }
-      }
-    }
-
-    // Cazador: if eliminated by vote, queue last shot
-    const deadCazadorDay = players.find(p =>
-      !p.isAlive && aliveBeforeDay.has(p.uid) && newRoles[p.uid] === 'Cazador'
-    );
-    const cazadorPendingShot = deadCazadorDay?.uid ?? null;
-
-    const winResult = checkWinCondition(players, newRoles, {
-      enchanted, round,
-      dayEliminatedUid: eliminated,
-      secondEliminatedUid: secondEliminated,
-      eliminatedByVote: true,
-      perroLoboChoices,
-      cultMembers: game.cultMembers ?? [],
-      vampiroKills: game.vampiroKills ?? 0,
-      pescadorBoat: game.pescadorBoat ?? [],
-      hadaLinked: game.hadaLinked ?? false,
-      lovers: game.lovers ?? [],
-    });
-
-    // Verdugo win check: if their secret target was lynched
-    let verdugosWin = false;
-    let verdugosWinMsg = '';
-    for (const [verdUid, targetUid] of Object.entries(verdugos)) {
-      if (eliminated === targetUid && aliveBeforeDay.has(verdUid)) {
-        verdugosWin = true;
-        const verdPlayer = players.find(p => p.uid === verdUid);
-        verdugosWinMsg = `¡El Verdugo ${verdPlayer?.name ?? ''} consiguió linchar a su objetivo secreto y gana solo!`;
-        break;
-      }
-    }
-
-    // Banshee: check day-phase prediction (predicted the lynched player)
-    let bansheePoints = game.bansheePoints ?? 0;
-    if (game.bansheePredictionUid && game.bansheePredictionUid === eliminated) {
-      bansheePoints += 1;
-    }
-    const bansheePlayer = players.find(p => newRoles[p.uid] === 'Banshee' && p.isAlive);
-    const bansheeWinDay = bansheePoints >= 2 && !!bansheePlayer;
-
-    const finalWinner = bansheeWinDay ? 'banshee' : verdugosWin ? 'verdugo' : winResult.winner;
-    const finalMsg = bansheeWinDay
-      ? `¡La Banshee predijo correctamente al ejecutado del pueblo y alcanza 2 predicciones! ¡Gana sola!`
-      : verdugosWin ? verdugosWinMsg : winResult.message;
-
-    // ── Epic Moments: trigger narrative banners ───────────────────────────
-    if (!finalWinner) {
-      const alivePlayers = players.filter(p => p.isAlive);
-      const wolfTeamUidsNow = new Set(Object.keys(game.wolfTeam ?? {}));
-      const aliveWolves = alivePlayers.filter(p => wolfTeamUidsNow.has(p.uid));
-      const aliveVillage = alivePlayers.filter(p => !wolfTeamUidsNow.has(p.uid));
-
-      if (eliminated) {
-        const elimRole = newRoles[eliminated] ?? 'Aldeano';
-        const elimName = players.find(p => p.uid === eliminated)?.name ?? '???';
-        const wasWolf = wolfTeamUidsNow.has(eliminated);
-        if (wasWolf) triggerMoment(buildMoment('wolf_eliminated', { name: elimName, role: elimRole }));
-        else if (['Vidente', 'Hechicera', 'Doctor', 'Cazador'].includes(elimRole))
-          triggerMoment(buildMoment('unexpected_death', { name: elimName, role: elimRole }));
-      }
-      if (isTie) triggerMoment(buildMoment('tie_vote'));
-      if (aliveWolves.length === 1) triggerMoment(buildMoment('last_wolf', { name: aliveWolves[0].name }));
-      if (aliveWolves.length > 0 && aliveVillage.length <= aliveWolves.length + 1)
-        triggerMoment(buildMoment('final_battle'));
-    }
-
-    // Registrar estadísticas de jugadores reales al terminar partida
-    if (finalWinner) {
-      const wolfTeamUids = new Set(Object.keys(game.wolfTeam ?? {}));
-      (game.players ?? []).filter(p => !p.isAI).forEach(p => {
-        const role = newRoles[p.uid] ?? 'Aldeano';
-        const isWolfSide = wolfTeamUids.has(p.uid);
-        const playerWon = isWolfSide ? finalWinner === 'wolves' : finalWinner === 'village';
-        recordGameResult(p.uid, playerWon, role).catch(() => {});
-      });
-    }
-
-    try {
-      const dayPatch = {
-        players,
-        roles: newRoles,
-        eliminatedHistory: history,
-        enchanted,
-        cazadorPendingShot: cazadorPendingShot && !finalWinner ? cazadorPendingShot : null,
-        chivoPendingChoice: chivoPendingChoice && !finalWinner ? chivoPendingChoice : null,
-        voteBanned: [],
-        alquimistaPotion: null,
-        alquimistaRevealUid: null,
-        juezUsed: false,
-        alborotadoraFight: null,
-        fantasmaPending,
-        silencedPlayers: [],
-        bansheePredictionUid: null,
-        bansheePoints,
-        phase: finalWinner ? 'ended' : 'night',
-        winners: finalWinner ?? null,
-        winMessage: finalMsg ?? null,
-        roundNumber: round + 1,
-        dayVotes: {},
-        dayEliminatedUid: null,
-        seerReveal: null,
-        seerReveal2: null,
-        profetaReveal: null,
-        nightActions: {},
-        nightSubmissions: {},
-        bearGrowl: false,
-        nightStartedAt: finalWinner ? null : Date.now(),
-        phaseEndsAt: finalWinner ? null : Date.now() + 60000,
-        currentEvent: null,
-        eclipseActive: false,
-        doubleSeerActive: false,
-        anonymousVotesActive: false,
-        noExileActive: false,
-        saboteadorBan: null,
-        cambiaformasTargets: cambiaformasTargetsDay,
-        wolfTeam: Object.keys(newWolfTeamEntriesDay).length > 0
-          ? { ...(game.wolfTeam ?? {}), ...newWolfTeamEntriesDay }
-          : (game.wolfTeam ?? {}),
-        revealDeadResult: null,
-    };
-    const commitToken = await user.getIdToken();
-    const commitResponse = await fetch('/api/day-resolve', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${commitToken}` }, body: JSON.stringify({ gameId, action: 'commit', leaseId: dayLeaseId, round, patch: dayPatch }) });
-    if (!commitResponse.ok) { const commitData = await commitResponse.json().catch(() => ({})); throw new Error(commitData.error || 'DAY_COMMIT_REJECTED'); }
-    } catch (e) {
-      console.error('processDayVotes error:', e);
-    } finally {
-      if (dayLeaseId) {
-        try {
-          const idToken = await user?.getIdToken();
-          if (idToken) await fetch('/api/day-resolve', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` }, body: JSON.stringify({ gameId, action: 'release', leaseId: dayLeaseId }) });
-        } catch (e) { console.warn('[DayResolution] lease release failed:', e); }
-        if (dayResolutionLeaseRef.current === dayLeaseId) dayResolutionLeaseRef.current = null;
-      }
-      processingDayRef.current = false;
-    }
-  }
 
   // Cazador fires last shot
   const applyCazadorShot = useCallback(async (targetUid: string) => {
@@ -2099,11 +1561,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
           onJuezSecondVote={juezCallSecondVote}
           onAlborotadoraFight={alborotadoraChooseFight}
           votesFromSub={votesFromSub}
-          onTimerEnd={() => {
-            if (game.hostUid === user.uid) {
-              processDayVotes(votesFromSub);
-            }
-          }}
+          onTimerEnd={() => {}}
         />
       </div>
     );
