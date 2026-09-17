@@ -1,0 +1,24 @@
+name: tmp-verify-day-migration
+
+on:
+  push:
+    branches:
+      - audit/role-swap-authority
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Unit tests
+        run: npm test -- --run
+      - name: Production build
+        run: npm run build
