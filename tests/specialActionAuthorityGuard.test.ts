@@ -31,6 +31,16 @@ describe('authoritative special-action guards', () => {
     expect(juezRoute).toContain("PHASE_EXPIRED");
   });
 
+  it('keeps Ghost and AI wolf chat persistence on the server', () => {
+    const ghostRoute = readFileSync(resolve(process.cwd(), 'app/api/fantasma-message/route.ts'), 'utf8');
+    const wolfRoute = readFileSync(resolve(process.cwd(), 'app/api/wolf-agree/route.ts'), 'utf8');
+    const gameplay = readFileSync(resolve(process.cwd(), 'components/game/play/GamePlay.tsx'), 'utf8');
+    expect(ghostRoute).toContain('pass = body?.pass === true');
+    expect(ghostRoute).toContain('tx.update(gameRef');
+    expect(wolfRoute).toContain("source: 'server-wolf-ai'");
+    expect(gameplay).not.toContain("addDoc(collection(db, 'games', gameId, 'wolfChat')");
+  });
+
   it('provides a client helper instead of direct Juez state mutation', () => {
     expect(specialActions).toContain("'/api/juez-second-vote'");
     expect(specialActions).toContain('requestJuezSecondVote');
