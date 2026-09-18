@@ -965,30 +965,19 @@ export function GamePlay({ gameId }: { gameId: string }) {
         narratorInterruptAt.current = Date.now();
         narratorInterruptRound.current = round;
 
-        const alivePlayers = (game.players ?? []).filter(p => p.isAlive);
-        const elapsed = Math.floor((Date.now() - dayStarted) / 1000);
         const interruptTypes: Array<'warning' | 'suspicion' | 'chaos' | 'irony' | 'accusation'> =
           ['warning', 'suspicion', 'chaos', 'irony', 'accusation'];
         const interruptType = interruptTypes[Math.floor(Math.random() * interruptTypes.length)];
 
-        // Elegir jugadores silenciosos (muestra de jugadores vivos al azar)
-        const shuffled = [...alivePlayers].sort(() => Math.random() - 0.5);
-        const silentPlayers = shuffled.slice(0, 2).map(p => p.name);
-        const talkingMost = shuffled[shuffled.length - 1]?.name ?? '';
-
         try {
+          const idToken = await user.getIdToken();
           const res = await fetch('/api/narrator', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              event: 'day_interrupt',
-              round,
-              survivors: alivePlayers.map(p => p.name),
-              interruptType,
-              silentPlayers,
-              talkingMost,
-              timeElapsedSeconds: elapsed,
-            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({ gameId, event: 'day_interrupt', interruptType }),
           });
           const data = await res.json();
           if (data.narration) {
