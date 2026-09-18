@@ -50,10 +50,7 @@ export async function POST(req: NextRequest) {
       );
       voteSnap.docs.forEach(vote => tx.delete(vote.ref));
 
-      // Keep the legacy field only as migration compatibility. It is no
-      // longer the authoritative vote source.
       tx.update(gameRef, {
-        dayVotes: {},
         juezUsed: true,
         dayStartedAt: now,
         phaseEndsAt: now + SECOND_VOTE_MS,
