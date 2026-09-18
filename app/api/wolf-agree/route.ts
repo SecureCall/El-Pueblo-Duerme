@@ -106,6 +106,23 @@ export async function POST(req: NextRequest) {
         .filter((m: any) => m.text)
       : [];
 
+    // AI wolf chat is persisted by the server; the browser cannot impersonate bots.
+    if (messages.length > 0) {
+      const batch = db.batch();
+      for (const message of messages) {
+        const chatRef = gameRef.collection('wolfChat').doc();
+        batch.create(chatRef, {
+          senderId: message.uid,
+          senderName: message.name,
+          name: message.name,
+          text: message.text,
+          createdAt: new Date(),
+          source: 'server-wolf-ai',
+        });
+      }
+      await batch.commit();
+    }
+
     // The browser must not persist the wolf decision in the public game
     // document. If the AI identifies a concrete target, validate and persist
     // the human wolf submission server-side in the private subcollection.
