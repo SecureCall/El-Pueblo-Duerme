@@ -763,81 +763,38 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
   // Cazador fires last shot
   const applyCazadorShot = useCallback(async (targetUid: string) => {
-    if (!game) return;
-    const roles = game.roles ?? {};
-    let players = [...(game.players ?? [])];
-    const history = [...(game.eliminatedHistory ?? [])];
-    const round = game.roundNumber ?? 1;
-    const target = players.find(p => p.uid === targetUid && p.isAlive);
-    if (target) {
-      players = players.map(p => p.uid === targetUid ? { ...p, isAlive: false } : p);
-      history.push({ uid: targetUid, name: target.name, role: roles[targetUid] ?? 'Aldeano', round });
-    }
-    const winResult = checkWinCondition(players, roles, {
-      enchanted: game.enchanted ?? [], round,
-      perroLoboChoices: game.perroLoboChoices ?? {},
-      cultMembers: game.cultMembers ?? [],
-      vampiroKills: game.vampiroKills ?? 0,
-      pescadorBoat: game.pescadorBoat ?? [],
-      hadaLinked: game.hadaLinked ?? false,
-      lovers: game.lovers ?? [],
-    });
-    interruptWith(AUDIO_FILES.lastBullet);
-    await updateDoc(doc(db, 'games', gameId), {
-      players, eliminatedHistory: history, cazadorPendingShot: null,
-      winners: winResult.winner ?? null, winMessage: winResult.message ?? null,
-      phase: winResult.winner ? 'ended' : game.phase,
-    }).catch((e: unknown) => console.error('cazadorShot error:', e));
-  }, [game, gameId, interruptWith, AUDIO_FILES]);
+    if (!user) return;
+    try { await requestCazadorShot(user, gameId, targetUid); }
+    catch (e) { console.error('cazadorShot error:', e); }
+  }, [user, gameId, interruptWith]);
 
   // Chivo Expiatorio: after dying in tie, chooses who can't vote next round
   const applyChivoChoice = useCallback(async (bannedUid: string | null) => {
-    await updateDoc(doc(db, 'games', gameId), {
-      chivoPendingChoice: null, voteBanned: bannedUid ? [bannedUid] : [],
-    }).catch((e: unknown) => console.error('chivoChoice error:', e));
-  }, [gameId]);
+    if (!user || !bannedUid) return;
+    try { await requestChivoChoice(user, gameId, bannedUid); }
+    catch (e) { console.error('chivoChoice error:', e); }
+  }, [user, gameId]);
 
   // Juez: calls a second vote during day phase (reset timer to give 30s to re-vote)
   const juezCallSecondVote = useCallback(async () => {
-    if (!game) return;
-    const now = Date.now();
-    await updateDoc(doc(db, 'games', gameId), {
-      dayVotes: {},
-      juezUsed: true,
-      dayStartedAt: now,
-      phaseEndsAt: now + 35000,
-    }).catch((e: unknown) => console.error('juezSecondVote error:', e));
-  }, [game, gameId]);
+    if (!user) return;
+    try { await requestJuezSecondVote(user, gameId); }
+    catch (e) { console.error('juezSecondVote error:', e); }
+  }, [user, gameId]);
 
   // Alborotadora: choose 2 players to fight
   const alborotadoraChooseFight = useCallback(async (p1: string, p2: string) => {
-    if (!game) return;
-    await updateDoc(doc(db, 'games', gameId), {
-      alborotadoraFight: [p1, p2],
-      alborotadoraUsed: true,
-    }).catch((e: unknown) => console.error('alborotadoraFight error:', e));
-  }, [game, gameId]);
+    if (!user) return;
+    try { await requestAlborotadoraFight(user, gameId, p1, p2); }
+    catch (e) { console.error('alborotadoraFight error:', e); }
+  }, [user, gameId]);
 
   // Fantasma: send anonymous message
   const fantasmaSendMessage = useCallback(async (senderUid: string, targetUid: string, message: string) => {
-    if (!game || !message.trim() || !targetUid) return;
-    const targetPlayer = (game.players ?? []).find(p => p.uid === targetUid);
-    if (!targetPlayer) return;
-    // Send message to ghostChat visible to all and as private DM
-    await addDoc(collection(db, 'games', gameId, 'publicChat'), {
-      senderId: 'ghost',
-      senderName: '👻 Mensaje Anónimo',
-      text: `(Mensaje del más allá para ${targetPlayer.name}): ${message.slice(0, 280)}`,
-      createdAt: serverTimestamp(),
-    }).catch(() => {});
-    // Mark as used
-    const newUsed = [...(game.fantasmaUsed ?? []), senderUid];
-    const newPending = (game.fantasmaPending ?? []).filter(uid => uid !== senderUid);
-    await updateDoc(doc(db, 'games', gameId), {
-      fantasmaUsed: newUsed,
-      fantasmaPending: newPending,
-    }).catch(() => {});
-  }, [game, gameId]);
+    if (!user || !message.trim() || !targetUid) return;
+    try { await requestFantasmaMessage(user, gameId, targetUid, message); }
+    catch (e) { console.error('fantasmaMessage error:', e); }
+  }, [user, gameId]);
 
   // AI auto-selects for Chivo Expiatorio
   useEffect(() => {
