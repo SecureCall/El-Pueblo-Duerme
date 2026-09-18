@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     const message = typeof body?.message === 'string' ? body.message.trim().slice(0, MAX_MESSAGE_LENGTH) : '';
     const pass = body?.pass === true;
     const actorUid = typeof body?.actorUid === 'string' ? body.actorUid.trim() : (user?.uid ?? '');
-    if (!gameId || !targetUid || (!message && !pass) || !actorUid) return NextResponse.json({ error: 'gameId, actorUid, targetUid and message are required' }, { status: 400 });
+    if (!gameId || (!targetUid && !pass) || (!message && !pass) || !actorUid) return NextResponse.json({ error: 'gameId, actorUid, targetUid and message are required' }, { status: 400 });
 
     const { db } = getSdks();
     const gameRef = db.collection('games').doc(gameId);
@@ -29,20 +29,22 @@ export async function POST(request: Request) {
 
       const players = Array.isArray(game.players) ? game.players as Array<Record<string, unknown>> : [];
       const actor = players.find(p => p.uid === actorUid);
-      const target = players.find(p => p.uid === targetUid);
+      const target = targetUid ? players.find(p => p.uid === targetUid) : null;
       if (!actor || actor.isAlive === true) throw new Error('GHOST_INVALID');
-      if (!target || target.isAlive !== true) throw new Error('TARGET_INVALID');
+      if (!pass && (!target || target.isAlive !== true)) throw new Error('TARGET_INVALID');
       const authorizedPlayer = user?.uid === actorUid;
       const authorizedAI = actor.isAI === true && user?.uid === game.hostUid;
       if (!serverAuthorized && !authorizedPlayer && !authorizedAI) throw new Error('FORBIDDEN');
 
       const nextPending = pending.filter(uid => uid !== actorUid);
-      tx.set(chatRef, {
-        senderId: 'ghost',
-        senderName: '👻 Mensaje Anónimo',
-        text: `(Mensaje del más allá para ${target.name ?? 'un jugador'}): ${message}`,
-        createdAt: new Date(),
-      });
+      if (!pass) {
+        tx.set(chatRef, {
+          senderId: 'ghost',
+          senderName: '👻 Mensaje Anónimo',
+          text: `(Mensaje del más allá para ${target!.name ?? 'un jugador'}): ${message}`,
+          createdAt: new Date(),
+        });
+      }
       tx.update(gameRef, { fantasmaPending: nextPending, fantasmaUsed: [...used, actorUid] });
     });
 
