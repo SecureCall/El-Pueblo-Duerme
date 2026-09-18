@@ -40,3 +40,7 @@ export function requestAlborotadoraFight(user: User, gameId: string, firstUid: s
 export function requestFantasmaMessage(user: User, gameId: string, targetUid: string, message: string): Promise<void> {
   return postSpecialAction(user, '/api/fantasma-message', { gameId, actorUid: user.uid, targetUid, message });
 }
+
+export function requestFantasmaPass(user: User, gameId: string): Promise<void> {
+  return postSpecialAction(user, '/api/fantasma-message', { gameId, actorUid: user.uid, targetUid: user.uid, message: '', pass: 'true' });
+}
