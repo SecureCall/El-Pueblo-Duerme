@@ -823,7 +823,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
       if (alive.length > 0) {
         applyCazadorShot(alive[Math.floor(Math.random() * alive.length)].uid);
       } else {
-        updateDoc(doc(db, 'games', gameId), { cazadorPendingShot: null }).catch(() => {});
+        return;
       }
     }, 2500);
     return () => clearTimeout(timer);
@@ -842,7 +842,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
       if (alive.length > 0) {
         applyCazadorShot(alive[Math.floor(Math.random() * alive.length)].uid);
       } else {
-        updateDoc(doc(db, 'games', gameId), { cazadorPendingShot: null }).catch(() => {});
+        return;
       }
     }, 90_000);
     return () => clearTimeout(timer);
@@ -942,10 +942,9 @@ export function GamePlay({ gameId }: { gameId: string }) {
             Enviar mensaje anónimo
           </button>
           <button
-            onClick={async () => {
-              const newUsed = [...(game.fantasmaUsed ?? []), user.uid];
-              const newPending = (game.fantasmaPending ?? []).filter(uid => uid !== user.uid);
-              await updateDoc(doc(db, 'games', gameId), { fantasmaUsed: newUsed, fantasmaPending: newPending }).catch(() => {});
+            onClick={() => {
+              // Passing is resolved by the authoritative server endpoint.
+              requestFantasmaMessage(user, gameId, fantasmaTarget, ' ').catch(() => {});
             }}
             className="mt-2 w-full bg-transparent border border-white/15 text-white/40 hover:text-white/60 text-sm py-2 rounded-xl transition-colors"
           >
