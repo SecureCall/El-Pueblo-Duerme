@@ -12,8 +12,9 @@ export async function POST(request: Request) {
     const gameId = typeof body?.gameId === 'string' ? body.gameId.trim() : '';
     const targetUid = typeof body?.targetUid === 'string' ? body.targetUid.trim() : '';
     const message = typeof body?.message === 'string' ? body.message.trim().slice(0, MAX_MESSAGE_LENGTH) : '';
+    const pass = body?.pass === true;
     const actorUid = typeof body?.actorUid === 'string' ? body.actorUid.trim() : (user?.uid ?? '');
-    if (!gameId || !targetUid || !message || !actorUid) return NextResponse.json({ error: 'gameId, actorUid, targetUid and message are required' }, { status: 400 });
+    if (!gameId || !targetUid || (!message && !pass) || !actorUid) return NextResponse.json({ error: 'gameId, actorUid, targetUid and message are required' }, { status: 400 });
 
     const { db } = getSdks();
     const gameRef = db.collection('games').doc(gameId);
