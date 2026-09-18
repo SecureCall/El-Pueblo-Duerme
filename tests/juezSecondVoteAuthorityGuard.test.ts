@@ -16,9 +16,8 @@ describe('Juez second vote authority guard', () => {
     expect(source).toContain('phaseEndsAt: now + SECOND_VOTE_MS');
   });
 
-  it('does not rely on the legacy dayVotes field as the authoritative reset', () => {
-    expect(source).toContain('dayVotes: {},');
+  it('does not write the legacy dayVotes field during the second vote reset', () => {
+    expect(source).not.toContain('dayVotes: {},');
     expect(source).toContain('The authoritative vote store is games/{gameId}/votes/{uid}.');
-    expect(source).toContain('Keep the legacy field only as migration compatibility.');
   });
 });
