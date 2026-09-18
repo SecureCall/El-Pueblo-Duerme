@@ -479,15 +479,13 @@ export function GamePlay({ gameId }: { gameId: string }) {
             alivePlayers: alivePlayers.filter(p => humanWolves.every(h => h.uid !== p.uid) || true).map(p => ({ uid: p.uid, name: p.name })),
           }),
         });
-        const data: { messages?: { uid: string; name: string; text: string }[]; targetUid?: string | null } = await res.json();
+        const data: { messages?: { uid: string; name: string; text: string }[]; submitted?: boolean; resolved?: boolean } = await res.json();
 
         const msgs = data.messages ?? [];
         for (let i = 0; i < msgs.length; i++) {
           const m = msgs[i];
           await new Promise(r => setTimeout(r, 1500 + i * (1000 + Math.random() * 2000)));
-          addDoc(collection(db, 'games', gameId, 'wolfChat'), {
-            senderId: m.uid, senderName: m.name, name: m.name, text: m.text, createdAt: serverTimestamp(),
-          }).catch(() => {});
+          // AI wolf messages are persisted by the server endpoint; never trust the browser with bot identity.
         }
 
         if (data.targetUid) {
