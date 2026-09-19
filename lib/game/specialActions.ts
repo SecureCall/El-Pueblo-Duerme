@@ -1,6 +1,6 @@
 import type { User } from 'firebase/auth';
 
-async function postSpecialAction(user: User, path: string, body: Record<string, string>): Promise<void> {
+async function postSpecialAction(user: User, path: string, body: Record<string, unknown>): Promise<void> {
   const token = await user.getIdToken();
   const response = await fetch(path, {
     method: 'POST',
@@ -41,6 +41,13 @@ export function requestFantasmaMessage(user: User, gameId: string, targetUid: st
   return postSpecialAction(user, '/api/fantasma-message', { gameId, actorUid: user.uid, targetUid, message });
 }
 
+/** Resolve the Fantasma turn without sending a message. */
 export function requestFantasmaPass(user: User, gameId: string): Promise<void> {
-  return postSpecialAction(user, '/api/fantasma-message', { gameId, actorUid: user.uid, targetUid: user.uid, message: '', pass: 'true' });
+  return postSpecialAction(user, '/api/fantasma-message', {
+    gameId,
+    actorUid: user.uid,
+    targetUid: user.uid,
+    message: '',
+    pass: true,
+  });
 }
