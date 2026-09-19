@@ -632,36 +632,12 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
     const roles = game.roles ?? {};
     const eliminatedPlayer = game.dayEliminatedUid ? game.players?.find(p => p.uid === game.dayEliminatedUid) : null;
-    const payload = {
-      aiPlayers: aiPlayers.map(p => ({
-        uid: p.uid, name: p.name, role: roles[p.uid] ?? 'Aldeano',
-        isWolf: roles[p.uid] === 'Lobo' || roles[p.uid] === 'Lobo Blanco' || roles[p.uid] === 'Cría de Lobo',
-        botType: p.botType ?? 'caotico',
-      })),
-      eliminatedName: eliminatedPlayer?.name ?? null,
-      eliminatedRole: eliminatedPlayer ? (roles[eliminatedPlayer.uid] ?? 'Aldeano') : null,
-      round,
-      allAliveNames: alivePlayers.map(p => p.name),
-    };
-
+    const payload = { gameId };
     fetch('/api/ai-chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await user.getIdToken()}` },
       body: JSON.stringify(payload),
-    })
-      .then(r => r.json())
-      .then(async (data: { messages?: { uid: string; name: string; text: string }[] }) => {
-        const messages = data.messages ?? [];
-        for (let i = 0; i < messages.length; i++) {
-          const m = messages[i];
-          const delay = 4000 + i * (3000 + Math.random() * 5000);
-          await new Promise(res => setTimeout(res, delay));
-          addDoc(collection(db, 'games', gameId, 'publicChat'), {
-            senderId: m.uid, senderName: m.name, text: m.text, createdAt: serverTimestamp(),
-          }).catch(() => {});
-        }
-      })
-      .catch(() => {});
+    }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.phase, game?.roundNumber]);
 
