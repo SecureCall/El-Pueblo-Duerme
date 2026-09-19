@@ -488,12 +488,6 @@ export function GamePlay({ gameId }: { gameId: string }) {
           // AI wolf messages are persisted by the server endpoint; never trust the browser with bot identity.
         }
 
-        if (data.targetUid) {
-          const updates: Record<string, unknown> = { 'nightActions.wolfTarget': data.targetUid };
-          const subs = game.nightSubmissions ?? {};
-          if (!subs['wolves']) updates['nightSubmissions.wolves'] = true;
-          updateDoc(doc(db, 'games', gameId), updates).catch(() => {});
-        }
       } catch (e) {
         console.error('wolf-agree fetch error:', e);
       }
@@ -1192,9 +1186,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
           onDone={() => {
             setShowNightReveal(false);
             if (!game.currentEvent) {
-              if (game.hostUid === user.uid) {
-                updateDoc(doc(db, 'games', gameId), { dayStartedAt: Date.now() }).catch(() => {});
-              }
+              
               interruptWith(AUDIO_FILES.debatesOpen, AUDIO_FILES.debateAmbient);
             }
           }}
@@ -1208,9 +1200,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
           round={game.roundNumber ?? 1}
           onDone={() => {
             setShowChaosEvent(false);
-            if (game.hostUid === user.uid) {
-              updateDoc(doc(db, 'games', gameId), { dayStartedAt: Date.now() }).catch(() => {});
-            }
+            
             interruptWith(AUDIO_FILES.debatesOpen, AUDIO_FILES.debateAmbient);
           }}
         />
