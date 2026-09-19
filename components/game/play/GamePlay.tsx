@@ -31,6 +31,7 @@ import { requestResolveDay } from '@/lib/game/resolveDay';
 import { requestStartNight } from '@/lib/game/startNight';
 import { requestNarratorBroadcast } from '@/lib/game/narratorBroadcast';
 import { requestHostTakeover } from '@/lib/game/hostTakeover';
+import { requestCazadorShot, requestChivoChoice, requestJuezSecondVote, requestAlborotadoraFight, requestFantasmaMessage, requestFantasmaPass } from '@/lib/game/specialActions';
 
 export interface Player {
   uid: string;
