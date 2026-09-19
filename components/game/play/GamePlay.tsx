@@ -1034,80 +1034,31 @@ export function GamePlay({ gameId }: { gameId: string }) {
         onPlayAgain={() => router.push('/')}
         onPlayAgainSameRoom={async () => {
           if (!user) return;
-          const amHost = game.hostUid === user.uid;
-          const hostStillHere = (game.players ?? []).some((p: Player) => p.uid === game.hostUid);
-          // Only allow if I'm the host, OR the host has left
-          if (!amHost && hostStillHere) return;
-
-          const newHostUid = user.uid;
-          const newHostName = user.displayName || user.email?.split('@')[0] || me?.name || 'Jugador';
-
-          // Restore all players to alive; give crown to new host
-          const resetPlayers = (game.players ?? []).map((p: Player) => ({
-            ...p,
-            isAlive: true,
-            role: null,
-            isHost: p.uid === newHostUid,
-          }));
-
-          await updateDoc(doc(db, 'games', gameId), {
-            phase: 'lobby',
-            roundNumber: 0,
-            hostUid: newHostUid,
-            hostName: newHostName,
-            roles: {},
-            nightActions: {},
-            nightSubmissions: {},
-            dayVotes: {},
-            eliminatedHistory: [],
-            winners: null,
-            winMessage: '',
-            lastVictim: null,
-            bearGrowl: false,
-            profetaReveal: null,
-            players: resetPlayers,
-            // Limpiar todos los estados de rol de la partida anterior
-            loversUids: null,
-            twinUids: null,
-            enchanted: [],
-            cursed: [],
-            vampirizados: [],
-            liderCultoMembers: [],
-            virginiawoolTarget: null,
-            vigiaUsed: false,
-            angelResucitadorUsed: false,
-            hadaLinked: false,
-            fantasmaPending: [],
-            fantasmaUsed: [],
-            voteBanned: [],
-            noExileActive: false,
-            currentEvent: null,
-            nightKilledUids: [],
-            espiaUsed: false,
-            doubleSeerActive: false,
-            doubleExecution: false,
-            bansheePredictionUid: null,
-            cazadorPendingShot: null,
-            chivoPendingChoice: null,
-            silverwolf: false,
-            criaLoboRage: false,
-            narratorBroadcast: null,
-            phaseEndsAt: null,
-            dayStartedAt: null,
-            nightStartedAt: null,
-          });
-
-          // Push notification to all non-host real players
-          const playerUids = (game.players ?? [])
-            .filter((p: Player) => !p.isAI && p.uid !== newHostUid)
-            .map((p: Player) => p.uid);
-          if (playerUids.length > 0) {
-            sendPushToMany(playerUids, {
-              title: '⚔️ ¡Revancha en El Pueblo Duerme!',
-              body: `${newHostName} ha iniciado una nueva partida. ¡Vuelve y venga!`,
-              url: `/game/${gameId}`,
-              tag: `rematch-${gameId}`,
-            }).catch(() => {});
+          try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/rematch', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ gameId }),
+            });
+            if (!response.ok) throw new Error('REMATCH_FAILED');
+            const data = await response.json();
+            const playerUids = (game.players ?? [])
+              .filter((p: Player) => !p.isAI && p.uid !== user.uid)
+              .map((p: Player) => p.uid);
+            if (playerUids.length > 0) {
+              sendPushToMany(playerUids, {
+                title: '⚔️ ¡Revancha en El Pueblo Duerme!',
+                body: `${data.hostName ?? me?.name ?? 'El nuevo anfitrión'} ha iniciado una nueva partida. ¡Vuelve y venga!`,
+                url: `/game/${gameId}`,
+                tag: `rematch-${gameId}`,
+              }).catch(() => {});
+            }
+          } catch {
+            // The authoritative endpoint reports the failure through the UI's existing error boundary.
           }
         }}
       />
