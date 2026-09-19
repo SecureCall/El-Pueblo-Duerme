@@ -7,6 +7,7 @@ import { validateCanonicalNightAction } from '@/lib/game/nightActionAuthority';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 const WOLF_ROLES = new Set(['Lobo', 'Lobo Blanco', 'Cría de Lobo']);
+interface AIWolf { uid: string; name: string; }
 
 export async function POST(req: NextRequest) {
   const uid = await verifyAuthToken(req);
