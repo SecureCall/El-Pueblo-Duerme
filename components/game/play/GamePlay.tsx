@@ -470,14 +470,16 @@ export function GamePlay({ gameId }: { gameId: string }) {
       wolfChatLastProcessed.current = latestId;
 
       try {
+        const token = await user.getIdToken();
         const res = await fetch('/api/wolf-agree', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify({
+            gameId,
             humanMessage: latestMsg.text,
-            humanName: latestMsg.name ?? latestMsg.senderName ?? '',
-            aiWolves: aiWolves.map(p => ({ uid: p.uid, name: p.name })),
-            alivePlayers: alivePlayers.filter(p => humanWolves.every(h => h.uid !== p.uid) || true).map(p => ({ uid: p.uid, name: p.name })),
           }),
         });
         const data: { messages?: { uid: string; name: string; text: string }[]; submitted?: boolean; resolved?: boolean } = await res.json();
