@@ -8,27 +8,15 @@ import { validateCanonicalNightAction } from '@/lib/game/nightActionAuthority';
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 const WOLF_ROLES = new Set(['Lobo', 'Lobo Blanco', 'Cría de Lobo']);
 
-interface AIWolf { uid: string; name: string; }
-interface AlivePl { uid: string; name: string; }
-interface RequestBody {
-  gameId?: string;
-  humanMessage: string;
-  humanName: string;
-  aiWolves: AIWolf[];
-  alivePlayers: AlivePl[];
-}
-
 export async function POST(req: NextRequest) {
   const uid = await verifyAuthToken(req);
   if (!uid) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   try {
-    const body = await req.json() as RequestBody;
-    const { gameId, humanMessage, aiWolves } = body;
-    if (!gameId || typeof humanMessage !== 'string' || humanMessage.length > 500 || !Array.isArray(aiWolves)) {
-      return NextResponse.json({ error: 'Solicitud inválida' }, { status: 400 });
-    }
-    if (aiWolves.length > 32) return NextResponse.json({ error: 'Equipo IA inválido' }, { status: 400 });
+    const body = await req.json().catch(() => ({}));
+    const gameId = typeof body?.gameId === 'string' ? body.gameId.trim() : '';
+    const humanMessage = typeof body?.humanMessage === 'string' ? body.humanMessage.trim().slice(0, 500) : '';
+    if (!gameId || !humanMessage) return NextResponse.json({ error: 'Solicitud inválida' }, { status: 400 });
 
     initAdminApp();
     const db = getFirestore();
@@ -52,8 +40,20 @@ export async function POST(req: NextRequest) {
     }
 
     const playerByUid = new Map(players.map((p: any) => [p.uid, p]));
+    const canonicalAiWolves: AIWolf[] = [];
+    for (const player of players) {
+      if (player.isAI !== true || player.isAlive === false) continue;
+      const roleSnap = await gameRef.collection('playerRoles').doc(player.uid).get();
+      const role = roleSnap.data()?.role;
+      if (typeof role === 'string' && WOLF_ROLES.has(role)) {
+        canonicalAiWolves.push({ uid: player.uid, name: player.name });
+      }
+    }
+    if (canonicalAiWolves.length > 32) return NextResponse.json({ error: 'Equipo IA inválido' }, { status: 400 });
+    if (canonicalAiWolves.length === 0) return NextResponse.json({ messages: [], submitted: false, resolved: false });
+
     const aiRoleEntries = await Promise.all(
-      aiWolves.map(async (bot) => {
+      canonicalAiWolves.map(async (bot) => {
         if (!bot || typeof bot.uid !== 'string' || typeof bot.name !== 'string') return null;
         const player = playerByUid.get(bot.uid);
         if (!player || player.isAlive === false || player.name !== bot.name || player.isAI !== true) return null;
@@ -62,19 +62,7 @@ export async function POST(req: NextRequest) {
         return typeof role === 'string' && WOLF_ROLES.has(role) ? { player, role } : null;
       }),
     );
-    if (aiRoleEntries.some((entry) => !entry)) {
-      return NextResponse.json({ error: 'Equipo IA inválido' }, { status: 400 });
-    }
-
-    if (aiWolves.length === 0) return NextResponse.json({ messages: [], submitted: false, resolved: false });
-
-    const canonicalAlivePlayers: AlivePl[] = players
-      .filter((p: any) => p.isAlive !== false)
-      .map((p: any) => ({ uid: p.uid, name: p.name }));
-    const canonicalAiWolves = aiWolves.map((bot) => ({
-      uid: bot.uid,
-      name: playerByUid.get(bot.uid)!.name,
-    }));
+    if (aiRoleEntries.some((entry) => !entry)) return NextResponse.json({ error: 'Equipo IA inválido' }, { status: 400 });
 
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
     const namesStr = canonicalAlivePlayers.map(p => p.name).join(', ');
