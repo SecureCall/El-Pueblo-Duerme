@@ -912,7 +912,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
           <button
             onClick={() => {
               // Passing is resolved by the authoritative server endpoint.
-              requestFantasmaMessage(user, gameId, fantasmaTarget, ' ').catch(() => {});
+              requestFantasmaPass(user, gameId).catch(() => {});
             }}
             className="mt-2 w-full bg-transparent border border-white/15 text-white/40 hover:text-white/60 text-sm py-2 rounded-xl transition-colors"
           >
