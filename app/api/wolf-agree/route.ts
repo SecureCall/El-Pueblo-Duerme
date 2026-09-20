@@ -16,8 +16,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const gameId = typeof body?.gameId === 'string' ? body.gameId.trim() : '';
-    const humanMessage = typeof body?.humanMessage === 'string' ? body.humanMessage.trim().slice(0, 500) : '';
-    if (!gameId || !humanMessage) return NextResponse.json({ error: 'Solicitud inválida' }, { status: 400 });
+    const messageId = typeof body?.messageId === 'string' ? body.messageId.trim() : '';
+    if (!gameId || !messageId) return NextResponse.json({ error: 'Solicitud inválida' }, { status: 400 });
 
     initAdminApp();
     const db = getFirestore();
@@ -33,6 +33,24 @@ export async function POST(req: NextRequest) {
     if (!caller || caller.isAlive === false || caller.isAI === true || game.phase !== 'night') {
       return NextResponse.json({ error: 'No autorizado para esta acción' }, { status: 403 });
     }
+
+    const chatSnap = await gameRef.collection('wolfChat').doc(messageId).get();
+    if (!chatSnap.exists) return NextResponse.json({ error: 'Mensaje de lobo no encontrado' }, { status: 404 });
+    const chat = chatSnap.data() as Record<string, unknown>;
+    if (chat.senderId !== uid || typeof chat.text !== 'string' || !chat.text.trim()) {
+      return NextResponse.json({ error: 'Mensaje no pertenece al jugador autenticado' }, { status: 403 });
+    }
+    const nightStartedAt = typeof game.nightStartedAt === 'number' ? game.nightStartedAt : null;
+    const createdAt = chat.createdAt;
+    const createdAtMillis = createdAt instanceof Date
+      ? createdAt.getTime()
+      : createdAt && typeof (createdAt as { toMillis?: unknown }).toMillis === 'function'
+        ? (createdAt as { toMillis: () => number }).toMillis()
+        : null;
+    if (nightStartedAt !== null && (createdAtMillis === null || createdAtMillis < nightStartedAt)) {
+      return NextResponse.json({ error: 'Mensaje de otra ronda' }, { status: 409 });
+    }
+    const humanMessage = chat.text.trim().slice(0, 500);
 
     const callerRoleSnap = await gameRef.collection('playerRoles').doc(uid).get();
     const callerRole = callerRoleSnap.data()?.role;
