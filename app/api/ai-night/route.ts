@@ -152,6 +152,10 @@ export async function POST(request: NextRequest) {
       ? game.roundNumber
       : null;
     if (round === null) return NextResponse.json({ error: 'Invalid round' }, { status: 409 });
+    const phaseEndsAt = typeof game.phaseEndsAt === 'number' ? game.phaseEndsAt : null;
+    if (phaseEndsAt !== null && Date.now() >= phaseEndsAt) {
+      return NextResponse.json({ error: 'Night deadline reached' }, { status: 409 });
+    }
 
     const aiCandidates = playerBase.filter((p) => p.isAI === true && p.isAlive === true);
     const roleEntries = await Promise.all(aiCandidates.map(async (p) => {
@@ -206,6 +210,8 @@ export async function POST(request: NextRequest) {
       if (!currentGameSnap.exists) return;
       const currentGame = currentGameSnap.data() as Record<string, unknown>;
       if (currentGame.phase !== 'night' || currentGame.roundNumber !== round) return;
+      const currentPhaseEndsAt = typeof currentGame.phaseEndsAt === 'number' ? currentGame.phaseEndsAt : null;
+      if (currentPhaseEndsAt !== null && Date.now() >= currentPhaseEndsAt) return;
       if (resolutionLock.exists) {
         const lockData = resolutionLock.data() as Record<string, unknown>;
         if (lockData.status === 'resolving' || lockData.status === 'resolved') return;
