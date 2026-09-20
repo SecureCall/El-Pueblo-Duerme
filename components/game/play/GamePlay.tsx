@@ -5,8 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { db } from '@/lib/firebase/config';
 import {
-  doc, onSnapshot, updateDoc, addDoc, collection, serverTimestamp,
-  query, orderBy, limit, setDoc, getDoc, writeBatch,
+  doc, onSnapshot, collection, query, orderBy, limit, setDoc, getDoc,
 } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
 import { assignRoles, checkWinCondition, ROLES, ROLE_SUBMISSION_KEY, drawRandomEvent } from './roles';
@@ -26,7 +25,6 @@ import { DeathOverlay } from './DeathOverlay';
 import { MomentBanner, buildMoment, type Moment } from './MomentBanner';
 import { playNightAmbience, playDayAmbience, stopAllAmbience, playDeathSting, playVoteAlarm, playGameStart, playVictory, playDefeat } from '@/lib/gameAudio';
 import { requestNightAction } from '@/lib/game/nightActions';
-import { requestResolveNight } from '@/lib/game/resolveNight';
 import { requestResolveDay } from '@/lib/game/resolveDay';
 import { requestStartNight } from '@/lib/game/startNight';
 import { requestNarratorBroadcast } from '@/lib/game/narratorBroadcast';
@@ -221,7 +219,6 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const prevPhase = useRef<string | null>(null);
   const narratorInterruptAt = useRef<number>(0);
   const narratorInterruptRound = useRef<number>(-1);
-  const processingNightRef = useRef(false);
   const nightStartedAtRef = useRef<number>(0);
   const { play, playSequence, interruptWith, AUDIO_FILES } = useNarrator();
 
@@ -251,7 +248,6 @@ export function GamePlay({ gameId }: { gameId: string }) {
       playNightAmbience();
     }
     if (prevPhase.current === 'night' && phase === 'day') {
-      processingNightRef.current = false;
       stopAllAmbience();
       const victimUid = (game as any).dayEliminatedUid ?? null;
       const victim = victimUid ? (game.players ?? []).find((p: any) => p.uid === victimUid) : null;
@@ -484,7 +480,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
   }, [game?.phase, game?.roundNumber, gameId, user?.uid]);
 
   // Night resolution is fully server-authoritative. The browser only submits actions
-  // and may trigger the resolver through requestResolveDay/requestResolveNight helpers;
+  // and may trigger the resolver through requestResolveDay;
   // it never decides when the authoritative night state advances.
 
   const submitDayVote = useCallback(async (targetUid: string) => {
