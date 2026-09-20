@@ -68,7 +68,7 @@ export async function readNightSubmissions(
   return snapshot.docs
     .map((doc) => {
       const data = doc.data() as Record<string, unknown>;
-      const actorUid = typeof data.actorUid === 'string' ? data.actorUid : doc.id;
+      const actorUid = typeof data.actorUid === 'string' ? data.actorUid : '';
       const role = typeof data.role === 'string' ? data.role : '';
       const storedRound = typeof data.roundNumber === 'number' && Number.isInteger(data.roundNumber)
         ? data.roundNumber
