@@ -449,7 +449,9 @@ export function GamePlay({ gameId }: { gameId: string }) {
   useEffect(() => {
     if (!game || !user || game.phase !== 'night') return;
     const me = (game.players ?? []).find(p => p.uid === user.uid);
-    if (!me?.isAlive || me.isAI) return;
+    const myRole = game.roles?.[user.uid];
+    const isWolf = myRole === 'Lobo' || myRole === 'Lobo Blanco' || myRole === 'Cría de Lobo';
+    if (!me?.isAlive || me.isAI || !isWolf) return;
 
     const q = query(collection(db, 'games', gameId, 'wolfChat'), orderBy('createdAt', 'desc'), limit(1));
     const unsub = onSnapshot(q, async (snap: any) => {
