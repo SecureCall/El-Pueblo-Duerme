@@ -444,17 +444,12 @@ export function GamePlay({ gameId }: { gameId: string }) {
     return () => clearTimeout(timer);
   }, [game?.phase, game?.roundNumber, game?.hostUid, user?.uid, gameId]);
 
-  // Host listens to wolf chat — AI wolves reply and auto-confirm kill target
+  // Human wolf chat -> server AI agreement. The browser never decides the wolf team;
+  // it only asks the server to process the authenticated user's own chat message.
   useEffect(() => {
-    if (!game || !user || game.hostUid !== user.uid) return;
-    if (game.phase !== 'night') return;
-
-    const roles = game.roles ?? {};
-    const alivePlayers = (game.players ?? []).filter(p => p.isAlive);
-    const humanWolves = alivePlayers.filter(p => !p.isAI && (roles[p.uid] === 'Lobo' || roles[p.uid] === 'Lobo Blanco' || roles[p.uid] === 'Cría de Lobo' || roles[p.uid] === 'Bruja'));
-    const aiWolves = alivePlayers.filter(p => p.isAI && (roles[p.uid] === 'Lobo' || roles[p.uid] === 'Lobo Blanco' || roles[p.uid] === 'Cría de Lobo' || roles[p.uid] === 'Bruja'));
-
-    if (humanWolves.length === 0 || aiWolves.length === 0) return;
+    if (!game || !user || game.phase !== 'night') return;
+    const me = (game.players ?? []).find(p => p.uid === user.uid);
+    if (!me?.isAlive || me.isAI) return;
 
     const q = query(collection(db, 'games', gameId, 'wolfChat'), orderBy('createdAt', 'desc'), limit(1));
     const unsub = onSnapshot(q, async (snap: any) => {
@@ -464,33 +459,19 @@ export function GamePlay({ gameId }: { gameId: string }) {
       if (wolfChatLastProcessed.current === latestId) return;
 
       const latestMsg = latestDoc.data();
-      const isFromHuman = humanWolves.some(p => p.uid === latestMsg.senderId || p.name === latestMsg.name);
-      if (!isFromHuman) return;
+      if (latestMsg.senderId !== user.uid) return;
 
       wolfChatLastProcessed.current = latestId;
-
       try {
         const token = await user.getIdToken();
-        const res = await fetch('/api/wolf-agree', {
+        await fetch('/api/wolf-agree', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+            Authorization: 'Bearer ' + token,
           },
-          body: JSON.stringify({
-            gameId,
-            humanMessage: latestMsg.text,
-          }),
+          body: JSON.stringify({ gameId, messageId: latestId }),
         });
-        const data: { messages?: { uid: string; name: string; text: string }[]; submitted?: boolean; resolved?: boolean } = await res.json();
-
-        const msgs = data.messages ?? [];
-        for (let i = 0; i < msgs.length; i++) {
-          const m = msgs[i];
-          await new Promise(r => setTimeout(r, 1500 + i * (1000 + Math.random() * 2000)));
-          // AI wolf messages are persisted by the server endpoint; never trust the browser with bot identity.
-        }
-
       } catch (e) {
         console.error('wolf-agree fetch error:', e);
       }
@@ -498,7 +479,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
     return () => unsub();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.phase, game?.roundNumber, gameId]);
+  }, [game?.phase, game?.roundNumber, gameId, user?.uid]);
 
   // Night resolution is fully server-authoritative. The browser only submits actions
   // and may trigger the resolver through requestResolveDay/requestResolveNight helpers;
