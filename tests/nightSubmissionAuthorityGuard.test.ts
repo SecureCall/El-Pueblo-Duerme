@@ -22,4 +22,21 @@ describe('night submission authority guards', () => {
     expect(resolver).toContain('night_submission_role_mismatch');
     expect(resolver).toContain('claimNightResolution');
   });
+  it('fences human night sync writes with the resolution lease', () => {
+    const source = readFileSync(resolve(process.cwd(), 'app/api/sync-night-action/route.ts'), 'utf8');
+    expect(source).toContain("const resolutionLockRef = gameRef.collection('nightResolutions').doc(String(roundNumber))");
+    expect(source).toContain("lockData.status === 'resolving' || lockData.status === 'resolved'");
+    expect(source).toContain('tx.create(submissionRef');
+  });
+
+  it('fences every server AI night submission path with the resolution lease', () => {
+    const helper = readFileSync(resolve(process.cwd(), 'lib/server/aiNight.ts'), 'utf8');
+    const route = readFileSync(resolve(process.cwd(), 'app/api/ai-night/route.ts'), 'utf8');
+    for (const source of [helper, route]) {
+      expect(source).toContain("collection('nightResolutions').doc(String(round))");
+      expect(source).toContain("lockData.status === 'resolving' || lockData.status === 'resolved'");
+      expect(source).toContain("currentGame.phase !== 'night' || currentGame.roundNumber !== round");
+    }
+  });
+
 });
