@@ -135,10 +135,26 @@ export async function ensureServerAINightSubmissions(
   // The resolver can call this function repeatedly (timer, reconnect, takeover,
   // or concurrent resolution attempts). AI decisions are immutable once written
   // for a round, so this path must never overwrite an existing submission.
+  // The game state and resolution lease are part of the same transaction: once
+  // resolution has been claimed, no AI submission may enter behind the fence.
   const now = Date.now();
+  const resolutionLockRef = gameRef.collection('nightResolutions').doc(String(round));
   await db.runTransaction(async (tx) => {
     const refs = writes.map((write) => gameRef.collection('nightSubmissions').doc(`${write.uid}:${round}`));
-    const snapshots = await Promise.all(refs.map((ref) => tx.get(ref)));
+    const [currentGameSnap, resolutionLock, ...snapshots] = await Promise.all([
+      tx.get(gameRef),
+      tx.get(resolutionLockRef),
+      ...refs.map((ref) => tx.get(ref)),
+    ]);
+
+    if (!currentGameSnap.exists) return;
+    const currentGame = currentGameSnap.data() as AnyRecord;
+    if (currentGame.phase !== 'night' || currentGame.roundNumber !== round) return;
+
+    if (resolutionLock.exists) {
+      const lockData = resolutionLock.data() as AnyRecord;
+      if (lockData.status === 'resolving' || lockData.status === 'resolved') return;
+    }
 
     for (let i = 0; i < writes.length; i++) {
       if (snapshots[i].exists) continue;
