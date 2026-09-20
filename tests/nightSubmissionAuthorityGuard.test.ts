@@ -29,6 +29,14 @@ describe('night submission authority guards', () => {
     expect(source).toContain('tx.create(submissionRef');
   });
 
+  it('rejects manual AI night triggering after the server deadline', () => {
+    const source = readFileSync(resolve(process.cwd(), 'app/api/ai-night/route.ts'), 'utf8');
+    expect(source).toContain('const phaseEndsAt = typeof game.phaseEndsAt');
+    expect(source).toContain('Night deadline reached');
+    expect(source).toContain('const currentPhaseEndsAt = typeof currentGame.phaseEndsAt');
+    expect(source).toContain('Date.now() >= currentPhaseEndsAt');
+  });
+
   it('fences every server AI night submission path with the resolution lease', () => {
     const helper = readFileSync(resolve(process.cwd(), 'lib/server/aiNight.ts'), 'utf8');
     const route = readFileSync(resolve(process.cwd(), 'app/api/ai-night/route.ts'), 'utf8');
