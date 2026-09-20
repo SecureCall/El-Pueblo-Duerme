@@ -31,6 +31,16 @@ describe('authoritative special-action guards', () => {
     expect(juezRoute).toContain("PHASE_EXPIRED");
   });
 
+  it('binds AI wolf agreement to the authenticated human chat message', () => {
+    const wolfRoute = readFileSync(resolve(process.cwd(), 'app/api/wolf-agree/route.ts'), 'utf8');
+    const gameplay = readFileSync(resolve(process.cwd(), 'components/game/play/GamePlay.tsx'), 'utf8');
+    expect(wolfRoute).toContain("const messageId = typeof body?.messageId === 'string'");
+    expect(wolfRoute).toContain("const chatRef = gameRef.collection('wolfChat').doc(messageId)");
+    expect(wolfRoute).toContain("chat.senderId !== uid");
+    expect(gameplay).toContain("body: JSON.stringify({ gameId, messageId: latestId })");
+    expect(gameplay).not.toContain("humanMessage: latestMsg.text");
+  });
+
   it('keeps Ghost and AI wolf chat persistence on the server', () => {
     const ghostRoute = readFileSync(resolve(process.cwd(), 'app/api/fantasma-message/route.ts'), 'utf8');
     const wolfRoute = readFileSync(resolve(process.cwd(), 'app/api/wolf-agree/route.ts'), 'utf8');
