@@ -41,6 +41,16 @@ describe('authoritative special-action guards', () => {
     expect(gameplay).not.toContain("humanMessage: latestMsg.text");
   });
 
+  it('hardens private chat writes and lobby deletion ownership', () => {
+    const rules = readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8');
+    for (const chat of ['twinChat', 'fairyChat', 'hermanosChat', 'loversChat', 'ghostChat']) {
+      expect(rules).toContain(`match /games/{gameId}/${chat}/{messageId}`);
+    }
+    expect(rules).toContain("request.auth.uid == request.resource.data.senderId");
+    expect(rules).toContain("request.resource.data.keys().hasOnly(['senderId','senderName','text','createdAt'])");
+    expect(rules).toContain("resource.data.senderId == request.auth.uid");
+  });
+
   it('keeps wolf chat private to living wolves or an active spy', () => {
     const rules = readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8');
     expect(rules).toContain("p.uid == request.auth.uid && p.isAlive == true");
