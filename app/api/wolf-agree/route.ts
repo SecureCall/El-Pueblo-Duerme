@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     if (aiRoleEntries.some((entry) => !entry)) return NextResponse.json({ error: 'Equipo IA inválido' }, { status: 400 });
 
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-    const namesStr = canonicalAlivePlayers.map(p => p.name).join(', ');
+    const canonicalAlivePlayers = players.filter((p: any) => p.isAlive === true);\n    const namesStr = canonicalAlivePlayers.map((p: any) => p.name).join(', ');
     const botsStr = canonicalAiWolves.map(p => p.name).join(', ');
     const prompt = `Eres el narrador de "El Pueblo Duerme" (Werewolf). Es la fase de noche y estás en el CHAT PRIVADO DE LOS LOBOS.\n\nEl lobo humano "${caller.name}" ha escrito: "${humanMessage}"\n\nJugadores vivos: ${namesStr}\nLobos bot (deben RESPONDER): ${botsStr}\n\nTAREA 1 — Detecta si "${caller.name}" propone matar a alguien. Si es así, devuelve el nombre exacto del jugador que quieren matar (debe coincidir con uno de los jugadores vivos).\nTAREA 2 — Genera 1 mensaje CORTO de acuerdo (máx 8 palabras) por cada lobo bot.\n\nResponde SOLO con JSON válido:\n{"proposedTarget":"NombreDelJugador o null","messages":[{"uid":"uid-del-bot","name":"NombreBot","text":"mensaje corto"}]}`;
 
