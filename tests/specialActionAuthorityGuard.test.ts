@@ -41,6 +41,13 @@ describe('authoritative special-action guards', () => {
     expect(gameplay).not.toContain("humanMessage: latestMsg.text");
   });
 
+  it('keeps wolf chat private to living wolves or an active spy', () => {
+    const rules = readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8');
+    expect(rules).toContain("p.uid == request.auth.uid && p.isAlive == true");
+    expect(rules).toContain("privateRole(gameId, request.auth.uid) in ['Lobo', 'Lobo Blanco', 'Cría de Lobo']");
+    expect(rules).toContain("privateRole(gameId, request.auth.uid) == 'Espía' && get(/databases/$(database)/documents/games/$(gameId)).data.espiaUsed == true");
+  });
+
   it('keeps Ghost and AI wolf chat persistence on the server', () => {
     const ghostRoute = readFileSync(resolve(process.cwd(), 'app/api/fantasma-message/route.ts'), 'utf8');
     const wolfRoute = readFileSync(resolve(process.cwd(), 'app/api/wolf-agree/route.ts'), 'utf8');
