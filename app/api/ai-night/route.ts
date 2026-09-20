@@ -191,14 +191,25 @@ export async function POST(request: NextRequest) {
       writes.push({ uid: ai.uid, role: ai.role, actions: validation.submissions });
     }
 
-    // AI decisions are write-once for a game round. This prevents repeated host
-    // triggers, reconnects, or racing requests from replacing an already chosen
-    // action with a new random action. Existing submissions are intentionally kept.
+    // AI decisions are write-once for a game round. The game state and
+    // resolution lease are checked in the same transaction so a repeated host
+    // trigger can never write behind an active/resolved night-resolution fence.
     const now = Date.now();
+    const resolutionLockRef = gameRef.collection('nightResolutions').doc(String(round));
     await db.runTransaction(async (tx) => {
-      const refs = writes.map((write) => gameRef.collection('nightSubmissions').doc(`${write.uid}:${round}`));
-      const snapshots = await Promise.all(refs.map((ref) => tx.get(ref)));
-
+      const refs = writes.map((write) => gameRef.collection('nightSubmissions').doc(\`${write.uid}:${round}\`));
+      const [currentGameSnap, resolutionLock, ...snapshots] = await Promise.all([
+        tx.get(gameRef),
+        tx.get(resolutionLockRef),
+        ...refs.map((ref) => tx.get(ref)),
+      ]);
+      if (!currentGameSnap.exists) return;
+      const currentGame = currentGameSnap.data() as Record<string, unknown>;
+      if (currentGame.phase !== 'night' || currentGame.roundNumber !== round) return;
+      if (resolutionLock.exists) {
+        const lockData = resolutionLock.data() as Record<string, unknown>;
+        if (lockData.status === 'resolving' || lockData.status === 'resolved') return;
+      }
       for (let i = 0; i < writes.length; i++) {
         if (snapshots[i].exists) continue;
         const write = writes[i];
