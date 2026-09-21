@@ -191,6 +191,8 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
         candidate: ev.candidate.candidate,
         sdpMid: ev.candidate.sdpMid,
         sdpMLineIndex: ev.candidate.sdpMLineIndex,
+        from: userId,
+        to: peerId,
         createdAt: serverTimestamp(),
       }).catch(() => {});
     };
