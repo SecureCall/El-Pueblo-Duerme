@@ -41,6 +41,11 @@ describe('authoritative special-action guards', () => {
     expect(gameplay).not.toContain("humanMessage: latestMsg.text");
   });
 
+  it('makes player behavior analytics server-authoritative', () => {
+    const rules = readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8');
+    expect(rules).toContain("match /playerBehavior/{userId} { allow read: if isAuth() && request.auth.uid == userId; allow create, update, delete: if false; }");
+  });
+
   it('makes user progression fields server-authoritative', () => {
     const rules = readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8');
     expect(rules).toContain("request.resource.data.keys().hasOnly(['uid','displayName','email','photoURL','coins','createdAt'])");
