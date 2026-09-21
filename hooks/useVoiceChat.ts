@@ -19,7 +19,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { db } from '@/lib/firebase/config';
 import {
-  doc, setDoc, deleteDoc, onSnapshot, collection, addDoc,
+  doc, setDoc, deleteDoc, onSnapshot, collection, addDoc, query, where,
   serverTimestamp,
 } from 'firebase/firestore';
 
@@ -306,7 +306,7 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
 
     // Escuchar presencia de otros en el mismo canal
     const presenceUnsub = onSnapshot(
-      collection(db, 'games', gameId, 'voicePresence'),
+      query(collection(db, 'games', gameId, 'voicePresence'), where('channel', '==', channelRef.current)),
       async (snap: any) => {
         const others: SignalPresence[] = snap.docs
           .map((d: any) => d.data() as SignalPresence)
@@ -342,7 +342,7 @@ export function useVoiceChat({ gameId, userId, userName, channel, canSpeak, enab
 
     // Escuchar ofertas dirigidas a mí
     const offersUnsub = onSnapshot(
-      collection(db, 'games', gameId, 'voiceOffers'),
+      query(collection(db, 'games', gameId, 'voiceOffers'), where('to', '==', userId), where('channel', '==', channelRef.current)),
       async (snap: any) => {
         snap.docChanges().forEach(async (ch: any) => {
           if (ch.type !== 'added') return;
