@@ -75,19 +75,32 @@ service cloud.firestore {
     match /games/{gameId}/nightActions/{actionId} { allow read, create, update, delete: if false; }
     match /games/{gameId}/nightSubmissions/{submissionId} { allow read, create, update, delete: if false; }
     match /games/{gameId}/voicePresence/{uid} {
-      allow read: if isAuth() && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid);
+      allow read: if isAuth() &&
+        get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid) &&
+        resource.data.channel in ['main','wolves','ghost'] &&
+        (
+          (resource.data.channel == 'main' && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid && p.isAlive == true)) ||
+          (resource.data.channel == 'wolves' && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid && p.isAlive == true) && privateRole(gameId, request.auth.uid) in ['Lobo', 'Lobo Blanco', 'Cría de Lobo']) ||
+          (resource.data.channel == 'ghost' && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid && p.isAlive == false))
+        );
       allow create, update: if isAuth() && request.auth.uid == uid &&
         request.resource.data.keys().hasOnly(['uid','name','channel','joinedAt']) &&
         request.resource.data.uid == request.auth.uid &&
         request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60 &&
         request.resource.data.channel in ['main','wolves','ghost'] &&
-        request.resource.data.joinedAt is int;
+        request.resource.data.joinedAt is int &&
+        (
+          (request.resource.data.channel == 'main' && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid && p.isAlive == true)) ||
+          (request.resource.data.channel == 'wolves' && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid && p.isAlive == true) && privateRole(gameId, request.auth.uid) in ['Lobo', 'Lobo Blanco', 'Cría de Lobo']) ||
+          (request.resource.data.channel == 'ghost' && get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid && p.isAlive == false))
+        );
       allow delete: if isAuth() && request.auth.uid == uid;
     }
     match /games/{gameId}/voiceOffers/{offerId} {
       allow read: if isAuth() &&
         get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid) &&
-        (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
+        resource.data.to == request.auth.uid &&
+        resource.data.channel in ['main','wolves','ghost'];
       allow create: if isAuth() &&
         request.resource.data.keys().hasOnly(['sdp','type','from','to','channel','createdAt']) &&
         request.resource.data.from == request.auth.uid &&
@@ -135,6 +148,5 @@ service cloud.firestore {
         get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.auth.uid) &&
         get(/databases/$(database)/documents/games/$(gameId)).data.players.exists(p, p.uid == request.resource.data.to);
       allow update, delete: if false;
-    }
-  }
+    }  }
 }
