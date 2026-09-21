@@ -41,6 +41,14 @@ describe('authoritative special-action guards', () => {
     expect(gameplay).not.toContain("humanMessage: latestMsg.text");
   });
 
+  it('makes user progression fields server-authoritative', () => {
+    const rules = readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8');
+    expect(rules).toContain("request.resource.data.keys().hasOnly(['uid','displayName','email','photoURL','coins','createdAt'])");
+    expect(rules).toContain("request.resource.data.coins == 100");
+    expect(rules).toContain("onlyUpdating(['displayName','photoURL'])");
+    expect(rules).not.toContain("!touchesProgressionFields() && !affectedAre(['coins'])");
+  });
+
   it('hardens private chat writes and lobby deletion ownership', () => {
     const rules = readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8');
     for (const chat of ['twinChat', 'fairyChat', 'hermanosChat', 'loversChat', 'ghostChat']) {
