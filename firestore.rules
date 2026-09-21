@@ -11,8 +11,19 @@ service cloud.firestore {
     function touchesProgressionFields() { return request.resource.data.diff(resource.data).affectedKeys().hasAny(['xp','gamesPlayed','gamesWon','consecutiveWins']); }
     match /users/{userId} {
       allow read: if isAuth();
-      allow create: if isAuth() && request.auth.uid == userId;
-      allow update: if isAuth() && ((request.auth.uid == userId && !touchesProgressionFields() && !affectedAre(['coins'])) || onlyUpdating(['friendRequests']));
+      allow create: if isAuth() && request.auth.uid == userId &&
+        request.resource.data.keys().hasOnly(['uid','displayName','email','photoURL','coins','createdAt']) &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.displayName is string &&
+        request.resource.data.displayName.size() >= 3 &&
+        request.resource.data.displayName.size() <= 60 &&
+        request.resource.data.email is string &&
+        request.resource.data.email.size() <= 320 &&
+        request.resource.data.photoURL is string &&
+        request.resource.data.photoURL.size() <= 2048 &&
+        request.resource.data.coins == 100;
+      allow update: if isAuth() && request.auth.uid == userId &&
+        (onlyUpdating(['displayName','photoURL']) || onlyUpdating(['friendRequests']));
     }
     match /users/{userId}/coinHistory/{historyId} { allow read: if isAuth() && request.auth.uid == userId; allow create, update, delete: if false; }
     match /users/{userId}/purchases/{purchaseId} { allow read: if isAuth() && request.auth.uid == userId; allow create, update, delete: if false; }
