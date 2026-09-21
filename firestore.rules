@@ -28,7 +28,7 @@ service cloud.firestore {
     match /users/{userId}/coinHistory/{historyId} { allow read: if isAuth() && request.auth.uid == userId; allow create, update, delete: if false; }
     match /users/{userId}/purchases/{purchaseId} { allow read: if isAuth() && request.auth.uid == userId; allow create, update, delete: if false; }
     match /presence/{userId} { allow read: if isAuth(); allow write: if isAuth() && request.auth.uid == userId; }
-    match /playerBehavior/{userId} { allow read, create, update, delete: if isAuth() && request.auth.uid == userId; }
+    match /playerBehavior/{userId} { allow read: if isAuth() && request.auth.uid == userId; allow create, update, delete: if false; }
     match /gameInvites/{userId}/items/{inviteId} { allow read, delete: if isAuth() && request.auth.uid == userId; allow create: if isAuth(); }
     match /games/{gameId} {
       allow read: if isAuth() && (resource.data.status == 'lobby' || resource.data.hostUid == request.auth.uid || resource.data.players.exists(p, p.uid == request.auth.uid));
