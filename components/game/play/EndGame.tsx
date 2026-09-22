@@ -10,7 +10,6 @@ import { AdBanner } from '@/components/ads/AdBanner';
 import { NativeBanner } from '@/components/ads/NativeBanner';
 import { RewardedAd } from '@/components/ads/RewardedAd';
 import { xpToLevel, levelEmoji, getPlayerTitle, type XPResult } from '@/lib/firebase/xp';
-import { recordGameResult } from '@/lib/bots/playerStats';
 import { getPrivateGameState } from '@/lib/game/privateStateClient';
 
 /** Genera un mensaje de drama personalizado al terminar la partida */
@@ -70,6 +69,7 @@ function buildDramaMessage(
 
 interface Props {
   game: GameState;
+  gameId: string;
   myRole?: string;
   myUid?: string;
   isHost?: boolean;
@@ -253,12 +253,7 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
     if (!myUid || xpAwarded.current) return;
     xpAwarded.current = true;
 
-    const roleInfo = myRole ? ROLES[myRole] : null;
-    const hasSpecialRole = !!roleInfo && roleInfo.team !== 'village' && myRole !== 'Aldeano' && myRole !== 'Lobo';
-
-    if (myRole) recordGameResult(myUid, iWon, myRole, survived, dramaMsg).catch(() => {});
-
-    // El uid viene del token de autenticación en el servidor — no se envía en el body
+        // El uid viene del token de autenticación en el servidor — no se envía en el body
     const awardViaServer = async () => {
       const { getAuth } = await import('firebase/auth');
       const currentUser = getAuth().currentUser;
@@ -267,7 +262,7 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
       const r = await fetch('/api/award-xp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ isWin: iWon, hasSpecialRole }),
+        body: JSON.stringify({ gameId }),
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data: XPResult = await r.json();
