@@ -10,7 +10,6 @@ import {
 import { Loader2 } from 'lucide-react';
 import { assignRoles, checkWinCondition, ROLES, ROLE_SUBMISSION_KEY, drawRandomEvent } from './roles';
 import { type BotType, FALLBACK_BOT_MESSAGES, BOT_NARRATOR_SPOTLIGHTS } from '@/lib/bots/botSystem';
-import { recordVote, recordGameResult } from '@/lib/bots/playerStats';
 import { sendPushToMany } from '@/lib/firebase/push';
 import { RoleReveal } from './RoleReveal';
 import { NightPhase } from './NightPhase';
@@ -500,8 +499,6 @@ export function GamePlay({ gameId }: { gameId: string }) {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.error ?? `day-vote ${response.status}`);
       }
-      // Registro de comportamiento del jugador (fire-and-forget)
-      if (game.dayStartedAt) recordVote(user.uid, game.dayStartedAt).catch(() => {});
     } catch (e) { console.error('submitDayVote error:', e); }
   }, [user, game, gameId, votesFromSub]);
 
