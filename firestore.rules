@@ -23,7 +23,7 @@ service cloud.firestore {
         request.resource.data.photoURL.size() <= 2048 &&
         request.resource.data.coins == 100;
       allow update: if isAuth() && request.auth.uid == userId &&
-        (onlyUpdating(['displayName','photoURL']) || onlyUpdating(['friendRequests']));
+        onlyUpdating(['displayName','photoURL']);
     }
     match /users/{userId}/coinHistory/{historyId} { allow read: if isAuth() && request.auth.uid == userId; allow create, update, delete: if false; }
     match /users/{userId}/purchases/{purchaseId} { allow read: if isAuth() && request.auth.uid == userId; allow create, update, delete: if false; }
