@@ -75,13 +75,15 @@ export async function POST(req: NextRequest) {
     const gameRef = db.collection('games').doc(gameId);
     const userRef = db.collection('users').doc(uid);
     const awardRef = userRef.collection('xpAwards').doc(gameId);
+    const behaviorRef = db.collection('playerBehavior').doc(uid);
     const roleRef = gameRef.collection('playerRoles').doc(uid);
 
     const result = await db.runTransaction(async (tx) => {
-      const [gameSnap, userSnap, awardSnap, roleSnap] = await Promise.all([
+      const [gameSnap, userSnap, awardSnap, behaviorSnap, roleSnap] = await Promise.all([
         tx.get(gameRef),
         tx.get(userRef),
         tx.get(awardRef),
+        tx.get(behaviorRef),
         tx.get(roleRef),
       ]);
 
@@ -115,12 +117,49 @@ export async function POST(req: NextRequest) {
       const xpGained = XP_PER_GAME + (isWin ? XP_PER_WIN : 0) + (hasSpecialRole ? XP_SPECIAL_ROLE : 0) + streakBonus;
       const newXp = current + xpGained;
 
+      const behavior = behaviorSnap.exists ? behaviorSnap.data()! : {};
+      const previousRoleCounts = behavior.rolePlayCount && typeof behavior.rolePlayCount === 'object'
+        ? behavior.rolePlayCount as Record<string, number>
+        : {};
+      const rolePlayCount = {
+        ...previousRoleCounts,
+        [role]: (typeof previousRoleCounts[role] === 'number' ? previousRoleCounts[role] : 0) + 1,
+      };
+      const previousHistory = Array.isArray(behavior.gameHistory) ? behavior.gameHistory : [];
+      const gameHistory = [
+        ...previousHistory,
+        { won: isWin, role, survived: player.isAlive === true, ts: Date.now() },
+      ].slice(-10);
+      const winsAsWolf = (typeof behavior.winsAsWolf === 'number' ? behavior.winsAsWolf : 0) +
+        (isWin && roleInfo.team === 'wolves' ? 1 : 0);
+      const winsAsVillage = (typeof behavior.winsAsVillage === 'number' ? behavior.winsAsVillage : 0) +
+        (isWin && roleInfo.team !== 'wolves' ? 1 : 0);
+      const survivedGames = (typeof behavior.survivedGames === 'number' ? behavior.survivedGames : 0) +
+        (player.isAlive === true ? 1 : 0);
+      const drama = typeof game.winMessage === 'string' ? game.winMessage.slice(0, 500) : '';
+
+      const now = Date.now();
       tx.set(userRef, {
         xp: newXp,
         gamesPlayed: currentPlayed + 1,
         gamesWon: isWin ? currentWon + 1 : currentWon,
         consecutiveWins: newStreak,
-        lastXpAwardedAt: Date.now(),
+        lastXpAwardedAt: now,
+      }, { merge: true });
+
+      tx.set(behaviorRef, {
+        uid,
+        gamesPlayed: currentPlayed + 1,
+        gamesWon: isWin ? currentWon + 1 : currentWon,
+        consecutiveWins: newStreak,
+        lastRole: role,
+        lastUpdated: now,
+        winsAsWolf,
+        winsAsVillage,
+        survivedGames,
+        rolePlayCount,
+        lastGameDrama: drama || (typeof behavior.lastGameDrama === 'string' ? behavior.lastGameDrama : ''),
+        gameHistory,
       }, { merge: true });
 
       tx.create(awardRef, {
