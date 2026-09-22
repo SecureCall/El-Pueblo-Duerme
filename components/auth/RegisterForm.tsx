@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase/config';
+import { auth } from '@/lib/firebase/config';
 import { signInWithGoogle, signInWithFacebook } from '@/lib/firebase/auth-social';
 import { Loader2, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/app/providers/AuthProvider';
@@ -35,14 +34,13 @@ export function RegisterForm() {
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(cred.user, { displayName: name.trim() });
-      await setDoc(doc(db, 'users', cred.user.uid), {
-        uid: cred.user.uid,
-        displayName: name.trim(),
-        email,
-        photoURL: '',
-        coins: 100,
-        createdAt: serverTimestamp(),
+      const token = await cred.user.getIdToken();
+      const profileResponse = await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ displayName: name.trim(), photoURL: '' }),
       });
+      if (!profileResponse.ok) throw new Error('No se pudo crear el perfil');
       router.push('/');
     } catch (err: any) {
       const msgs: Record<string, string> = {
