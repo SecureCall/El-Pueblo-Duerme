@@ -1,5 +1,4 @@
-import { doc, getDoc, setDoc, increment, runTransaction } from 'firebase/firestore';
-import { db } from './config';
+import { getAuth } from 'firebase/auth';
 
 export const XP_PER_GAME = 50;
 export const XP_PER_WIN = 100;
@@ -125,40 +124,18 @@ export interface XPResult {
 
 export async function awardXP(
   uid: string,
-  { isWin, hasSpecialRole, consecutiveWins }: { isWin: boolean; hasSpecialRole: boolean; consecutiveWins?: number }
+  _result: { isWin: boolean; hasSpecialRole: boolean; consecutiveWins?: number },
 ): Promise<XPResult> {
-  const streak = consecutiveWins ?? 0;
-  const streakBonus = isWin && streak > 1 ? XP_STREAK_BONUS * Math.min(streak, 5) : 0;
-  const xpGained = XP_PER_GAME + (isWin ? XP_PER_WIN : 0) + (hasSpecialRole ? XP_SPECIAL_ROLE : 0) + streakBonus;
+  const currentUser = getAuth().currentUser;
+  if (!currentUser || currentUser.uid !== uid) throw new Error('No autenticado');
 
-  const ref = doc(db, 'users', uid);
-
-  // Transacción: lee el XP actual, suma y escribe. Funciona aunque el doc no exista.
-  const newTotalXp = await runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    const current = snap.exists() ? (snap.data().xp ?? 0) : 0;
-    const currentPlayed = snap.exists() ? (snap.data().gamesPlayed ?? 0) : 0;
-    const currentWon = snap.exists() ? (snap.data().gamesWon ?? 0) : 0;
-    const newXp = current + xpGained;
-
-    if (!snap.exists()) {
-      // Primer documento del usuario — crear con todos los campos
-      tx.set(ref, {
-        xp: newXp,
-        gamesPlayed: 1,
-        gamesWon: isWin ? 1 : 0,
-        consecutiveWins: isWin ? 1 : 0,
-      }, { merge: true });
-    } else {
-      tx.set(ref, {
-        xp: newXp,
-        gamesPlayed: currentPlayed + 1,
-        gamesWon: isWin ? currentWon + 1 : currentWon,
-        consecutiveWins: isWin ? (snap.data().consecutiveWins ?? 0) + 1 : 0,
-      }, { merge: true });
-    }
-    return newXp;
+  const token = await currentUser.getIdToken();
+  const response = await fetch('/api/award-xp', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({}),
   });
-
-  return { xpGained, newTotalXp, newLevel: xpToLevel(newTotalXp) };
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(data?.error ?? 'No se pudo otorgar XP');
+  return data as XPResult;
 }
