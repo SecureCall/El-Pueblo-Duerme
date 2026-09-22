@@ -1,6 +1,6 @@
 import {
   doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove,
-  collection, query, where, getDocs, onSnapshot, serverTimestamp,
+  collection, query, where, getDocs, onSnapshot,
   addDoc, deleteDoc, Unsubscribe,
 } from 'firebase/firestore';
 import { db } from './config';
@@ -53,7 +53,7 @@ export async function ensureUserProfile(uid: string, displayName: string, photoU
 }
 
 export async function setPresence(uid: string, displayName: string, photoURL: string, online: boolean) {
-  await setDoc(doc(db, 'presence', uid), { online, displayName, photoURL, lastSeen: serverTimestamp() }, { merge: true });
+  await setDoc(doc(db, 'presence', uid), { uid, online, displayName, photoURL, lastSeen: Date.now() }, { merge: true });
 }
 
 export async function searchUserByName(name: string): Promise<UserProfile[]> {
