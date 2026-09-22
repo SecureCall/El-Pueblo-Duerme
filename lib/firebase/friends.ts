@@ -46,25 +46,17 @@ async function mutateFriend(action: 'send' | 'accept' | 'reject' | 'remove', tar
   if (!response.ok) throw new Error(data?.error ?? 'No se pudo actualizar la relación');
 }
 
-export async function ensureUserProfile(uid: string, displayName: string, photoURL: string) {
-  const ref = doc(db, 'users', uid);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    await setDoc(ref, {
-      uid, displayName, photoURL,
-      friends: [], friendRequests: [],
-      xp: 0, gamesPlayed: 0, gamesWon: 0, consecutiveWins: 0,
-    });
-  } else {
-    const data = snap.data();
-    await setDoc(ref, {
-      displayName, photoURL,
-      ...(data.xp === undefined ? { xp: 0 } : {}),
-      ...(data.gamesPlayed === undefined ? { gamesPlayed: 0 } : {}),
-      ...(data.gamesWon === undefined ? { gamesWon: 0 } : {}),
-      ...(data.consecutiveWins === undefined ? { consecutiveWins: 0 } : {}),
-    }, { merge: true });
-  }
+export async function ensureUserProfile(_uid: string, displayName: string, photoURL: string) {
+  const user = getAuth().currentUser;
+  if (!user || user.uid !== _uid) throw new Error('Usuario no autenticado');
+  const token = await user.getIdToken();
+  const response = await fetch('/api/profile', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ displayName, photoURL }),
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(data?.error ?? 'No se pudo inicializar el perfil');
 }
 
 export async function setPresence(uid: string, displayName: string, photoURL: string, online: boolean) {
