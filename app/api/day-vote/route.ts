@@ -25,7 +25,8 @@ export async function POST(req: NextRequest) {
     const voteRef = gameRef.collection('votes').doc(uid);
     const lockRef = gameRef.collection('locks').doc('dayResolution');
     await db.runTransaction(async tx => {
-      const [gameSnap, lockSnap] = await Promise.all([tx.get(gameRef), tx.get(lockRef)]);
+      const behaviorRef = db.collection('playerBehavior').doc(uid);
+      const [gameSnap, lockSnap, previousVoteSnap, behaviorSnap] = await Promise.all([tx.get(gameRef), tx.get(lockRef), tx.get(voteRef), tx.get(behaviorRef)]);
       if (!gameSnap.exists) throw new Error('GAME_NOT_FOUND');
       const game = gameSnap.data()!;
       const currentRound = Number(game.roundNumber ?? 1);
@@ -55,7 +56,25 @@ export async function POST(req: NextRequest) {
           if (sirenaTarget) actualTarget = sirenaTarget.uid;
         }
       }
-      tx.set(voteRef, { target: actualTarget, round: currentRound, submittedAt: Date.now() });
+      const now = Date.now();
+      tx.set(voteRef, { target: actualTarget, round: currentRound, submittedAt: now });
+
+      // Count only the first accepted vote for this round. Re-votes replace the
+      // canonical vote but must not manufacture additional behavior samples.
+      const previous = previousVoteSnap.exists ? previousVoteSnap.data() : null;
+      if (!previous || Number(previous.round) !== currentRound) {
+        const behavior = behaviorSnap.exists ? behaviorSnap.data()! : {};
+        const startedAt = Number(game.dayStartedAt ?? 0);
+        const voteTimeMs = startedAt > 0 ? now - startedAt : 0;
+        if (voteTimeMs >= 0 && voteTimeMs <= 600000) {
+          tx.set(behaviorRef, {
+            uid,
+            totalVoteTimeMs: (typeof behavior.totalVoteTimeMs === 'number' ? behavior.totalVoteTimeMs : 0) + voteTimeMs,
+            voteCount: (typeof behavior.voteCount === 'number' ? behavior.voteCount : 0) + 1,
+            lastUpdated: now,
+          }, { merge: true });
+        }
+      }
     });
     return NextResponse.json({ ok: true });
   } catch (err: any) {
