@@ -1,5 +1,5 @@
 import { db } from '@/lib/firebase/config';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 
 export interface GameHistoryEntry {
   won: boolean;
@@ -33,67 +33,10 @@ export interface PlayerBehaviorProfile {
   consecutiveWins: number;
 }
 
-export async function recordVote(uid: string, dayStartedAt: number): Promise<void> {
-  try {
-    const voteTimeMs = Date.now() - dayStartedAt;
-    if (voteTimeMs < 0 || voteTimeMs > 600000) return;
-    const ref = doc(db, 'playerBehavior', uid);
-    const snap = await getDoc(ref);
-    const current = snap.exists() ? (snap.data() as PlayerStats) : null;
-    await setDoc(ref, {
-      uid,
-      totalVoteTimeMs: (current?.totalVoteTimeMs ?? 0) + voteTimeMs,
-      voteCount: (current?.voteCount ?? 0) + 1,
-      gamesPlayed: current?.gamesPlayed ?? 0,
-      gamesWon: current?.gamesWon ?? 0,
-      consecutiveWins: current?.consecutiveWins ?? 0,
-      lastRole: current?.lastRole ?? 'Aldeano',
-      lastUpdated: Date.now(),
-    }, { merge: true });
-  } catch { /* silencioso */ }
-}
-
-const WOLF_ROLES = new Set(['Lobo', 'Alfa', 'Lobo Solitario', 'Traidor', 'Perro Lobo', 'Lobo Blanco', 'Gran Lobo Malo']);
-
-export async function recordGameResult(
-  uid: string,
-  won: boolean,
-  role: string,
-  survived = false,
-  dramaMemo = '',
-): Promise<void> {
-  try {
-    const ref = doc(db, 'playerBehavior', uid);
-    const snap = await getDoc(ref);
-    const current = snap.exists() ? (snap.data() as PlayerStats) : null;
-    const prevStreak = current?.consecutiveWins ?? 0;
-    const newStreak = won ? prevStreak + 1 : 0;
-    const isWolfRole = WOLF_ROLES.has(role);
-    const prevRoleCount: Record<string, number> = current?.rolePlayCount ?? {};
-
-    const newEntry: GameHistoryEntry = { won, role, survived, ts: Date.now() };
-    const prevHistory: GameHistoryEntry[] = current?.gameHistory ?? [];
-    const gameHistory = [...prevHistory, newEntry].slice(-10);
-
-    await setDoc(ref, {
-      uid,
-      totalVoteTimeMs: current?.totalVoteTimeMs ?? 0,
-      voteCount: current?.voteCount ?? 0,
-      gamesPlayed: (current?.gamesPlayed ?? 0) + 1,
-      gamesWon: (current?.gamesWon ?? 0) + (won ? 1 : 0),
-      consecutiveWins: newStreak,
-      lastRole: role,
-      lastUpdated: Date.now(),
-      winsAsWolf: (current?.winsAsWolf ?? 0) + (won && isWolfRole ? 1 : 0),
-      winsAsVillage: (current?.winsAsVillage ?? 0) + (won && !isWolfRole ? 1 : 0),
-      survivedGames: (current?.survivedGames ?? 0) + (survived ? 1 : 0),
-      rolePlayCount: { ...prevRoleCount, [role]: (prevRoleCount[role] ?? 0) + 1 },
-      lastGameDrama: dramaMemo || (current?.lastGameDrama ?? ''),
-      gameHistory,
-    }, { merge: true });
-  } catch { /* silencioso */ }
-}
-
+/**
+ * Read-only client helper. All playerBehavior writes are server-authoritative:
+ * day votes are recorded by /api/day-vote and game results by /api/award-xp.
+ */
 export async function getBehaviorProfile(uid: string): Promise<PlayerBehaviorProfile> {
   try {
     const snap = await getDoc(doc(db, 'playerBehavior', uid));
