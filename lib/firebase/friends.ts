@@ -1,8 +1,9 @@
 import {
-  doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove,
+  doc, getDoc, setDoc,
   collection, query, where, getDocs, onSnapshot,
-  addDoc, deleteDoc, Unsubscribe,
+  addDoc, deleteDoc, serverTimestamp, Unsubscribe,
 } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import { db } from './config';
 
 export interface UserProfile {
@@ -30,6 +31,21 @@ export interface GameInvite {
   sentAt: any;
 }
 
+async function mutateFriend(action: 'send' | 'accept' | 'reject' | 'remove', targetUid: string) {
+  const user = getAuth().currentUser;
+  if (!user) throw new Error('Usuario no autenticado');
+  if (!targetUid || targetUid === user.uid) throw new Error('Usuario objetivo inválido');
+
+  const token = await user.getIdToken();
+  const response = await fetch('/api/friends', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ action, targetUid }),
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(data?.error ?? 'No se pudo actualizar la relación');
+}
+
 export async function ensureUserProfile(uid: string, displayName: string, photoURL: string) {
   const ref = doc(db, 'users', uid);
   const snap = await getDoc(ref);
@@ -40,7 +56,6 @@ export async function ensureUserProfile(uid: string, displayName: string, photoU
       xp: 0, gamesPlayed: 0, gamesWon: 0, consecutiveWins: 0,
     });
   } else {
-    // Actualiza nombre/foto; añade campos de stats si no existen (usuarios antiguos)
     const data = snap.data();
     await setDoc(ref, {
       displayName, photoURL,
@@ -62,26 +77,20 @@ export async function searchUserByName(name: string): Promise<UserProfile[]> {
   return snap.docs.map(d => d.data() as UserProfile);
 }
 
-export async function sendFriendRequest(fromUid: string, toUid: string) {
-  if (fromUid === toUid) return;
-  const toRef = doc(db, 'users', toUid);
-  await updateDoc(toRef, { friendRequests: arrayUnion(fromUid) });
+export async function sendFriendRequest(_fromUid: string, toUid: string) {
+  await mutateFriend('send', toUid);
 }
 
-export async function acceptFriendRequest(myUid: string, fromUid: string) {
-  const myRef = doc(db, 'users', myUid);
-  const fromRef = doc(db, 'users', fromUid);
-  await updateDoc(myRef, { friends: arrayUnion(fromUid), friendRequests: arrayRemove(fromUid) });
-  await updateDoc(fromRef, { friends: arrayUnion(myUid) });
+export async function acceptFriendRequest(_myUid: string, fromUid: string) {
+  await mutateFriend('accept', fromUid);
 }
 
-export async function rejectFriendRequest(myUid: string, fromUid: string) {
-  await updateDoc(doc(db, 'users', myUid), { friendRequests: arrayRemove(fromUid) });
+export async function rejectFriendRequest(_myUid: string, fromUid: string) {
+  await mutateFriend('reject', fromUid);
 }
 
-export async function removeFriend(myUid: string, friendUid: string) {
-  await updateDoc(doc(db, 'users', myUid), { friends: arrayRemove(friendUid) });
-  await updateDoc(doc(db, 'users', friendUid), { friends: arrayRemove(myUid) });
+export async function removeFriend(_myUid: string, friendUid: string) {
+  await mutateFriend('remove', friendUid);
 }
 
 export function subscribeToMyProfile(uid: string, cb: (p: UserProfile) => void): Unsubscribe {
