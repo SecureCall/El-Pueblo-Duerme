@@ -913,6 +913,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     return (
       <EndGame
         game={game}
+        gameId={gameId}
         myRole={myRole}
         myUid={user?.uid}
         isHost={game.hostUid === user?.uid}
