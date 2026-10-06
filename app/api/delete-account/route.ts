@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from 'firebase-admin/auth';
 import { getSdks } from '@/lib/server/firebase-admin';
+import { initAdminApp } from '@/lib/firebase/admin';
 
 const RECENT_AUTH_WINDOW_MS = 10 * 60 * 1000;
 
@@ -27,6 +28,7 @@ export async function POST(req: NextRequest) {
   if (!token) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   try {
+    initAdminApp();
     const auth = getAuth();
     const decoded = await auth.verifyIdToken(token);
     const uid = decoded.uid;
