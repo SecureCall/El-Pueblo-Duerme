@@ -10,7 +10,7 @@ import {
 import { Loader2 } from 'lucide-react';
 import { assignRoles, checkWinCondition, ROLES, ROLE_SUBMISSION_KEY, drawRandomEvent } from './roles';
 import { type BotType, FALLBACK_BOT_MESSAGES, BOT_NARRATOR_SPOTLIGHTS } from '@/lib/bots/botSystem';
-import { sendPushToMany } from '@/lib/firebase/push';
+import { sendRematchPush } from '@/lib/firebase/push';
 import { RoleReveal } from './RoleReveal';
 import { NightPhase } from './NightPhase';
 import { DayPhase } from './DayPhase';
@@ -932,17 +932,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
             });
             if (!response.ok) throw new Error('REMATCH_FAILED');
             const data = await response.json();
-            const playerUids = (game.players ?? [])
-              .filter((p: Player) => !p.isAI && p.uid !== user.uid)
-              .map((p: Player) => p.uid);
-            if (playerUids.length > 0) {
-              sendPushToMany(playerUids, {
-                title: '⚔️ ¡Revancha en El Pueblo Duerme!',
-                body: `${data.hostName ?? me?.name ?? 'El nuevo anfitrión'} ha iniciado una nueva partida. ¡Vuelve y venga!`,
-                url: `/game/${gameId}`,
-                tag: `rematch-${gameId}`,
-              }).catch(() => {});
-            }
+            void sendRematchPush(gameId);
           } catch {
             // The authoritative endpoint reports the failure through the UI's existing error boundary.
           }
