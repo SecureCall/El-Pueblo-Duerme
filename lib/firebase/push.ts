@@ -11,6 +11,8 @@
  * Generate a pair once with:  npx web-push generate-vapid-keys
  */
 
+import { auth } from '@/lib/firebase/config';
+
 export const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? '';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -82,9 +84,12 @@ export async function subscribeAndSave(uid: string): Promise<boolean> {
   if (!sub) return false;
   try {
     const subJson = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string }; expirationTime?: number | null };
+    const user = auth.currentUser;
+    if (!user || user.uid !== uid) return false;
+    const token = await user.getIdToken();
     await fetch('/api/push-subscribe', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ uid, subscription: subJson }),
     });
     return true;
