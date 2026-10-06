@@ -2,11 +2,12 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/app/providers/AuthProvider';
 import {
-  deleteUser,
+  signOut,
   GoogleAuthProvider,
   reauthenticateWithPopup,
 } from 'firebase/auth';
 import { Trash2, AlertTriangle, CheckCircle, LogIn } from 'lucide-react';
+import { auth } from '@/lib/firebase/config';
 
 type Phase = 'info' | 'confirm' | 'deleting' | 'done' | 'error';
 
@@ -28,7 +29,7 @@ export default function DeleteAccountPage() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error ?? 'No se pudo eliminar la cuenta');
-      await deleteUser(user);
+      await signOut(auth);
       setPhase('done');
     } catch (err: any) {
       setErrorMsg(err?.message ?? 'Error desconocido.');
