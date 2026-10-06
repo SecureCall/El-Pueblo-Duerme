@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     const gameSnap = await db.collection('games').doc(gameId).get();
     if (!gameSnap.exists) return NextResponse.json({ error: 'Partida no encontrada' }, { status: 404 });
     const game = gameSnap.data() ?? {};
-    if (game.hostUid !== tokenUid || game.phase !== 'ended') return NextResponse.json({ error: 'No autorizado para esta partida' }, { status: 403 });
+    if (game.hostUid !== tokenUid || game.phase !== 'lobby') return NextResponse.json({ error: 'No autorizado para enviar la revancha' }, { status: 403 });
     const recipients = (Array.isArray(game.players) ? game.players : [])
       .filter((p: any) => p && typeof p.uid === 'string' && p.uid !== tokenUid && p.isAI !== true)
       .map((p: any) => p.uid);
