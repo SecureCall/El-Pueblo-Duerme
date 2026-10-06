@@ -99,20 +99,18 @@ export async function subscribeAndSave(uid: string): Promise<boolean> {
   }
 }
 
-/** Send a push notification to a specific user via /api/push-send. */
-export async function sendPushToUser(uid: string, payload: PushPayload): Promise<void> {
+/** Ask the server to send the authorized rematch notification for this ended game. */
+export async function sendRematchPush(gameId: string): Promise<void> {
   try {
+    const user = auth.currentUser;
+    if (!user) return;
+    const token = await user.getIdToken();
     await fetch('/api/push-send', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid, payload }),
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ gameId }),
     });
   } catch (err) {
-    console.warn('[push] sendPushToUser error:', err);
+    console.warn('[push] sendRematchPush error:', err);
   }
-}
-
-/** Send a push notification to multiple users (batch). */
-export async function sendPushToMany(uids: string[], payload: PushPayload): Promise<void> {
-  await Promise.allSettled(uids.map(uid => sendPushToUser(uid, payload)));
 }
