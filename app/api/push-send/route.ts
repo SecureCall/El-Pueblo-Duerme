@@ -1,8 +1,3 @@
-/**
- * POST /api/push-send
- * Sends a push notification to the given uid on behalf of the authenticated caller.
- * Security: requires Firebase Auth token (prevents unauthenticated spam).
- */
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from 'firebase-admin/firestore';
 import { initAdminApp } from '@/lib/firebase/admin';
@@ -16,21 +11,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { uid, payload } = await req.json() as {
-      uid: string;
-      payload: {
-        title: string;
-        body: string;
-        url?: string;
-        tag?: string;
-        icon?: string;
-        requireInteraction?: boolean;
-      };
-    };
-
-    if (!uid || !payload?.title) {
-      return NextResponse.json({ error: 'uid and payload.title required' }, { status: 400 });
-    }
+    const { gameId } = await req.json() as { gameId?: string };
+    if (!gameId) return NextResponse.json({ error: 'gameId requerido' }, { status: 400 });
 
     const vapidPublicKey = process.env.VAPID_PUBLIC_KEY ?? '';
     const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY ?? '';
@@ -44,9 +26,15 @@ export async function POST(req: NextRequest) {
 
     initAdminApp();
     const db = getFirestore();
-    const subsSnapshot = await db
-      .collection('users').doc(uid)
-      .collection('pushSubscriptions').get();
+    const gameSnap = await db.collection('games').doc(gameId).get();
+    if (!gameSnap.exists) return NextResponse.json({ error: 'Partida no encontrada' }, { status: 404 });
+    const game = gameSnap.data() ?? {};
+    if (game.hostUid !== tokenUid || game.phase !== 'ended') return NextResponse.json({ error: 'No autorizado para esta partida' }, { status: 403 });
+    const recipients = (Array.isArray(game.players) ? game.players : [])
+      .filter((p: any) => p && typeof p.uid === 'string' && p.uid !== tokenUid && p.isAI !== true)
+      .map((p: any) => p.uid);
+    if (recipients.length === 0) return NextResponse.json({ ok: true, sent: 0 });
+    const subsSnapshot = await db.collection('users').doc(recipients[0]).collection('pushSubscriptions').get();
 
     if (subsSnapshot.empty) {
       return NextResponse.json({ ok: true, sent: 0, reason: 'no subscriptions' });
@@ -62,12 +50,12 @@ export async function POST(req: NextRequest) {
             expirationTime: sub.expirationTime ?? undefined,
           },
           JSON.stringify({
-            title: payload.title,
-            body: payload.body,
-            url: payload.url ?? '/',
-            tag: payload.tag ?? 'elpueblo',
-            icon: payload.icon ?? '/icons/192.png',
-            requireInteraction: payload.requireInteraction ?? false,
+            title: '⚔️ ¡Revancha en El Pueblo Duerme!',
+            body: `${game.hostName ?? 'El nuevo anfitrión'} ha iniciado una nueva partida. ¡Vuelve y venga!`,
+            url: `/game/${gameId}`,
+            tag: `rematch-${gameId}`,
+            icon: '/icons/192.png',
+            requireInteraction: false,
           })
         );
       })
