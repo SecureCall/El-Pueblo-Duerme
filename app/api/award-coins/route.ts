@@ -41,23 +41,30 @@ export async function POST(req: NextRequest) {
 
     if (action === 'start') {
       const nowMs = Date.now();
-      const rewardRef = userRef.collection('rewardSessions').doc();
+      const utcNow = new Date(nowMs);
+      const utcDay = String(utcNow.getUTCFullYear()) + '-' +
+        String(utcNow.getUTCMonth() + 1).padStart(2, '0') + '-' +
+        String(utcNow.getUTCDate()).padStart(2, '0');
       const activeUntilMs = nowMs + SESSION_TTL_SECONDS * 1000;
+      const rewardRef = userRef.collection('rewardSessions').doc();
 
-      await rewardRef.create({
-        type: 'video',
-        status: 'pending',
-        createdAt: new Date(nowMs),
-        expiresAt: new Date(activeUntilMs),
-        minWatchUntil: new Date(nowMs + WATCH_SECONDS * 1000),
+      await db.runTransaction(async tx => {
+        const userSnap = await tx.get(userRef);
+        const user = userSnap.data() ?? {};
+        const storedDay = typeof user.videoRewardDay === 'string' ? user.videoRewardDay : '';
+        const usedToday = storedDay === utcDay && Number.isInteger(user.videoRewardsUsed) ? user.videoRewardsUsed : 0;
+        if (usedToday >= MAX_VIDEOS_PER_DAY) throw new Error('DAILY_LIMIT');
+
+        tx.create(rewardRef, {
+          type: 'video',
+          status: 'pending',
+          createdAt: new Date(nowMs),
+          expiresAt: new Date(activeUntilMs),
+          minWatchUntil: new Date(nowMs + WATCH_SECONDS * 1000),
+        });
       });
 
-      const response: StartResponse = {
-        ok: true,
-        action: 'start',
-        rewardId: rewardRef.id,
-        waitSeconds: WATCH_SECONDS,
-      };
+      const response: StartResponse = { ok: true, action: 'start', rewardId: rewardRef.id, waitSeconds: WATCH_SECONDS };
       return NextResponse.json(response);
     }
 
