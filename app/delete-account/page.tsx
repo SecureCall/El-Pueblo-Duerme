@@ -1,45 +1,14 @@
-'use client';
-
 import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/app/providers/AuthProvider';
-import { auth, db } from '@/lib/firebase/config';
 import {
   deleteUser,
   GoogleAuthProvider,
   reauthenticateWithPopup,
 } from 'firebase/auth';
-import {
-  doc,
-  deleteDoc,
-  collection,
-  getDocs,
-  writeBatch,
-} from 'firebase/firestore';
 import { Trash2, AlertTriangle, CheckCircle, LogIn } from 'lucide-react';
 
 type Phase = 'info' | 'confirm' | 'deleting' | 'done' | 'error';
-
-async function deleteAllUserData(uid: string) {
-  const batch = writeBatch(db);
-
-  const subcollections = ['coinHistory', 'purchases', 'gameHistory'];
-  for (const sub of subcollections) {
-    const snap = await getDocs(collection(db, 'users', uid, sub));
-    snap.forEach(d => batch.delete(d.ref));
-  }
-
-  batch.delete(doc(db, 'users', uid));
-  batch.delete(doc(db, 'playerBehavior', uid));
-
-  try {
-    const notifSnap = await getDocs(collection(db, 'pushSubscriptions', uid, 'devices'));
-    notifSnap.forEach(d => batch.delete(d.ref));
-    batch.delete(doc(db, 'pushSubscriptions', uid));
-  } catch { /* optional collection */ }
-
-  await batch.commit();
-}
 
 export default function DeleteAccountPage() {
   const { user } = useAuth();
@@ -52,7 +21,13 @@ export default function DeleteAccountPage() {
     try {
       const provider = new GoogleAuthProvider();
       await reauthenticateWithPopup(user, provider);
-      await deleteAllUserData(user.uid);
+      const token = await user.getIdToken(true);
+      const response = await fetch('/api/delete-account', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error ?? 'No se pudo eliminar la cuenta');
       await deleteUser(user);
       setPhase('done');
     } catch (err: any) {
