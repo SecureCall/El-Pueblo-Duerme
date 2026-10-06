@@ -34,35 +34,35 @@ export async function POST(req: NextRequest) {
       .filter((p: any) => p && typeof p.uid === 'string' && p.uid !== tokenUid && p.isAI !== true)
       .map((p: any) => p.uid);
     if (recipients.length === 0) return NextResponse.json({ ok: true, sent: 0 });
-    const subsSnapshot = await db.collection('users').doc(recipients[0]).collection('pushSubscriptions').get();
-
-    if (subsSnapshot.empty) {
-      return NextResponse.json({ ok: true, sent: 0, reason: 'no subscriptions' });
+    let sent = 0;
+    let failed = 0;
+    for (const uid of recipients) {
+      const subsSnapshot = await db.collection('users').doc(uid).collection('pushSubscriptions').get();
+      const results = await Promise.allSettled(
+        subsSnapshot.docs.map(async (docSnap) => {
+          const sub = docSnap.data();
+          try {
+            await webpush.sendNotification(
+              { endpoint: sub.endpoint, keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth }, expirationTime: sub.expirationTime ?? undefined },
+              JSON.stringify({
+                title: '⚔️ ¡Revancha en El Pueblo Duerme!',
+                body: `${game.hostName ?? 'El nuevo anfitrión'} ha iniciado una nueva partida. ¡Vuelve y venga!`,
+                url: `/game/${gameId}`,
+                tag: `rematch-${gameId}`,
+                icon: '/icons/192.png',
+                requireInteraction: false,
+              }),
+            );
+          } catch (error: any) {
+            if (error?.statusCode === 404 || error?.statusCode === 410) await docSnap.ref.delete().catch(() => {});
+            throw error;
+          }
+        }),
+      );
+      sent += results.filter((r) => r.status === 'fulfilled').length;
+      failed += results.filter((r) => r.status === 'rejected').length;
     }
 
-    const results = await Promise.allSettled(
-      subsSnapshot.docs.map((docSnap) => {
-        const sub = docSnap.data();
-        return webpush.sendNotification(
-          {
-            endpoint: sub.endpoint,
-            keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth },
-            expirationTime: sub.expirationTime ?? undefined,
-          },
-          JSON.stringify({
-            title: '⚔️ ¡Revancha en El Pueblo Duerme!',
-            body: `${game.hostName ?? 'El nuevo anfitrión'} ha iniciado una nueva partida. ¡Vuelve y venga!`,
-            url: `/game/${gameId}`,
-            tag: `rematch-${gameId}`,
-            icon: '/icons/192.png',
-            requireInteraction: false,
-          })
-        );
-      })
-    );
-
-    const sent = results.filter((r) => r.status === 'fulfilled').length;
-    const failed = results.filter((r) => r.status === 'rejected').length;
     return NextResponse.json({ ok: true, sent, failed });
   } catch (err: any) {
     console.error('[push-send]', err);
