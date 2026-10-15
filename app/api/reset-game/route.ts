@@ -76,8 +76,10 @@ export async function POST(request: Request) {
       }));
       tx.update(gameRef, {
         ...RESET_FIELDS,
+        status: 'lobby',
         phase: 'lobby',
         roundNumber: 0,
+        startedAt: null,
         hostUid: user.uid,
         hostName,
         players: resetPlayers,
