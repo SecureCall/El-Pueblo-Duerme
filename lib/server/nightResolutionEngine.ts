@@ -6,6 +6,7 @@ import type { NightResolutionInput, NightResolutionPlayer } from '@/lib/server/n
 import type { NightRoleSnapshot } from '@/lib/server/nightRoleSnapshot';
 import { resolveWolfNightTarget, type WolfNightResolution } from '@/lib/server/wolfNightResolution';
 import { resolveNightProtections, type NightProtectionResolution } from '@/lib/server/nightProtectionResolution';
+import { chooseAiEliminateTarget } from '@/lib/server/chaosAiEliminate';
 import { checkWinCondition } from '@/lib/server/gameRules';
 
 export interface NightResolutionStatePatch {
@@ -380,6 +381,11 @@ export function resolveNightActions(
 
   const cria = players.find((p) => roles[p.uid] === 'Cría de Lobo');
   if (cria && !cria.isAlive && aliveBeforeNight.has(cria.uid)) criaLoboRage = true;
+
+  if (input.history.chaosMechanical === 'aiEliminate') {
+    const { targetUid } = chooseAiEliminateTarget(input.gameId, round, players);
+    if (targetUid) addDeath(players, targetUid, roles, history, round, 'chaos_ai_eliminate', deathReasons);
+  }
 
   let changed = true;
   let iterations = 0;

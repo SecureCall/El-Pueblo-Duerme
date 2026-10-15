@@ -35,6 +35,7 @@ function baseHistory(): NightResolutionInput['history'] {
     lobosBlocked: false,
     criaLoboRage: false,
     wolfTeam: {},
+    chaosMechanical: null,
   };
 }
 
@@ -119,5 +120,28 @@ describe('night resolution engine', () => {
     expect(result.statePatch.players.find((p) => p.uid === 'cf')?.role).toBe('Lobo Blanco');
     expect(result.statePatch.wolfTeam.cf).toBe(true);
     expect(result.statePatch.cambiaformasTargets.cf).toBeUndefined();
+  });
+
+  it('applies aiEliminate authoritatively and deterministically before death cascades', () => {
+    const game = input(
+      [
+        { uid: 'wolf', name: 'Wolf', isAlive: true },
+        { uid: 'alice', name: 'Alice', isAlive: true },
+        { uid: 'bob', name: 'Bob', isAlive: true },
+        { uid: 'carol', name: 'Carol', isAlive: true },
+      ],
+      [],
+      { ...baseHistory(), chaosMechanical: 'aiEliminate' },
+    );
+    const roles = { wolf: 'Lobo', alice: 'Aldeano', bob: 'Aldeano', carol: 'Aldeano' };
+
+    const first = resolveNightActions(game, snapshot(roles));
+    const second = resolveNightActions(game, snapshot(roles));
+
+    expect(first.statePatch.players.filter((p) => !p.isAlive).map((p) => p.uid)).toEqual(
+      second.statePatch.players.filter((p) => !p.isAlive).map((p) => p.uid),
+    );
+    expect(first.deathEffects.deathReasons[first.statePatch.players.find((p) => !p.isAlive)?.uid ?? '']).toContain('chaos_ai_eliminate');
+    expect(first.statePatch.eliminatedHistory.some((entry) => entry.round === 1 && entry.uid !== 'wolf')).toBe(true);
   });
 });

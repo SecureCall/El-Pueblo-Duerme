@@ -23,7 +23,7 @@ function shuffle<T>(items: T[]): T[] {
   return out;
 }
 
-function buildPayload(role: string, uid: string, round: number, players: AnyRecord[], game: AnyRecord): AnyRecord {
+export function buildServerAINightPayload(role: string, uid: string, round: number, players: AnyRecord[], game: AnyRecord): AnyRecord {
   const aliveOthers = players.filter((p) => p.uid !== uid && p.isAlive === true);
   if (role === 'Lobo' || role === 'Lobo Blanco' || role === 'Cría de Lobo') {
     const wolves = players.filter((p) => p.isAlive === true && WOLF_ROLES.has(String(p.role ?? '')));
@@ -55,7 +55,15 @@ function buildPayload(role: string, uid: string, round: number, players: AnyReco
   if (role === 'Perro Lobo') return round === 1 ? { perroLoboSide: randomInt(2) === 0 ? 'wolves' : 'village' } : { _skip: true };
   if (role === 'Espía') return { espiaActivate: true };
   if (role === 'Vigía') return { vigiaActivate: true };
-  if (role === 'Hechicera') return { _skip: true };
+  if (role === 'Hechicera') {
+    const payload: AnyRecord = {};
+    if (game.hechiceraLifeUsed !== true) payload.witchSave = true;
+    if (game.hechiceraPoisonUsed !== true && randomInt(4) === 0) {
+      const poisonTarget = pick(aliveOthers);
+      if (poisonTarget) payload.witchPoison = poisonTarget.uid;
+    }
+    return Object.keys(payload).length ? payload : { _skip: true };
+  }
   if (role === 'Ángel Resucitador') {
     if (game.angelResucitadorUsed === true) return { _skip: true };
     const dead = players.filter((p) => p.isAlive === false);
@@ -115,7 +123,7 @@ export async function ensureServerAINightSubmissions(
     if (!snap.exists) { rejected.push({ uid, errors: ['missing_private_role'] }); continue; }
     const role = typeof snap.data()?.role === 'string' ? snap.data()!.role as string : null;
     if (!role) { rejected.push({ uid, errors: ['invalid_private_role'] }); continue; }
-    const payload = buildPayload(role, uid, round, authoritativePlayers, game);
+    const payload = buildServerAINightPayload(role, uid, round, authoritativePlayers, game);
     const validation = validateCanonicalNightAction({
       players: authoritativePlayers.map((p) => ({ uid: String(p.uid), isAlive: p.isAlive === true })),
       actorUid: uid, actorRole: role, roundNumber: round, payload,

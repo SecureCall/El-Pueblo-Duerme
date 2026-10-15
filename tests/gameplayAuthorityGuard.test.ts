@@ -36,4 +36,22 @@ describe('GamePlay authority guard', () => {
     expect(source).not.toMatch(/Host processes day votes when all eligible alive players have voted/);
     expect(source).not.toMatch(/action:\s*['"]commit['"][\s\S]{0,500}patch:\s*dayPatch/);
   });
+
+  it('does not write the legacy dayVotes field from GamePlay', () => {
+    expect(source).not.toMatch(/dayVotes\s*:/);
+    expect(source).not.toMatch(/\.dayVotes\b/);
+  });
+
+  it('does not run browser-side AI day voting', () => {
+    expect(source).not.toMatch(/BOT_VOTE_CONFIG/);
+    expect(source).not.toMatch(/pickBotVoteTarget/);
+    expect(source).not.toMatch(/aiDayVotedRound/);
+  });
+
+  it('does not calculate a client-authoritative day deadline', () => {
+    expect(source).not.toMatch(/game\.dayStartedAt/);
+    expect(source).not.toMatch(/Math\.min\(300,\s*Math\.max\(60,\s*alive/);
+    expect(source).not.toMatch(/mechanical.*extraTime/);
+    expect(source).not.toMatch(/mechanical.*halfTime/);
+  });
 });

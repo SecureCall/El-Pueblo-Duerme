@@ -14,10 +14,24 @@ describe('API authority regression guards', () => {
 
     expect(source).toContain('verifyAuthToken');
     expect(source).toContain("if (!tokenUid) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });");
-    expect(source).toContain('const authorizedHuman = tokenUid === uid;');
-    expect(source).toContain('const authorizedAI = voter.isAI === true && tokenUid === game.hostUid;');
+    expect(source).toContain('if (tokenUid !== uid) throw new Error(\'UID_FORBIDDEN\');');
+    expect(source).not.toContain('authorizedAI');
+    expect(source).not.toContain('tokenUid === game.hostUid');
     expect(source).toContain('currentRound');
     expect(source).toContain('RESOLUTION_LOCKED');
+  });
+
+  it('allows an alive non-host to claim day resolution only when votes are complete or the server deadline is reached', () => {
+    const source = read('app/api/day-resolve/route.ts');
+
+    expect(source).toContain('ensureServerAiDayVotes');
+    expect(source).toContain('actor?.isAlive !== true');
+    expect(source).toContain("const phaseEndsAt = typeof x.phaseEndsAt === 'number' ? x.phaseEndsAt : null;");
+    expect(source).toContain('const deadlineReached = phaseEndsAt !== null && now >= phaseEndsAt;');
+    expect(source).toContain('const complete = eligible.length > 0');
+    expect(source).toContain("if (!complete && !deadlineReached) throw Error('INCOMPLETE_DAY');");
+    expect(source).not.toContain("x.hostUid !== actorUid || !ps.some(p => p.uid === actorUid)");
+    expect(source).toContain("if (!trustedServer && !players.some(p => p.uid === actorUid && p.isAlive === true)) throw Error('NOT_HOST');");
   });
 
   it('keeps background vote replay authenticated, deadline-fenced and resolution-fenced', () => {
