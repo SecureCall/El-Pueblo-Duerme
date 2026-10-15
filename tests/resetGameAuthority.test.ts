@@ -37,6 +37,8 @@ describe('rematch reset authority', () => {
     expect(route).toContain("'nightActions'");
     expect(route).toContain("'nightSubmissions'");
     expect(route).toContain('transientSnapshots');
+    expect(route).toContain('cleanupCount > 400');
+    expect(route).toContain('RESET_CLEANUP_TOO_LARGE');
   });
 
   it('does not reset the game document directly from the browser', () => {
