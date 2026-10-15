@@ -252,7 +252,7 @@ export function DayTransition({ game, gameId, userId, userName, eliminatedName, 
 
   const sendMsg = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!msg.trim()) return;
+    if (!msg.trim() || (game.phase !== 'day' && game.phase !== 'voting')) return;
     setSending(true);
     await addDoc(collection(db, 'games', gameId, 'publicChat'), {
       senderId: userId, senderName: userName, text: msg.trim(), type: 'normal', createdAt: serverTimestamp(),
@@ -430,7 +430,7 @@ export function DayTransition({ game, gameId, userId, userName, eliminatedName, 
           <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
             <MessageCircle className="h-4 w-4 text-blue-400" />
             <span className="text-sm font-semibold text-blue-300">Chat del pueblo</span>
-            <span className="text-[10px] text-white/40 ml-auto">Habla mientras esperas</span>
+            <span className="text-[10px] text-white/40 ml-auto">{game.phase === 'night' ? 'Chat cerrado durante la noche' : 'Habla mientras esperas'}</span>
           </div>
           <div ref={chatRef} className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
             {msgs.length === 0 && (
@@ -453,12 +453,13 @@ export function DayTransition({ game, gameId, userId, userName, eliminatedName, 
             <input
               value={msg}
               onChange={e => setMsg(e.target.value)}
-              placeholder="Escribe algo…"
-              className="flex-1 bg-white/10 border border-white/15 rounded-lg px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-blue-500/50"
+              placeholder={game.phase === 'night' ? 'El chat público está cerrado' : 'Escribe algo…'}
+              disabled={game.phase !== 'day' && game.phase !== 'voting'}
+              className="flex-1 bg-white/10 border border-white/15 rounded-lg px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-blue-500/50 disabled:opacity-40"
             />
             <button
               type="submit"
-              disabled={!msg.trim() || sending}
+              disabled={!msg.trim() || sending || (game.phase !== 'day' && game.phase !== 'voting')}
               className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 rounded-lg px-3 py-2 transition-colors"
             >
               <Send className="h-3 w-3" />
