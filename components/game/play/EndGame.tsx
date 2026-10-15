@@ -70,6 +70,7 @@ function buildDramaMessage(
 
 interface Props {
   game: GameState;
+  gameId: string;
   myRole?: string;
   myUid?: string;
   isHost?: boolean;
@@ -182,9 +183,8 @@ type Tab = 'resumen' | 'roles' | 'historia';
 
 const REMATCH_SECS = 15;
 
-export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winners, winMessage, onPlayAgain, onPlayAgainSameRoom }: Props) {
+export function EndGame({ game: publicGame, gameId, myRole, myUid, isHost, hostInGame = true, winners, winMessage, onPlayAgain, onPlayAgainSameRoom }: Props) {
   const { emoji, title, bg } = getWinnerDisplay(winners);
-  const iWon = didIWin(winners, myRole, myUid, game);
   const { interruptWith } = useNarrator();
   const xpAwarded = useRef(false);
   const [xpResult, setXpResult] = useState<XPResult | null>(null);
@@ -198,16 +198,23 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
   const [revealedRoles, setRevealedRoles] = useState<Record<string, string>>({});
   const [revealedWolfTeam, setRevealedWolfTeam] = useState<Record<string, boolean>>({});
 
+  const game: GameState = {
+    ...publicGame,
+    roles: Object.keys(revealedRoles).length > 0 ? revealedRoles : (publicGame.roles ?? {}),
+    wolfTeam: Object.keys(revealedWolfTeam).length > 0 ? revealedWolfTeam : (publicGame.wolfTeam ?? {}),
+  };
+  const iWon = didIWin(winners, myRole, myUid, game);
+
   useEffect(() => {
     if (game.phase !== 'ended' && game.status !== 'ended') return;
     let cancelled = false;
-    getPrivateGameState(game.name ? (game as any).id ?? '' : '').then((state) => {
+    getPrivateGameState(gameId).then((state) => {
       if (cancelled || state.phase !== 'ended') return;
       setRevealedRoles(state.roles ?? {});
       setRevealedWolfTeam(state.wolfTeam ?? {});
     }).catch((err) => console.error('[EndGame] private reveal error:', err));
     return () => { cancelled = true; };
-  }, [game]);
+  }, [gameId, game.phase, game.status]);
 
   // Drama message derived from current game data
   const dramaMsg = buildDramaMessage(myUid, myRole, winners, game, iWon);
