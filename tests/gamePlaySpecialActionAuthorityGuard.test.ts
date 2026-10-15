@@ -8,6 +8,7 @@ describe('GamePlay special-action authority guard', () => {
   it('does not resolve Cazador shots by directly mutating the game document', () => {
     expect(source).not.toMatch(/applyCazadorShot/);
     expect(source).not.toMatch(/cazadorPendingShot:\s*null/);
+    expect(source).not.toMatch(/updateDoc\(doc\(db,\s*['"]games['"][\s\S]{0,300}cazadorPendingShot:\s*null/);
   });
 
   it('does not resolve Chivo choices by directly mutating the game document', () => {
