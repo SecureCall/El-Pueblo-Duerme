@@ -31,7 +31,9 @@ describe('GamePlay authority guard', () => {
     expect(source).not.toMatch(/const allDone =/);
     // A client watchdog may request resolution only after the server-owned
     // phase deadline; the API validates that deadline before applying effects.
-    expect(source).toMatch(/Anti-softlock: force processNight when 55s night timer expires/);
+    expect(source).toMatch(/Anti-softlock: ask the server to resolve at its authoritative deadline/);
+    expect(source).toContain('game.phaseEndsAt');
+    expect(source).toContain('deadline - Date.now() + 250');
   });
 
   it('does not contain the legacy client-side day resolver', () => {
