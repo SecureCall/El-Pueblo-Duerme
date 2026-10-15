@@ -9,8 +9,8 @@ describe('rematch reset authority', () => {
   it('authenticates the caller and allows reset only after the game ended', () => {
     expect(route).toContain('verifyAuthToken(request)');
     expect(route).toContain("game.phase !== 'ended'");
-    expect(route).toContain("game.hostUid !== user.uid && hostStillHere");
-    expect(route).toContain("game.hostUid !== user.uid && !callerIsPlayer");
+    expect(route).toContain("hostStillHere && game.hostUid !== user.uid");
+    expect(route).toContain("!hostStillHere && !callerIsPlayer");
     expect(route).toContain("p?.isAI !== true");
   });
 
