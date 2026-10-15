@@ -64,6 +64,9 @@ export async function POST(request: Request) {
       if (game.hostUid !== user.uid && hostStillHere) throw new Error('NOT_HOST');
       if (game.hostUid !== user.uid && !callerIsPlayer) throw new Error('NOT_PLAYER');
 
+      // Read the private role collection before writing so the public reset
+      // and removal of old secrets commit atomically.
+      const privateRoles = await tx.get(gameRef.collection('playerRoles'));
       const hostName = requestedHostName || 'Jugador';
       const resetPlayers = players.map((p: any) => ({
         ...p,
@@ -79,16 +82,8 @@ export async function POST(request: Request) {
         hostName,
         players: resetPlayers,
       });
+      for (const roleDoc of privateRoles.docs) tx.delete(roleDoc.ref);
     });
-
-    // The lobby reset is committed first; remove stale private role documents
-    // so a rematch cannot accidentally reuse secrets from the previous game.
-    const privateRoles = await gameRef.collection('playerRoles').get();
-    for (let i = 0; i < privateRoles.docs.length; i += 400) {
-      const batch = db.batch();
-      for (const roleDoc of privateRoles.docs.slice(i, i + 400)) batch.delete(roleDoc.ref);
-      await batch.commit();
-    }
 
     return NextResponse.json({ ok: true, gameId, phase: 'lobby' });
   } catch (error) {
