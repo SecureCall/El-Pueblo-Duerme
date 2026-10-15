@@ -5,6 +5,11 @@ import { resolve } from 'node:path';
 const source = readFileSync(resolve(process.cwd(), 'app/api/game-private-state/route.ts'), 'utf8');
 
 describe('game-private-state authority', () => {
+  it('separates faction classification from wolf roster visibility', () => {
+    expect(source).toContain("new Set([...WOLF_ROLES, 'Bruja', 'Hada Buscadora'])");
+    expect(source).toContain("myRole && WOLF_FACTION_ROLES.has(myRole) ? 'wolves' : 'village'");
+  });
+
   it('authenticates before reading private game state', () => {
     expect(source).toMatch(/verifyAuthToken\(req\)/);
     expect(source).toMatch(/if \(!tokenUid\) return NextResponse\.json\(\{ error: 'No autorizado' \}, \{ status: 401 \}\)/);
