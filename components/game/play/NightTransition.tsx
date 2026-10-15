@@ -233,7 +233,7 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
     if (!msg.trim()) return;
     setSending(true);
     await addDoc(collection(db, 'games', gameId, 'publicChat'), {
-      senderId: userId, senderName: userName, text: msg.trim(), createdAt: serverTimestamp(),
+      senderId: userId, senderName: userName, text: msg.trim(), type: 'normal', createdAt: serverTimestamp(),
     });
     setMsg(''); setSending(false);
   };
