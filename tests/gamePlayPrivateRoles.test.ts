@@ -23,8 +23,10 @@ describe('GamePlay private role synchronization', () => {
     expect(source).toMatch(/includes\(myPrivateRole \?\? ''\)/);
   });
 
-  it('reruns the host night-completion gate when private role snapshots arrive', () => {
-    expect(source).toContain('}, [game?.nightSubmissions, game?.phase, hostPrivateRoles]);');
+  it('does not resolve the night from client submission snapshots', () => {
+    expect(source).not.toContain('}, [game?.nightSubmissions, game?.phase, hostPrivateRoles]);');
+    expect(source).toContain('Anti-softlock: ask the server to resolve at its authoritative deadline');
+    expect(source).toContain('game.phaseEndsAt');
   });
 
   it('prefers the host private snapshot for host-side role-dependent flows', () => {
