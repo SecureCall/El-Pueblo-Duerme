@@ -22,6 +22,10 @@ describe('GamePlay private role synchronization', () => {
     expect(source).toMatch(/includes\(myPrivateRole \?\? ''\)/);
   });
 
+  it('reruns the host night-completion gate when private role snapshots arrive', () => {
+    expect(source).toContain('}, [game?.nightSubmissions, game?.phase, hostPrivateRoles]);');
+  });
+
   it('prefers the host private snapshot for host-side role-dependent flows', () => {
     expect(source).toMatch(/Object\.keys\(hostPrivateRoles\)\.length > 0 \? hostPrivateRoles : \(game\.roles \?\? \{\}\)/);
   });
