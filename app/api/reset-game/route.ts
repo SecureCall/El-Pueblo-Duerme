@@ -121,6 +121,9 @@ export async function POST(request: Request) {
       const transientSnapshots = await Promise.all(
         transientCollections.map(collectionName => tx.get(gameRef.collection(collectionName))),
       );
+      const cleanupCount = privateRoles.size + oldNightResolutions.size
+        + transientSnapshots.reduce((total, snapshot) => total + snapshot.size, 0);
+      if (cleanupCount > 400) throw new Error('RESET_CLEANUP_TOO_LARGE');
       const hostName = requestedHostName || 'Jugador';
       const resetPlayers = players.map((p: any) => ({
         ...p,
@@ -153,6 +156,7 @@ export async function POST(request: Request) {
       NOT_ENDED: [409, 'Only an ended game can be reset'],
       NOT_HOST: [403, 'The current host is still in the game'],
       NOT_PLAYER: [403, 'Only a player in this game may take over a rematch'],
+      RESET_CLEANUP_TOO_LARGE: [409, 'Too much old game history to reset safely; contact support'],
       UNAUTHORIZED: [401, 'Unauthorized'],
     };
     const [status, message] = errors[code] ?? [500, 'Internal error'];
