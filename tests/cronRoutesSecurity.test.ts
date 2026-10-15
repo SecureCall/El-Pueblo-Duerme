@@ -15,6 +15,14 @@ describe('server-side phase recovery endpoint guards', () => {
     }
   });
 
+  it('returns a failing HTTP status when a delegated resolver has a server error', () => {
+    for (const route of [nightRoute, dayRoute]) {
+      expect(route).toContain('results.some((result) => result.status >= 500)');
+      expect(route).toContain('status: hasServerFailure ? 502 : 200');
+      expect(route).toContain('ok: !hasServerFailure');
+    }
+  });
+
   it('only delegates overdue games in the matching phase', () => {
     expect(nightRoute).toContain("data.phase === 'night'");
     expect(nightRoute).toContain("where('phaseEndsAt', '<=', now)");
