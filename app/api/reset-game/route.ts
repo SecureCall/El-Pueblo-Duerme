@@ -102,6 +102,25 @@ export async function POST(request: Request) {
       // Resolution locks are keyed by round number. Since a rematch starts
       // again at round 1, retaining a resolved lock would reject its first night.
       const oldNightResolutions = await tx.get(gameRef.collection('nightResolutions'));
+      // A rematch reuses the same game document ID. Clear ephemeral subcollections
+      // so the next role assignment cannot inherit old chats, votes, or submissions.
+      const transientCollections = [
+        'wolfChat',
+        'twinChat',
+        'hermanosChat',
+        'loversChat',
+        'fairyChat',
+        'ghostChat',
+        'publicChat',
+        'lobbyChat',
+        'votes',
+        'nightLogs',
+        'nightActions',
+        'nightSubmissions',
+      ] as const;
+      const transientSnapshots = await Promise.all(
+        transientCollections.map(collectionName => tx.get(gameRef.collection(collectionName))),
+      );
       const hostName = requestedHostName || 'Jugador';
       const resetPlayers = players.map((p: any) => ({
         ...p,
@@ -121,6 +140,9 @@ export async function POST(request: Request) {
       });
       for (const roleDoc of privateRoles.docs) tx.delete(roleDoc.ref);
       for (const resolutionDoc of oldNightResolutions.docs) tx.delete(resolutionDoc.ref);
+      for (const snapshot of transientSnapshots) {
+        for (const transientDoc of snapshot.docs) tx.delete(transientDoc.ref);
+      }
     });
 
     return NextResponse.json({ ok: true, gameId, phase: 'lobby' });
