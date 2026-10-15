@@ -4,10 +4,42 @@ import { getSdks } from '@/lib/server/firebase-admin';
 
 const RESET_FIELDS = {
   roles: {},
+  wolfTeam: {},
   nightActions: {},
   nightSubmissions: {},
   dayVotes: {},
+  votes: {},
   eliminatedHistory: [],
+  antigoHit: [],
+  cambiaformasTargets: {},
+  salvajeMentors: {},
+  virginiawoolFate: {},
+  perroLoboChoices: {},
+  cultMembers: [],
+  vampiroBites: {},
+  vampiroKills: 0,
+  pescadorBoat: [],
+  bansheePoints: 0,
+  vigiaKnowsWolves: false,
+  hechiceraLifeUsed: false,
+  hechiceraPoisonUsed: false,
+  brujaFoundVidente: false,
+  brujaProtectedUid: null,
+  sirenaUid: null,
+  sirenaLinked: null,
+  guardianLastTarget: null,
+  doctorLastTarget: null,
+  doctorSelfUsed: false,
+  dayEliminatedUid: null,
+  seerReveal: null,
+  seerReveal2: null,
+  silencedPlayers: [],
+  forenseResults: {},
+  saboteadorBan: null,
+  principeUsed: false,
+  alborotadoraFight: [],
+  eventRound: null,
+  malditoUid: null,
   winners: null,
   winMessage: '',
   lastVictim: null,
@@ -67,6 +99,9 @@ export async function POST(request: Request) {
       // Read the private role collection before writing so the public reset
       // and removal of old secrets commit atomically.
       const privateRoles = await tx.get(gameRef.collection('playerRoles'));
+      // Resolution locks are keyed by round number. Since a rematch starts
+      // again at round 1, retaining a resolved lock would reject its first night.
+      const oldNightResolutions = await tx.get(gameRef.collection('nightResolutions'));
       const hostName = requestedHostName || 'Jugador';
       const resetPlayers = players.map((p: any) => ({
         ...p,
@@ -85,6 +120,7 @@ export async function POST(request: Request) {
         players: resetPlayers,
       });
       for (const roleDoc of privateRoles.docs) tx.delete(roleDoc.ref);
+      for (const resolutionDoc of oldNightResolutions.docs) tx.delete(resolutionDoc.ref);
     });
 
     return NextResponse.json({ ok: true, gameId, phase: 'lobby' });
