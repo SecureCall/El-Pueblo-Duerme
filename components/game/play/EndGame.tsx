@@ -209,9 +209,9 @@ export function EndGame({ game: publicGame, gameId, myRole, myUid, isHost, hostI
     if (game.phase !== 'ended' && game.status !== 'ended') return;
     let cancelled = false;
     getPrivateGameState(gameId).then((state) => {
-      if (cancelled || state.phase !== 'ended') return;
-      setRevealedRoles(state.roles ?? {});
-      setRevealedWolfTeam(state.wolfTeam ?? {});
+      if (cancelled || state.phase !== 'ended' || !('roles' in state) || !('wolfTeam' in state)) return;
+      setRevealedRoles(state.roles);
+      setRevealedWolfTeam(state.wolfTeam);
     }).catch((err) => console.error('[EndGame] private reveal error:', err));
     return () => { cancelled = true; };
   }, [gameId, game.phase, game.status]);
