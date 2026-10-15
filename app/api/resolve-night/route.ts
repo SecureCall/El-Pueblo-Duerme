@@ -101,7 +101,8 @@ export async function POST(request: Request) {
       tx.update(lockSnap.ref, { status: 'resolved', resolvedAt: new Date(now), expiresAt: null }); return true;
     });
     if (!committed) throw new Error('night_resolution_not_committed'); claimedGameId = null; claimedRound = null; claimedLeaseId = null;
-    return NextResponse.json({ ok: true, gameId, result, rejected: validation.rejected });
+    // Do not serialize the authoritative result: it contains private role assignments.
+    return NextResponse.json({ ok: true, gameId });
   } catch (error) {
     if (claimedGameId && claimedRound !== null && claimedLeaseId) { try { const { db } = getSdks(); await releaseNightResolution(db, claimedGameId, claimedRound, claimedLeaseId); } catch (releaseError) { console.error('[resolve-night] failed to release resolution lease', releaseError); } }
     console.error('[resolve-night] request failed', error); const message = error instanceof Error ? error.message : 'unknown_error'; const status = message.startsWith('night_') ? 409 : 401; return NextResponse.json({ error: status === 409 ? message : 'Unauthorized or invalid request' }, { status }); }
