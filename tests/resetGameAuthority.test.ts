@@ -28,6 +28,15 @@ describe('rematch reset authority', () => {
     expect(route).toContain('principeUsed: false');
     expect(route).toContain("await tx.get(gameRef.collection('nightResolutions'))");
     expect(route).toContain('tx.delete(resolutionDoc.ref)');
+    expect(route).toContain("'wolfChat'");
+    expect(route).toContain("'twinChat'");
+    expect(route).toContain("'hermanosChat'");
+    expect(route).toContain("'loversChat'");
+    expect(route).toContain("'publicChat'");
+    expect(route).toContain("'votes'");
+    expect(route).toContain("'nightActions'");
+    expect(route).toContain("'nightSubmissions'");
+    expect(route).toContain('transientSnapshots');
   });
 
   it('does not reset the game document directly from the browser', () => {
