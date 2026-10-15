@@ -37,6 +37,6 @@ export function requestAlborotadoraFight(user: User, gameId: string, firstUid: s
 }
 
 /** Submit the Fantasma's authoritative anonymous message. */
-export function requestFantasmaMessage(user: User, gameId: string, targetUid: string, message: string): Promise<void> {
-  return postSpecialAction(user, '/api/fantasma-message', { gameId, actorUid: user.uid, targetUid, message });
+export function requestFantasmaMessage(user: User, gameId: string, actorUid: string, targetUid: string, message: string): Promise<void> {
+  return postSpecialAction(user, '/api/fantasma-message', { gameId, actorUid, targetUid, message });
 }
