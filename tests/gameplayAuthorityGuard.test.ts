@@ -38,7 +38,8 @@ describe('GamePlay authority guard', () => {
 
   it('does not contain the legacy client-side day resolver', () => {
     expect(source).not.toMatch(/async function processDayVotes/);
-    expect(source).not.toMatch(/Host processes day votes when all eligible alive players have voted/);
+    expect(source).toContain('requestDayResolution(votesFromSub)');
+    expect(source).toContain("fetch('/api/day-resolve'");
     expect(source).not.toMatch(/action:\s*['"]commit['"][\s\S]{0,500}patch:\s*dayPatch/);
   });
 });
