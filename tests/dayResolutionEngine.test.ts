@@ -108,50 +108,15 @@ describe('resolveDay', () => {
 });
 
 
-describe('roleSwap chaos event', () => {
-  it('shuffles only living players deterministically and rebuilds wolfTeam from authoritative roles', () => {
-    const base = input({
-      gameId: 'role-swap-regression',
-      roundNumber: 7,
-      players: [
-        { uid: 'a', name: 'A', isAlive: true },
-        { uid: 'b', name: 'B', isAlive: true },
-        { uid: 'c', name: 'C', isAlive: true },
-        { uid: 'dead', name: 'Dead', isAlive: false },
-      ],
-      votes: {},
-      roles: { a: 'Lobo', b: 'Vidente', c: 'Aldeano', dead: 'Lobo Blanco' },
-      wolfTeam: { a: true, dead: true },
-      currentEvent: { mechanical: 'roleSwap' },
-    });
 
-    const first = resolveDay(base);
-    const retry = resolveDay(base);
-    const livingRolesBefore = ['Lobo', 'Vidente', 'Aldeano'].sort();
-    const livingRolesAfter = ['a', 'b', 'c'].map((uid) => first.statePatch.roles[uid]).sort();
-
-    expect(livingRolesAfter).toEqual(livingRolesBefore);
-    expect(first.statePatch.roles.dead).toBe('Lobo Blanco');
-    expect(first.statePatch.roles).toEqual(retry.statePatch.roles);
-    expect(first.statePatch.wolfTeam).toEqual(
-      Object.fromEntries(
-        Object.entries(first.statePatch.roles)
-          .filter(([, role]) => ['Lobo', 'Lobo Blanco', 'Cría de Lobo'].includes(role))
-          .map(([uid]) => [uid, true]),
-      ),
-    );
-  });
-
-  it('does not shuffle roles when the roleSwap event is absent', () => {
+describe('roleSwap chaos event timing', () => {
+  it('does not reshuffle roles during day resolution after votes were submitted', () => {
+    const roles = { wolf: 'Lobo', villager: 'Aldeano', seer: 'Vidente' };
     const result = resolveDay(input({
       votes: {},
-      currentEvent: null,
-      roles: { wolf: 'Lobo', villager: 'Aldeano', seer: 'Vidente' },
+      currentEvent: { mechanical: 'roleSwap' },
+      roles,
     }));
-    expect(result.statePatch.roles).toEqual({
-      wolf: 'Lobo',
-      villager: 'Aldeano',
-      seer: 'Vidente',
-    });
+    expect(result.statePatch.roles).toEqual(roles);
   });
 });
