@@ -129,10 +129,15 @@ export async function POST(req: NextRequest) {
       const sanitizedPlayers = resolvedPlayers.map(({ role: _privateRole, ...player }) => player);
       const currentEvent = current.currentEvent && typeof current.currentEvent === 'object' ? current.currentEvent as ChaosEvent : null;
       const nextNightEvent = chaosEventAppliesToPhase(currentEvent, 'night') ? currentEvent : null;
+      const healWitchActive = currentEvent?.mechanical === 'healWitch' && Object.values(snapshot.rolesByUid).includes('Hechicera');
+      const hechiceraLifeUsed = healWitchActive ? false : current.hechiceraLifeUsed === true;
+      const hechiceraPoisonUsed = healWitchActive ? false : current.hechiceraPoisonUsed === true;
       const patch = {
         ...publicPatch,
         principeUsed,
         players: sanitizedPlayers,
+        hechiceraLifeUsed,
+        hechiceraPoisonUsed,
         currentEvent: nextNightEvent,
         eventRound: nextNightEvent ? Number(result.roundNumber) + 1 : null,
       } as Record<string, unknown>;
@@ -149,5 +154,5 @@ export async function POST(req: NextRequest) {
     const [e, s] = E[m] ?? ['Error interno', 500];
     console.error('[day-resolve]', m);
     return NextResponse.json({ error: e }, { status: s });
-  }
+    }
 }
