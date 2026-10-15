@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       if (game.hostUid !== uid && currentHost) throw new Error('NOT_HOST');
       hostName = requester.name || 'Jugador';
       tx.update(gameRef, {
-        phase:'lobby', roundNumber:0, hostUid:uid, hostName, roles:{}, nightActions:{},
+        status:'lobby', phase:'lobby', roundNumber:0, hostUid:uid, hostName, roles:{}, nightActions:{},
         nightSubmissions:{}, dayVotes:{}, eliminatedHistory:[], winners:null, winMessage:'',
         lastVictim:null, bearGrowl:false, profetaReveal:null,
         players:players.map((p:any)=>({...p,isAlive:true,role:null,isHost:p.uid===uid})),
