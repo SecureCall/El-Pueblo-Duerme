@@ -25,6 +25,7 @@ export function VoiceChat({ gameId, userId, userName, phase, myRole, isAlive, wo
 
   let channel: string;
   let canSpeak: boolean;
+  const shouldRender = !(phase === 'night' && isAlive && !isWolf);
 
   if (phase === 'night') {
     if (isWolf && isAlive) {
@@ -34,8 +35,9 @@ export function VoiceChat({ gameId, userId, userName, phase, myRole, isAlive, wo
       channel = 'ghost';
       canSpeak = false;
     } else {
-      // Aldeanos vivos en la noche: sin canal de voz
-      return null;
+      // Keep hook order stable; this channel stays disabled and is not rendered.
+      channel = 'main';
+      canSpeak = false;
     }
   } else {
     if (isAlive) {
@@ -53,8 +55,10 @@ export function VoiceChat({ gameId, userId, userName, phase, myRole, isAlive, wo
     userName,
     channel,
     canSpeak,
-    enabled: true,
+    enabled: shouldRender,
   });
+
+  if (!shouldRender) return null;
 
   const connectedPeers = peers.filter(p => p.connected);
   const speakingNow = peers.find(p => p.speaking);
