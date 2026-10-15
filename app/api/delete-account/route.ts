@@ -44,6 +44,23 @@ export async function POST(req: NextRequest) {
     const { db } = getSdks();
     const userRef = db.collection('users').doc(uid);
 
+    // Refuse account deletion while the user is in a lobby or active game.
+    // Query only active statuses, then verify membership against the canonical players array.
+    const activeGamesSnap = await db.collection('games').where('status', 'in', ['lobby', 'playing']).get();
+    const activeMembership = activeGamesSnap.docs.some(doc => {
+      const game = doc.data();
+      return Array.isArray(game.players) && game.players.some((player: unknown) =>
+        Boolean(player && typeof player === 'object' && !Array.isArray(player) &&
+          (player as Record<string, unknown>).uid === uid && (player as Record<string, unknown>).isAI !== true),
+      );
+    });
+    if (activeMembership) {
+      return NextResponse.json(
+        { error: 'Sal de la sala o termina la partida antes de eliminar tu cuenta.', code: 'ACTIVE_GAME_MEMBERSHIP' },
+        { status: 409 },
+      );
+    }
+
     const [friendsSnap, requestsSnap, invitesSentSnap] = await Promise.all([
       db.collection('users').where('friends', 'array-contains', uid).get(),
       db.collection('users').where('friendRequests', 'array-contains', uid).get(),
