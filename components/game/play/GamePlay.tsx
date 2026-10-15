@@ -1961,6 +1961,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
   if (game.phase === 'ended') {
     return (
       <EndGame
+        gameId={gameId}
         game={game}
         myRole={myRole}
         myUid={user?.uid}
