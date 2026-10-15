@@ -1,0 +1,50 @@
+name: Game Phase Watchdog
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: game-phase-watchdog
+  cancel-in-progress: false
+
+jobs:
+  resolve-overdue-phases:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate scheduler configuration
+        env:
+          GAME_BASE_URL: ${{ vars.GAME_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$GAME_BASE_URL" || -z "$CRON_SECRET" ]]; then
+            echo "::error::Configure GAME_BASE_URL variable and CRON_SECRET secret."
+            exit 1
+          fi
+          if [[ "$GAME_BASE_URL" != https://* ]]; then
+            echo "::error::GAME_BASE_URL must use HTTPS."
+            exit 1
+          fi
+      - name: Resolve overdue night phases
+        env:
+          GAME_BASE_URL: ${{ vars.GAME_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --max-time 120 -H "Authorization: Bearer $CRON_SECRET" "${GAME_BASE_URL%/}/api/cron/resolve-nights"
+      - name: Resolve overdue day and voting phases
+        env:
+          GAME_BASE_URL: ${{ vars.GAME_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --max-time 120 -H "Authorization: Bearer $CRON_SECRET" "${GAME_BASE_URL%/}/api/cron/resolve-days"

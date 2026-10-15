@@ -12,11 +12,11 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null);
     const gameId = typeof body?.gameId === 'string' ? body.gameId.trim() : '';
     const targetUid = typeof body?.targetUid === 'string' ? body.targetUid.trim() : '';
-    if (!gameId || !targetUid) return NextResponse.json({ error: 'gameId and targetUid are required' }, { status: 400 });
+    if (!gameId) return NextResponse.json({ error: 'gameId is required' }, { status: 400 });
 
     const { db } = getSdks();
     const gameRef = db.collection('games').doc(gameId);
-    let response: Record<string, unknown> = { ok: true, gameId, targetUid };
+    let response: Record<string, unknown> = { ok: true, gameId, targetUid: targetUid || null };
 
     await db.runTransaction(async (tx) => {
       const gameSnap = await tx.get(gameRef);
@@ -29,9 +29,8 @@ export async function POST(request: Request) {
       if (!Number.isInteger(round)) throw new Error('INVALID_ROUND');
 
       const hunter = players.find(p => p.uid === pendingUid);
-      const target = players.find(p => p.uid === targetUid);
+      const target = targetUid ? players.find(p => p.uid === targetUid) : undefined;
       if (!hunter || hunter.isAlive) throw new Error('HUNTER_INVALID');
-      if (!target || !target.isAlive || target.uid === pendingUid) throw new Error('TARGET_INVALID');
 
       const hunterRoleSnap = await tx.get(gameRef.collection('playerRoles').doc(pendingUid));
       const hunterRole = hunterRoleSnap.exists ? hunterRoleSnap.data()?.role : null;
@@ -40,6 +39,14 @@ export async function POST(request: Request) {
       const authorizedPlayer = user?.uid === pendingUid;
       const authorizedAI = hunter.isAI === true && user?.uid === game.hostUid;
       if (!serverAuthorized && !authorizedPlayer && !authorizedAI) throw new Error('FORBIDDEN');
+
+      if (!targetUid) {
+        if (players.some(p => p.isAlive && p.uid !== pendingUid)) throw new Error('TARGET_REQUIRED');
+        tx.update(gameRef, { cazadorPendingShot: null });
+        response = { ok: true, gameId, hunterUid: pendingUid, targetUid: null, skipped: true };
+        return;
+      }
+      if (!target || !target.isAlive || target.uid === pendingUid) throw new Error('TARGET_INVALID');
 
       const roleEntries = await Promise.all(players.map(async (p) => {
         const roleSnap = await tx.get(gameRef.collection('playerRoles').doc(p.uid));
@@ -108,6 +115,7 @@ export async function POST(request: Request) {
       INVALID_ROUND: [409, 'Invalid game round'],
       HUNTER_INVALID: [409, 'Hunter state is invalid'],
       TARGET_INVALID: [403, 'Target is invalid or already dead'],
+      TARGET_REQUIRED: [409, 'A living target is available; the shot cannot be skipped'],
       ROLE_INVALID: [409, 'Hunter role could not be verified'],
       FORBIDDEN: [403, 'Not authorized to perform this hunter shot'],
     };

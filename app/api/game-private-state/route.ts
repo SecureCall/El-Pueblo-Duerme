@@ -5,6 +5,12 @@ import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 
 const WOLF_ROLES = new Set(['Lobo', 'Lobo Blanco', 'Cría de Lobo']);
 const WOLF_ALLY_ROLES = new Set(['Bruja']);
+// Faction membership is broader than membership of the attacking pack.
+// Hada Buscadora belongs to the wolves faction but has a separate win condition;
+// Maldito starts on the village side and only joins the pack after transformation.
+const WOLF_FACTION_ROLES = new Set([...WOLF_ROLES, 'Bruja', 'Hada Buscadora']);
+const isWolfPackMember = (uid: string, role: string | undefined, choices: Record<string, string>) =>
+  !!role && (WOLF_ROLES.has(role) || (role === 'Perro Lobo' && choices[uid] === 'wolves'));
 
 /**
  * Returns only secret state the authenticated player is entitled to see.
@@ -48,21 +54,33 @@ export async function GET(req: NextRequest) {
     }
 
     const myRole = roles[tokenUid] ?? null;
+    const perroLoboChoices = game.perroLoboChoices && typeof game.perroLoboChoices === 'object'
+      ? game.perroLoboChoices as Record<string, string>
+      : {};
+    const hasJoinedWolves = myRole === 'Perro Lobo' && perroLoboChoices[tokenUid] === 'wolves';
     const myTeam: 'wolves' | 'village' =
-      myRole && (WOLF_ROLES.has(myRole) || WOLF_ALLY_ROLES.has(myRole)) ? 'wolves' : 'village';
+      myRole && (WOLF_FACTION_ROLES.has(myRole) || hasJoinedWolves) ? 'wolves' : 'village';
 
     if (game.phase === 'ended' || game.status === 'ended') {
       const wolfTeam: Record<string, boolean> = {};
       for (const [uid, role] of Object.entries(roles)) {
-        if (WOLF_ROLES.has(role)) wolfTeam[uid] = true;
+        if (isWolfPackMember(uid, role, perroLoboChoices)) wolfTeam[uid] = true;
       }
       return NextResponse.json({ ok: true, phase: 'ended', myRole, myTeam, roles, wolfTeam });
     }
 
-    const canSeeWolfRoster = !!myRole && (WOLF_ROLES.has(myRole) || WOLF_ALLY_ROLES.has(myRole));
+    const knownAllies = myRole === 'Gemela' || myRole === 'Gemelas' || myRole === 'Hermanos'
+      ? players
+          .filter((player: any) => player.uid !== tokenUid && roles[player.uid] === myRole && player.isAlive === true)
+          .map((player: any) => ({ uid: player.uid, name: player.name }))
+      : [];
+
+    const canSeeWolfRoster = !!myRole && (
+      WOLF_ROLES.has(myRole) || WOLF_ALLY_ROLES.has(myRole) || hasJoinedWolves
+    );
     const wolfRoster = canSeeWolfRoster
       ? players
-          .filter((player: any) => WOLF_ROLES.has(roles[player.uid]))
+          .filter((player: any) => isWolfPackMember(player.uid, roles[player.uid], perroLoboChoices))
           .map((player: any) => ({ uid: player.uid, name: player.name }))
       : [];
 
@@ -72,6 +90,7 @@ export async function GET(req: NextRequest) {
       myRole,
       myTeam,
       wolfRoster,
+      knownAllies,
     });
   } catch (err) {
     console.error('[game-private-state]', err);

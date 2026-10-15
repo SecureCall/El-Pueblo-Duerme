@@ -43,11 +43,13 @@ export async function GET(request: Request) {
     results.push({ gameId: doc.id, status: response.status, body });
   }
 
+  const hasServerFailure = results.some((result) => result.status >= 500);
+
   return NextResponse.json({
-    ok: true,
+    ok: !hasServerFailure,
     scanned: snapshot.size,
     candidates: candidates.length,
     results,
     at: now,
-  });
+  }, { status: hasServerFailure ? 502 : 200 });
 }

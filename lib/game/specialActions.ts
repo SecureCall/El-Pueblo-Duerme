@@ -17,13 +17,13 @@ async function postSpecialAction(user: User, path: string, body: Record<string, 
 }
 
 /** Submit the Cazador's authoritative post-death shot. */
-export function requestCazadorShot(user: User, gameId: string, targetUid: string): Promise<void> {
-  return postSpecialAction(user, '/api/cazador-shot', { gameId, targetUid });
+export function requestCazadorShot(user: User, gameId: string, targetUid: string | null): Promise<void> {
+  return postSpecialAction(user, '/api/cazador-shot', { gameId, targetUid: targetUid ?? '' });
 }
 
 /** Submit the Chivo Expiatorio's authoritative vote-ban choice. */
-export function requestChivoChoice(user: User, gameId: string, targetUid: string): Promise<void> {
-  return postSpecialAction(user, '/api/chivo-choice', { gameId, targetUid });
+export function requestChivoChoice(user: User, gameId: string, targetUid: string | null): Promise<void> {
+  return postSpecialAction(user, '/api/chivo-choice', { gameId, targetUid: targetUid ?? '' });
 }
 
 /** Request the Juez's authoritative second-vote window. */
@@ -37,6 +37,11 @@ export function requestAlborotadoraFight(user: User, gameId: string, firstUid: s
 }
 
 /** Submit the Fantasma's authoritative anonymous message. */
-export function requestFantasmaMessage(user: User, gameId: string, targetUid: string, message: string): Promise<void> {
-  return postSpecialAction(user, '/api/fantasma-message', { gameId, actorUid: user.uid, targetUid, message });
+export function requestFantasmaMessage(user: User, gameId: string, actorUid: string, targetUid: string, message: string): Promise<void> {
+  return postSpecialAction(user, '/api/fantasma-message', { gameId, actorUid, targetUid, message });
+}
+
+/** Consume the Fantasma's pending action without sending a message. */
+export function requestFantasmaPass(user: User, gameId: string, actorUid: string): Promise<void> {
+  return postSpecialAction(user, '/api/fantasma-message', { gameId, actorUid, skip: 'true' });
 }

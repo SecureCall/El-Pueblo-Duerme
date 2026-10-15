@@ -125,12 +125,11 @@ export async function POST(req: NextRequest) {
       // playerRoles snapshots; never publish them on games/{gameId}.
       tx.update(gameRef, {
         status: 'playing',
-        phase: 'night',
+        phase: 'roleReveal',
         roundNumber: 1,
         players: nextPlayers,
         playerCount: nextPlayers.length,
         startedAt: now,
-        nightStartedAt: now,
       });
 
       result = { playerCount: nextPlayers.length, wolves: scaledWolves };
