@@ -18,7 +18,9 @@ describe('rematch reset authority', () => {
     expect(route).toContain('tx.update(gameRef');
     expect(route).toContain('tx.delete(roleDoc.ref)');
     expect(route).toContain("await tx.get(gameRef.collection('playerRoles'))");
+    expect(route).toContain("status: 'lobby'");
     expect(route).toContain("phase: 'lobby'");
+    expect(route).toContain('startedAt: null');
     expect(route).toContain('roles: {}');
   });
 
