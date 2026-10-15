@@ -17,8 +17,8 @@ async function postSpecialAction(user: User, path: string, body: Record<string, 
 }
 
 /** Submit the Cazador's authoritative post-death shot. */
-export function requestCazadorShot(user: User, gameId: string, targetUid: string): Promise<void> {
-  return postSpecialAction(user, '/api/cazador-shot', { gameId, targetUid });
+export function requestCazadorShot(user: User, gameId: string, targetUid: string | null): Promise<void> {
+  return postSpecialAction(user, '/api/cazador-shot', { gameId, targetUid: targetUid ?? '' });
 }
 
 /** Submit the Chivo Expiatorio's authoritative vote-ban choice. */
