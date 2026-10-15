@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { GameState, Player } from './GamePlay';
 import { Sun, Send, Vote, Skull, Bot, Timer, Scale, UserPlus, Check } from 'lucide-react';
-import { db } from '@/lib/firebase/config';
+import { auth, db } from '@/lib/firebase/config';
 import {
-  collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit,
+  collection, onSnapshot, query, orderBy, limit,
 } from 'firebase/firestore';
 import { ROLES } from './roles';
 import { getRoleIcon } from './roleIcons';
@@ -173,8 +173,28 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
 
   const sendMsg = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!msg.trim() || isSilenced || (isForzadaActive && !amIConfessor)) return;
+    const text = msg.trim();
+    const user = auth.currentUser;
+    if (!text || !user || user.uid !== userId || isSilenced || (isForzadaActive && !amIConfessor)) return;
     setSending(true);
-    await addDoc(collection(db, 'games', gameId, 'publicChat'), { senderId: userId, senderName: userName, text: msg.trim(), createdAt: serverTimestamp() });
-    setMsg(''); setSending(false);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/public-chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ gameId, text }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(typeof data?.error === 'string' ? data.error : 'No se pudo enviar el mensaje');
+      }
+      setMsg('');
+    } catch (error) {
+      console.error('[DayPhase] public chat send failed:', error);
+    } finally {
+      setSending(false);
+    }
   };
