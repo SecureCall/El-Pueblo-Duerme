@@ -59,7 +59,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
     let cancelled = false;
     getPrivateGameState(gameId).then(state => {
       if (cancelled) return;
-      setPrivateRole(state.effectiveRole);
+      setPrivateRole(state.myRole);
       setWolfRoster(state.wolfRoster ?? []);
       setKnownAllies(state.knownAllies ?? []);
     }).catch(error => console.error('[NightPhase] private state unavailable', error));
@@ -1588,7 +1588,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
         userId={userId}
         userName={userName}
         phase="night"
-        effectiveRole={effectiveRole}
+        myRole={effectiveRole}
         isAlive={me?.isAlive ?? false}
         wolfTeam={game.wolfTeam}
       />
