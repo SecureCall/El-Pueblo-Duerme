@@ -1635,7 +1635,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
   }, [user, gameId, interruptWith, AUDIO_FILES]);
 
   const applyChivoChoice = useCallback(async (bannedUid: string | null) => {
-    if (!user || !bannedUid) return;
+    if (!user) return;
     try {
       await requestChivoChoice(user, gameId, bannedUid);
     } catch (error) {
