@@ -391,7 +391,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     });
     return () => unsub();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.phase, game?.roundNumber, gameId]);
+  }, [game?.phase, game?.roundNumber, gameId, hostPrivateRoles]);
 
   // ── Host absence detection: check /presence every 30s, auto-claim after 5min ─
   useEffect(() => {
@@ -733,7 +733,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
     return () => clearTimeout(nightTimer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.phase, game?.roundNumber]);
+  }, [game?.phase, game?.roundNumber, hostPrivateRoles]);
 
   // Host listens to wolf chat — AI wolves reply and auto-confirm kill target
   useEffect(() => {
@@ -795,7 +795,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
 
     return () => unsub();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.phase, game?.roundNumber, gameId]);
+  }, [game?.phase, game?.roundNumber, gameId, hostPrivateRoles]);
 
   // Host processes night when all required submissions received
   useEffect(() => {
@@ -863,7 +863,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
       processNight();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.nightSubmissions, game?.phase]);
+  }, [game?.nightSubmissions, game?.phase, hostPrivateRoles]);
 
   // ── Anti-softlock: force processNight when 55s night timer expires ────────
   useEffect(() => {
@@ -963,7 +963,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
       })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.phase, game?.roundNumber]);
+  }, [game?.phase, game?.roundNumber, hostPrivateRoles]);
 
   // Host auto-votes for AI players during day — personality-based timing
   useEffect(() => {
@@ -1170,7 +1170,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }, 32_000);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.phase, game?.roundNumber]);
+  }, [game?.phase, game?.roundNumber, hostPrivateRoles]);
 
   async function processDayVotes(dayVotes: Record<string, string>) {
     if (!game) return;
@@ -1649,7 +1649,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
       winners: winResult.winner ?? null, winMessage: winResult.message ?? null,
       phase: winResult.winner ? 'ended' : game.phase,
     }).catch((e: unknown) => console.error('cazadorShot error:', e));
-  }, [game, gameId, interruptWith, AUDIO_FILES]);
+  }, [game, gameId, interruptWith, AUDIO_FILES, hostPrivateRoles]);
 
   // Chivo Expiatorio: after dying in tie, chooses who can't vote next round
   const applyChivoChoice = useCallback(async (bannedUid: string | null) => {
