@@ -61,8 +61,8 @@ export async function POST(request: Request) {
       const players = Array.isArray(game.players) ? game.players : [];
       const hostStillHere = players.some((p: any) => p?.uid === game.hostUid);
       const callerIsPlayer = players.some((p: any) => p?.uid === user.uid && p?.isAI !== true);
-      if (game.hostUid !== user.uid && hostStillHere) throw new Error('NOT_HOST');
-      if (game.hostUid !== user.uid && !callerIsPlayer) throw new Error('NOT_PLAYER');
+      if (hostStillHere && game.hostUid !== user.uid) throw new Error('NOT_HOST');
+      if (!hostStillHere && !callerIsPlayer) throw new Error('NOT_PLAYER');
 
       // Read the private role collection before writing so the public reset
       // and removal of old secrets commit atomically.
