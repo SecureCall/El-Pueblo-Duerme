@@ -59,6 +59,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, phase: 'ended', myRole, myTeam, roles, wolfTeam });
     }
 
+    const knownAllies = myRole === 'Gemelas' || myRole === 'Hermanos'
+      ? players
+          .filter((player: any) => player.uid !== tokenUid && roles[player.uid] === myRole && player.isAlive === true)
+          .map((player: any) => ({ uid: player.uid, name: player.name }))
+      : [];
+
     const canSeeWolfRoster = !!myRole && (WOLF_ROLES.has(myRole) || WOLF_ALLY_ROLES.has(myRole));
     const wolfRoster = canSeeWolfRoster
       ? players
@@ -72,6 +78,7 @@ export async function GET(req: NextRequest) {
       myRole,
       myTeam,
       wolfRoster,
+      knownAllies,
     });
   } catch (err) {
     console.error('[game-private-state]', err);
