@@ -186,6 +186,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const router = useRouter();
   const { user } = useAuth();
   const [game, setGame] = useState<GameState | null>(null);
+  const [myPrivateRole, setMyPrivateRole] = useState<string | null>(null);
+  const [hostPrivateRoles, setHostPrivateRoles] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [roleRevealDone, setRoleRevealDone] = useState(false);
   const [showNightReveal, setShowNightReveal] = useState(false);
@@ -239,6 +241,50 @@ export function GamePlay({ gameId }: { gameId: string }) {
     return () => { unsub(); stopAllAmbience(); };
   }, [gameId, router]);
 
+  // Roles are private documents. Subscribe to our own role so roleSwap and
+  // reconnects update the UI without exposing roles on the public game document.
+  useEffect(() => {
+    if (!user?.uid || !gameId) {
+      setMyPrivateRole(null);
+      return;
+    }
+    return onSnapshot(
+      doc(db, 'games', gameId, 'playerRoles', user.uid),
+      (snap) => {
+        const role = snap.exists() ? snap.data()?.role : null;
+        setMyPrivateRole(typeof role === 'string' && role.length > 0 ? role : null);
+      },
+      (error) => {
+        console.error('[private role] subscription failed:', error);
+        setMyPrivateRole(null);
+      },
+    );
+  }, [gameId, user?.uid]);
+
+  // The host may read all private role docs for server-coordinated UI flows;
+  // other players never subscribe to the full role collection.
+  useEffect(() => {
+    if (!user?.uid || !gameId || !game || game.hostUid !== user.uid) {
+      setHostPrivateRoles({});
+      return;
+    }
+    return onSnapshot(
+      collection(db, 'games', gameId, 'playerRoles'),
+      (snapshot) => {
+        const roles: Record<string, string> = {};
+        snapshot.forEach((roleDoc) => {
+          const role = roleDoc.data()?.role;
+          if (typeof role === 'string' && role.length > 0) roles[roleDoc.id] = role;
+        });
+        setHostPrivateRoles(roles);
+      },
+      (error) => {
+        console.error('[private roles] host subscription failed:', error);
+        setHostPrivateRoles({});
+      },
+    );
+  }, [gameId, game?.hostUid, user?.uid]);
+
   useEffect(() => {
     if (!game) return;
     const phase = game.phase;
@@ -290,7 +336,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (phase === 'ended') {
       stopAllAmbience();
       const myUid = user?.uid;
-      const myRole = game.roles?.[myUid ?? ''];
+      const myRole = myUid === user?.uid ? (myPrivateRole ?? undefined) : undefined;
       const wolfTeamUids = new Set(Object.keys(game.wolfTeam ?? {}));
       const isWolfSide = myUid ? wolfTeamUids.has(myUid) : false;
       const w = game.winners ?? null;
@@ -318,7 +364,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }
     prevPhase.current = phase ?? null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.phase, game?.roundNumber]);
+  }, [game?.phase, game?.roundNumber, myPrivateRole]);
 
   // ── Heartbeat during game: write to /presence/{uid} every 60s ────────────
   useEffect(() => {
@@ -423,7 +469,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
       if (aiNightSubmittedRound.current === round) return;
       aiNightSubmittedRound.current = round;
 
-      const roles = game.roles ?? {};
+      const roles = Object.keys(hostPrivateRoles).length > 0 ? hostPrivateRoles : (game.roles ?? {});
       const subs = game.nightSubmissions ?? {};
       const updates: Record<string, unknown> = {};
       let needsUpdate = false;
@@ -694,7 +740,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (!game || !user || game.hostUid !== user.uid) return;
     if (game.phase !== 'night') return;
 
-    const roles = game.roles ?? {};
+    const roles = Object.keys(hostPrivateRoles).length > 0 ? hostPrivateRoles : (game.roles ?? {});
     const alivePlayers = (game.players ?? []).filter(p => p.isAlive);
     const humanWolves = alivePlayers.filter(p => !p.isAI && (roles[p.uid] === 'Lobo' || roles[p.uid] === 'Lobo Blanco' || roles[p.uid] === 'Cría de Lobo' || roles[p.uid] === 'Bruja'));
     const aiWolves = alivePlayers.filter(p => p.isAI && (roles[p.uid] === 'Lobo' || roles[p.uid] === 'Lobo Blanco' || roles[p.uid] === 'Cría de Lobo' || roles[p.uid] === 'Bruja'));
@@ -757,7 +803,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (game.phase !== 'night') return;
 
     const subs = game.nightSubmissions ?? {};
-    const roles = game.roles ?? {};
+    const roles = Object.keys(hostPrivateRoles).length > 0 ? hostPrivateRoles : (game.roles ?? {});
     const activePlayers = (game.players ?? []).filter(p => p.isAlive);
     const round = game.roundNumber ?? 1;
 
@@ -884,7 +930,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const aiPlayers = alivePlayers.filter(p => p.isAI);
     if (aiPlayers.length === 0) return;
 
-    const roles = game.roles ?? {};
+    const roles = Object.keys(hostPrivateRoles).length > 0 ? hostPrivateRoles : (game.roles ?? {});
     const eliminatedPlayer = game.dayEliminatedUid ? game.players?.find(p => p.uid === game.dayEliminatedUid) : null;
     const payload = {
       aiPlayers: aiPlayers.map(p => ({
@@ -1147,7 +1193,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
       processingDayRef.current = false;
       return;
     }
-    const roles = game.roles ?? {};
+    const roles = Object.keys(hostPrivateRoles).length > 0 ? hostPrivateRoles : (game.roles ?? {});
     const newRoles = { ...roles };
     const salvajeMentors = game.salvajeMentors ?? {};
     const perroLoboChoices = game.perroLoboChoices ?? {};
@@ -1579,7 +1625,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
   // Cazador fires last shot
   const applyCazadorShot = useCallback(async (targetUid: string) => {
     if (!game) return;
-    const roles = game.roles ?? {};
+    const roles = Object.keys(hostPrivateRoles).length > 0 ? hostPrivateRoles : (game.roles ?? {});
     let players = [...(game.players ?? [])];
     const history = [...(game.eliminatedHistory ?? [])];
     const round = game.roundNumber ?? 1;
@@ -1754,7 +1800,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     </div>
   );
 
-  const myRole = game.roles?.[user.uid];
+  const myRole = myPrivateRole ?? game.roles?.[user.uid];
   const me = game.players?.find(p => p.uid === user.uid);
 
   // ── Fantasma overlay: dead Fantasma player sends anonymous message ──────
