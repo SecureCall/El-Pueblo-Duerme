@@ -96,6 +96,33 @@ export interface DayResolutionEngineResult {
 const WOLF_ROLES = new Set(['Lobo', 'Lobo Blanco', 'Cría de Lobo']);
 const isWolf = (role?: string) => Boolean(role && WOLF_ROLES.has(role));
 
+/** Stable PRNG: retries for the same game/round must resolve the same role permutation. */
+function seededRandom(seedText: string): () => number {
+  let seed = 2166136261;
+  for (let i = 0; i < seedText.length; i++) {
+    seed ^= seedText.charCodeAt(i);
+    seed = Math.imul(seed, 16777619);
+  }
+  return () => {
+    seed += 0x6D2B79F5;
+    let t = seed;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function applyRoleSwap(roles: Record<string, string>, aliveUids: string[], gameId: string, round: number): void {
+  if (aliveUids.length < 2) return;
+  const shuffledRoles = aliveUids.map((uid) => roles[uid]);
+  const random = seededRandom(`${gameId}:roleSwap:${round}`);
+  for (let i = shuffledRoles.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [shuffledRoles[i], shuffledRoles[j]] = [shuffledRoles[j], shuffledRoles[i]];
+  }
+  aliveUids.forEach((uid, index) => { roles[uid] = shuffledRoles[index]; });
+}
+
 function addHistory(players: DayResolutionPlayer[], history: DayResolutionStatePatch['eliminatedHistory'], roles: Record<string, string>, uid: string, round: number): void {
   const p = players.find((item) => item.uid === uid);
   if (!p || history.some((h) => h.uid === uid && h.round === round)) return;
@@ -134,6 +161,11 @@ export function resolveDay(input: DayResolutionInput): DayResolutionEngineResult
   const fantasmaUsed = [...input.fantasmaUsed];
   const aliveBeforeDay = new Set(players.filter((p) => p.isAlive).map((p) => p.uid));
   const round = input.roundNumber;
+  // The event takes effect before voting: role weights, abilities and victory checks
+  // all use this same authoritative permutation for the entire resolution.
+  if (input.currentEvent?.mechanical === 'roleSwap') {
+    applyRoleSwap(roles, [...aliveBeforeDay].sort(), input.gameId, round);
+  }
   const banned = new Set([...input.voteBanned, ...(input.saboteadorBan ? [input.saboteadorBan] : [])]);
   const effectiveVotes: Record<string, string> = {};
 
@@ -214,7 +246,9 @@ export function resolveDay(input: DayResolutionInput): DayResolutionEngineResult
     }
   }
 
-  const newWolfTeam = { ...input.wolfTeam };
+  const newWolfTeam: Record<string, boolean> = Object.fromEntries(
+    Object.entries(roles).filter(([, role]) => isWolf(role)).map(([uid]) => [uid, true]),
+  );
   const cambiaformasTargets = { ...input.cambiaformasTargets };
   for (const [uid, mentorUid] of Object.entries(input.salvajeMentors)) {
     const mentor = players.find((p) => p.uid === mentorUid);
