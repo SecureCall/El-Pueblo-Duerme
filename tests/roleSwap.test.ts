@@ -3,7 +3,7 @@ import { applyRoleSwap } from '@/lib/server/roleSwap';
 
 describe('applyRoleSwap', () => {
   it('preserves the living role multiset and is deterministic for the same game and round', () => {
-    const initial = { a: 'Lobo', b: 'Vidente', c: 'Aldeano', dead: 'Lobo Blanco' };
+    const initial: Record<string, string> = { a: 'Lobo', b: 'Vidente', c: 'Aldeano', dead: 'Lobo Blanco' };
     const first = { ...initial };
     const retry = { ...initial };
 
