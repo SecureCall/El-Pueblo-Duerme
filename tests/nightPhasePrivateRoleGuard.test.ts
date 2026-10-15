@@ -14,7 +14,8 @@ describe('private role state in night phase', () => {
   });
 
   it('only returns sibling identities to players with the matching private role', () => {
-    expect(privateState).toContain("myRole === 'Gemelas' || myRole === 'Hermanos'");
+    expect(privateState).toContain("myRole === 'Gemela' || myRole === 'Gemelas' || myRole === 'Hermanos'");
+    expect(nightPhase).toContain("effectiveRole === 'Gemela' || effectiveRole === 'Gemelas'");
     expect(privateState).toContain('knownAllies');
   });
 
