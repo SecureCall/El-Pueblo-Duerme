@@ -40,3 +40,8 @@ export function requestAlborotadoraFight(user: User, gameId: string, firstUid: s
 export function requestFantasmaMessage(user: User, gameId: string, actorUid: string, targetUid: string, message: string): Promise<void> {
   return postSpecialAction(user, '/api/fantasma-message', { gameId, actorUid, targetUid, message });
 }
+
+/** Consume the Fantasma's pending action without sending a message. */
+export function requestFantasmaPass(user: User, gameId: string, actorUid: string): Promise<void> {
+  return postSpecialAction(user, '/api/fantasma-message', { gameId, actorUid, skip: 'true' });
+}
