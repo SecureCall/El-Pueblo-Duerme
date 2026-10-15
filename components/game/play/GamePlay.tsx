@@ -1942,6 +1942,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
           }));
 
           await updateDoc(doc(db, 'games', gameId), {
+            // Mantener status y phase sincronizados: el inicio de partida valida ambos.
+            status: 'lobby',
             phase: 'lobby',
             roundNumber: 0,
             hostUid: newHostUid,
