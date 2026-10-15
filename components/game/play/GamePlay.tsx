@@ -1624,11 +1624,11 @@ export function GamePlay({ gameId }: { gameId: string }) {
   }
 
   // Special actions are committed by server endpoints, never by direct client writes.
-  const applyCazadorShot = useCallback(async (targetUid: string) => {
-    if (!user || !targetUid) return;
+  const applyCazadorShot = useCallback(async (targetUid: string | null) => {
+    if (!user) return;
     try {
       await requestCazadorShot(user, gameId, targetUid);
-      interruptWith(AUDIO_FILES.lastBullet);
+      if (targetUid) interruptWith(AUDIO_FILES.lastBullet);
     } catch (error) {
       console.error('cazadorShot error:', error);
     }
@@ -1697,7 +1697,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
       if (alive.length > 0) {
         applyCazadorShot(alive[Math.floor(Math.random() * alive.length)].uid);
       } else {
-        updateDoc(doc(db, 'games', gameId), { cazadorPendingShot: null }).catch(() => {});
+        applyCazadorShot(null);
       }
     }, 2500);
     return () => clearTimeout(timer);
