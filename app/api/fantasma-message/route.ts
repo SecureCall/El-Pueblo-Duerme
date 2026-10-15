@@ -31,6 +31,12 @@ export async function POST(request: Request) {
       const actor = players.find(p => p.uid === actorUid);
       const target = targetUid ? players.find(p => p.uid === targetUid) : undefined;
       if (!actor || actor.isAlive === true) throw new Error('GHOST_INVALID');
+
+      // Public pending-state is not proof of role: the private role document
+      // is the authoritative source for this special action.
+      const roleSnap = await tx.get(gameRef.collection('playerRoles').doc(actorUid));
+      if (!roleSnap.exists || roleSnap.data()?.role !== 'Fantasma') throw new Error('ROLE_INVALID');
+
       if (!skip && (!target || target.isAlive !== true)) throw new Error('TARGET_INVALID');
       const authorizedPlayer = user?.uid === actorUid;
       const authorizedAI = actor.isAI === true && user?.uid === game.hostUid;
@@ -55,6 +61,7 @@ export async function POST(request: Request) {
       GAME_NOT_FOUND: [404, 'Game not found'],
       GHOST_NOT_PENDING: [409, 'The ghost has no pending message'],
       GHOST_INVALID: [403, 'The ghost state is invalid'],
+      ROLE_INVALID: [409, 'The Fantasma role could not be verified'],
       TARGET_INVALID: [403, 'Target must be alive'],
       FORBIDDEN: [403, 'Not authorized to send this ghost message'],
     };
