@@ -22,8 +22,8 @@ export function requestCazadorShot(user: User, gameId: string, targetUid: string
 }
 
 /** Submit the Chivo Expiatorio's authoritative vote-ban choice. */
-export function requestChivoChoice(user: User, gameId: string, targetUid: string): Promise<void> {
-  return postSpecialAction(user, '/api/chivo-choice', { gameId, targetUid });
+export function requestChivoChoice(user: User, gameId: string, targetUid: string | null): Promise<void> {
+  return postSpecialAction(user, '/api/chivo-choice', { gameId, targetUid: targetUid ?? '' });
 }
 
 /** Request the Juez's authoritative second-vote window. */
