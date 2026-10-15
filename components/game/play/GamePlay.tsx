@@ -449,7 +449,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     } catch (e) { console.error('submitNightAction error:', e); }
   }, [game, user, gameId]);
 
-  // Host listens to wolf chat — AI wolves reply and auto-confirm kill target
+  // Host listens to wolf chat — AI replies are conversational only; the server owns night actions.
   useEffect(() => {
     if (!game || !user || game.hostUid !== user.uid) return;
     if (game.phase !== 'night') return;
