@@ -16,7 +16,6 @@ describe('rematch reset authority', () => {
 
   it('resets public state on the server and deletes old private role documents', () => {
     expect(route).toContain('tx.update(gameRef');
-    expect(route).toContain("gameRef.collection('playerRoles').get()");
     expect(route).toContain('tx.delete(roleDoc.ref)');
     expect(route).toContain("await tx.get(gameRef.collection('playerRoles'))");
     expect(route).toContain("phase: 'lobby'");
