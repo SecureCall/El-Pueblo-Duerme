@@ -781,6 +781,24 @@ export function GamePlay({ gameId }: { gameId: string }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.phase, game?.roundNumber, game?.dayStartedAt, game?.phaseEndsAt]);
 
+  async function markDayPresentationReady() {
+    if (!game || !user || game.hostUid !== user.uid || game.phase !== 'day') return;
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/day-presentation-ready', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ gameId }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        console.warn('[DayPresentation] server rejected ready signal:', data.error ?? response.status);
+      }
+    } catch (error) {
+      console.warn('[DayPresentation] failed to notify server:', error);
+    }
+  }
+
   // ── Micro-momento: duda en votación ──────────────────────────────────────
   const hesitationFiredRef = useRef(false);
   useEffect(() => {
@@ -1294,7 +1312,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
             setShowNightReveal(false);
             if (!game.currentEvent) {
               if (game.hostUid === user.uid) {
-                updateDoc(doc(db, 'games', gameId), { dayStartedAt: Date.now() }).catch(() => {});
+                markDayPresentationReady();
               }
               interruptWith(AUDIO_FILES.debatesOpen, AUDIO_FILES.debateAmbient);
             }
@@ -1310,7 +1328,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
           onDone={() => {
             setShowChaosEvent(false);
             if (game.hostUid === user.uid) {
-              updateDoc(doc(db, 'games', gameId), { dayStartedAt: Date.now() }).catch(() => {});
+              markDayPresentationReady();
             }
             interruptWith(AUDIO_FILES.debatesOpen, AUDIO_FILES.debateAmbient);
           }}
