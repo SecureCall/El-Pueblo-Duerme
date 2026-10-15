@@ -850,7 +850,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }
   }
   // Special actions are committed by server endpoints, never by direct client writes.
-  const applyCazadorShot = useCallback(async (targetUid: string | null) => {
+  const submitCazadorShot = useCallback(async (targetUid: string | null) => {
     if (!user) return;
     try {
       await requestCazadorShot(user, gameId, targetUid);
@@ -921,9 +921,9 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const timer = setTimeout(() => {
       const alive = (game.players ?? []).filter(p => p.isAlive && p.uid !== cazadorUid);
       if (alive.length > 0) {
-        applyCazadorShot(alive[Math.floor(Math.random() * alive.length)].uid);
+        submitCazadorShot(alive[Math.floor(Math.random() * alive.length)].uid);
       } else {
-        applyCazadorShot(null);
+        submitCazadorShot(null);
       }
     }, 2500);
     return () => clearTimeout(timer);
@@ -940,10 +940,10 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const timer = setTimeout(() => {
       const alive = (game.players ?? []).filter(p => p.isAlive && p.uid !== cazadorUid);
       if (alive.length > 0) {
-        applyCazadorShot(alive[Math.floor(Math.random() * alive.length)].uid);
+        submitCazadorShot(alive[Math.floor(Math.random() * alive.length)].uid);
       } else {
         // El endpoint valida en servidor que no queden objetivos vivos.
-        applyCazadorShot(null);
+        submitCazadorShot(null);
       }
     }, 90_000);
     return () => clearTimeout(timer);
@@ -1116,7 +1116,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
               <p className="text-white/60 mb-8">Estás muriendo... pero puedes llevarte a alguien contigo.</p>
               <div className="space-y-3">
                 {targets.map(p => (
-                  <button key={p.uid} onClick={() => applyCazadorShot(p.uid)}
+                  <button key={p.uid} onClick={() => submitCazadorShot(p.uid)}
                     className="w-full flex items-center gap-3 bg-red-900/30 border border-red-500/40 rounded-xl p-4 hover:bg-red-900/60 transition-all text-left">
                     <div className="w-10 h-10 rounded-full bg-white/10 overflow-hidden flex-shrink-0 flex items-center justify-center font-bold">
                       {p.photoURL ? <img src={p.photoURL} alt={p.name} className="w-full h-full object-cover" /> : <span>{p.name[0]}</span>}
