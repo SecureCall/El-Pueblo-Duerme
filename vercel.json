@@ -94,15 +94,5 @@
         }
       ]
     }
-  ],
-  "crons": [
-    {
-      "path": "/api/cron/resolve-nights",
-      "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/cron/resolve-days",
-      "schedule": "* * * * *"
-    }
   ]
 }
