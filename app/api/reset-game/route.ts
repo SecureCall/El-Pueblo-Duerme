@@ -60,7 +60,9 @@ export async function POST(request: Request) {
       if (game.phase !== 'ended') throw new Error('NOT_ENDED');
       const players = Array.isArray(game.players) ? game.players : [];
       const hostStillHere = players.some((p: any) => p?.uid === game.hostUid);
+      const callerIsPlayer = players.some((p: any) => p?.uid === user.uid && p?.isAI !== true);
       if (game.hostUid !== user.uid && hostStillHere) throw new Error('NOT_HOST');
+      if (game.hostUid !== user.uid && !callerIsPlayer) throw new Error('NOT_PLAYER');
 
       const hostName = requestedHostName || 'Jugador';
       const resetPlayers = players.map((p: any) => ({
@@ -95,6 +97,7 @@ export async function POST(request: Request) {
       GAME_NOT_FOUND: [404, 'Game not found'],
       NOT_ENDED: [409, 'Only an ended game can be reset'],
       NOT_HOST: [403, 'The current host is still in the game'],
+      NOT_PLAYER: [403, 'Only a player in this game may take over a rematch'],
       UNAUTHORIZED: [401, 'Unauthorized'],
     };
     const [status, message] = errors[code] ?? [500, 'Internal error'];
