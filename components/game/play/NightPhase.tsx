@@ -1275,7 +1275,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
           {/* ── Passive info panels ─────────────────────────────────────────── */}
 
           {/* Gemelas: see twin */}
-          {effectiveRole === 'Gemelas' && !submitted && (
+          {(effectiveRole === 'Gemela' || effectiveRole === 'Gemelas') && !submitted && (
             <div className="bg-pink-900/20 border border-pink-400/30 rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-xl">👯</span>
@@ -1545,7 +1545,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
 
           {/* Default: Aldeano / other non-night roles */}
           {!isNightRole && !isEspia &&
-            !['Niña', 'Gemelas', 'Hermanos', 'Médium', 'Ángel', 'Antiguo', 'Pícaro', 'Juez', 'Oso',
+            !['Niña', 'Gemela', 'Gemelas', 'Hermanos', 'Médium', 'Ángel', 'Antiguo', 'Pícaro', 'Juez', 'Oso',
               'Chivo Expiatorio', 'Alquimista', 'Espía', 'Cazador', 'Alcalde',
               'Licántropo', 'Leprosa', 'Maldito', 'Hombre Ebrio', 'Príncipe', 'Alborotadora',
               'Verdugo', 'Hada Durmiente', 'Ángel Resucitador', 'Vigía', 'Cría de Lobo', 'Bruja'].includes(effectiveRole) &&
