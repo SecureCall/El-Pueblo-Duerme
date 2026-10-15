@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { db } from '@/lib/firebase/config';
 import {
-  doc, onSnapshot, updateDoc, addDoc, collection, serverTimestamp,
+  doc, onSnapshot, addDoc, collection, serverTimestamp,
   query, orderBy, limit, setDoc, getDoc, writeBatch,
 } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
