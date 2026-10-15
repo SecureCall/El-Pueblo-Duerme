@@ -1947,7 +1947,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     );
   }
 
-  if (game.phase === 'roleReveal' || !game.roles) {
+  if (game.phase === 'roleReveal') {
     return (
       <RoleReveal
         game={game} myRole={myRole} me={me}
