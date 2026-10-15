@@ -942,7 +942,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
       if (alive.length > 0) {
         applyCazadorShot(alive[Math.floor(Math.random() * alive.length)].uid);
       } else {
-        updateDoc(doc(db, 'games', gameId), { cazadorPendingShot: null }).catch(() => {});
+        // El endpoint valida en servidor que no queden objetivos vivos.
+        applyCazadorShot(null);
       }
     }, 90_000);
     return () => clearTimeout(timer);
