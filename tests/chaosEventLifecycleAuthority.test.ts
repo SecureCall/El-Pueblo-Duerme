@@ -13,6 +13,12 @@ describe('authoritative chaos event lifecycle guard', () => {
     expect(nightRoute).toMatch(/eventRound:\s*chaosEvent \? roundNumber : null/);
   });
 
+  it('does not return private night resolution roles to the caller', () => {
+    expect(nightRoute).toMatch(/Do not serialize the authoritative result/);
+    expect(nightRoute).toMatch(/return NextResponse\.json\(\{ ok: true, gameId \}\)/);
+    expect(nightRoute).not.toMatch(/return NextResponse\.json\(\{ ok: true, gameId, result/);
+  });
+
   it('applies a day roleSwap before entering the day and keeps public player data role-free', () => {
     expect(nightRoute).toMatch(/chaosEvent\?\.phase === 'day' && chaosEvent\.mechanical === 'roleSwap'/);
     expect(nightRoute).toMatch(/applyRoleSwap\(/);
