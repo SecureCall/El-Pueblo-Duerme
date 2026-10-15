@@ -17,7 +17,8 @@ describe('GamePlay private role synchronization', () => {
   });
 
   it('uses the private role for the local player UI and updates endgame checks when it changes', () => {
-    expect(source).toMatch(/const myRole = myPrivateRole \?\? game\.roles\?\.\[user\.uid\]/);
+    expect(source).toMatch(/const myRole = myPrivateRole;/);
+    expect(source).not.toMatch(/myPrivateRole \?\? game\.roles/);
     expect(source).toMatch(/\[game\?\.phase, game\?\.roundNumber, myPrivateRole\]/);
     expect(source).toMatch(/includes\(myPrivateRole \?\? ''\)/);
   });
@@ -27,6 +28,7 @@ describe('GamePlay private role synchronization', () => {
   });
 
   it('prefers the host private snapshot for host-side role-dependent flows', () => {
-    expect(source).toMatch(/Object\.keys\(hostPrivateRoles\)\.length > 0 \? hostPrivateRoles : \(game\.roles \?\? \{\}\)/);
+    expect(source).toMatch(/const roles = hostPrivateRoles;/);
+    expect(source).not.toMatch(/game\.roles/);
   });
 });
