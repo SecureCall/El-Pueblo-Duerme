@@ -860,7 +860,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }
   }, [user, gameId, interruptWith, AUDIO_FILES]);
 
-  const applyChivoChoice = useCallback(async (bannedUid: string | null) => {
+  const submitChivoChoice = useCallback(async (bannedUid: string | null) => {
     if (!user) return;
     try {
       await requestChivoChoice(user, gameId, bannedUid);
@@ -905,7 +905,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (!chivo?.isAI) return;
     const timer = setTimeout(() => {
       const alive = (game.players ?? []).filter(p => p.isAlive && p.uid !== chivoUid);
-      applyChivoChoice(alive.length > 0 ? alive[Math.floor(Math.random() * alive.length)].uid : null);
+      submitChivoChoice(alive.length > 0 ? alive[Math.floor(Math.random() * alive.length)].uid : null);
     }, 2500);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -957,7 +957,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const chivo = (game.players ?? []).find(p => p.uid === chivoUid);
     if (chivo?.isAI) return; // los AI ya tienen su propio handler
     const timer = setTimeout(() => {
-      applyChivoChoice(null);
+      submitChivoChoice(null);
     }, 60_000);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1069,7 +1069,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
               <p className="text-white/60 mb-2">Has muerto en el empate. Pero puedes elegir quién <strong>no podrá votar</strong> en la próxima ronda.</p>
               <div className="space-y-2 mt-6 mb-4">
                 {alivePlayers.map(p => (
-                  <button key={p.uid} onClick={() => applyChivoChoice(p.uid)}
+                  <button key={p.uid} onClick={() => submitChivoChoice(p.uid)}
                     className="w-full flex items-center gap-3 bg-amber-900/30 border border-amber-500/40 rounded-xl p-4 hover:bg-amber-900/60 transition-all text-left">
                     <div className="w-10 h-10 rounded-full bg-white/10 overflow-hidden flex-shrink-0 flex items-center justify-center font-bold">
                       {p.photoURL ? <img src={p.photoURL} alt={p.name} className="w-full h-full object-cover" /> : <span>{p.name[0]}</span>}
@@ -1078,7 +1078,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
                   </button>
                 ))}
               </div>
-              <button onClick={() => applyChivoChoice(null)}
+              <button onClick={() => submitChivoChoice(null)}
                 className="w-full bg-white/10 hover:bg-white/20 border border-white/20 text-white text-sm font-medium py-3 rounded-xl transition-colors">
                 No excluir a nadie
               </button>
