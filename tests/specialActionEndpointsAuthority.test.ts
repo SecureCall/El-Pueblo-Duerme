@@ -22,7 +22,7 @@ describe('special action endpoints authority', () => {
 
   it('verifies the authoritative role from private playerRoles for Cazador, Chivo and Juez', () => {
     expect(cazador).toContain("gameRef.collection('playerRoles').doc(pendingUid)");
-    expect(cazador).toContain("roleSnap.data()?.role !== 'Cazador'");
+    expect(cazador).toContain("hunterRole !== 'Cazador'");
     expect(chivo).toContain("gameRef.collection('playerRoles').doc(pendingUid)");
     expect(chivo).toContain("roleSnap.data()?.role !== 'Chivo Expiatorio'");
     expect(juez).toContain("gameRef.collection('playerRoles').doc(tokenUid)");
