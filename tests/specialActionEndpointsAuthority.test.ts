@@ -39,6 +39,8 @@ describe('special action endpoints authority', () => {
   it('makes Fantasma messages one-shot, target only living players and write atomically', () => {
     assertAuthenticated(fantasma);
     expect(fantasma).toContain('pending.includes(actorUid) || used.includes(actorUid)');
+    expect(fantasma).toContain("gameRef.collection('playerRoles').doc(actorUid)");
+    expect(fantasma).toContain("roleSnap.data()?.role !== 'Fantasma'");
     expect(fantasma).toContain('actor.isAlive === true');
     expect(fantasma).toContain('target.isAlive !== true');
     expect(fantasma).toContain(`const MAX_MESSAGE_LENGTH = 280`);
