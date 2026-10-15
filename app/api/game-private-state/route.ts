@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, phase: 'ended', myRole, myTeam, roles, wolfTeam });
     }
 
-    const knownAllies = myRole === 'Gemelas' || myRole === 'Hermanos'
+    const knownAllies = myRole === 'Gemela' || myRole === 'Gemelas' || myRole === 'Hermanos'
       ? players
           .filter((player: any) => player.uid !== tokenUid && roles[player.uid] === myRole && player.isAlive === true)
           .map((player: any) => ({ uid: player.uid, name: player.name }))
