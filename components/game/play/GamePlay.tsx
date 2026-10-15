@@ -1228,7 +1228,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }
   }, [user, gameId]);
 
-  const juezCallSecondVote = useCallback(async () => {
+  const submitJuezSecondVote = useCallback(async () => {
     if (!user) return;
     try {
       await requestJuezSecondVote(user, gameId);
@@ -1237,7 +1237,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     }
   }, [user, gameId]);
 
-  const alborotadoraChooseFight = useCallback(async (p1: string, p2: string) => {
+  const submitAlborotadoraFight = useCallback(async (p1: string, p2: string) => {
     if (!user) return;
     try {
       await requestAlborotadoraFight(user, gameId, p1, p2);
@@ -1694,8 +1694,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
           userName={user.displayName || user.email?.split('@')[0] || me?.name || 'Jugador'}
           isHost={game.hostUid === user.uid}
           onVote={submitDayVote}
-          onJuezSecondVote={juezCallSecondVote}
-          onAlborotadoraFight={alborotadoraChooseFight}
+          onJuezSecondVote={submitJuezSecondVote}
+          onAlborotadoraFight={submitAlborotadoraFight}
           votesFromSub={votesFromSub}
           onTimerEnd={() => {
             if (game.hostUid === user.uid) {
