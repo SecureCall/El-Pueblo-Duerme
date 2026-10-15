@@ -22,6 +22,12 @@ describe('rematch reset authority', () => {
     expect(route).toContain("phase: 'lobby'");
     expect(route).toContain('startedAt: null');
     expect(route).toContain('roles: {}');
+    expect(route).toContain('wolfTeam: {}');
+    expect(route).toContain('cultMembers: []');
+    expect(route).toContain('vampiroBites: {}');
+    expect(route).toContain('principeUsed: false');
+    expect(route).toContain("await tx.get(gameRef.collection('nightResolutions'))");
+    expect(route).toContain('tx.delete(resolutionDoc.ref)');
   });
 
   it('does not reset the game document directly from the browser', () => {
