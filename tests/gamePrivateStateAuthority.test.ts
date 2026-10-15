@@ -7,7 +7,7 @@ const source = readFileSync(resolve(process.cwd(), 'app/api/game-private-state/r
 describe('game-private-state authority', () => {
   it('separates faction classification from wolf roster visibility', () => {
     expect(source).toContain("new Set([...WOLF_ROLES, 'Bruja', 'Hada Buscadora'])");
-    expect(source).toContain("myRole && WOLF_FACTION_ROLES.has(myRole) ? 'wolves' : 'village'");
+    expect(source).toContain("WOLF_FACTION_ROLES.has(myRole) || hasJoinedWolves");
   });
 
   it('authenticates before reading private game state', () => {
