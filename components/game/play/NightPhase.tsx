@@ -48,9 +48,9 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
   const [seerTarget2, setSeerTarget2] = useState<string | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const { play, AUDIO_FILES } = useNarrator();
-  const isEspia = myRole === 'Espía';
+  const isEspia = effectiveRole === 'Espía';
 
-  const effectiveRole = privateRole || effectiveRole;
+  const effectiveRole = privateRole || myRole;
   const round = game.roundNumber ?? 1;
   const subs = game.nightSubmissions ?? {};
   const alivePlayers = (game.players ?? []).filter(p => p.isAlive && p.uid !== userId);
