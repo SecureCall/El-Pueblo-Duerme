@@ -303,7 +303,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
       stopAllAmbience();
       const victimUid = (game as any).dayEliminatedUid ?? null;
       const victim = victimUid ? (game.players ?? []).find((p: any) => p.uid === victimUid) : null;
-      const victimRole = victim ? (game.roles?.[victim.uid] ?? null) : null;
+      const victimRole = victim ? (hostPrivateRoles[victim.uid] ?? null) : null;
       if (victim) {
         playDeathSting();
         setDeathQueue([{ uid: victim.uid, name: victim.name, role: victimRole ?? '???' }]);
@@ -470,7 +470,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
       if (aiNightSubmittedRound.current === round) return;
       aiNightSubmittedRound.current = round;
 
-      const roles = Object.keys(hostPrivateRoles).length > 0 ? hostPrivateRoles : (game.roles ?? {});
+      const roles = hostPrivateRoles;
       const subs = game.nightSubmissions ?? {};
       const updates: Record<string, unknown> = {};
       let needsUpdate = false;
@@ -741,7 +741,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (!game || !user || game.hostUid !== user.uid) return;
     if (game.phase !== 'night') return;
 
-    const roles = Object.keys(hostPrivateRoles).length > 0 ? hostPrivateRoles : (game.roles ?? {});
+    const roles = hostPrivateRoles;
     const alivePlayers = (game.players ?? []).filter(p => p.isAlive);
     const humanWolves = alivePlayers.filter(p => !p.isAI && (roles[p.uid] === 'Lobo' || roles[p.uid] === 'Lobo Blanco' || roles[p.uid] === 'Cría de Lobo' || roles[p.uid] === 'Bruja'));
     const aiWolves = alivePlayers.filter(p => p.isAI && (roles[p.uid] === 'Lobo' || roles[p.uid] === 'Lobo Blanco' || roles[p.uid] === 'Cría de Lobo' || roles[p.uid] === 'Bruja'));
@@ -804,7 +804,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (game.phase !== 'night') return;
 
     const subs = game.nightSubmissions ?? {};
-    const roles = Object.keys(hostPrivateRoles).length > 0 ? hostPrivateRoles : (game.roles ?? {});
+    const roles = hostPrivateRoles;
     const activePlayers = (game.players ?? []).filter(p => p.isAlive);
     const round = game.roundNumber ?? 1;
 
@@ -931,7 +931,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const aiPlayers = alivePlayers.filter(p => p.isAI);
     if (aiPlayers.length === 0) return;
 
-    const roles = Object.keys(hostPrivateRoles).length > 0 ? hostPrivateRoles : (game.roles ?? {});
+    const roles = hostPrivateRoles;
     const eliminatedPlayer = game.dayEliminatedUid ? game.players?.find(p => p.uid === game.dayEliminatedUid) : null;
     const payload = {
       aiPlayers: aiPlayers.map(p => ({
@@ -1355,7 +1355,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     </div>
   );
 
-  const myRole = myPrivateRole ?? game.roles?.[user.uid];
+  const myRole = myPrivateRole;
   const me = game.players?.find(p => p.uid === user.uid);
 
   // ── Fantasma overlay: dead Fantasma player sends anonymous message ──────
