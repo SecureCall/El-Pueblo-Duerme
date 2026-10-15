@@ -28,6 +28,14 @@ describe('account deletion authority', () => {
     expect(src).not.toContain('body?.uid');
   });
 
+  it('blocks deletion when the verified user is in an active lobby or game', () => {
+    const src = read('app/api/delete-account/route.ts');
+    expect(src).toContain("where('status', 'in', ['lobby', 'playing'])");
+    expect(src).toContain('activeMembership');
+    expect(src).toContain("code: 'ACTIVE_GAME_MEMBERSHIP'");
+    expect(src).toContain('status: 409');
+  });
+
   it('cleans owned subcollections server-side', () => {
     const src = read('app/api/delete-account/route.ts');
     expect(src).toContain('db.recursiveDelete(userRef)');
