@@ -30,7 +30,7 @@ import { requestResolveNight } from '@/lib/game/resolveNight';
 import { requestStartNight } from '@/lib/game/startNight';
 import { requestNarratorBroadcast } from '@/lib/game/narratorBroadcast';
 import { requestHostTakeover } from '@/lib/game/hostTakeover';
-import { requestCazadorShot, requestChivoChoice, requestJuezSecondVote, requestAlborotadoraFight, requestFantasmaMessage } from '@/lib/game/specialActions';
+import { requestCazadorShot, requestChivoChoice, requestJuezSecondVote, requestAlborotadoraFight, requestFantasmaMessage, requestFantasmaPass } from '@/lib/game/specialActions';
 
 export interface Player {
   uid: string;
@@ -1816,11 +1816,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
             Enviar mensaje anónimo
           </button>
           <button
-            onClick={async () => {
-              const newUsed = [...(game.fantasmaUsed ?? []), user.uid];
-              const newPending = (game.fantasmaPending ?? []).filter(uid => uid !== user.uid);
-              await updateDoc(doc(db, 'games', gameId), { fantasmaUsed: newUsed, fantasmaPending: newPending }).catch(() => {});
-            }}
+            onClick={() => requestFantasmaPass(user, gameId, user.uid).catch((error) => console.error('fantasmaPass error:', error))}
             className="mt-2 w-full bg-transparent border border-white/15 text-white/40 hover:text-white/60 text-sm py-2 rounded-xl transition-colors"
           >
             Pasar (no enviar mensaje)
