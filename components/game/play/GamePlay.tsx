@@ -1111,7 +1111,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const eligible = alivePlayers.filter(p => !voteBanned.includes(p.uid));
     const votedCount = eligible.filter(p => !!votesFromSub[p.uid]).length;
     if (votedCount >= eligible.length && eligible.length > 0) {
-      processDayVotes(votesFromSub);
+      requestDayResolution(votesFromSub);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [votesFromSub, game?.phase]);
@@ -1134,7 +1134,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     const t = setTimeout(() => {
       if (game.phase !== 'day' || processingDayRef.current) return;
       console.warn('[Anti-softlock] Day timer expired → forcing processDayVotes');
-      processDayVotes(votesFromSub);
+      requestDayResolution(votesFromSub);
     }, remaining);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1699,7 +1699,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
           votesFromSub={votesFromSub}
           onTimerEnd={() => {
             if (game.hostUid === user.uid) {
-              processDayVotes(votesFromSub);
+              requestDayResolution(votesFromSub);
             }
           }}
         />
