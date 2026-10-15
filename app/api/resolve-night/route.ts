@@ -8,10 +8,18 @@ import { readNightRoleSnapshot } from '@/lib/server/nightRoleSnapshot';
 import { resolveNightActions } from '@/lib/server/nightResolutionEngine';
 import { claimNightResolution, releaseNightResolution, renewNightResolution } from '@/lib/server/nightResolutionLock';
 import { ensureServerAINightSubmissions } from '@/lib/server/aiNight';
-import { drawChaosEvent } from '@/lib/server/chaosEvents';
+import { drawChaosEvent, type ChaosEvent } from '@/lib/server/chaosEvents';
 
 const HEARTBEAT_MS = 30_000;
-function nextDayEnd(now: number, aliveCount: number): number { const base = Math.min(120, Math.max(60, aliveCount * 10)); return now + base * 1000 + 2000; }
+function nextDayEnd(now: number, aliveCount: number, event: ChaosEvent | null): number {
+  const base = Math.min(120, Math.max(60, aliveCount * 10));
+  const duration = event?.mechanical === 'extraTime'
+    ? Math.min(300, base + 30)
+    : event?.mechanical === 'halfTime'
+      ? Math.max(30, Math.floor(base / 2))
+      : base;
+  return now + duration * 1000 + 2000;
+}
 
 function leaseExpiresMillis(value: unknown): number {
   if (!value || typeof value !== 'object') return 0;
@@ -80,14 +88,14 @@ export async function POST(request: Request) {
       if (leaseExpiresMillis(lockData.expiresAt) <= Date.now()) throw new Error('night_resolution_lease_expired');
       const patch = result.statePatch; const now = Date.now(); const finalWinner = result.winner; const nextPhase = finalWinner ? 'ended' : 'day'; const aliveCount = patch.players.filter((p) => p.isAlive).length;
       const previousForenseResults = currentGame.forenseResults && typeof currentGame.forenseResults === 'object' ? currentGame.forenseResults as Record<string, string> : {};
-      tx.update(gameRef, { players: patch.players, eliminatedHistory: patch.eliminatedHistory, antigoHit: patch.antigoHit, cambiaformasTargets: patch.cambiaformasTargets, salvajeMentors: patch.salvajeMentors, virginiawoolFate: patch.virginiawoolFate, perroLoboChoices: patch.perroLoboChoices, cultMembers: patch.cultMembers, vampiroBites: patch.vampiroBites, vampiroKills: patch.vampiroKills, pescadorBoat: patch.pescadorBoat, enchanted: patch.enchanted, hadaLinked: patch.hadaLinked, bansheePoints: patch.bansheePoints, vigiaUsed: patch.vigiaUsed, vigiaKnowsWolves: patch.vigiaKnowsWolves, angelResucitadorUsed: patch.angelResucitadorUsed, espiaUsed: patch.espiaUsed, sirenaUid: patch.sirenaUid, sirenaLinked: patch.sirenaLinked, lobosBlocked: result.deathEffects.nextNightWolfBlock, criaLoboRage: patch.criaLoboRage, hechiceraLifeUsed: patch.hechiceraLifeUsed, hechiceraPoisonUsed: patch.hechiceraPoisonUsed, brujaFoundVidente: patch.brujaFoundVidente, brujaProtectedUid: patch.brujaProtectedUid, guardianLastTarget, doctorLastTarget, doctorSelfUsed, dayEliminatedUid, cazadorPendingShot: patch.cazadorPendingShot, seerReveal: patch.seerReveal, seerReveal2: patch.seerReveal2, profetaReveal: patch.profetaReveal, silencedPlayers: patch.silencedPlayers, forenseResults: { ...previousForenseResults, ...patch.forenseResults }, saboteadorBan: patch.saboteadorBan, phase: nextPhase, winners: finalWinner, winMessage: result.winMessage, dayVotes: {}, dayStartedAt: finalWinner ? null : now, phaseEndsAt: finalWinner ? null : nextDayEnd(now, aliveCount), currentEvent: chaosEvent, eventRound: chaosEvent ? roundNumber : null, bansheePredictionUid: null });
+      tx.update(gameRef, { players: patch.players, eliminatedHistory: patch.eliminatedHistory, antigoHit: patch.antigoHit, cambiaformasTargets: patch.cambiaformasTargets, salvajeMentors: patch.salvajeMentors, virginiawoolFate: patch.virginiawoolFate, perroLoboChoices: patch.perroLoboChoices, cultMembers: patch.cultMembers, vampiroBites: patch.vampiroBites, vampiroKills: patch.vampiroKills, pescadorBoat: patch.pescadorBoat, enchanted: patch.enchanted, hadaLinked: patch.hadaLinked, bansheePoints: patch.bansheePoints, vigiaUsed: patch.vigiaUsed, vigiaKnowsWolves: patch.vigiaKnowsWolves, angelResucitadorUsed: patch.angelResucitadorUsed, espiaUsed: patch.espiaUsed, sirenaUid: patch.sirenaUid, sirenaLinked: patch.sirenaLinked, lobosBlocked: result.deathEffects.nextNightWolfBlock, criaLoboRage: patch.criaLoboRage, hechiceraLifeUsed: patch.hechiceraLifeUsed, hechiceraPoisonUsed: patch.hechiceraPoisonUsed, brujaFoundVidente: patch.brujaFoundVidente, brujaProtectedUid: patch.brujaProtectedUid, guardianLastTarget, doctorLastTarget, doctorSelfUsed, dayEliminatedUid, cazadorPendingShot: patch.cazadorPendingShot, seerReveal: patch.seerReveal, seerReveal2: patch.seerReveal2, profetaReveal: patch.profetaReveal, silencedPlayers: patch.silencedPlayers, forenseResults: { ...previousForenseResults, ...patch.forenseResults }, saboteadorBan: patch.saboteadorBan, phase: nextPhase, winners: finalWinner, winMessage: result.winMessage, dayVotes: {}, dayStartedAt: finalWinner ? null : now, phaseEndsAt: finalWinner ? null : nextDayEnd(now, aliveCount, chaosEvent), currentEvent: chaosEvent, eventRound: chaosEvent ? roundNumber : null, bansheePredictionUid: null });
       for (const [uid, role] of Object.entries(patch.roles)) tx.set(gameRef.collection('playerRoles').doc(uid), { role, updatedAt: now }, { merge: true });
       tx.update(lockSnap.ref, { status: 'resolved', resolvedAt: new Date(now), expiresAt: null }); return true;
     });
     if (!committed) throw new Error('night_resolution_not_committed'); claimedGameId = null; claimedRound = null; claimedLeaseId = null;
     return NextResponse.json({ ok: true, gameId, result, rejected: validation.rejected });
   } catch (error) {
-    if (claimedGameId && claimedRound !== null && claimedLeaseId) { try { const { db } = getSdks(); await releaseNightResolution(db, claimedGameId, claimedRound, claimedLeaseId); } catch (releaseError) { console.error('[resolve-night] failed to release resolution lease', releaseError); } }
+    if (claimedGameId && claimedRound !== null && claimedLeaseId) { try { const { db } = getSdks(); await releaseNightResolution(db, claimedGameId, claimedRound, claimedLeaseId); } catch (releaseError) { console.error('[resolve-night] failed to release night resolution lease', releaseError); } }
     console.error('[resolve-night] request failed', error); const message = error instanceof Error ? error.message : 'unknown_error'; const status = message.startsWith('night_') ? 409 : 401; return NextResponse.json({ error: status === 409 ? message : 'Unauthorized or invalid request' }, { status }); }
   finally { if (heartbeat) clearInterval(heartbeat); }
 }
