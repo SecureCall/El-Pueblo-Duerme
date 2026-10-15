@@ -1200,52 +1200,19 @@ export function GamePlay({ gameId }: { gameId: string }) {
             isHost: p.uid === newHostUid,
           }));
 
-          await updateDoc(doc(db, 'games', gameId), {
-            phase: 'lobby',
-            roundNumber: 0,
-            hostUid: newHostUid,
-            hostName: newHostName,
-            roles: {},
-            nightActions: {},
-            nightSubmissions: {},
-            dayVotes: {},
-            eliminatedHistory: [],
-            winners: null,
-            winMessage: '',
-            lastVictim: null,
-            bearGrowl: false,
-            profetaReveal: null,
-            players: resetPlayers,
-            // Limpiar todos los estados de rol de la partida anterior
-            loversUids: null,
-            twinUids: null,
-            enchanted: [],
-            cursed: [],
-            vampirizados: [],
-            liderCultoMembers: [],
-            virginiawoolTarget: null,
-            vigiaUsed: false,
-            angelResucitadorUsed: false,
-            hadaLinked: false,
-            fantasmaPending: [],
-            fantasmaUsed: [],
-            voteBanned: [],
-            noExileActive: false,
-            currentEvent: null,
-            nightKilledUids: [],
-            espiaUsed: false,
-            doubleSeerActive: false,
-            doubleExecution: false,
-            bansheePredictionUid: null,
-            cazadorPendingShot: null,
-            chivoPendingChoice: null,
-            silverwolf: false,
-            criaLoboRage: false,
-            narratorBroadcast: null,
-            phaseEndsAt: null,
-            dayStartedAt: null,
-            nightStartedAt: null,
+          const resetResponse = await fetch('/api/reset-game', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${await user.getIdToken()}`,
+            },
+            body: JSON.stringify({ gameId, hostName: newHostName }),
           });
+          const resetResult = await resetResponse.json().catch(() => ({}));
+          if (!resetResponse.ok || !resetResult.ok) {
+            console.error('[Rematch] server reset failed:', resetResult.error ?? resetResponse.status);
+            return;
+          }
 
           // Push notification to all non-host real players
           const playerUids = (game.players ?? [])
