@@ -4,12 +4,21 @@ import { resolve } from 'node:path';
 
 const nightRoute = readFileSync(resolve(process.cwd(), 'app/api/resolve-night/route.ts'), 'utf8');
 const dayRoute = readFileSync(resolve(process.cwd(), 'app/api/day-resolve/route.ts'), 'utf8');
+const roleSwapModule = readFileSync(resolve(process.cwd(), 'lib/server/roleSwap.ts'), 'utf8');
 
 describe('authoritative chaos event lifecycle guard', () => {
   it('generates the event only from the authoritative night commit path', () => {
     expect(nightRoute).toMatch(/drawChaosEvent\(\)/);
     expect(nightRoute).toMatch(/currentEvent:\s*chaosEvent/);
     expect(nightRoute).toMatch(/eventRound:\s*chaosEvent \? roundNumber : null/);
+  });
+
+  it('applies a day roleSwap before entering the day and keeps public player data role-free', () => {
+    expect(nightRoute).toMatch(/chaosEvent\?\.phase === 'day' && chaosEvent\.mechanical === 'roleSwap'/);
+    expect(nightRoute).toMatch(/applyRoleSwap\(/);
+    expect(nightRoute).toMatch(/playerRoles'\)\.doc\(uid\)/);
+    expect(nightRoute).toMatch(/const publicPlayers = patch\.players\.map\(\(\{ role: _privateRole, \.\.\.player \}\) => player\)/);
+    expect(roleSwapModule).toContain('role_swap_snapshot_incomplete');
   });
 
   it('does not let day resolution invent a second event', () => {
