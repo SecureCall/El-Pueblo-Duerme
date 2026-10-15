@@ -338,7 +338,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
       const myUid = user?.uid;
       const myRole = myUid === user?.uid ? (myPrivateRole ?? undefined) : undefined;
       const wolfTeamUids = new Set(Object.keys(game.wolfTeam ?? {}));
-      const isWolfSide = myUid ? wolfTeamUids.has(myUid) : false;
+      const isWolfSide = myUid ? (wolfTeamUids.has(myUid) || ['Lobo', 'Lobo Blanco', 'Cría de Lobo', 'Bruja'].includes(myPrivateRole ?? '')) : false;
       const w = game.winners ?? null;
       const iWon = myUid && myRole && w ? (() => {
         if (w === 'village') return !isWolfSide;
