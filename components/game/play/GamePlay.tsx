@@ -507,22 +507,23 @@ export function GamePlay({ gameId }: { gameId: string }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.phase, game?.roundNumber, gameId, hostPrivateRoles]);
 
-  // ── Anti-softlock: force processNight when 55s night timer expires ────────
+  // ── Anti-softlock: ask the server to resolve at its authoritative deadline ──
   useEffect(() => {
     if (!game || !user || game.hostUid !== user.uid) return;
     if (game.phase !== 'night') return;
-    const NIGHT_MS = 58000; // 55s night + 3s grace
-    const started = game.nightStartedAt ?? Date.now();
-    const remaining = Math.max(0, NIGHT_MS - (Date.now() - started));
+    const started = typeof game.nightStartedAt === 'number' ? game.nightStartedAt : Date.now();
+    // Never fire before the server deadline: resolve-night rejects early calls.
+    const deadline = typeof game.phaseEndsAt === 'number' ? game.phaseEndsAt : started + 60_000;
+    const remaining = Math.max(0, deadline - Date.now() + 250);
     const t = setTimeout(() => {
       if (game.phase !== 'night' || processingNightRef.current) return;
-      console.warn('[Anti-softlock] Night timer expired → forcing processNight');
+      console.warn('[Anti-softlock] Server night deadline reached; requesting authoritative resolution');
       processingNightRef.current = true;
       processNight();
     }, remaining);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.phase, game?.roundNumber, game?.nightStartedAt]);
+  }, [game?.phase, game?.roundNumber, game?.nightStartedAt, game?.phaseEndsAt]);
 
   async function processNight() {
     if (!game || game.phase !== 'night' || processingNightRef.current === false) {
