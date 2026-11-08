@@ -11,7 +11,7 @@ describe('rematch reset authority', () => {
     expect(route).toContain("game.phase !== 'ended'");
     expect(route).toContain("hostStillHere && game.hostUid !== user.uid");
     expect(route).toContain("!hostStillHere && !callerIsPlayer");
-    expect(route).toContain("p?.isAI !== true");
+    expect(route).toContain("player.isAI !== true");
   });
 
   it('resets public state on the server and deletes old private role documents', () => {
