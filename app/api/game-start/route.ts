@@ -18,6 +18,10 @@ type Player = {
   lastSeen?: number;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 const ERRORS: Record<string, [string, number]> = {
   GAME_NOT_FOUND: ['Partida no encontrada', 404],
   NOT_HOST: ['Solo el anfitrión puede iniciar la partida', 403],
@@ -70,7 +74,7 @@ export async function POST(req: NextRequest) {
       if (game.status !== 'lobby' || game.phase !== 'lobby') throw new Error('NOT_LOBBY');
 
       const rawPlayers = Array.isArray(game.players) ? game.players : [];
-      const players: Player[] = rawPlayers.filter((p: any) => typeof p?.uid === 'string');
+      const players: Player[] = rawPlayers.filter((player): player is Player => isRecord(player) && typeof player.uid === 'string' && typeof player.name === 'string');
       const maxPlayers = Number(game.maxPlayers);
       const configuredWolves = Number(game.wolves);
 
