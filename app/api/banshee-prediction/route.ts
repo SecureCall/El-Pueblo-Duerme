@@ -80,8 +80,8 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ ok: true, ...prediction });
-  } catch (err: any) {
-    const code = err?.message;
+  } catch (err) {
+    const code = err instanceof Error ? err.message : 'INTERNAL';
     const statuses: Record<string, [number, string]> = {
       GAME_NOT_FOUND: [404, 'Partida no encontrada'],
       PHASE_CLOSED: [409, 'La predicción ya no está disponible'],
