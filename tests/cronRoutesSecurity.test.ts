@@ -23,12 +23,21 @@ describe('server-side phase recovery endpoint guards', () => {
     }
   });
 
-  it('only delegates overdue games in the matching phase', () => {
-    expect(nightRoute).toContain("data.phase === 'night'");
-    expect(nightRoute).toContain("where('phaseEndsAt', '<=', now)");
+  it('filters by phase before applying the recovery batch limit', () => {
+    const nightPhaseFilter = nightRoute.indexOf(".where('phase', '==', 'night')");
+    const nightDeadlineFilter = nightRoute.indexOf(".where('phaseEndsAt', '<=', now)");
+    const nightLimit = nightRoute.indexOf('.limit(MAX_GAMES_PER_TICK)');
+    expect(nightPhaseFilter).toBeGreaterThanOrEqual(0);
+    expect(nightDeadlineFilter).toBeGreaterThan(nightPhaseFilter);
+    expect(nightLimit).toBeGreaterThan(nightDeadlineFilter);
     expect(nightRoute).toContain('resolveNight(');
-    expect(dayRoute).toContain("(data.phase === 'day' || data.phase === 'voting')");
-    expect(dayRoute).toContain("where('phaseEndsAt', '<=', now)");
+
+    const dayPhaseFilter = dayRoute.indexOf(".where('phase', 'in', ['day', 'voting'])");
+    const dayDeadlineFilter = dayRoute.indexOf(".where('phaseEndsAt', '<=', now)");
+    const dayLimit = dayRoute.indexOf('.limit(MAX_GAMES_PER_TICK)');
+    expect(dayPhaseFilter).toBeGreaterThanOrEqual(0);
+    expect(dayDeadlineFilter).toBeGreaterThan(dayPhaseFilter);
+    expect(dayLimit).toBeGreaterThan(dayDeadlineFilter);
     expect(dayRoute).toContain('resolveDay(');
   });
 });
