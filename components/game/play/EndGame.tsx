@@ -4,12 +4,12 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { GameState } from './GamePlay';
 import { ROLES } from './roles';
 import { getRoleIcon } from './roleIcons';
-import { Trophy, Skull, Home, RefreshCw, Clock, Star, Share2, Users, BookOpen, Swords, Flame, ImageIcon } from 'lucide-react';
+import { Trophy, Skull, Home, Clock, Star, Share2, Users, BookOpen, Swords, Flame, ImageIcon } from 'lucide-react';
 import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
 import { AdBanner } from '@/components/ads/AdBanner';
 import { NativeBanner } from '@/components/ads/NativeBanner';
 import { RewardedAd } from '@/components/ads/RewardedAd';
-import { xpToLevel, levelEmoji, getPlayerTitle, type XPResult } from '@/lib/firebase/xp';
+import { levelEmoji, getPlayerTitle, type XPResult } from '@/lib/firebase/xp';
 import { recordGameResult } from '@/lib/bots/playerStats';
 import { getPrivateGameState } from '@/lib/game/privateStateClient';
 
