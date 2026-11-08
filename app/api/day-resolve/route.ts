@@ -118,15 +118,14 @@ export async function POST(req: NextRequest) {
         else if (!g.noExileActive && result.eliminated === null && max > 0 && result.tally[prince] === max) princeUsed = true;
       }
 
-      const {
-        roles: _privateRoles,
-        wolfTeam: _privateWolfTeam,
-        players: resolvedPlayers,
-        nightActions: _legacyNightActions,
-        nightSubmissions: _legacyNightSubmissions,
-        ...publicPatch
-      } = result.statePatch;
-      const sanitizedPlayers = resolvedPlayers.map(({ role: _privateRole, ...player }) => player);
+      const publicPatch = Object.fromEntries(
+        Object.entries(result.statePatch).filter(([key]) =>
+          !['roles', 'wolfTeam', 'nightActions', 'nightSubmissions'].includes(key),
+        ),
+      );
+      const sanitizedPlayers = result.statePatch.players.map((player) =>
+        Object.fromEntries(Object.entries(player).filter(([key]) => key !== 'role')),
+      );
       const currentEvent = current.currentEvent && typeof current.currentEvent === 'object' ? current.currentEvent as ChaosEvent : null;
       const nextNightEvent = chaosEventAppliesToPhase(currentEvent, 'night') ? currentEvent : null;
       const patch = {
