@@ -539,10 +539,12 @@ export function GamePlay({ gameId }: { gameId: string }) {
   }
 
   const submitDayVote = useCallback(async (targetUid: string) => {
-    if (!user || !game) return;
-    if (game.phase !== 'day' && game.phase !== 'voting') { console.warn('[FSM] submitDayVote rejected — not day/voting phase'); return; }
+    if (!user || !game) throw new Error('No hay una sesión activa para votar.');
+    if (game.phase !== 'day' && game.phase !== 'voting') {
+      throw new Error('La votación ya no está disponible.');
+    }
     const me = game.players?.find(p => p.uid === user.uid);
-    if (!me?.isAlive) { console.warn('[FSM] submitDayVote rejected — player not alive'); return; }
+    if (!me?.isAlive) throw new Error('Un jugador eliminado no puede votar.');
     const round = game.roundNumber ?? 1;
     try {
       const idToken = await user.getIdToken();
@@ -557,8 +559,11 @@ export function GamePlay({ gameId }: { gameId: string }) {
       }
       // Registro de comportamiento del jugador (fire-and-forget)
       if (game.dayStartedAt) recordVote(user.uid, game.dayStartedAt).catch(() => {});
-    } catch (e) { console.error('submitDayVote error:', e); }
-  }, [user, game, gameId, votesFromSub]);
+    } catch (error) {
+      console.error('submitDayVote error:', error);
+      throw error;
+    }
+  }, [user, game, gameId]);
 
   // Host triggers AI chat messages during day phase
   useEffect(() => {
