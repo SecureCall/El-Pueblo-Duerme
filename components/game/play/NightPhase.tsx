@@ -23,7 +23,7 @@ interface Props {
   onSubmitAction: (action: Record<string, unknown>) => Promise<void>;
 }
 
-export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost, onSubmitAction }: Props) {
+export function NightPhase({ game, gameId, myRole, me, userId, userName, onSubmitAction }: Props) {
   const [privateRole, setPrivateRole] = useState<string | null>(myRole || null);
   const [wolfRoster, setWolfRoster] = useState<Array<{ uid: string; name: string }>>([]);
   const [knownAllies, setKnownAllies] = useState<Array<{ uid: string; name: string }>>([]);
@@ -51,7 +51,6 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, isHost,
   const effectiveRole = privateRole || myRole;
   const isEspia = effectiveRole === 'Espía';
   const round = game.roundNumber ?? 1;
-  const subs = game.nightSubmissions ?? {};
   const alivePlayers = (game.players ?? []).filter(p => p.isAlive && p.uid !== userId);
   const allAlivePlayers = (game.players ?? []).filter(p => p.isAlive);
 
