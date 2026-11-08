@@ -4,6 +4,10 @@ import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 
+type GamePlayer = Record<string, unknown>;
+const isRecord = (value: unknown): value is GamePlayer =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 const ERRORS: Record<string, [string, number]> = {
   GAME_NOT_FOUND: ['Partida no encontrada', 404],
   NOT_LOBBY: ['La partida ya no está disponible para unirse', 409],
@@ -34,8 +38,8 @@ export async function POST(req: NextRequest) {
       const game = snap.data()!;
       if (game.status !== 'lobby' || game.phase !== 'lobby') throw new Error('NOT_LOBBY');
 
-      const players = Array.isArray(game.players) ? game.players : [];
-      if (players.some((p: any) => p?.uid === uid)) throw new Error('ALREADY_JOINED');
+      const players = Array.isArray(game.players) ? game.players.filter(isRecord) : [];
+      if (players.some((player) => player.uid === uid)) throw new Error('ALREADY_JOINED');
       const maxPlayers = Number.isInteger(game.maxPlayers) ? game.maxPlayers : 0;
       if (maxPlayers <= 0 || players.length >= maxPlayers) throw new Error('GAME_FULL');
 
