@@ -76,8 +76,8 @@ export async function POST(req: NextRequest) {
     const sent = results.filter((r) => r.status === 'fulfilled').length;
     const failed = results.filter((r) => r.status === 'rejected').length;
     return NextResponse.json({ ok: true, sent, failed });
-  } catch (err: any) {
-    console.error('[push-send]', err);
+  } catch (err) {
+    console.error('[push-send]', err instanceof Error ? err.message : 'INTERNAL');
     return NextResponse.json({ error: 'Error interno' }, { status: 500 });
   }
 }
