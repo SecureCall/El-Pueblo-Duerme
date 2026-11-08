@@ -230,7 +230,7 @@ export function resolveNightActions(
   const wolfResolution = resolveWolfNightTarget(players, acceptedSubmissions, roles);
   const protectionResolution = resolveNightProtections(resolvedInput, roleSnapshot, wolfResolution);
   let primaryTarget = wolfResolution.targetUid;
-  let secondaryTarget = wolfResolution.secondaryTargetUid;
+  const secondaryTarget = wolfResolution.secondaryTargetUid;
   let nextNightWolfBlock = false;
 
   if (primaryTarget && roles[primaryTarget] === 'Maldito' && input.history.malditoUid === primaryTarget) {
