@@ -75,6 +75,10 @@ const RESET_FIELDS = {
   nightStartedAt: null,
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 export async function POST(request: Request) {
   try {
     const user = await verifyAuthToken(request);
@@ -88,11 +92,13 @@ export async function POST(request: Request) {
     await db.runTransaction(async tx => {
       const snap = await tx.get(gameRef);
       if (!snap.exists) throw new Error('GAME_NOT_FOUND');
-      const game = snap.data() as Record<string, any>;
+      const game = snap.data() ?? {};
       if (game.phase !== 'ended') throw new Error('NOT_ENDED');
-      const players = Array.isArray(game.players) ? game.players : [];
-      const hostStillHere = players.some((p: any) => p?.uid === game.hostUid);
-      const callerIsPlayer = players.some((p: any) => p?.uid === user.uid && p?.isAI !== true);
+      const players: Record<string, unknown>[] = Array.isArray(game.players)
+        ? game.players.filter(isRecord)
+        : [];
+      const hostStillHere = players.some((player) => player.uid === game.hostUid);
+      const callerIsPlayer = players.some((player) => player.uid === user.uid && player.isAI !== true);
       if (hostStillHere && game.hostUid !== user.uid) throw new Error('NOT_HOST');
       if (!hostStillHere && !callerIsPlayer) throw new Error('NOT_PLAYER');
 
@@ -125,11 +131,11 @@ export async function POST(request: Request) {
         + transientSnapshots.reduce((total, snapshot) => total + snapshot.size, 0);
       if (cleanupCount > 400) throw new Error('RESET_CLEANUP_TOO_LARGE');
       const hostName = requestedHostName || 'Jugador';
-      const resetPlayers = players.map((p: any) => ({
-        ...p,
+      const resetPlayers = players.map((player) => ({
+        ...player,
         isAlive: true,
         role: null,
-        isHost: p?.uid === user.uid,
+        isHost: player.uid === user.uid,
       }));
       tx.update(gameRef, {
         ...RESET_FIELDS,
