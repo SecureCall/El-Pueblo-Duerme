@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getFirestore } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
-import { initAdminApp } from '@/lib/server/firebase-admin';
+import { getSdks } from '@/lib/server/firebase-admin';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { assignRoles } from '@/lib/server/roleCatalog';
 import { BOT_NAMES, assignBotType } from '@/lib/bots/botSystem';
@@ -57,8 +56,7 @@ export async function POST(req: NextRequest) {
     const gameId = typeof body.gameId === 'string' ? body.gameId.trim() : '';
     if (!gameId) return NextResponse.json({ error: 'gameId requerido' }, { status: 400 });
 
-    initAdminApp();
-    const db = getFirestore();
+    const { db } = getSdks();
     const gameRef = db.collection('games').doc(gameId);
 
     let result: { playerCount: number; wolves: number } | null = null;
