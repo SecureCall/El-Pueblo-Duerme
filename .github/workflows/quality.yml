@@ -36,6 +36,10 @@ jobs:
         run: npm test
 
       - name: Build
+        # The client Firebase SDK is imported by the app shell during static prerendering.
+        # CI uses a format-valid, non-production key so builds do not require production secrets.
+        env:
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ vars.NEXT_PUBLIC_FIREBASE_API_KEY || 'AIzaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' }}
         run: npm run build
 
       - name: Run lint
