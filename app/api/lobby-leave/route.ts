@@ -3,6 +3,10 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { initAdminApp } from '@/lib/firebase/admin';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 
+type GamePlayer = Record<string, unknown>;
+const isRecord = (value: unknown): value is GamePlayer =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 const ERRORS: Record<string, [string, number]> = {
   GAME_NOT_FOUND: ['Partida no encontrada', 404],
   NOT_IN_GAME: ['No estás en esta partida', 409],
@@ -31,12 +35,12 @@ export async function POST(req: NextRequest) {
       const game = snap.data()!;
       if (game.status !== 'lobby' || game.phase !== 'lobby') throw new Error('NOT_LOBBY');
 
-      const players = Array.isArray(game.players) ? game.players : [];
-      const me = players.find((p: any) => p?.uid === uid);
+      const players = Array.isArray(game.players) ? game.players.filter(isRecord) : [];
+      const me = players.find((player) => player.uid === uid);
       if (!me) throw new Error('NOT_IN_GAME');
 
-      const remaining = players.filter((p: any) => p?.uid !== uid);
-      const remainingHumans = remaining.filter((p: any) => !p?.isAI);
+      const remaining = players.filter((player) => player.uid !== uid);
+      const remainingHumans = remaining.filter((player) => player.isAI !== true);
 
       if (me.isHost && remainingHumans.length === 0) {
         tx.delete(gameRef);
@@ -48,15 +52,15 @@ export async function POST(req: NextRequest) {
         const newHost = remainingHumans[0];
         if (!newHost?.uid) throw new Error('HOST_CANNOT_LEAVE');
         newHostUid = newHost.uid;
-        const nextPlayers = remaining.map((p: any) => ({
-          ...p,
-          isHost: p.uid === newHost.uid,
+        const nextPlayers = remaining.map((player) => ({
+          ...player,
+          isHost: player.uid === newHost.uid,
         }));
         tx.update(gameRef, {
           players: nextPlayers,
           playerCount: nextPlayers.length,
           hostUid: newHost.uid,
-          hostName: newHost.name || 'Jugador',
+          hostName: typeof newHost.name === 'string' ? newHost.name : 'Jugador',
         });
         return;
       }
