@@ -9,6 +9,9 @@ interface RequestBody { aiPlayers: AIPlayer[]; eliminatedName?: string | null; e
 const WOLF_INSTRUCTIONS = `Eres un LOBO disfrazado de aldeano. Debes parecer inocente.\n- Nunca confieses que eres un lobo\n- Acusa a aldeanos reales o desvía la atención\n- Muestra "preocupación" falsa por el pueblo`;
 const VILLAGE_INSTRUCTIONS = `Eres un aldeano inocente tratando de encontrar a los lobos.\n- Debate activamente sobre quién puede ser el lobo\n- Usa tu lógica e intuición`;
 const SEER_INSTRUCTIONS = `Eres un vidente. Tienes información, pero no puedes revelar tu rol.\n- Da pistas sutiles sobre quién es el lobo`;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 function getRoleStyle(role: string, isWolf: boolean): string { if (isWolf) return WOLF_INSTRUCTIONS; if (role === 'Vidente' || role === 'Profeta') return SEER_INSTRUCTIONS; return VILLAGE_INSTRUCTIONS; }
 function getFallback(players: AIPlayer[]): { messages: { uid: string; name: string; text: string }[] } { return { messages: players.map(p => { const bType = (p.botType ?? 'caotico') as BotType; const pool = FALLBACK_BOT_MESSAGES[bType]; return { uid: p.uid, name: p.name, text: pool[Math.floor(Math.random() * pool.length)] }; }) }; }
 
@@ -33,9 +36,19 @@ export async function POST(req: NextRequest) {
     const responseText = result.response.text();
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return NextResponse.json(getFallback(aiPlayers));
-    const parsed = JSON.parse(jsonMatch[0]);
+    const parsed: unknown = JSON.parse(jsonMatch[0]);
+    const parsedRecord = isRecord(parsed) ? parsed : {};
     const allowed = new Set(aiPlayers.map(p => p.uid));
-    const messages = Array.isArray(parsed.messages) ? parsed.messages.filter((m: any) => m && allowed.has(m.uid) && typeof m.text === 'string').map((m: any) => ({ uid: m.uid, name: aiPlayers.find(p => p.uid === m.uid)!.name, text: m.text.slice(0, 160) })) : [];
+    const rawMessages = Array.isArray(parsedRecord.messages) ? parsedRecord.messages : [];
+    const messages = rawMessages
+      .filter((message): message is Record<string, unknown> =>
+        isRecord(message) && typeof message.uid === 'string' && allowed.has(message.uid) && typeof message.text === 'string',
+      )
+      .map((message) => ({
+        uid: message.uid as string,
+        name: aiPlayers.find(player => player.uid === message.uid)!.name,
+        text: (message.text as string).slice(0, 160),
+      }));
     return NextResponse.json({ messages });
   } catch (error) {
     console.error('ai-chat error:', error);
