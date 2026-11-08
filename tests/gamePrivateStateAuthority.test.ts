@@ -28,7 +28,7 @@ describe('game-private-state authority', () => {
 
   it('does not expose the complete role map in the active response', () => {
     expect(source).toMatch(/return NextResponse\.json\(\{\n      ok: true,\n      phase: String\(game\.phase \?\? ''\),\n      myRole,\n      myTeam,/);
-    expect(source).toMatch(/wolfRoster,\n    \}\);/);
+    expect(source).toMatch(/wolfRoster,\n      knownAllies,\n    \}\);/);
   });
 
   it('allows the complete role reveal only after the game has ended', () => {
