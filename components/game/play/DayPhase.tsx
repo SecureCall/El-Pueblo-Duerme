@@ -60,6 +60,8 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
   const [sendingHermanos, setSendingHermanos] = useState(false);
   const [myVote, setMyVote] = useState<string | null>(null);
   const [voted, setVoted] = useState(false);
+  const [voteSubmitting, setVoteSubmitting] = useState(false);
+  const [voteError, setVoteError] = useState<string | null>(null);
   const dayDurationRef = useRef(60);
   const [secondsLeft, setSecondsLeft] = useState(60);
   const [chatTab, setChatTab] = useState<ChatTab>('public');
@@ -300,9 +302,18 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
   };
 
   const handleVote = async () => {
-    if (!myVote || voted || !meAlive || myVoteBanned) return;
-    await onVote(myVote);
-    setVoted(true);
+    if (!myVote || voted || voteSubmitting || !meAlive || myVoteBanned) return;
+    setVoteError(null);
+    setVoteSubmitting(true);
+    try {
+      await onVote(myVote);
+      setVoted(true);
+    } catch (error) {
+      console.error('[DayPhase] vote submission failed:', error);
+      setVoteError(error instanceof Error ? error.message : 'No se pudo registrar el voto. Inténtalo de nuevo.');
+    } finally {
+      setVoteSubmitting(false);
+    }
   };
 
   const voteCounts: Record<string, number> = {};
@@ -803,11 +814,16 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, o
               {meAlive && !voted && !myVoteBanned && (
                 <button
                   onClick={handleVote}
-                  disabled={!myVote}
+                  disabled={!myVote || voteSubmitting}
                   className="mt-3 w-full bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold py-2.5 rounded-xl transition-colors"
                 >
-                  Votar
+                  {voteSubmitting ? 'Registrando voto…' : 'Votar'}
                 </button>
+              )}
+              {voteError && (
+                <p role="alert" className="mt-2 text-center text-red-300 text-xs">
+                  {voteError}
+                </p>
               )}
               {voted && (
                 <div className="mt-3 text-center text-amber-400 text-xs py-1 font-semibold">
