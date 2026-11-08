@@ -23,7 +23,7 @@ describe('Firestore security rules — regression guards', () => {
   });
 
   it('authorizes wolf chat from the canonical private role snapshot', () => {
-    expect(rules).toContain("privateRole(gameId, request.auth.uid) in ['Lobo', 'Lobo Blanco', 'Cría de Lobo']");
+    expect(rules).toContain("privateRole(gameId, request.auth.uid) in ['Lobo', 'Lobo Blanco', 'Cría de Lobo', 'Bruja']");
     expect(rules).toContain("privateRole(gameId, request.auth.uid) == 'Espía'");
     expect(rules).not.toContain(".data.wolfTeam[request.auth.uid] == true");
   });
