@@ -10,6 +10,11 @@ const WOLF_ROLES = new Set(['Lobo', 'Lobo Blanco', 'Cría de Lobo']);
 
 interface AIWolf { uid: string; name: string; }
 interface AlivePl { uid: string; name: string; }
+type GamePlayer = Record<string, unknown>;
+function isRecord(value: unknown): value is GamePlayer {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 interface RequestBody {
   gameId?: string;
   humanMessage: string;
@@ -38,9 +43,11 @@ export async function POST(req: NextRequest) {
 
     const game = gameSnap.data()!;
     const players = Array.isArray(game.players)
-      ? game.players.filter((p: any) => p && typeof p.uid === 'string' && typeof p.name === 'string')
+      ? game.players.filter((player): player is GamePlayer =>
+          isRecord(player) && typeof player.uid === 'string' && typeof player.name === 'string',
+        )
       : [];
-    const caller = players.find((p: any) => p.uid === uid);
+    const caller = players.find((player) => player.uid === uid);
     if (!caller || caller.isAlive === false || caller.isAI === true || game.phase !== 'night') {
       return NextResponse.json({ error: 'No autorizado para esta acción' }, { status: 403 });
     }
@@ -51,7 +58,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No eres parte del equipo de lobos' }, { status: 403 });
     }
 
-    const playerByUid = new Map(players.map((p: any) => [p.uid, p]));
+    const playerByUid = new Map<string, GamePlayer>(players.map((player) => [player.uid as string, player]));
     const aiRoleEntries = await Promise.all(
       aiWolves.map(async (bot) => {
         if (!bot || typeof bot.uid !== 'string' || typeof bot.name !== 'string') return null;
@@ -69,8 +76,8 @@ export async function POST(req: NextRequest) {
     if (aiWolves.length === 0) return NextResponse.json({ messages: [], submitted: false, resolved: false });
 
     const canonicalAlivePlayers: AlivePl[] = players
-      .filter((p: any) => p.isAlive !== false)
-      .map((p: any) => ({ uid: p.uid, name: p.name }));
+      .filter((player) => player.isAlive !== false)
+      .map((player) => ({ uid: player.uid as string, name: player.name as string }));
     const canonicalAiWolves = aiWolves.map((bot) => ({
       uid: bot.uid,
       name: playerByUid.get(bot.uid)!.name,
@@ -85,8 +92,9 @@ export async function POST(req: NextRequest) {
     const raw = result.response.text();
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return NextResponse.json({ messages: [], submitted: false, resolved: false });
-    const parsed = JSON.parse(jsonMatch[0]);
-    const proposedName: string | null = typeof parsed.proposedTarget === 'string' ? parsed.proposedTarget : null;
+    const parsed: unknown = JSON.parse(jsonMatch[0]);
+    const parsedRecord = isRecord(parsed) ? parsed : {};
+    const proposedName: string | null = typeof parsedRecord.proposedTarget === 'string' ? parsedRecord.proposedTarget : null;
     let targetUid: string | null = null;
     if (proposedName && proposedName !== 'null') {
       const normalized = proposedName.toLowerCase().trim();
@@ -95,16 +103,17 @@ export async function POST(req: NextRequest) {
     }
 
     const allowedBotIds = new Set(canonicalAiWolves.map(p => p.uid));
-    const messages = Array.isArray(parsed.messages)
-      ? parsed.messages
-        .filter((m: any) => m && allowedBotIds.has(m.uid))
-        .map((m: any) => ({
-          uid: m.uid,
-          name: canonicalAiWolves.find(p => p.uid === m.uid)!.name,
-          text: typeof m.text === 'string' ? m.text.slice(0, 120) : '',
-        }))
-        .filter((m: any) => m.text)
-      : [];
+    const rawMessages = Array.isArray(parsedRecord.messages) ? parsedRecord.messages : [];
+    const messages = rawMessages
+      .filter((message): message is Record<string, unknown> =>
+        isRecord(message) && typeof message.uid === 'string' && allowedBotIds.has(message.uid),
+      )
+      .map((message) => ({
+        uid: message.uid as string,
+        name: canonicalAiWolves.find(player => player.uid === message.uid)!.name,
+        text: typeof message.text === 'string' ? message.text.slice(0, 120) : '',
+      }))
+      .filter((message) => message.text.length > 0);
 
     // The browser must not persist the wolf decision in the public game
     // document. If the AI identifies a concrete target, validate and persist
@@ -120,7 +129,7 @@ export async function POST(req: NextRequest) {
       }
 
       const validation = validateCanonicalNightAction({
-        players: players.map((p: any) => ({ uid: p.uid, isAlive: p.isAlive === true, isAI: p.isAI === true })),
+        players: players.map((player) => ({ uid: player.uid as string, isAlive: player.isAlive === true, isAI: player.isAI === true })),
         actorUid: uid,
         actorRole: callerRole,
         roundNumber,
