@@ -18,13 +18,14 @@ export async function GET(request: Request) {
   const { db } = getSdks();
   const now = Date.now();
   const snapshot = await db.collection('games')
+    .where('phase', 'in', ['day', 'voting'])
     .where('phaseEndsAt', '<=', now)
     .limit(MAX_GAMES_PER_TICK)
     .get();
 
   const candidates = snapshot.docs.filter((doc) => {
     const data = doc.data() as Record<string, unknown>;
-    return (data.phase === 'day' || data.phase === 'voting') && Array.isArray(data.players);
+    return Array.isArray(data.players);
   });
 
   const results: Array<{ gameId: string; status: number; body: unknown }> = [];
