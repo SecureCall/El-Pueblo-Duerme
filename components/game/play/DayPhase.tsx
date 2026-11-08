@@ -7,7 +7,6 @@ import { db } from '@/lib/firebase/config';
 import {
   collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit,
 } from 'firebase/firestore';
-import { ROLES } from './roles';
 import { getRoleIcon } from './roleIcons';
 import { useNarrator } from '@/hooks/useNarrator';
 import { sendFriendRequest } from '@/lib/firebase/friends';
@@ -45,7 +44,7 @@ interface ChatMsg {
 
 type ChatTab = 'public' | 'ghost' | 'lovers' | 'hermanos';
 
-export function DayPhase({ game, gameId, myRole, me, userId, userName, isHost, onVote, onJuezSecondVote, onAlborotadoraFight, votesFromSub = {}, onTimerEnd }: Props) {
+export function DayPhase({ game, gameId, myRole, me, userId, userName, onVote, onJuezSecondVote, onAlborotadoraFight, votesFromSub = {}, onTimerEnd }: Props) {
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [ghostMsgs, setGhostMsgs] = useState<ChatMsg[]>([]);
   const [loversMsgs, setLoversMsgs] = useState<ChatMsg[]>([]);
