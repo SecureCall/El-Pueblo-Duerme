@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
 
       if (me.isHost) {
         const newHost = remainingHumans[0];
-        if (!newHost?.uid) throw new Error('HOST_CANNOT_LEAVE');
+        if (typeof newHost?.uid !== 'string') throw new Error('HOST_CANNOT_LEAVE');
         newHostUid = newHost.uid;
         const nextPlayers = remaining.map((player) => ({
           ...player,
