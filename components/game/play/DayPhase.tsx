@@ -14,6 +14,7 @@ import { sendFriendRequest } from '@/lib/firebase/friends';
 import { submitReport } from '@/lib/firebase/reports';
 import { EmoteBar } from './EmoteBar';
 import { VoiceChat } from './VoiceChat';
+import { requestBansheePrediction } from '@/lib/game/bansheePrediction';
 
 function computeDayDuration(alivePlayers: number): number {
   // 10s per alive player, min 60s, max 120s  (noche dura 90s → proporcional)
