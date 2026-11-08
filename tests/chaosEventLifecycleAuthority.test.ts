@@ -23,7 +23,7 @@ describe('authoritative chaos event lifecycle guard', () => {
     expect(nightRoute).toMatch(/chaosEvent\?\.phase === 'day' && chaosEvent\.mechanical === 'roleSwap'/);
     expect(nightRoute).toMatch(/applyRoleSwap\(/);
     expect(nightRoute).toMatch(/playerRoles'\)\.doc\(uid\)/);
-    expect(nightRoute).toMatch(/const publicPlayers = patch\.players\.map\(\(\{ role: _privateRole, \.\.\.player \}\) => player\)/);
+    expect(nightRoute).toMatch(/const publicPlayers = patch\.players\.map\(\(player\) => Object\.fromEntries\(Object\.entries\(player\)\.filter\(\(\[key\]\) => key !== 'role'\)\)\)/);
     expect(roleSwapModule).toContain('role_swap_snapshot_incomplete');
   });
 
