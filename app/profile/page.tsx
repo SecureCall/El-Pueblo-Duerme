@@ -211,7 +211,7 @@ export default function ProfilePage() {
           {lastGameDrama && (
             <div className="flex items-start gap-2 bg-purple-950/30 border border-purple-700/30 rounded-xl px-4 py-3 mb-3">
               <span className="text-purple-400 mt-0.5">💬</span>
-              <p className="text-purple-200 text-sm italic">"{lastGameDrama}"</p>
+              <p className="text-purple-200 text-sm italic">&quot;{lastGameDrama}&quot;</p>
             </div>
           )}
 
