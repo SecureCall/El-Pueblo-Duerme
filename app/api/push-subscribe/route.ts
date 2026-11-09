@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       });
 
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[push-subscribe]', err);
     return NextResponse.json({ error: 'Error interno' }, { status: 500 });
   }
