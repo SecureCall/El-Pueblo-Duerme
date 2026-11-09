@@ -1195,14 +1195,6 @@ export function GamePlay({ gameId }: { gameId: string }) {
           const newHostUid = user.uid;
           const newHostName = user.displayName || user.email?.split('@')[0] || me?.name || 'Jugador';
 
-          // Restore all players to alive; give crown to new host
-          const resetPlayers = (game.players ?? []).map((p: Player) => ({
-            ...p,
-            isAlive: true,
-            role: null,
-            isHost: p.uid === newHostUid,
-          }));
-
           const resetResponse = await fetch('/api/reset-game', {
             method: 'POST',
             headers: {
