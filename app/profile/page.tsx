@@ -6,7 +6,7 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase/config';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, Timestamp } from 'firebase/firestore';
 import { Coins, LogOut, ShoppingBag, User, Trophy, Loader2, Star, Flame, Zap } from 'lucide-react';
 import { xpProgress, levelLabel, levelEmoji, getPlayerTitle } from '@/lib/firebase/xp';
 
@@ -18,7 +18,7 @@ interface UserData {
   xp: number;
   gamesPlayed: number;
   gamesWon: number;
-  createdAt: any;
+  createdAt: Timestamp | null;
 }
 
 interface GameHistoryEntry {
