@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { collection, query, where, limit, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, limit, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { Users, Globe, Loader2, Plus, LogIn } from 'lucide-react';
@@ -16,7 +16,7 @@ interface Room {
   maxPlayers: number;
   status: string;
   isPublic: boolean;
-  createdAt: any;
+  createdAt: Timestamp | null;
 }
 
 export default function PublicRoomsPage() {
@@ -35,9 +35,9 @@ export default function PublicRoomsPage() {
       where('status', '==', 'lobby'),
       limit(30)
     );
-    const unsub = onSnapshot(q, (snap: any) => {
+    const unsub = onSnapshot(q, (snap) => {
       const list: Room[] = snap.docs
-        .map((d: any) => ({ id: d.id, ...d.data() } as Room))
+        .map((d) => ({ id: d.id, ...d.data() } as Room))
         .filter((r: Room) => (r.playerCount ?? 1) < (r.maxPlayers ?? 8));
       list.sort((a, b) => {
         const ta = a.createdAt?.seconds ?? 0;
@@ -46,8 +46,8 @@ export default function PublicRoomsPage() {
       });
       setRooms(list);
       setLoading(false);
-    }, (err: any) => {
-      console.warn('public-rooms query error:', err?.code);
+    }, (err: unknown) => {
+      console.warn('public-rooms query error:', err instanceof Error ? err.message : err);
       setLoading(false);
     });
     return () => unsub();
