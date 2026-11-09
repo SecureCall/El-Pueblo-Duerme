@@ -6,12 +6,11 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { db } from '@/lib/firebase/config';
 import {
   doc, onSnapshot, addDoc, collection, serverTimestamp,
-  query, orderBy, limit, setDoc, getDoc, writeBatch,
+  query, orderBy, limit, setDoc, getDoc,
 } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
-import { assignRoles, checkWinCondition, ROLES, ROLE_SUBMISSION_KEY, drawRandomEvent } from './roles';
-import { BOT_VOTE_CONFIG, pickBotVoteTarget, type BotType, FALLBACK_BOT_MESSAGES, BOT_NARRATOR_SPOTLIGHTS } from '@/lib/bots/botSystem';
-import { recordVote, recordGameResult } from '@/lib/bots/playerStats';
+import { BOT_VOTE_CONFIG, pickBotVoteTarget, type BotType, BOT_NARRATOR_SPOTLIGHTS } from '@/lib/bots/botSystem';
+import { recordVote } from '@/lib/bots/playerStats';
 import { sendPushToMany } from '@/lib/firebase/push';
 import { RoleReveal } from './RoleReveal';
 import { NightPhase } from './NightPhase';
@@ -21,7 +20,7 @@ import { NightTransition } from './NightTransition';
 import { DayTransition } from './DayTransition';
 import { ChaosEventScreen } from './ChaosEventScreen';
 import { NarratorBroadcast } from './NarratorBroadcast';
-import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
+import { useNarrator } from '@/hooks/useNarrator';
 import { DeathOverlay } from './DeathOverlay';
 import { MomentBanner, buildMoment, type Moment } from './MomentBanner';
 import { playNightAmbience, playDayAmbience, stopAllAmbience, playDeathSting, playVoteAlarm, playGameStart, playVictory, playDefeat } from '@/lib/gameAudio';
@@ -190,7 +189,6 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const [myPrivateRole, setMyPrivateRole] = useState<string | null>(null);
   const [hostPrivateRoles, setHostPrivateRoles] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-  const [roleRevealDone, setRoleRevealDone] = useState(false);
   const [showNightReveal, setShowNightReveal] = useState(false);
   const [nightRevealData, setNightRevealData] = useState<{ victimName: string | null; victimRole: string | null; victimUid: string | null }>({ victimName: null, victimRole: null, victimUid: null });
   const [showDayTransition, setShowDayTransition] = useState(false);
@@ -202,7 +200,6 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const [hostAbsent, setHostAbsent] = useState(false);
   const [votesFromSub, setVotesFromSub] = useState<Record<string, string>>({});
   const [deathQueue, setDeathQueue] = useState<{ uid: string; name: string; role: string }[]>([]);
-  const prevElimCount = useRef<number>(0);
   const [currentMoment, setCurrentMoment] = useState<Moment | null>(null);
   const momentQueue = useRef<Moment[]>([]);
   const momentPlaying = useRef(false);
@@ -226,17 +223,17 @@ export function GamePlay({ gameId }: { gameId: string }) {
   const narratorInterruptRound = useRef<number>(-1);
   const processingNightRef = useRef(false);
   const nightStartedAtRef = useRef<number>(0);
-  const { play, playSequence, interruptWith, AUDIO_FILES } = useNarrator();
+  const { play, interruptWith, AUDIO_FILES } = useNarrator();
 
   useEffect(() => {
     const unsub = onSnapshot(
       doc(db, 'games', gameId),
-      (snap: any) => {
+      (snap) => {
         if (!snap.exists()) { router.push('/'); return; }
         setGame(snap.data() as GameState);
         setLoading(false);
       },
-      (_err: any) => { router.push('/'); }
+      () => { router.push('/'); }
     );
     return () => { unsub(); stopAllAmbience(); };
   }, [gameId, router]);
@@ -300,8 +297,8 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (prevPhase.current === 'night' && phase === 'day') {
       processingNightRef.current = false;
       stopAllAmbience();
-      const victimUid = (game as any).dayEliminatedUid ?? null;
-      const victim = victimUid ? (game.players ?? []).find((p: any) => p.uid === victimUid) : null;
+      const victimUid = game.dayEliminatedUid ?? null;
+      const victim = victimUid ? (game.players ?? []).find(p => p.uid === victimUid) : null;
       const victimRole = victim ? (hostPrivateRoles[victim.uid] ?? null) : null;
       if (victim) {
         playDeathSting();
@@ -328,7 +325,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
         playDeathSting();
         setDeathQueue([{ uid: lastElim.uid ?? '', name: lastElim.name ?? '???', role: lastElim.role ?? '???' }]);
       }
-      const elimUid = lastElim?.uid ?? (lastElim ? (game.players ?? []).find((p: any) => p.name === lastElim.name)?.uid ?? null : null);
+      const elimUid = lastElim?.uid ?? (lastElim ? (game.players ?? []).find(p => p.name === lastElim.name)?.uid ?? null : null);
       setDayTransitionData({ eliminatedName: lastElim?.name ?? null, eliminatedRole: lastElim?.role ?? null, eliminatedUid: elimUid });
       setShowDayTransition(true);
       setTimeout(() => playNightAmbience(), 3500);
@@ -839,6 +836,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
   }, [game?.phase, game?.roundNumber, hostPrivateRoles]);
 
   async function requestDayResolution(_dayVotes: Record<string, string>) {
+    void _dayVotes;
     if (!game || !user) return;
     if (game.phase !== 'day' && game.phase !== 'voting') return;
     if (processingDayRef.current) return;
