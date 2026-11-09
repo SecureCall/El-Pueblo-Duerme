@@ -356,7 +356,7 @@ export function EndGame({ game: publicGame, gameId, myRole, myUid, isHost, hostI
           {emoji}
         </div>
         <h1 className="font-headline text-3xl font-bold mb-1">{title}</h1>
-        <p className="text-white/50 text-sm mb-3 italic">"{winMessage}"</p>
+        <p className="text-white/50 text-sm mb-3 italic">&quot;{winMessage}&quot;</p>
 
         <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${
           iWon
