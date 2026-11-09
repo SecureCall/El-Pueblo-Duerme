@@ -120,7 +120,7 @@ export function GameRoom({ gameId }: { gameId: string }) {
       orderBy('createdAt', 'asc'),
       limit(100)
     );
-    const unsub = onSnap(q, (snap: any) => {
+    const unsub = onSnap(q, (snap) => {
       setMsgs(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatMsg)));
       setTimeout(() => chatRef.current?.scrollTo({ top: 9999, behavior: 'smooth' }), 50);
     });
