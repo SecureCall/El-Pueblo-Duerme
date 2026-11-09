@@ -205,8 +205,8 @@ export function DayTransition({ game, gameId, userId, userName, eliminatedName, 
   // ── Narrador IA ──────────────────────────────────────────────────
   useEffect(() => {
     const survivors = (game.players ?? [])
-      .filter((p: any) => p.isAlive)
-      .map((p: any) => p.name as string);
+      .filter((p) => p.isAlive)
+      .map((p) => p.name as string);
 
     const event = eliminatedName ? 'day_exile' : 'day_no_exile';
 
@@ -276,7 +276,7 @@ export function DayTransition({ game, gameId, userId, userName, eliminatedName, 
     }
   }, [countdown, narratorDone, cinemaPhase]);
 
-  const alivePlayers = (game.players ?? []).filter((p: any) => p.isAlive);
+  const alivePlayers = (game.players ?? []).filter((p) => p.isAlive);
 
   // ── Últimas palabras (antes de la cinemática de destierro) ──────
   if (showUltimas && eliminatedName && eliminatedUid) {
