@@ -185,7 +185,7 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
   useEffect(() => {
     const survivors = (game.players ?? [])
       .filter((p) => p.isAlive)
-      .map((p: any) => p.name as string);
+      .map((p) => p.name as string);
 
     const event = victimName ? 'night_death' : 'night_safe';
 
@@ -257,10 +257,10 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
   const bearGrowl = game.bearGrowl;
   const profetaReveal = game.profetaReveal;
   const profetaTarget = profetaReveal
-    ? (game.players ?? []).find((p: any) => p.uid === profetaReveal.targetUid)
+    ? (game.players ?? []).find((p) => p.uid === profetaReveal.targetUid)
     : null;
 
-  const alivePlayers = (game.players ?? []).filter((p: any) => p.isAlive);
+  const alivePlayers = (game.players ?? []).filter((p) => p.isAlive);
 
   // ── Últimas palabras (antes de la cinemática) ────────────────────
   if (showUltimas && victimName && victimUid) {
@@ -434,7 +434,7 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
             {msgs.length === 0 && (
               <p className="text-white/40 text-xs text-center mt-4">El pueblo no dice nada aún…</p>
             )}
-            {msgs.map((m: any) => (
+            {msgs.map((m) => (
               <div key={m.id} className={`flex gap-2 ${m.senderId === userId ? 'flex-row-reverse' : ''}`}>
                 <div className={`max-w-[85%] flex flex-col ${m.senderId === userId ? 'items-end' : 'items-start'}`}>
                   {m.senderId !== userId && (
