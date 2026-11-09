@@ -102,7 +102,7 @@ export function NarratorBroadcast({ broadcast }: Props) {
           &quot;{displayed}
           {!done && (
             <span className="inline-block w-0.5 h-3.5 bg-white/60 ml-0.5 animate-pulse align-middle" />
-          )}"
+          )}&quot;
         </p>
       </div>
     </div>
