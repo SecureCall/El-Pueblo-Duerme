@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ROLES } from './roles';
 import { GameState, Player } from './GamePlay';
-import { Eye, EyeOff, Check } from 'lucide-react';
+import { EyeOff, Check } from 'lucide-react';
 import { getRoleIcon } from './roleIcons';
 import { getPrivatePlayerRole } from '@/lib/game/privateRoles';
 
@@ -22,7 +22,7 @@ interface PrivateTeammate {
   name: string;
 }
 
-export function RoleReveal({ game, myRole, me, isHost, onReady, gameId, userId }: Props) {
+export function RoleReveal({ game, myRole, isHost, onReady, gameId, userId }: Props) {
   const [revealed, setRevealed] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [privateRole, setPrivateRole] = useState<string | null>(null);
@@ -69,8 +69,6 @@ export function RoleReveal({ game, myRole, me, isHost, onReady, gameId, userId }
     setIsReady(true);
     if (isHost) setTimeout(onReady, 1500);
   };
-
-  const totalPlayers = (game.players ?? []).filter(p => !p.isAI).length;
 
   return (
     <div className="min-h-screen w-full text-white flex flex-col items-center justify-center px-4" style={{ backgroundImage: 'url(/noche.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
