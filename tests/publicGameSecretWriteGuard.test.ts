@@ -15,9 +15,10 @@ describe('public game secret write guards', () => {
   it('does not persist roles or wolfTeam in day resolution public state', () => {
     const source = read('app/api/day-resolve/route.ts');
     expect(source).toContain('result.statePatch.roles');
-    expect(source).toMatch(/const\s*\{\s*roles:\s*_privateRoles,\s*wolfTeam:\s*_privateWolfTeam,\s*players:\s*resolvedPlayers/);
-    expect(source).not.toMatch(/tx\.update\(gr,\s*patch\);[\s\S]{0,300}\bwolfTeam\s*:/);
-    expect(source).toContain('const sanitizedPlayers = resolvedPlayers.map(({ role: _privateRole, ...player }) => player);');
+    expect(source).toMatch(/Object\.entries\(result\.statePatch\)\.filter\(\(\[key\]\)\s*=>/);
+    expect(source).toMatch(/!\[['"]roles['"],\s*['"]wolfTeam['"],\s*['"]nightActions['"],\s*['"]nightSubmissions['"]\]\.includes\(key\)/);
+    expect(source).toMatch(/const sanitizedPlayers = result\.statePatch\.players\.map/);
+    expect(source).toMatch(/key !== ['"]role['"]/);
     expect(source).toContain("tx.set(gr.collection('playerRoles').doc(uid)");
   });
 });
