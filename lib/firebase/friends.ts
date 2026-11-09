@@ -1,7 +1,7 @@
 import {
   doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove,
   collection, query, where, getDocs, onSnapshot, serverTimestamp,
-  addDoc, deleteDoc, Unsubscribe,
+  addDoc, deleteDoc, Unsubscribe, Timestamp,
 } from 'firebase/firestore';
 import { db } from './config';
 
@@ -17,7 +17,7 @@ export interface PresenceData {
   online: boolean;
   displayName: string;
   photoURL: string;
-  lastSeen: any;
+  lastSeen: Timestamp | null;
 }
 
 export interface GameInvite {
@@ -27,7 +27,7 @@ export interface GameInvite {
   gameName: string;
   hostUid: string;
   hostName: string;
-  sentAt: any;
+  sentAt: Timestamp | null;
 }
 
 export async function ensureUserProfile(uid: string, displayName: string, photoURL: string) {
