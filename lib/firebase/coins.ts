@@ -52,5 +52,5 @@ export async function canWatchVideo(userId: string): Promise<boolean> {
   const snap = await getDocs(q);
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
-  return snap.docs.filter((d: any) => (d.data().createdAt?.toMillis?.() ?? 0) >= startOfDay.getTime()).length < 5;
+  return snap.docs.filter((d) => (d.data().createdAt?.toMillis?.() ?? 0) >= startOfDay.getTime()).length < 5;
 }
