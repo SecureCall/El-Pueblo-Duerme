@@ -116,8 +116,8 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, onSubmi
     if (!canSeeWolfChat) return;
     const q = query(collection(db, 'games', gameId, 'wolfChat'), orderBy('createdAt', 'asc'), limit(50));
     const unsub = onSnapshot(q,
-      (snap: any) => {
-        setWolfMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+      (snap) => {
+        setWolfMsgs(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
         setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
       },
       () => {}
@@ -130,8 +130,8 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, onSubmi
     if (!isEspia || !espiaViewActive) return;
     const q = query(collection(db, 'games', gameId, 'wolfChat'), orderBy('createdAt', 'asc'), limit(50));
     const unsub = onSnapshot(q,
-      (snap: any) => {
-        setWolfMsgsForEspia(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+      (snap) => {
+        setWolfMsgsForEspia(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       },
       () => {}
     );
@@ -503,7 +503,7 @@ export function NightPhase({ game, gameId, myRole, me, userId, userName, onSubmi
                 {wolfMsgs.length === 0 && (
                   <p className="text-white/20 text-xs text-center pt-4">La manada no ha hablado aún…</p>
                 )}
-                {wolfMsgs.map((m: any) => (
+                {wolfMsgs.map((m) => (
                   <p key={m.id} className="text-xs text-white/75">
                     <span className="text-red-400 font-semibold">{m.name}:</span> {m.text}
                   </p>
