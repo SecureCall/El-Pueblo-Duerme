@@ -23,6 +23,7 @@ export async function addCoins(userId: string, amount: number, reason: string): 
 }
 
 export async function spendCoins(userId: string, _amount: number, itemId: string, _itemName: string): Promise<void> {
+  void _itemName;
   const currentUser = auth.currentUser;
   if (!currentUser || currentUser.uid !== userId) throw new Error('No autenticado');
 
