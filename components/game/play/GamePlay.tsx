@@ -459,7 +459,7 @@ export function GamePlay({ gameId }: { gameId: string }) {
     if (humanWolves.length === 0 || aiWolves.length === 0) return;
 
     const q = query(collection(db, 'games', gameId, 'wolfChat'), orderBy('createdAt', 'desc'), limit(1));
-    const unsub = onSnapshot(q, async (snap: any) => {
+    const unsub = onSnapshot(q, async (snap) => {
       if (snap.empty) return;
       const latestDoc = snap.docs[0];
       const latestId = latestDoc.id;
