@@ -136,8 +136,8 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, onVote, o
   useEffect(() => {
     if (!isHermanos) return;
     const q = query(collection(db, 'games', gameId, 'hermanosChat'), orderBy('createdAt', 'asc'), limit(100));
-    const unsub = onSnapshot(q, (snap: any) => {
-      setHermanosMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg)));
+    const unsub = onSnapshot(q, (snap) => {
+      setHermanosMsgs(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatMsg)));
       if (chatTab === 'hermanos') setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
     });
     return () => unsub();
@@ -153,8 +153,8 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, onVote, o
   // Public chat
   useEffect(() => {
     const q = query(collection(db, 'games', gameId, 'publicChat'), orderBy('createdAt', 'asc'), limit(100));
-    const unsub = onSnapshot(q, (snap: any) => {
-      setMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg)));
+    const unsub = onSnapshot(q, (snap) => {
+      setMsgs(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatMsg)));
       if (chatTab === 'public') setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
     });
     return () => unsub();
@@ -165,8 +165,8 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, onVote, o
   useEffect(() => {
     if (!canSeeGhostChat) return;
     const q = query(collection(db, 'games', gameId, 'ghostChat'), orderBy('createdAt', 'asc'), limit(100));
-    const unsub = onSnapshot(q, (snap: any) => {
-      setGhostMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg)));
+    const unsub = onSnapshot(q, (snap) => {
+      setGhostMsgs(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatMsg)));
       if (chatTab === 'ghost') setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
     });
     return () => unsub();
@@ -177,8 +177,8 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, onVote, o
   useEffect(() => {
     if (!isLover) return;
     const q = query(collection(db, 'games', gameId, 'loversChat'), orderBy('createdAt', 'asc'), limit(100));
-    const unsub = onSnapshot(q, (snap: any) => {
-      setLoversMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg)));
+    const unsub = onSnapshot(q, (snap) => {
+      setLoversMsgs(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatMsg)));
       if (chatTab === 'lovers') setTimeout(() => chatRef.current?.scrollTo({ top: 9999 }), 50);
     });
     return () => unsub();
@@ -924,7 +924,7 @@ export function DayPhase({ game, gameId, myRole, me, userId, userName, onVote, o
                 <div key={p.uid} className="flex items-center gap-1.5 mb-1 group">
                   <div className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
                   <span className="text-white/90 text-xs truncate flex-1">{p.name}</span>
-                  {(game as any).cursed?.uid === p.uid && <span className="text-purple-400 text-[10px]" title="Maldito">🔱</span>}
+                  {game.cursed?.uid === p.uid && <span className="text-purple-400 text-[10px]" title="Maldito">🔱</span>}
                   {p.isAI && <Bot className="h-2.5 w-2.5 text-cyan-400/60" />}
                   {voteBanned.includes(p.uid) && <span className="text-orange-400 text-[9px]">🚫</span>}
                   {p.uid !== userId && !p.isAI && (
