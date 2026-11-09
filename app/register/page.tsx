@@ -28,7 +28,7 @@ export default function RegisterPage() {
             de revelarse.
           </h2>
           <p className="text-white/40 text-lg leading-relaxed italic font-serif">
-            "35 roles. Una noche. ¿Puedes sobrevivir?"
+            &quot;35 roles. Una noche. ¿Puedes sobrevivir?&quot;
           </p>
         </div>
 

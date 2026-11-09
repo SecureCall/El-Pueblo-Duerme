@@ -215,7 +215,7 @@ export default function HomePage() {
 
         {/* Tagline */}
         <p className="text-white/60 text-sm max-w-xs mb-8 leading-relaxed font-serif italic">
-          "Entre vosotros se esconde un lobo. La IA lo sabe. El pueblo no."
+          &quot;Entre vosotros se esconde un lobo. La IA lo sabe. El pueblo no.&quot;
         </p>
 
         {/* CTA principal */}
