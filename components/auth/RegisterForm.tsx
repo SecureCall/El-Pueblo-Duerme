@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { FirebaseError } from 'firebase/app';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase/config';
 import { signInWithGoogle, signInWithFacebook } from '@/lib/firebase/auth-social';
@@ -44,13 +45,13 @@ export function RegisterForm() {
         createdAt: serverTimestamp(),
       });
       router.push('/');
-    } catch (err: any) {
+    } catch (err: unknown) {
       const msgs: Record<string, string> = {
         'auth/email-already-in-use': 'Ya existe una cuenta con ese correo.',
         'auth/weak-password': 'La contraseña es demasiado débil.',
         'auth/invalid-email': 'El correo no es válido.',
       };
-      setError(msgs[err.code] ?? 'Error al crear la cuenta.');
+      setError(err instanceof FirebaseError ? (msgs[err.code] ?? 'Error al crear la cuenta.') : 'Error al crear la cuenta.');
     } finally {
       setLoading(false);
     }
