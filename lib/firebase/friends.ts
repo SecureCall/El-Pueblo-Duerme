@@ -1,9 +1,9 @@
 import {
-  doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove,
+  doc, getDoc, setDoc,
   collection, query, where, getDocs, onSnapshot, serverTimestamp,
   addDoc, deleteDoc, Unsubscribe, Timestamp,
 } from 'firebase/firestore';
-import { db } from './config';
+import { auth, db } from './config';
 
 export interface UserProfile {
   uid: string;
@@ -62,26 +62,44 @@ export async function searchUserByName(name: string): Promise<UserProfile[]> {
   return snap.docs.map(d => d.data() as UserProfile);
 }
 
+async function performFriendAction(action: 'send' | 'accept' | 'reject' | 'remove', expectedUid: string, otherUid: string) {
+  const currentUser = auth.currentUser;
+  if (!currentUser || currentUser.uid !== expectedUid) {
+    throw new Error('La sesión ha cambiado. Vuelve a iniciar sesión.');
+  }
+  if (!otherUid || otherUid === expectedUid) {
+    throw new Error('Usuario no válido.');
+  }
+
+  const token = await currentUser.getIdToken();
+  const response = await fetch('/api/friends', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ action, otherUid }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof payload.error === 'string' ? payload.error : 'No se pudo actualizar la amistad.');
+  }
+}
+
 export async function sendFriendRequest(fromUid: string, toUid: string) {
-  if (fromUid === toUid) return;
-  const toRef = doc(db, 'users', toUid);
-  await updateDoc(toRef, { friendRequests: arrayUnion(fromUid) });
+  return performFriendAction('send', fromUid, toUid);
 }
 
 export async function acceptFriendRequest(myUid: string, fromUid: string) {
-  const myRef = doc(db, 'users', myUid);
-  const fromRef = doc(db, 'users', fromUid);
-  await updateDoc(myRef, { friends: arrayUnion(fromUid), friendRequests: arrayRemove(fromUid) });
-  await updateDoc(fromRef, { friends: arrayUnion(myUid) });
+  return performFriendAction('accept', myUid, fromUid);
 }
 
 export async function rejectFriendRequest(myUid: string, fromUid: string) {
-  await updateDoc(doc(db, 'users', myUid), { friendRequests: arrayRemove(fromUid) });
+  return performFriendAction('reject', myUid, fromUid);
 }
 
 export async function removeFriend(myUid: string, friendUid: string) {
-  await updateDoc(doc(db, 'users', myUid), { friends: arrayRemove(friendUid) });
-  await updateDoc(doc(db, 'users', friendUid), { friends: arrayRemove(myUid) });
+  return performFriendAction('remove', myUid, friendUid);
 }
 
 export function subscribeToMyProfile(uid: string, cb: (p: UserProfile) => void): Unsubscribe {
