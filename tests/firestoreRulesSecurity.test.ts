@@ -45,6 +45,10 @@ describe('Firestore security rules — regression guards', () => {
     expect(rules).not.toContain("match /games/{gameId}/voiceIce/{pairId}/candidates/{candidateId} { allow read, create: if isAuth();");
   });
 
+  it('routes friendship mutations through the authenticated server API and blocks direct friend-list edits', () => {
+    expect(rules).toContain("!affectedAre(['friends'])");
+  });
+
   it('limits friend-request writes to adding the caller or removing requests from own profile', () => {
     expect(rules).toContain("request.resource.data.friendRequests.size() == resource.data.friendRequests.size() + 1");
     expect(rules).toContain("request.resource.data.friendRequests.hasAny([request.auth.uid])");
