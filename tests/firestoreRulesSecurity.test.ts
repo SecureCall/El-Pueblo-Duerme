@@ -45,6 +45,13 @@ describe('Firestore security rules — regression guards', () => {
     expect(rules).not.toContain("match /games/{gameId}/voiceIce/{pairId}/candidates/{candidateId} { allow read, create: if isAuth();");
   });
 
+  it('limits friend-request writes to adding the caller or removing requests from own profile', () => {
+    expect(rules).toContain("request.resource.data.friendRequests.size() == resource.data.friendRequests.size() + 1");
+    expect(rules).toContain("request.resource.data.friendRequests.hasAny([request.auth.uid])");
+    expect(rules).toContain("resource.data.friendRequests.hasAll(request.resource.data.friendRequests)");
+    expect(rules).not.toContain("|| onlyUpdating(['friendRequests'])");
+  });
+
   it('prevents profile creation from granting arbitrary coins or progression', () => {
     expect(rules).toContain("request.resource.data.keys().hasOnly(['uid', 'displayName', 'email', 'photoURL', 'coins', 'createdAt', 'friends', 'friendRequests', 'xp', 'gamesPlayed', 'gamesWon', 'consecutiveWins'])");
     expect(rules).toContain("request.resource.data.coins == 100");
