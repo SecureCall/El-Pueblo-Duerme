@@ -21,11 +21,17 @@ export async function POST(req: NextRequest) {
   if (!uid) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   try {
-    const body = await req.json().catch(() => ({}));
-    const action = body.action as Action;
-    const otherUid = typeof body.otherUid === 'string' ? body.otherUid.trim() : '';
+    const body: unknown = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
+    }
 
-    if (!['send', 'accept', 'reject', 'remove'].includes(action) || !otherUid || otherUid === uid) {
+    const input = body as Record<string, unknown>;
+    const action = input.action;
+    const otherUid = typeof input.otherUid === 'string' ? input.otherUid.trim() : '';
+
+    if (typeof action !== 'string' || !['send', 'accept', 'reject', 'remove'].includes(action) ||
+        !otherUid || otherUid.length > 128 || otherUid.includes('/') || otherUid === uid) {
       return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
     }
 
