@@ -43,7 +43,8 @@ service cloud.firestore {
             (request.auth.uid != userId
               && request.resource.data.friendRequests.size() == resource.data.friendRequests.size() + 1
               && request.resource.data.friendRequests.hasAll(resource.data.friendRequests)
-              && request.resource.data.friendRequests.hasAny([request.auth.uid]))
+              && request.resource.data.friendRequests.hasAny([request.auth.uid])
+              && !resource.data.friendRequests.hasAny([request.auth.uid]))
           )
         )
       );
