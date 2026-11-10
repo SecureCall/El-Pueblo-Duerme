@@ -39,7 +39,7 @@ jobs:
           java-version: '21'
 
       - name: Install Firestore emulator test tooling
-        run: npm install --no-save --package-lock=false @firebase/rules-unit-testing@4.0.1 firebase-tools@14.22.0
+        run: npm install --no-save --package-lock=false @firebase/rules-unit-testing@3.0.4 firebase-tools@14.22.0
 
       - name: Run Firestore rules integration tests
         run: npx firebase emulators:exec --only firestore --project demo-el-pueblo-duerme-friends "npm run test:firestore"
