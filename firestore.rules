@@ -11,7 +11,24 @@ service cloud.firestore {
     function touchesProgressionFields() { return request.resource.data.diff(resource.data).affectedKeys().hasAny(['xp','gamesPlayed','gamesWon','consecutiveWins']); }
     match /users/{userId} {
       allow read: if isAuth();
-      allow create: if isAuth() && request.auth.uid == userId;
+      allow create: if isAuth()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasAll(['uid', 'displayName', 'photoURL'])
+        && request.resource.data.keys().hasOnly(['uid', 'displayName', 'email', 'photoURL', 'coins', 'createdAt', 'friends', 'friendRequests', 'xp', 'gamesPlayed', 'gamesWon', 'consecutiveWins'])
+        && request.resource.data.uid == userId
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() >= 3
+        && request.resource.data.displayName.size() <= 40
+        && request.resource.data.photoURL is string
+        && (!request.resource.data.keys().hasAny(['email']) || request.resource.data.email is string)
+        && (!request.resource.data.keys().hasAny(['coins']) || request.resource.data.coins == 100)
+        && (!request.resource.data.keys().hasAny(['createdAt']) || request.resource.data.createdAt == request.time)
+        && (!request.resource.data.keys().hasAny(['friends']) || request.resource.data.friends == [])
+        && (!request.resource.data.keys().hasAny(['friendRequests']) || request.resource.data.friendRequests == [])
+        && (!request.resource.data.keys().hasAny(['xp']) || request.resource.data.xp == 0)
+        && (!request.resource.data.keys().hasAny(['gamesPlayed']) || request.resource.data.gamesPlayed == 0)
+        && (!request.resource.data.keys().hasAny(['gamesWon']) || request.resource.data.gamesWon == 0)
+        && (!request.resource.data.keys().hasAny(['consecutiveWins']) || request.resource.data.consecutiveWins == 0);
       allow update: if isAuth() && ((request.auth.uid == userId && !touchesProgressionFields() && !affectedAre(['coins'])) || onlyUpdating(['friendRequests']));
     }
     match /users/{userId}/coinHistory/{historyId} { allow read: if isAuth() && request.auth.uid == userId; allow create, update, delete: if false; }
