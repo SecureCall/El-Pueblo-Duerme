@@ -184,8 +184,8 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
   // ── Narrador IA ──────────────────────────────────────────────────
   useEffect(() => {
     const survivors = (game.players ?? [])
-      .filter((p: any) => p.isAlive)
-      .map((p: any) => p.name as string);
+      .filter((p) => p.isAlive)
+      .map((p) => p.name as string);
 
     const event = victimName ? 'night_death' : 'night_safe';
 
@@ -222,8 +222,8 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
   // ── Chat en tiempo real ──────────────────────────────────────────
   useEffect(() => {
     const q = query(collection(db, 'games', gameId, 'publicChat'), orderBy('createdAt', 'asc'), limit(40));
-    return onSnapshot(q, (snap: any) => {
-      setMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg)));
+    return onSnapshot(q, (snap) => {
+      setMsgs(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatMsg)));
       setTimeout(() => { chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: 'smooth' }); }, 50);
     });
   }, [gameId]);
@@ -254,13 +254,13 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
     }
   }, [countdown, narratorDone, cinemaPhase]);
 
-  const bearGrowl = (game as any).bearGrowl;
-  const profetaReveal = (game as any).profetaReveal;
+  const bearGrowl = game.bearGrowl;
+  const profetaReveal = game.profetaReveal;
   const profetaTarget = profetaReveal
-    ? (game.players ?? []).find((p: any) => p.uid === profetaReveal.targetUid)
+    ? (game.players ?? []).find((p) => p.uid === profetaReveal.targetUid)
     : null;
 
-  const alivePlayers = (game.players ?? []).filter((p: any) => p.isAlive);
+  const alivePlayers = (game.players ?? []).filter((p) => p.isAlive);
 
   // ── Últimas palabras (antes de la cinemática) ────────────────────
   if (showUltimas && victimName && victimUid) {
@@ -273,7 +273,7 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
         gameId={gameId}
         userId={userId}
         round={game.roundNumber ?? 1}
-        onDone={(didSend) => {
+        onDone={() => {
           setShowUltimas(false);
           if (isVictim) {
             setShowVenganza(true);
@@ -312,7 +312,7 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
         victimRole={victimRole}
         round={game.roundNumber ?? 1}
         survivorsCount={alivePlayers.length}
-        lastMessages={msgs.slice(-5).map((m: any) => ({ senderName: m.senderName, text: m.text, type: m.type }))}
+        lastMessages={msgs.slice(-5).map((m) => ({ senderName: m.senderName, text: m.text, type: m.type }))}
         onContinue={() => { setShowShareCard(false); setCinemaPhase(false); }}
       />
     );
@@ -374,7 +374,7 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
           {/* Narración IA (modo compacto tras la cinemática) */}
           {narration && !cinemaPhase && (
             <div className="bg-black/50 border border-white/10 rounded-xl px-5 py-4 w-full max-w-sm">
-              <p className="text-white/70 text-sm italic leading-relaxed font-serif">"{narration}"</p>
+              <p className="text-white/70 text-sm italic leading-relaxed font-serif">&quot;{narration}&quot;</p>
             </div>
           )}
 
@@ -434,7 +434,7 @@ export function NightTransition({ game, gameId, userId, userName, victimName, vi
             {msgs.length === 0 && (
               <p className="text-white/40 text-xs text-center mt-4">El pueblo no dice nada aún…</p>
             )}
-            {msgs.map((m: any) => (
+            {msgs.map((m) => (
               <div key={m.id} className={`flex gap-2 ${m.senderId === userId ? 'flex-row-reverse' : ''}`}>
                 <div className={`max-w-[85%] flex flex-col ${m.senderId === userId ? 'items-end' : 'items-start'}`}>
                   {m.senderId !== userId && (

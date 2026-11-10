@@ -60,8 +60,8 @@ export async function POST(req: NextRequest) {
       tx.set(voteRef, { target: actualTarget, round: currentRound, submittedAt: Date.now() });
     });
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
-    const code = err?.message;
+  } catch (err) {
+    const code = err instanceof Error ? err.message : 'INTERNAL';
     const statuses: Record<string, [number, string]> = {
       GAME_NOT_FOUND: [404, 'Partida no encontrada'], VOTE_PHASE_CLOSED: [409, 'No es fase de votación'],
       STALE_ROUND: [409, 'Ronda de voto no válida o desactualizada'], VOTER_INVALID: [403, 'Jugador no válido o muerto'],

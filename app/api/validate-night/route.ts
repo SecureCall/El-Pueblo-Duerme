@@ -3,9 +3,6 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { initAdminApp } from '@/lib/firebase/admin';
 
-const adminApp = initAdminApp();
-const adminAuth = getAuth(adminApp);
-const adminDb = getFirestore(adminApp);
 
 /**
  * Server-side validation-only endpoint for the night phase.
@@ -14,6 +11,9 @@ const adminDb = getFirestore(adminApp);
  */
 export async function POST(request: NextRequest) {
   try {
+    const adminApp = initAdminApp();
+    const adminAuth = getAuth(adminApp);
+    const adminDb = getFirestore(adminApp);
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ ok: false, error: 'UNAUTHENTICATED' }, { status: 401 });

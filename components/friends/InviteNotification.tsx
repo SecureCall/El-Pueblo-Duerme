@@ -83,7 +83,7 @@ export function InviteNotification() {
                       <span className="text-yellow-300 font-mono font-bold">{inv.gameCode}</span>
                     </p>
                     {inv.gameName && inv.gameName !== 'Partida' && (
-                      <p className="text-white/40 text-xs mt-0.5 truncate">"{inv.gameName}"</p>
+                      <p className="text-white/40 text-xs mt-0.5 truncate">&quot;{inv.gameName}&quot;</p>
                     )}
                   </div>
                   <button

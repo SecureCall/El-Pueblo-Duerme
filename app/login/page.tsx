@@ -29,7 +29,7 @@ export default function LoginPage() {
             un lobo.
           </h2>
           <p className="text-white/40 text-lg leading-relaxed italic font-serif">
-            "La IA lo sabe. El pueblo no."
+            &quot;La IA lo sabe. El pueblo no.&quot;
           </p>
         </div>
 

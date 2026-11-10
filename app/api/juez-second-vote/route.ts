@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initAdminApp } from '@/lib/firebase/admin';
-import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
-import { getFirestore } from 'firebase-admin/firestore';
+import { isAuthorizedServerRequest, verifyAuthToken } from '@/lib/server/auth';
+import { getSdks } from '@/lib/server/firebase-admin';
 
 const SECOND_VOTE_MS = 35_000;
 const ALLOWED_PHASES = new Set(['day', 'voting']);
@@ -9,16 +8,21 @@ const ALLOWED_PHASES = new Set(['day', 'voting']);
 type Player = { uid?: string; isAlive?: boolean };
 
 export async function POST(req: NextRequest) {
-  const tokenUid = await verifyAuthToken(req);
-  if (!tokenUid) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-
+  const serverAuthorized = isAuthorizedServerRequest(req);
+  let tokenUid = '';
   try {
     const body = await req.json().catch(() => ({}));
     const gameId = typeof body?.gameId === 'string' ? body.gameId.trim() : '';
     if (!gameId) return NextResponse.json({ error: 'gameId required' }, { status: 400 });
 
-    initAdminApp();
-    const db = getFirestore();
+    if (serverAuthorized) {
+      tokenUid = typeof body?.actorUid === 'string' ? body.actorUid.trim() : '';
+    } else {
+      tokenUid = (await verifyAuthToken(req)).uid;
+    }
+    if (!tokenUid) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+
+    const { db } = getSdks();
     const gameRef = db.collection('games').doc(gameId);
     const roleRef = gameRef.collection('playerRoles').doc(tokenUid);
     const now = Date.now();
@@ -56,6 +60,7 @@ export async function POST(req: NextRequest) {
       PHASE_CLOSED: ['La segunda votación no está disponible en esta fase', 409],
       ALREADY_USED: ['El Juez ya utilizó su segunda votación', 409],
       PHASE_EXPIRED: ['El tiempo de la votación ya ha terminado', 409],
+      UNAUTHORIZED: ['No autorizado', 401],
     };
     const [message, status] = errors[code] ?? ['Error interno', 500];
     if (status >= 500) console.error('[juez-second-vote]', err);

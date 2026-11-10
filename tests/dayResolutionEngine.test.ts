@@ -106,3 +106,17 @@ describe('resolveDay', () => {
     expect(result.statePatch.wolfTeam.wolf).toBe(true);
   });
 });
+
+
+
+describe('roleSwap chaos event timing', () => {
+  it('does not reshuffle roles during day resolution after votes were submitted', () => {
+    const roles = { wolf: 'Lobo', villager: 'Aldeano', seer: 'Vidente' };
+    const result = resolveDay(input({
+      votes: {},
+      currentEvent: { mechanical: 'roleSwap' },
+      roles,
+    }));
+    expect(result.statePatch.roles).toEqual(roles);
+  });
+});

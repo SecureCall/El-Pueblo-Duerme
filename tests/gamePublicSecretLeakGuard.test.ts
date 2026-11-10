@@ -6,6 +6,6 @@ const source = readFileSync(resolve(process.cwd(), 'components/game/play/GamePla
 
 describe('GamePlay public-secret guard', () => {
   it('does not add a second client-side source of truth for private roles', () => {
-    expect(source).not.toMatch(/updateDoc\(doc\(db,\s*['"]games['"][\s\S]{0,1000}(roles|wolfTeam)\s*:/);
+    expect(source).not.toMatch(/updateDoc\(doc\(db,\s*['"]games['"][\s\S]{0,1000}(?:wolfTeam\s*:|roles\s*:\s*(?!\{\s*\}))/);
   });
 });

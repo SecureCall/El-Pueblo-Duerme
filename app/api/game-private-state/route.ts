@@ -5,6 +5,18 @@ import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 
 const WOLF_ROLES = new Set(['Lobo', 'Lobo Blanco', 'Cría de Lobo']);
 const WOLF_ALLY_ROLES = new Set(['Bruja']);
+// Faction membership is broader than membership of the attacking pack.
+// Hada Buscadora belongs to the wolves faction but has a separate win condition;
+// Maldito starts on the village side and only joins the pack after transformation.
+const WOLF_FACTION_ROLES = new Set([...WOLF_ROLES, 'Bruja', 'Hada Buscadora']);
+type GamePlayer = Record<string, unknown> & { uid: string };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+const isWolfPackMember = (uid: string, role: string | undefined, choices: Record<string, string>) =>
+  !!role && (WOLF_ROLES.has(role) || (role === 'Perro Lobo' && choices[uid] === 'wolves'));
 
 /**
  * Returns only secret state the authenticated player is entitled to see.
@@ -29,14 +41,14 @@ export async function GET(req: NextRequest) {
     if (!gameSnap.exists) return NextResponse.json({ error: 'Partida no encontrada' }, { status: 404 });
 
     const game = gameSnap.data() ?? {};
-    const players = Array.isArray(game.players)
-      ? game.players.filter((p: any) => p && typeof p.uid === 'string')
+    const players: GamePlayer[] = Array.isArray(game.players)
+      ? game.players.filter((player): player is GamePlayer => isRecord(player) && typeof player.uid === 'string')
       : [];
-    const actor = players.find((p: any) => p.uid === tokenUid);
+    const actor = players.find((player) => player.uid === tokenUid);
     if (!actor) return NextResponse.json({ error: 'Jugador no autorizado' }, { status: 403 });
 
     const roleEntries = await Promise.all(
-      players.map(async (player: any) => {
+      players.map(async (player) => {
         const snap = await gameRef.collection('playerRoles').doc(player.uid).get();
         const role = snap.data()?.role;
         return typeof role === 'string' ? [player.uid, role] as const : null;
@@ -48,22 +60,37 @@ export async function GET(req: NextRequest) {
     }
 
     const myRole = roles[tokenUid] ?? null;
+    const perroLoboChoices: Record<string, string> = {};
+    if (isRecord(game.perroLoboChoices)) {
+      for (const [uid, choice] of Object.entries(game.perroLoboChoices)) {
+        if (typeof choice === 'string') perroLoboChoices[uid] = choice;
+      }
+    }
+    const hasJoinedWolves = myRole === 'Perro Lobo' && perroLoboChoices[tokenUid] === 'wolves';
     const myTeam: 'wolves' | 'village' =
-      myRole && (WOLF_ROLES.has(myRole) || WOLF_ALLY_ROLES.has(myRole)) ? 'wolves' : 'village';
+      myRole && (WOLF_FACTION_ROLES.has(myRole) || hasJoinedWolves) ? 'wolves' : 'village';
 
     if (game.phase === 'ended' || game.status === 'ended') {
       const wolfTeam: Record<string, boolean> = {};
       for (const [uid, role] of Object.entries(roles)) {
-        if (WOLF_ROLES.has(role)) wolfTeam[uid] = true;
+        if (isWolfPackMember(uid, role, perroLoboChoices)) wolfTeam[uid] = true;
       }
       return NextResponse.json({ ok: true, phase: 'ended', myRole, myTeam, roles, wolfTeam });
     }
 
-    const canSeeWolfRoster = !!myRole && (WOLF_ROLES.has(myRole) || WOLF_ALLY_ROLES.has(myRole));
+    const knownAllies = myRole === 'Gemela' || myRole === 'Gemelas' || myRole === 'Hermanos'
+      ? players
+          .filter((player) => player.uid !== tokenUid && roles[player.uid] === myRole && player.isAlive === true)
+          .map((player) => ({ uid: player.uid, name: typeof player.name === 'string' ? player.name : '' }))
+      : [];
+
+    const canSeeWolfRoster = !!myRole && (
+      WOLF_ROLES.has(myRole) || WOLF_ALLY_ROLES.has(myRole) || hasJoinedWolves
+    );
     const wolfRoster = canSeeWolfRoster
       ? players
-          .filter((player: any) => WOLF_ROLES.has(roles[player.uid]))
-          .map((player: any) => ({ uid: player.uid, name: player.name }))
+          .filter((player) => isWolfPackMember(player.uid, roles[player.uid], perroLoboChoices))
+          .map((player) => ({ uid: player.uid, name: typeof player.name === 'string' ? player.name : '' }))
       : [];
 
     return NextResponse.json({
@@ -72,6 +99,7 @@ export async function GET(req: NextRequest) {
       myRole,
       myTeam,
       wolfRoster,
+      knownAllies,
     });
   } catch (err) {
     console.error('[game-private-state]', err);

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/app/providers/AuthProvider';
 import {
-  UserProfile, PresenceData, GameInvite,
+  UserProfile, PresenceData,
   subscribeToMyProfile, subscribeToPresence,
   searchUserByName, sendFriendRequest, acceptFriendRequest,
   rejectFriendRequest, removeFriend, sendGameInvite,

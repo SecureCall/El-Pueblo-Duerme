@@ -6,7 +6,7 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase/config';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, Timestamp } from 'firebase/firestore';
 import { Coins, LogOut, ShoppingBag, User, Trophy, Loader2, Star, Flame, Zap } from 'lucide-react';
 import { xpProgress, levelLabel, levelEmoji, getPlayerTitle } from '@/lib/firebase/xp';
 
@@ -18,7 +18,7 @@ interface UserData {
   xp: number;
   gamesPlayed: number;
   gamesWon: number;
-  createdAt: any;
+  createdAt: Timestamp | null;
 }
 
 interface GameHistoryEntry {
@@ -211,7 +211,7 @@ export default function ProfilePage() {
           {lastGameDrama && (
             <div className="flex items-start gap-2 bg-purple-950/30 border border-purple-700/30 rounded-xl px-4 py-3 mb-3">
               <span className="text-purple-400 mt-0.5">💬</span>
-              <p className="text-purple-200 text-sm italic">"{lastGameDrama}"</p>
+              <p className="text-purple-200 text-sm italic">&quot;{lastGameDrama}&quot;</p>
             </div>
           )}
 

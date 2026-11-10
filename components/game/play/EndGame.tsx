@@ -4,12 +4,12 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { GameState } from './GamePlay';
 import { ROLES } from './roles';
 import { getRoleIcon } from './roleIcons';
-import { Trophy, Skull, Home, RefreshCw, Clock, Star, Share2, Users, BookOpen, Swords, Flame, ImageIcon } from 'lucide-react';
+import { Trophy, Skull, Home, Clock, Star, Share2, Users, BookOpen, Swords, Flame, ImageIcon } from 'lucide-react';
 import { useNarrator, NARRATIONS } from '@/hooks/useNarrator';
 import { AdBanner } from '@/components/ads/AdBanner';
 import { NativeBanner } from '@/components/ads/NativeBanner';
 import { RewardedAd } from '@/components/ads/RewardedAd';
-import { xpToLevel, levelEmoji, getPlayerTitle, type XPResult } from '@/lib/firebase/xp';
+import { levelEmoji, getPlayerTitle, type XPResult } from '@/lib/firebase/xp';
 import { recordGameResult } from '@/lib/bots/playerStats';
 import { getPrivateGameState } from '@/lib/game/privateStateClient';
 
@@ -70,6 +70,7 @@ function buildDramaMessage(
 
 interface Props {
   game: GameState;
+  gameId: string;
   myRole?: string;
   myUid?: string;
   isHost?: boolean;
@@ -182,9 +183,8 @@ type Tab = 'resumen' | 'roles' | 'historia';
 
 const REMATCH_SECS = 15;
 
-export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winners, winMessage, onPlayAgain, onPlayAgainSameRoom }: Props) {
+export function EndGame({ game: publicGame, gameId, myRole, myUid, isHost, hostInGame = true, winners, winMessage, onPlayAgain, onPlayAgainSameRoom }: Props) {
   const { emoji, title, bg } = getWinnerDisplay(winners);
-  const iWon = didIWin(winners, myRole, myUid, game);
   const { interruptWith } = useNarrator();
   const xpAwarded = useRef(false);
   const [xpResult, setXpResult] = useState<XPResult | null>(null);
@@ -198,16 +198,23 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
   const [revealedRoles, setRevealedRoles] = useState<Record<string, string>>({});
   const [revealedWolfTeam, setRevealedWolfTeam] = useState<Record<string, boolean>>({});
 
+  const game: GameState = {
+    ...publicGame,
+    roles: Object.keys(revealedRoles).length > 0 ? revealedRoles : (publicGame.roles ?? {}),
+    wolfTeam: Object.keys(revealedWolfTeam).length > 0 ? revealedWolfTeam : (publicGame.wolfTeam ?? {}),
+  };
+  const iWon = didIWin(winners, myRole, myUid, game);
+
   useEffect(() => {
     if (game.phase !== 'ended' && game.status !== 'ended') return;
     let cancelled = false;
-    getPrivateGameState(game.name ? (game as any).id ?? '' : '').then((state) => {
-      if (cancelled || state.phase !== 'ended') return;
-      setRevealedRoles(state.roles ?? {});
-      setRevealedWolfTeam(state.wolfTeam ?? {});
+    getPrivateGameState(gameId).then((state) => {
+      if (cancelled || state.phase !== 'ended' || !('roles' in state) || !('wolfTeam' in state)) return;
+      setRevealedRoles(state.roles);
+      setRevealedWolfTeam(state.wolfTeam);
     }).catch((err) => console.error('[EndGame] private reveal error:', err));
     return () => { cancelled = true; };
-  }, [game]);
+  }, [gameId, game.phase, game.status]);
 
   // Drama message derived from current game data
   const dramaMsg = buildDramaMessage(myUid, myRole, winners, game, iWon);
@@ -349,7 +356,7 @@ export function EndGame({ game, myRole, myUid, isHost, hostInGame = true, winner
           {emoji}
         </div>
         <h1 className="font-headline text-3xl font-bold mb-1">{title}</h1>
-        <p className="text-white/50 text-sm mb-3 italic">"{winMessage}"</p>
+        <p className="text-white/50 text-sm mb-3 italic">&quot;{winMessage}&quot;</p>
 
         <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${
           iWon

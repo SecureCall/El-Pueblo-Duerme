@@ -20,8 +20,8 @@ class AudioDirector {
   async play(cue: AudioCue): Promise<boolean> {
     if (cue.bus === 'narrator') {
       const narrators = [...this.active.values()].filter(({ cue: active }) => active.bus === 'narrator');
-      const strongerOrEqual = narrators.find(({ cue: active }) => active.priority >= cue.priority);
-      if (strongerOrEqual) return false;
+      const stronger = narrators.find(({ cue: active }) => active.priority > cue.priority);
+      if (stronger) return false;
       for (const { cue: active } of narrators) this.stopCue(active);
     }
 

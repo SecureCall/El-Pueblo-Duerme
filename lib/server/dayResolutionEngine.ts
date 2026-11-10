@@ -96,6 +96,7 @@ export interface DayResolutionEngineResult {
 const WOLF_ROLES = new Set(['Lobo', 'Lobo Blanco', 'Cría de Lobo']);
 const isWolf = (role?: string) => Boolean(role && WOLF_ROLES.has(role));
 
+
 function addHistory(players: DayResolutionPlayer[], history: DayResolutionStatePatch['eliminatedHistory'], roles: Record<string, string>, uid: string, round: number): void {
   const p = players.find((item) => item.uid === uid);
   if (!p || history.some((h) => h.uid === uid && h.round === round)) return;
@@ -134,6 +135,8 @@ export function resolveDay(input: DayResolutionInput): DayResolutionEngineResult
   const fantasmaUsed = [...input.fantasmaUsed];
   const aliveBeforeDay = new Set(players.filter((p) => p.isAlive).map((p) => p.uid));
   const round = input.roundNumber;
+  // Day-phase role changes are committed by resolve-night before the day opens.
+  // This resolver consumes the already-authoritative private role snapshot.
   const banned = new Set([...input.voteBanned, ...(input.saboteadorBan ? [input.saboteadorBan] : [])]);
   const effectiveVotes: Record<string, string> = {};
 
@@ -214,7 +217,9 @@ export function resolveDay(input: DayResolutionInput): DayResolutionEngineResult
     }
   }
 
-  const newWolfTeam = { ...input.wolfTeam };
+  const newWolfTeam: Record<string, boolean> = Object.fromEntries(
+    Object.entries(roles).filter(([, role]) => isWolf(role)).map(([uid]) => [uid, true]),
+  );
   const cambiaformasTargets = { ...input.cambiaformasTargets };
   for (const [uid, mentorUid] of Object.entries(input.salvajeMentors)) {
     const mentor = players.find((p) => p.uid === mentorUid);

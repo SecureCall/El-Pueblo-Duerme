@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, increment, runTransaction } from 'firebase/firestore';
+import { doc, runTransaction } from 'firebase/firestore';
 import { db } from './config';
 
 export const XP_PER_GAME = 50;

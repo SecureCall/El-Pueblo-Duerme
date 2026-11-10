@@ -4,6 +4,9 @@ import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 const MAX_MESSAGE_LENGTH = 120;
+type GamePlayer = Record<string, unknown>;
+const isRecord = (value: unknown): value is GamePlayer =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 export async function POST(req: NextRequest) {
   const uid = await verifyAuthToken(req);
@@ -29,17 +32,16 @@ export async function POST(req: NextRequest) {
       if (game.phase !== 'day' && game.phase !== 'voting') throw new Error('INVALID_PHASE');
       if (game.roundNumber !== round) throw new Error('STALE_ROUND');
 
-      const players = Array.isArray(game.players) ? game.players : [];
-      const victim = players.find((p: any) => p?.uid === uid);
+      const players = Array.isArray(game.players) ? game.players.filter(isRecord) : [];
+      const victim = players.find((player) => player.uid === uid);
       if (!victim || victim.isAlive !== false) throw new Error('NOT_DEAD');
 
-      const usedKey = `lastWordsUsed.${uid}`;
       if (game.lastWordsUsed?.[uid] === round) throw new Error('ALREADY_SENT');
 
       tx.update(gameRef, {
         lastWordsUsed: { ...(game.lastWordsUsed ?? {}), [uid]: round },
         narratorBroadcast: {
-          text: `"${message}" — ${victim.name ?? 'Jugador'}, en sus últimas palabras.`,
+          text: `"${message}" — ${typeof victim.name === 'string' ? victim.name : 'Jugador'}, en sus últimas palabras.`,
           type: 'irony',
           triggeredAt: Date.now(),
         },
@@ -48,12 +50,11 @@ export async function POST(req: NextRequest) {
       const chatRef = gameRef.collection('publicChat').doc();
       tx.create(chatRef, {
         senderId: uid,
-        senderName: victim.name ?? 'Jugador',
+        senderName: typeof victim.name === 'string' ? victim.name : 'Jugador',
         text: message,
         type: 'lastWords',
         createdAt: FieldValue.serverTimestamp(),
       });
-      void usedKey;
     });
 
     return NextResponse.json({ ok: true });

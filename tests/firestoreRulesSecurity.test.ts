@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const rules = readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8');
+const friendsApi = readFileSync(resolve(process.cwd(), 'app/api/friends/route.ts'), 'utf8');
+const friendsClient = readFileSync(resolve(process.cwd(), 'lib/firebase/friends.ts'), 'utf8');
 
 describe('Firestore security rules — regression guards', () => {
   it('does not expose vote or night-log documents to every authenticated user', () => {
@@ -23,7 +25,7 @@ describe('Firestore security rules — regression guards', () => {
   });
 
   it('authorizes wolf chat from the canonical private role snapshot', () => {
-    expect(rules).toContain("privateRole(gameId, request.auth.uid) in ['Lobo', 'Lobo Blanco', 'Cría de Lobo']");
+    expect(rules).toContain("privateRole(gameId, request.auth.uid) in ['Lobo', 'Lobo Blanco', 'Cría de Lobo', 'Bruja']");
     expect(rules).toContain("privateRole(gameId, request.auth.uid) == 'Espía'");
     expect(rules).not.toContain(".data.wolfTeam[request.auth.uid] == true");
   });
@@ -43,6 +45,46 @@ describe('Firestore security rules — regression guards', () => {
     expect(rules).not.toContain("match /games/{gameId}/voiceOffers/{offerId} { allow read, create, delete: if isAuth();");
     expect(rules).not.toContain("match /games/{gameId}/voiceAnswers/{offerId} { allow read, create, delete: if isAuth();");
     expect(rules).not.toContain("match /games/{gameId}/voiceIce/{pairId}/candidates/{candidateId} { allow read, create: if isAuth();");
+  });
+
+  it('routes friendship mutations through an authenticated atomic server transaction', () => {
+    expect(rules).toContain("!affectedAre(['friends'])");
+    expect(friendsApi).toContain('verifyAuthToken(req)');
+    expect(friendsApi).toContain('db.runTransaction(async tx =>');
+    expect(friendsApi).toContain("case 'accept':");
+    expect(friendsApi).toContain("case 'remove':");
+    expect(friendsClient).toContain("fetch('/api/friends'");
+    expect(friendsClient).not.toContain('updateDoc(');
+  });
+
+  it('validates malformed friendship payloads before accessing fields or Firestore paths', () => {
+    expect(friendsApi).toContain("const body: unknown = await req.json().catch(() => null)");
+    expect(friendsApi).toContain("typeof body !== 'object' || Array.isArray(body)");
+    expect(friendsApi).toContain("typeof action !== 'string'");
+    expect(friendsApi).toContain("otherUid.length > 128 || otherUid.includes('/')");
+  });
+
+  it('limits friend-request writes to adding the caller or removing requests from own profile', () => {
+    expect(rules).toContain("request.resource.data.friendRequests.size() == resource.data.friendRequests.size() + 1");
+    expect(rules).toContain("request.resource.data.friendRequests.hasAny([request.auth.uid])");
+    expect(rules).toContain("resource.data.friendRequests.hasAll(request.resource.data.friendRequests)");
+    expect(rules).not.toContain("|| onlyUpdating(['friendRequests'])");
+  });
+
+  it('prevents profile creation from granting arbitrary coins or progression', () => {
+    expect(rules).toContain("request.resource.data.keys().hasOnly(['uid', 'displayName', 'email', 'photoURL', 'coins', 'createdAt', 'friends', 'friendRequests', 'xp', 'gamesPlayed', 'gamesWon', 'consecutiveWins'])");
+    expect(rules).toContain("request.resource.data.coins == 100");
+    expect(rules).toContain("request.resource.data.xp == 0");
+    expect(rules).toContain("request.resource.data.gamesWon == 0");
+    expect(rules).toContain("request.resource.data.consecutiveWins == 0");
+    expect(rules).not.toContain("allow create: if isAuth() && request.auth.uid == userId;");
+  });
+
+  it('restricts game invites to the authenticated sender in a game they joined', () => {
+    expect(rules).toContain("request.resource.data.hostUid == request.auth.uid");
+    expect(rules).toContain("request.resource.data.keys().hasOnly(['gameId', 'gameCode', 'gameName', 'hostUid', 'hostName', 'sentAt'])");
+    expect(rules).toContain("get(/databases/$(database)/documents/games/$(request.resource.data.gameId)).data.players.exists(p, p.uid == request.auth.uid)");
+    expect(rules).not.toContain("match /gameInvites/{userId}/items/{inviteId} { allow read, delete: if isAuth() && request.auth.uid == userId; allow create: if isAuth();");
   });
 
   it('keeps ghost writes restricted to dead players/host', () => {

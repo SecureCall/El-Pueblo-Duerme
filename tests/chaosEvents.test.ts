@@ -39,7 +39,8 @@ describe('server chaos event catalog', () => {
 
   it('preserves the 30% event probability boundary', () => {
     expect(drawChaosEvent(() => 0.31)).toBeNull();
-    expect(drawChaosEvent(() => 0.30)?.id).toBe('tormenta');
+    const boundaryValues = [0.30, 0];
+    expect(drawChaosEvent(() => boundaryValues.shift() ?? 0)?.id).toBe('tormenta');
   });
 
   it('allows deterministic selection for server tests', () => {
