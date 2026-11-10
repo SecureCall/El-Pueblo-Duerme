@@ -18,7 +18,23 @@ service cloud.firestore {
     match /users/{userId}/purchases/{purchaseId} { allow read: if isAuth() && request.auth.uid == userId; allow create, update, delete: if false; }
     match /presence/{userId} { allow read: if isAuth(); allow write: if isAuth() && request.auth.uid == userId; }
     match /playerBehavior/{userId} { allow read, create, update, delete: if isAuth() && request.auth.uid == userId; }
-    match /gameInvites/{userId}/items/{inviteId} { allow read, delete: if isAuth() && request.auth.uid == userId; allow create: if isAuth(); }
+    match /gameInvites/{userId}/items/{inviteId} {
+      allow read, delete: if isAuth() && request.auth.uid == userId;
+      allow create: if isAuth()
+        && request.auth.uid != userId
+        && request.resource.data.keys().hasAll(['gameId', 'gameCode', 'gameName', 'hostUid', 'hostName', 'sentAt'])
+        && request.resource.data.keys().hasOnly(['gameId', 'gameCode', 'gameName', 'hostUid', 'hostName', 'sentAt'])
+        && request.resource.data.hostUid == request.auth.uid
+        && request.resource.data.gameId is string
+        && request.resource.data.gameCode is string
+        && request.resource.data.gameName is string
+        && request.resource.data.gameName.size() <= 80
+        && request.resource.data.hostName is string
+        && request.resource.data.hostName.size() <= 60
+        && request.resource.data.sentAt == request.time
+        && exists(/databases/$(database)/documents/users/$(userId))
+        && get(/databases/$(database)/documents/games/$(request.resource.data.gameId)).data.players.exists(p, p.uid == request.auth.uid);
+    }
     match /games/{gameId} {
       allow read: if isAuth() && (resource.data.status == 'lobby' || resource.data.hostUid == request.auth.uid || resource.data.players.exists(p, p.uid == request.auth.uid));
       allow create: if isAuth() && request.auth.uid == request.resource.data.hostUid;
