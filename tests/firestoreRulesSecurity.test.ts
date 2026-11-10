@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const rules = readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8');
+const friendsApi = readFileSync(resolve(process.cwd(), 'app/api/friends/route.ts'), 'utf8');
+const friendsClient = readFileSync(resolve(process.cwd(), 'lib/firebase/friends.ts'), 'utf8');
 
 describe('Firestore security rules — regression guards', () => {
   it('does not expose vote or night-log documents to every authenticated user', () => {
@@ -45,8 +47,14 @@ describe('Firestore security rules — regression guards', () => {
     expect(rules).not.toContain("match /games/{gameId}/voiceIce/{pairId}/candidates/{candidateId} { allow read, create: if isAuth();");
   });
 
-  it('routes friendship mutations through the authenticated server API and blocks direct friend-list edits', () => {
+  it('routes friendship mutations through an authenticated atomic server transaction', () => {
     expect(rules).toContain("!affectedAre(['friends'])");
+    expect(friendsApi).toContain('verifyAuthToken(req)');
+    expect(friendsApi).toContain('db.runTransaction(async tx =>');
+    expect(friendsApi).toContain("case 'accept':");
+    expect(friendsApi).toContain("case 'remove':");
+    expect(friendsClient).toContain("fetch('/api/friends'");
+    expect(friendsClient).not.toContain('updateDoc(');
   });
 
   it('limits friend-request writes to adding the caller or removing requests from own profile', () => {
