@@ -30,7 +30,7 @@ service cloud.firestore {
         && (!request.resource.data.keys().hasAny(['gamesWon']) || request.resource.data.gamesWon == 0)
         && (!request.resource.data.keys().hasAny(['consecutiveWins']) || request.resource.data.consecutiveWins == 0);
       allow update: if isAuth() && (
-        (request.auth.uid == userId && !touchesProgressionFields() && !affectedAre(['coins']) && !affectedAre(['friendRequests'])) ||
+        (request.auth.uid == userId && !touchesProgressionFields() && !affectedAre(['coins']) && !affectedAre(['friendRequests']) && !affectedAre(['friends'])) ||
         (
           onlyUpdating(['friendRequests'])
           && request.resource.data.friendRequests is list
