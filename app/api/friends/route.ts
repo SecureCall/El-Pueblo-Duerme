@@ -3,8 +3,6 @@ import { initAdminApp } from '@/lib/firebase/admin';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
-type Action = 'send' | 'accept' | 'reject' | 'remove';
-
 function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
