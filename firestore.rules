@@ -29,7 +29,24 @@ service cloud.firestore {
         && (!request.resource.data.keys().hasAny(['gamesPlayed']) || request.resource.data.gamesPlayed == 0)
         && (!request.resource.data.keys().hasAny(['gamesWon']) || request.resource.data.gamesWon == 0)
         && (!request.resource.data.keys().hasAny(['consecutiveWins']) || request.resource.data.consecutiveWins == 0);
-      allow update: if isAuth() && ((request.auth.uid == userId && !touchesProgressionFields() && !affectedAre(['coins'])) || onlyUpdating(['friendRequests']));
+      allow update: if isAuth() && (
+        (request.auth.uid == userId && !touchesProgressionFields() && !affectedAre(['coins']) && !affectedAre(['friendRequests'])) ||
+        (
+          onlyUpdating(['friendRequests'])
+          && request.resource.data.friendRequests is list
+          && resource.data.friendRequests is list
+          && (
+            (request.auth.uid == userId
+              && request.resource.data.friendRequests.size() < resource.data.friendRequests.size()
+              && resource.data.friendRequests.hasAll(request.resource.data.friendRequests))
+            ||
+            (request.auth.uid != userId
+              && request.resource.data.friendRequests.size() == resource.data.friendRequests.size() + 1
+              && request.resource.data.friendRequests.hasAll(resource.data.friendRequests)
+              && request.resource.data.friendRequests.hasAny([request.auth.uid]))
+          )
+        )
+      );
     }
     match /users/{userId}/coinHistory/{historyId} { allow read: if isAuth() && request.auth.uid == userId; allow create, update, delete: if false; }
     match /users/{userId}/purchases/{purchaseId} { allow read: if isAuth() && request.auth.uid == userId; allow create, update, delete: if false; }
