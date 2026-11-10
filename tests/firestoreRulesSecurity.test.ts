@@ -57,6 +57,13 @@ describe('Firestore security rules — regression guards', () => {
     expect(friendsClient).not.toContain('updateDoc(');
   });
 
+  it('validates malformed friendship payloads before accessing fields or Firestore paths', () => {
+    expect(friendsApi).toContain("const body: unknown = await req.json().catch(() => null)");
+    expect(friendsApi).toContain("typeof body !== 'object' || Array.isArray(body)");
+    expect(friendsApi).toContain("typeof action !== 'string'");
+    expect(friendsApi).toContain("otherUid.length > 128 || otherUid.includes('/')");
+  });
+
   it('limits friend-request writes to adding the caller or removing requests from own profile', () => {
     expect(rules).toContain("request.resource.data.friendRequests.size() == resource.data.friendRequests.size() + 1");
     expect(rules).toContain("request.resource.data.friendRequests.hasAny([request.auth.uid])");
