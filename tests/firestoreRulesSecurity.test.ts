@@ -45,6 +45,13 @@ describe('Firestore security rules — regression guards', () => {
     expect(rules).not.toContain("match /games/{gameId}/voiceIce/{pairId}/candidates/{candidateId} { allow read, create: if isAuth();");
   });
 
+  it('restricts game invites to the authenticated sender in a game they joined', () => {
+    expect(rules).toContain("request.resource.data.hostUid == request.auth.uid");
+    expect(rules).toContain("request.resource.data.keys().hasOnly(['gameId', 'gameCode', 'gameName', 'hostUid', 'hostName', 'sentAt'])");
+    expect(rules).toContain("get(/databases/$(database)/documents/games/$(request.resource.data.gameId)).data.players.exists(p, p.uid == request.auth.uid)");
+    expect(rules).not.toContain("match /gameInvites/{userId}/items/{inviteId} { allow read, delete: if isAuth() && request.auth.uid == userId; allow create: if isAuth();");
+  });
+
   it('keeps ghost writes restricted to dead players/host', () => {
     expect(rules).toContain("p.uid == request.auth.uid && p.isAlive == false");
   });
