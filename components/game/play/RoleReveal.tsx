@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getAuth } from 'firebase/auth';
 import { ROLES } from './roles';
 import { GameState, Player } from './GamePlay';
 import { EyeOff, Check } from 'lucide-react';
@@ -40,19 +41,25 @@ export function RoleReveal({ game, myRole, isHost, onReady, gameId, userId }: Pr
       })
       .catch(() => {});
 
-    fetch(`/api/private-team?gameId=${encodeURIComponent(gameId)}`, {
-      credentials: 'include',
-    })
-      .then(async response => {
-        if (!response.ok) return { teammates: [] };
-        return response.json();
-      })
-      .then(data => {
-        if (!cancelled && Array.isArray(data?.teammates)) {
-          setPrivateTeammates(data.teammates);
-        }
-      })
-      .catch(() => {});
+    const currentUser = getAuth().currentUser;
+    if (currentUser?.uid === userId) {
+      currentUser.getIdToken()
+        .then(token => fetch(`/api/private-team?gameId=${encodeURIComponent(gameId)}`, {
+          credentials: 'include',
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        }))
+        .then(async response => {
+          if (!response.ok) return { teammates: [] };
+          return response.json();
+        })
+        .then(data => {
+          if (!cancelled && Array.isArray(data?.teammates)) {
+            setPrivateTeammates(data.teammates);
+          }
+        })
+        .catch(error => console.error('[RoleReveal] private team lookup failed:', error));
+    }
 
     return () => { cancelled = true; };
   }, [gameId, userId]);
