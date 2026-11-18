@@ -108,6 +108,9 @@ export async function POST(request: Request) {
       // Resolution locks are keyed by round number. Since a rematch starts
       // again at round 1, retaining a resolved lock would reject its first night.
       const oldNightResolutions = await tx.get(gameRef.collection('nightResolutions'));
+      // A crashed/expired day resolver can leave its lease behind. The same
+      // game document is reused for rematches, so remove that lock as well.
+      const oldDayResolutionLock = await tx.get(gameRef.collection('locks').doc('dayResolution'));
       // A rematch reuses the same game document ID. Clear ephemeral subcollections
       // so the next role assignment cannot inherit old chats, votes, or submissions.
       const transientCollections = [
@@ -128,6 +131,7 @@ export async function POST(request: Request) {
         transientCollections.map(collectionName => tx.get(gameRef.collection(collectionName))),
       );
       const cleanupCount = privateRoles.size + oldNightResolutions.size
+        + (oldDayResolutionLock.exists ? 1 : 0)
         + transientSnapshots.reduce((total, snapshot) => total + snapshot.size, 0);
       if (cleanupCount > 400) throw new Error('RESET_CLEANUP_TOO_LARGE');
       const hostName = requestedHostName || 'Jugador';
@@ -149,6 +153,7 @@ export async function POST(request: Request) {
       });
       for (const roleDoc of privateRoles.docs) tx.delete(roleDoc.ref);
       for (const resolutionDoc of oldNightResolutions.docs) tx.delete(resolutionDoc.ref);
+      if (oldDayResolutionLock.exists) tx.delete(oldDayResolutionLock.ref);
       for (const snapshot of transientSnapshots) {
         for (const transientDoc of snapshot.docs) tx.delete(transientDoc.ref);
       }
