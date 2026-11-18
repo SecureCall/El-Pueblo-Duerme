@@ -7,8 +7,10 @@ const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8'
 describe('public game secret write guards', () => {
   it('does not persist roles or wolfTeam in resolve-night public game update', () => {
     const source = read('app/api/resolve-night/route.ts');
-    expect(source).not.toMatch(/tx\.update\(gameRef,\s*\{[\s\S]*\broles\s*:/);
-    expect(source).not.toMatch(/tx\.update\(gameRef,\s*\{[\s\S]*\bwolfTeam\s*:/);
+    expect(source).toContain('roles: FieldValue.delete()');
+    expect(source).toContain('wolfTeam: FieldValue.delete()');
+    expect(source).not.toMatch(/roles:\s*patch\.roles/);
+    expect(source).not.toMatch(/wolfTeam:\s*patch\.wolfTeam/);
     expect(source).toContain("collection('playerRoles').doc(uid)");
   });
 
