@@ -32,13 +32,21 @@ function getGameId(req: NextRequest, body: unknown): string | null {
   }
 }
 
-function didPlayerWin(winner: unknown, role: string, uid: string, game: Record<string, unknown>): boolean {
+export function didPlayerWin(winner: unknown, role: string, uid: string, game: Record<string, unknown>): boolean {
   if (typeof winner !== 'string') return false;
   const roleInfo = ROLES[role];
   if (!roleInfo) return false;
 
   if (winner === 'village') return roleInfo.team === 'village';
-  if (winner === 'wolves') return roleInfo.team === 'wolves';
+  if (winner === 'wolves') {
+    // Perro Lobo keeps its original private role after choosing a faction.
+    // The authoritative choice, not the static role catalog, decides its XP team.
+    const choices = game.perroLoboChoices;
+    const joinedWolves = choices !== null && typeof choices === 'object' &&
+      !Array.isArray(choices) &&
+      (choices as Record<string, unknown>)[uid] === 'wolves';
+    return roleInfo.team === 'wolves' || (role === 'Perro Lobo' && joinedWolves);
+  }
   if (winner === 'flautista') return role === 'Flautista';
   if (winner === 'angel') return role === 'Ángel';
   if (winner === 'picaro') return role === 'Pícaro';

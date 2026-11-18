@@ -4,6 +4,9 @@ import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { getFirestore } from 'firebase-admin/firestore';
 
 const MAX_TEXT = 280;
+type GamePlayer = Record<string, unknown>;
+const isRecord = (value: unknown): value is GamePlayer =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 export async function POST(req: NextRequest) {
   const uid = await verifyAuthToken(req);
@@ -27,8 +30,8 @@ export async function POST(req: NextRequest) {
       if (!snap.exists) throw new Error('GAME_NOT_FOUND');
 
       const game = snap.data()!;
-      const players = Array.isArray(game.players) ? game.players : [];
-      const player = players.find((p: any) => p?.uid === uid);
+      const players = Array.isArray(game.players) ? game.players.filter(isRecord) : [];
+      const player = players.find((candidate) => candidate.uid === uid);
       if (!player) throw new Error('NOT_MEMBER');
 
       if (game.status === 'ended') throw new Error('GAME_ENDED');

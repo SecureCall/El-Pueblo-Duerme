@@ -58,7 +58,7 @@ export function RewardedAd({ onRewarded }: Props) {
 
       setState('done');
       onRewarded?.();
-    } catch (_) {
+    } catch {
       rewardIdRef.current = null;
       setState('error');
     }
@@ -108,7 +108,7 @@ export function RewardedAd({ onRewarded }: Props) {
       rewardIdRef.current = data.rewardId;
       setState('watching');
       setSeconds(typeof data.waitSeconds === 'number' ? data.waitSeconds : 15);
-    } catch (_) {
+    } catch {
       setState('error');
     }
   };

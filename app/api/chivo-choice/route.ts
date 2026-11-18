@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null);
     const gameId = typeof body?.gameId === 'string' ? body.gameId.trim() : '';
     const targetUid = typeof body?.targetUid === 'string' ? body.targetUid.trim() : '';
-    if (!gameId || !targetUid) return NextResponse.json({ error: 'gameId and targetUid are required' }, { status: 400 });
+    if (!gameId) return NextResponse.json({ error: 'gameId is required' }, { status: 400 });
 
     const { db } = getSdks();
     const gameRef = db.collection('games').doc(gameId);
@@ -21,9 +21,9 @@ export async function POST(request: Request) {
       if (!pendingUid) throw new Error('NO_PENDING_CHOICE');
       const players = Array.isArray(game.players) ? game.players as Array<{ uid: string; isAlive: boolean; isAI?: boolean }> : [];
       const chivo = players.find(p => p.uid === pendingUid);
-      const target = players.find(p => p.uid === targetUid);
+      const target = targetUid ? players.find(p => p.uid === targetUid) : undefined;
       if (!chivo || chivo.isAlive) throw new Error('CHIVO_INVALID');
-      if (!target || !target.isAlive || target.uid === pendingUid) throw new Error('TARGET_INVALID');
+      if (targetUid && (!target || !target.isAlive || target.uid === pendingUid)) throw new Error('TARGET_INVALID');
 
       const roleSnap = await tx.get(gameRef.collection('playerRoles').doc(pendingUid));
       if (!roleSnap.exists || roleSnap.data()?.role !== 'Chivo Expiatorio') throw new Error('ROLE_INVALID');
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       const authorizedAI = chivo.isAI === true && user?.uid === game.hostUid;
       if (!serverAuthorized && !authorizedPlayer && !authorizedAI) throw new Error('FORBIDDEN');
 
-      tx.update(gameRef, { chivoPendingChoice: null, voteBanned: [targetUid] });
+      tx.update(gameRef, { chivoPendingChoice: null, voteBanned: targetUid ? [targetUid] : [] });
     });
     return NextResponse.json({ ok: true, gameId, targetUid });
   } catch (error) {

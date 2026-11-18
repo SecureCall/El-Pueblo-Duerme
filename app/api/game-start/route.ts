@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getFirestore } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
-import { initAdminApp } from '@/lib/server/firebase-admin';
+import { getSdks } from '@/lib/server/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { assignRoles } from '@/lib/server/roleCatalog';
 import { BOT_NAMES, assignBotType } from '@/lib/bots/botSystem';
@@ -18,6 +18,10 @@ type Player = {
   level?: number;
   lastSeen?: number;
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
 
 const ERRORS: Record<string, [string, number]> = {
   GAME_NOT_FOUND: ['Partida no encontrada', 404],
@@ -57,8 +61,7 @@ export async function POST(req: NextRequest) {
     const gameId = typeof body.gameId === 'string' ? body.gameId.trim() : '';
     if (!gameId) return NextResponse.json({ error: 'gameId requerido' }, { status: 400 });
 
-    initAdminApp();
-    const db = getFirestore();
+    const { db } = getSdks();
     const gameRef = db.collection('games').doc(gameId);
 
     let result: { playerCount: number; wolves: number } | null = null;
@@ -72,7 +75,7 @@ export async function POST(req: NextRequest) {
       if (game.status !== 'lobby' || game.phase !== 'lobby') throw new Error('NOT_LOBBY');
 
       const rawPlayers = Array.isArray(game.players) ? game.players : [];
-      const players: Player[] = rawPlayers.filter((p: any) => typeof p?.uid === 'string');
+      const players: Player[] = rawPlayers.filter((player): player is Player => isRecord(player) && typeof player.uid === 'string' && typeof player.name === 'string');
       const maxPlayers = Number(game.maxPlayers);
       const configuredWolves = Number(game.wolves);
 
@@ -125,12 +128,14 @@ export async function POST(req: NextRequest) {
       // playerRoles snapshots; never publish them on games/{gameId}.
       tx.update(gameRef, {
         status: 'playing',
-        phase: 'night',
+        phase: 'roleReveal',
         roundNumber: 1,
         players: nextPlayers,
         playerCount: nextPlayers.length,
         startedAt: now,
-        nightStartedAt: now,
+        // Remove legacy public role maps left by pre-private-role game versions.
+        roles: FieldValue.delete(),
+        wolfTeam: FieldValue.delete(),
       });
 
       result = { playerCount: nextPlayers.length, wolves: scaledWolves };

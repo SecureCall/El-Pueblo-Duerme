@@ -55,7 +55,7 @@ export const ROLES: Record<string, ServerRoleInfo> = {
   'Bruja': { team: 'wolves' },
   'Cría de Lobo': { team: 'wolves' },
   'Hada Buscadora': { team: 'wolves' },
-  'Maldito': { team: 'wolves' },
+  'Maldito': { team: 'village' },
   'Lobo Blanco': { team: 'wolves' },
   'Perro Lobo': { team: 'solo' },
   'Ángel': { team: 'solo' },

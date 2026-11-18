@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { signInWithEmailAndPassword } from 'firebase/auth';
+import { FirebaseError } from 'firebase/app';
 import { auth } from '@/lib/firebase/config';
 import { signInWithGoogle, signInWithFacebook } from '@/lib/firebase/auth-social';
 import { Loader2, Mail, Lock, Eye, EyeOff } from 'lucide-react';
@@ -38,14 +39,14 @@ export function LoginForm() {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       router.push('/');
-    } catch (err: any) {
+    } catch (err: unknown) {
       const msgs: Record<string, string> = {
         'auth/invalid-credential': 'Correo o contraseña incorrectos.',
         'auth/user-not-found': 'No existe cuenta con ese correo.',
         'auth/wrong-password': 'Contraseña incorrecta.',
         'auth/too-many-requests': 'Demasiados intentos. Espera unos minutos.',
       };
-      setError(msgs[err.code] ?? 'Error al iniciar sesión.');
+      setError(err instanceof FirebaseError ? (msgs[err.code] ?? 'Error al iniciar sesión.') : 'Error al iniciar sesión.');
     } finally {
       setLoading(false);
     }

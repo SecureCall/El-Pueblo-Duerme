@@ -299,7 +299,7 @@ export const ROLES: Record<string, RoleInfo> = {
   },
   'Maldito': {
     name: 'Maldito',
-    team: 'wolves',
+    team: 'village',
     emoji: '😈',
     description: 'Empiezas como un aldeano. Sin embargo, si eres atacado por los lobos, no mueres; en su lugar, te transformas en un Hombre Lobo y te unes a ellos.',
     nightAction: false,

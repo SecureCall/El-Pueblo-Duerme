@@ -45,8 +45,8 @@ export function StoreItem({ item, userCoins, onPurchase }: StoreItemProps) {
       setOwned(true);
       onPurchase();
       toast({ title: `¡${item.name} desbloqueado!`, description: 'El artículo se ha añadido a tu perfil.' });
-    } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Error', description: e.message ?? 'No se pudo completar la compra.' });
+    } catch (e: unknown) {
+      toast({ variant: 'destructive', title: 'Error', description: e instanceof Error ? e.message : 'No se pudo completar la compra.' });
     } finally {
       setLoading(false);
     }

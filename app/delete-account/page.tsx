@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/app/providers/AuthProvider';
-import { auth, db } from '@/lib/firebase/config';
+import { db } from '@/lib/firebase/config';
 import {
   deleteUser,
   GoogleAuthProvider,
@@ -11,7 +11,6 @@ import {
 } from 'firebase/auth';
 import {
   doc,
-  deleteDoc,
   collection,
   getDocs,
   writeBatch,
@@ -55,8 +54,8 @@ export default function DeleteAccountPage() {
       await deleteAllUserData(user.uid);
       await deleteUser(user);
       setPhase('done');
-    } catch (err: any) {
-      setErrorMsg(err?.message ?? 'Error desconocido.');
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Error desconocido.');
       setPhase('error');
     }
   };

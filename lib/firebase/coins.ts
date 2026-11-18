@@ -23,6 +23,7 @@ export async function addCoins(userId: string, amount: number, reason: string): 
 }
 
 export async function spendCoins(userId: string, _amount: number, itemId: string, _itemName: string): Promise<void> {
+  void _itemName;
   const currentUser = auth.currentUser;
   if (!currentUser || currentUser.uid !== userId) throw new Error('No autenticado');
 
@@ -52,5 +53,5 @@ export async function canWatchVideo(userId: string): Promise<boolean> {
   const snap = await getDocs(q);
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
-  return snap.docs.filter((d: any) => (d.data().createdAt?.toMillis?.() ?? 0) >= startOfDay.getTime()).length < 5;
+  return snap.docs.filter((d) => (d.data().createdAt?.toMillis?.() ?? 0) >= startOfDay.getTime()).length < 5;
 }

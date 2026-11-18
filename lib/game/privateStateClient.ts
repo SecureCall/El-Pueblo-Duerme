@@ -6,6 +6,7 @@ export type PrivateGameStateBase = {
   myRole: string | null;
   myTeam: 'wolves' | 'village';
   wolfRoster: Array<{ uid: string; name: string }>;
+  knownAllies?: Array<{ uid: string; name: string }>;
 };
 
 export type PrivateGameState =

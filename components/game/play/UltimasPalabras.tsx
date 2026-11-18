@@ -89,7 +89,7 @@ export function UltimasPalabras({ isVictim, victimName, victimUid, gameId, userI
           onDoneRef.current(false);
         }
       }
-    } catch (_) {
+    } catch {
       // Conservamos el intento si falla la red para permitir reintentar antes
       // de que expire el contador.
     }

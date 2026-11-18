@@ -73,7 +73,7 @@ function JoinGameFormInner() {
         });
         setIsSubmitting(false);
       }
-    } catch (error) {
+    } catch {
        toast({
           variant: "destructive",
           title: "Error de red",

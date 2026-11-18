@@ -90,7 +90,7 @@ export function VenganzaModal({ gameId, victimName, victimUid, round, alivePlaye
           onDoneRef.current();
         }
       }
-    } catch (_) {
+    } catch {
       // No consumimos el intento si falla la red: se puede reintentar mientras
       // quede tiempo.
     }
@@ -111,7 +111,7 @@ export function VenganzaModal({ gameId, victimName, victimUid, round, alivePlaye
         </div>
 
         <div className="text-center">
-          <p className="text-purple-400/60 text-xs uppercase tracking-widest mb-1">Poder final</p>
+          <p className="text-purple-400/60 text-xs uppercase tracking-widest mb-1">Poder final de {victimName}</p>
           <h2 className="text-2xl font-bold text-purple-100 font-headline">¿A quién maldices?</h2>
           <p className="text-white/35 text-sm mt-1">Tu maldición pesará en la próxima votación</p>
         </div>

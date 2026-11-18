@@ -22,7 +22,7 @@ describe('special action endpoints authority', () => {
 
   it('verifies the authoritative role from private playerRoles for Cazador, Chivo and Juez', () => {
     expect(cazador).toContain("gameRef.collection('playerRoles').doc(pendingUid)");
-    expect(cazador).toContain("roleSnap.data()?.role !== 'Cazador'");
+    expect(cazador).toContain("hunterRole !== 'Cazador'");
     expect(chivo).toContain("gameRef.collection('playerRoles').doc(pendingUid)");
     expect(chivo).toContain("roleSnap.data()?.role !== 'Chivo Expiatorio'");
     expect(juez).toContain("gameRef.collection('playerRoles').doc(tokenUid)");
@@ -39,6 +39,8 @@ describe('special action endpoints authority', () => {
   it('makes Fantasma messages one-shot, target only living players and write atomically', () => {
     assertAuthenticated(fantasma);
     expect(fantasma).toContain('pending.includes(actorUid) || used.includes(actorUid)');
+    expect(fantasma).toContain("gameRef.collection('playerRoles').doc(actorUid)");
+    expect(fantasma).toContain("roleSnap.data()?.role !== 'Fantasma'");
     expect(fantasma).toContain('actor.isAlive === true');
     expect(fantasma).toContain('target.isAlive !== true');
     expect(fantasma).toContain(`const MAX_MESSAGE_LENGTH = 280`);

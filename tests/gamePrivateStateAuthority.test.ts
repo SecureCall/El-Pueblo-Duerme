@@ -5,6 +5,11 @@ import { resolve } from 'node:path';
 const source = readFileSync(resolve(process.cwd(), 'app/api/game-private-state/route.ts'), 'utf8');
 
 describe('game-private-state authority', () => {
+  it('separates faction classification from wolf roster visibility', () => {
+    expect(source).toContain("new Set([...WOLF_ROLES, 'Bruja', 'Hada Buscadora'])");
+    expect(source).toContain("WOLF_FACTION_ROLES.has(myRole) || hasJoinedWolves");
+  });
+
   it('authenticates before reading private game state', () => {
     expect(source).toMatch(/verifyAuthToken\(req\)/);
     expect(source).toMatch(/if \(!tokenUid\) return NextResponse\.json\(\{ error: 'No autorizado' \}, \{ status: 401 \}\)/);
@@ -23,7 +28,7 @@ describe('game-private-state authority', () => {
 
   it('does not expose the complete role map in the active response', () => {
     expect(source).toMatch(/return NextResponse\.json\(\{\n      ok: true,\n      phase: String\(game\.phase \?\? ''\),\n      myRole,\n      myTeam,/);
-    expect(source).toMatch(/wolfRoster,\n    \}\);/);
+    expect(source).toMatch(/wolfRoster,\n      knownAllies,\n    \}\);/);
   });
 
   it('allows the complete role reveal only after the game has ended', () => {

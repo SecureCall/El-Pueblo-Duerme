@@ -93,7 +93,7 @@ export function CreateGameForm() {
   const [selectedRoles, setSelectedRoles] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [created, setCreated] = useState<{ code: string } | null>(null);
+  const [created] = useState<{ code: string } | null>(null);
 
   const toggleRole = (id: string) => {
     if (gameMode !== 'normal') return;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import { FirebaseError } from 'firebase/app';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -38,11 +39,11 @@ export function RegisterForm() {
       if (cred.user) await updateProfile(cred.user, { displayName: values.displayName });
       router.push('/');
       router.refresh();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         variant: 'destructive',
         title: 'Error al registrarse',
-        description: error.code === 'auth/email-already-in-use'
+        description: error instanceof FirebaseError && error.code === 'auth/email-already-in-use'
           ? 'Este email ya tiene una cuenta. Inicia sesión.'
           : 'Inténtalo de nuevo.',
       });

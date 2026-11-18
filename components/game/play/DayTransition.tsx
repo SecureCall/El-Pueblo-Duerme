@@ -194,10 +194,10 @@ export function DayTransition({ game, gameId, userId, userName, eliminatedName, 
   // ── Detectar si eliminado era lobo ───────────────────────────────
   useEffect(() => {
     if (!eliminatedName) return;
-    const eliminated = (game.players ?? []).find((p: any) => p.name === eliminatedName);
+    const eliminated = (game.players ?? []).find((p) => p.name === eliminatedName);
     if (eliminated) {
       const wolfRoles = ['Lobo', 'Alfa', 'Lobo Solitario', 'Hechicera', 'Lobo Anciano'];
-      setEliminatedWasWolf(wolfRoles.includes(eliminated.role ?? '') || !!(game as any).wolfTeam?.[eliminated.uid]);
+      setEliminatedWasWolf(wolfRoles.includes(eliminated.role ?? '') || !!game.wolfTeam?.[eliminated.uid]);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eliminatedName]);
@@ -205,8 +205,8 @@ export function DayTransition({ game, gameId, userId, userName, eliminatedName, 
   // ── Narrador IA ──────────────────────────────────────────────────
   useEffect(() => {
     const survivors = (game.players ?? [])
-      .filter((p: any) => p.isAlive)
-      .map((p: any) => p.name as string);
+      .filter((p) => p.isAlive)
+      .map((p) => p.name as string);
 
     const event = eliminatedName ? 'day_exile' : 'day_no_exile';
 
@@ -244,8 +244,8 @@ export function DayTransition({ game, gameId, userId, userName, eliminatedName, 
   // ── Chat en tiempo real ──────────────────────────────────────────
   useEffect(() => {
     const q = query(collection(db, 'games', gameId, 'publicChat'), orderBy('createdAt', 'asc'), limit(40));
-    return onSnapshot(q, (snap: any) => {
-      setMsgs(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ChatMsg)));
+    return onSnapshot(q, (snap) => {
+      setMsgs(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatMsg)));
       setTimeout(() => { chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: 'smooth' }); }, 50);
     });
   }, [gameId]);
@@ -276,7 +276,7 @@ export function DayTransition({ game, gameId, userId, userName, eliminatedName, 
     }
   }, [countdown, narratorDone, cinemaPhase]);
 
-  const alivePlayers = (game.players ?? []).filter((p: any) => p.isAlive);
+  const alivePlayers = (game.players ?? []).filter((p) => p.isAlive);
 
   // ── Últimas palabras (antes de la cinemática de destierro) ──────
   if (showUltimas && eliminatedName && eliminatedUid) {
@@ -329,7 +329,7 @@ export function DayTransition({ game, gameId, userId, userName, eliminatedName, 
         wasWolf={eliminatedWasWolf}
         round={game.roundNumber ?? 1}
         survivorsCount={alivePlayers.length}
-        lastMessages={msgs.slice(-5).map((m: any) => ({ senderName: m.senderName, text: m.text, type: m.type }))}
+        lastMessages={msgs.slice(-5).map((m) => ({ senderName: m.senderName, text: m.text, type: m.type }))}
         onContinue={() => { setShowShareCard(false); setCinemaPhase(false); }}
       />
     );
@@ -392,7 +392,7 @@ export function DayTransition({ game, gameId, userId, userName, eliminatedName, 
           {/* Narración compacta tras la cinemática */}
           {narration && !cinemaPhase && (
             <div className="bg-black/50 border border-white/10 rounded-xl px-5 py-4 w-full max-w-sm">
-              <p className="text-white/70 text-sm italic leading-relaxed font-serif">"{narration}"</p>
+              <p className="text-white/70 text-sm italic leading-relaxed font-serif">&quot;{narration}&quot;</p>
             </div>
           )}
 

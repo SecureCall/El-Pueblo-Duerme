@@ -62,8 +62,12 @@ export async function POST(req: NextRequest) {
       const maxPlayers = Number(game.maxPlayers);
       if (!Number.isInteger(maxPlayers) || maxPlayers < 3 || maxPlayers > 32) throw new Error('INVALID_GAME');
 
-      const rawPlayers = Array.isArray(game.players) ? game.players : [];
-      const players: Player[] = rawPlayers.filter((p: any) => typeof p?.uid === 'string');
+      const rawPlayers: unknown[] = Array.isArray(game.players) ? game.players : [];
+      const players: Player[] = rawPlayers.filter((value): value is Player => {
+        if (!value || typeof value !== 'object') return false;
+        const player = value as Record<string, unknown>;
+        return typeof player.uid === 'string' && typeof player.name === 'string';
+      });
       const humans = players.filter(p => !p.isAI);
       if (humans.length >= 4 || players.length >= maxPlayers) {
         result = { playerCount: players.length, added: 0 };

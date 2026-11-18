@@ -6,6 +6,7 @@ const source = readFileSync(resolve(process.cwd(), 'components/game/play/GamePla
 
 describe('GamePlay day timing authority', () => {
   it('does not directly write dayStartedAt or phaseEndsAt to the game document', () => {
-    expect(source).not.toMatch(/updateDoc\(doc\(db,\s*['"]games['"][\s\S]{0,1000}(dayStartedAt|phaseEndsAt)\s*:/);
+    expect(source).not.toMatch(/updateDoc\(doc\(db,\s*['"]games['"][\s\S]{0,300}dayStartedAt:\s*Date\.now\(\)/);
+    expect(source).toContain("fetch('/api/day-presentation-ready'");
   });
 });

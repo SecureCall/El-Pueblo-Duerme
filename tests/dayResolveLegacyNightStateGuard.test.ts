@@ -6,9 +6,9 @@ const source = readFileSync(resolve(process.cwd(), 'app/api/day-resolve/route.ts
 
 describe('day-resolve public state guard', () => {
   it('strips legacy night state before updating the public game document', () => {
-    expect(source).toMatch(/nightActions:\s*_legacyNightActions/);
-    expect(source).toMatch(/nightSubmissions:\s*_legacyNightSubmissions/);
-    expect(source).toMatch(/roles:\s*_privateRoles/);
-    expect(source).toMatch(/wolfTeam:\s*_privateWolfTeam/);
+    expect(source).toMatch(/Object\.entries\(result\.statePatch\)\.filter\(\(\[key\]\)\s*=>/);
+    expect(source).toMatch(/!\[['"]roles['"],\s*['"]wolfTeam['"],\s*['"]nightActions['"],\s*['"]nightSubmissions['"]\]\.includes\(key\)/);
+    expect(source).toMatch(/const sanitizedPlayers = result\.statePatch\.players\.map/);
+    expect(source).toMatch(/key !== ['"]role['"]/);
   });
 });

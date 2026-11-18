@@ -3,6 +3,10 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { initAdminApp } from '@/lib/firebase/admin';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 
+type GamePlayer = Record<string, unknown>;
+const isRecord = (value: unknown): value is GamePlayer =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 const ERRORS: Record<string, [string, number]> = {
   GAME_NOT_FOUND: ['Partida no encontrada', 404],
   NOT_LOBBY: ['La partida ya no está en el lobby', 409],
@@ -35,19 +39,17 @@ export async function POST(req: NextRequest) {
       const game = snap.data()!;
       if (game.status !== 'lobby' || game.phase !== 'lobby') throw new Error('NOT_LOBBY');
 
-      const players = Array.isArray(game.players) ? game.players : [];
-      const index = players.findIndex((p: any) => p?.uid === uid);
+      const players = Array.isArray(game.players) ? game.players.filter(isRecord) : [];
+      const index = players.findIndex((player) => player.uid === uid);
       if (index < 0) throw new Error('NOT_IN_GAME');
 
-      const current = players[index] ?? {};
-      const nextPlayers = players.map((p: any, i: number) =>
-        i === index ? { ...p, lastSeen: Date.now() } : p,
+      const nextPlayers = players.map((player, playerIndex) =>
+        playerIndex === index ? { ...player, lastSeen: Date.now() } : player,
       );
 
       // Keep the complete player object intact; only lastSeen changes.
       // This transaction prevents a stale client snapshot from clobbering
       // concurrent lobby mutations.
-      void current;
       tx.update(gameRef, { players: nextPlayers });
     });
 

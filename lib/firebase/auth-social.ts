@@ -1,3 +1,4 @@
+import { FirebaseError } from 'firebase/app';
 import {
   signInWithPopup,
   GoogleAuthProvider,
@@ -46,11 +47,12 @@ async function signInWithProvider(provider: GoogleAuthProvider | FacebookAuthPro
     const result = await signInWithPopup(auth, provider);
     await ensureUserDocument(result);
     return null;
-  } catch (err: any) {
-    console.error('[Auth popup error]', err?.code, err?.message);
-    const msg = errorMessages[err?.code];
+  } catch (err: unknown) {
+    const error = err instanceof FirebaseError ? err : null;
+    console.error('[Auth popup error]', error?.code, error?.message);
+    const msg = error ? errorMessages[error.code] : undefined;
     if (msg === undefined) {
-      return err?.message ? `Error: ${err.message}` : 'Error al iniciar sesión. Inténtalo de nuevo.';
+      return error?.message ? `Error: ${error.message}` : 'Error al iniciar sesión. Inténtalo de nuevo.';
     }
     return msg || null;
   }

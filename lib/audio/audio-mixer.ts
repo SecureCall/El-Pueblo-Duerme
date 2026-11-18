@@ -16,7 +16,7 @@ export const CINEMATIC_MIX: AudioMix = {
   music: 0.55,
   ambience: 0.65,
   effects: 0.8,
-  voice: 1,
+  voice: 0.75,
 };
 
 class AudioMixer {

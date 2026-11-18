@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getAuth } from 'firebase/auth';
 import { ROLES } from './roles';
 import { GameState, Player } from './GamePlay';
-import { Eye, EyeOff, Check } from 'lucide-react';
+import { EyeOff, Check } from 'lucide-react';
 import { getRoleIcon } from './roleIcons';
 import { getPrivatePlayerRole } from '@/lib/game/privateRoles';
 
@@ -22,7 +23,7 @@ interface PrivateTeammate {
   name: string;
 }
 
-export function RoleReveal({ game, myRole, me, isHost, onReady, gameId, userId }: Props) {
+export function RoleReveal({ game, myRole, isHost, onReady, gameId, userId }: Props) {
   const [revealed, setRevealed] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [privateRole, setPrivateRole] = useState<string | null>(null);
@@ -40,19 +41,25 @@ export function RoleReveal({ game, myRole, me, isHost, onReady, gameId, userId }
       })
       .catch(() => {});
 
-    fetch(`/api/private-team?gameId=${encodeURIComponent(gameId)}`, {
-      credentials: 'include',
-    })
-      .then(async response => {
-        if (!response.ok) return { teammates: [] };
-        return response.json();
-      })
-      .then(data => {
-        if (!cancelled && Array.isArray(data?.teammates)) {
-          setPrivateTeammates(data.teammates);
-        }
-      })
-      .catch(() => {});
+    const currentUser = getAuth().currentUser;
+    if (currentUser?.uid === userId) {
+      currentUser.getIdToken()
+        .then(token => fetch(`/api/private-team?gameId=${encodeURIComponent(gameId)}`, {
+          credentials: 'include',
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        }))
+        .then(async response => {
+          if (!response.ok) return { teammates: [] };
+          return response.json();
+        })
+        .then(data => {
+          if (!cancelled && Array.isArray(data?.teammates)) {
+            setPrivateTeammates(data.teammates);
+          }
+        })
+        .catch(error => console.error('[RoleReveal] private team lookup failed:', error));
+    }
 
     return () => { cancelled = true; };
   }, [gameId, userId]);
@@ -69,8 +76,6 @@ export function RoleReveal({ game, myRole, me, isHost, onReady, gameId, userId }
     setIsReady(true);
     if (isHost) setTimeout(onReady, 1500);
   };
-
-  const totalPlayers = (game.players ?? []).filter(p => !p.isAI).length;
 
   return (
     <div className="min-h-screen w-full text-white flex flex-col items-center justify-center px-4" style={{ backgroundImage: 'url(/noche.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}>

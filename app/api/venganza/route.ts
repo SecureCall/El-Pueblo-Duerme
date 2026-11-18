@@ -3,6 +3,10 @@ import { initAdminApp } from '@/lib/firebase/admin';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { getFirestore } from 'firebase-admin/firestore';
 
+type GamePlayer = Record<string, unknown>;
+const isRecord = (value: unknown): value is GamePlayer =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 export async function POST(req: NextRequest) {
   const uid = await verifyAuthToken(req);
   if (!uid) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
@@ -29,9 +33,9 @@ export async function POST(req: NextRequest) {
       if (game.phase !== 'day' && game.phase !== 'voting') throw new Error('INVALID_PHASE');
       if (game.roundNumber !== round) throw new Error('STALE_ROUND');
 
-      const players = Array.isArray(game.players) ? game.players : [];
-      const victim = players.find((p: any) => p?.uid === uid);
-      const target = players.find((p: any) => p?.uid === targetUid);
+      const players = Array.isArray(game.players) ? game.players.filter(isRecord) : [];
+      const victim = players.find((player) => player.uid === uid);
+      const target = players.find((player) => player.uid === targetUid);
 
       if (!victim || victim.isAlive !== false) throw new Error('NOT_DEAD');
       if (!target || target.isAlive !== true) throw new Error('INVALID_TARGET');
@@ -44,12 +48,12 @@ export async function POST(req: NextRequest) {
       tx.update(gameRef, {
         cursed: {
           uid: targetUid,
-          byName: victim.name ?? 'Jugador',
+          byName: typeof victim.name === 'string' ? victim.name : 'Jugador',
           byUid: uid,
           round,
         },
         narratorBroadcast: {
-          text: `Con su último aliento, ${victim.name ?? 'Jugador'} lanza su maldición sobre ${target.name ?? 'Jugador'}. El destino ya está escrito.`,
+          text: `Con su último aliento, ${typeof victim.name === 'string' ? victim.name : 'Jugador'} lanza su maldición sobre ${typeof target.name === 'string' ? target.name : 'Jugador'}. El destino ya está escrito.`,
           type: 'chaos',
           triggeredAt: Date.now(),
         },

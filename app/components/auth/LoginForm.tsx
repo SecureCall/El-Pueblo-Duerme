@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import { FirebaseError } from 'firebase/app';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -36,11 +37,11 @@ export function LoginForm() {
       await signInWithEmailAndPassword(auth, values.email, values.password);
       router.push('/');
       router.refresh();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         variant: 'destructive',
         title: 'Error al iniciar sesión',
-        description: error.code === 'auth/invalid-credential'
+        description: error instanceof FirebaseError && error.code === 'auth/invalid-credential'
           ? 'Email o contraseña incorrectos.'
           : 'Inténtalo de nuevo.',
       });

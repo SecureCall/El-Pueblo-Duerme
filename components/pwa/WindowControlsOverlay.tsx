@@ -18,19 +18,24 @@ import { useEffect, useState } from 'react';
 
 type Rect = { x: number; y: number; width: number; height: number };
 
-function getTitleBarRect(): Rect | null {
-  if (typeof window === 'undefined') return null;
-  const wco = (navigator as any).windowControlsOverlay;
-  if (!wco?.visible) return null;
-  return wco.getTitlebarAreaRect?.() ?? null;
-}
+
+type WindowControlsOverlayApi = {
+  visible: boolean;
+  getTitlebarAreaRect: () => Rect;
+  addEventListener: (type: 'geometrychange', listener: () => void) => void;
+  removeEventListener: (type: 'geometrychange', listener: () => void) => void;
+};
+
+type NavigatorWithWindowControlsOverlay = Navigator & {
+  windowControlsOverlay?: WindowControlsOverlayApi;
+};
 
 export function WindowControlsOverlay() {
   const [rect, setRect] = useState<Rect | null>(null);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const wco = (navigator as any).windowControlsOverlay;
+    const wco = (navigator as NavigatorWithWindowControlsOverlay).windowControlsOverlay;
     if (!wco) return;
 
     const update = () => {

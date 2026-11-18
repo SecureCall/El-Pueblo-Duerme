@@ -15,8 +15,10 @@ describe('game-start private role guard', () => {
 
   it('never publishes the assigned role map or wolf team on games/{gameId}', () => {
     expect(source).toContain('Roles and wolf-team membership are secret');
-    expect(source).not.toMatch(/tx\.update\(gameRef, \{[\s\S]{0,1200}\bwolfTeam\s*:/);
-    expect(source).not.toMatch(/tx\.update\(gameRef, \{[\s\S]{0,1200}\broles\s*:/);
+    expect(source).toContain('roles: FieldValue.delete()');
+    expect(source).toContain('wolfTeam: FieldValue.delete()');
+    expect(source).not.toMatch(/roles:\s*assigned\[/);
+    expect(source).not.toMatch(/wolfTeam:\s*assigned\[/);
   });
 
   it('does not embed a private role in the public player snapshot', () => {

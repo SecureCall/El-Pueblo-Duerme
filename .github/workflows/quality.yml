@@ -18,7 +18,7 @@ concurrency:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,11 +32,38 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Setup Java for Firestore Emulator
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install Firestore emulator test tooling
+        run: npm install --no-save --package-lock=false @firebase/rules-unit-testing@3.0.4 firebase-tools@14.22.0
+
+      - name: Run Firestore rules integration tests
+        run: |
+          cat > firebase.ci.json <<'EOF'
+          {
+            "firestore": { "rules": "firestore.rules" },
+            "emulators": {
+              "firestore": { "port": 8080 },
+              "ui": { "enabled": false }
+            }
+          }
+          EOF
+          npx firebase emulators:exec --config firebase.ci.json --only firestore --project demo-el-pueblo-duerme-friends "npm run test:firestore"
+          rm -f firebase.ci.json
+
       - name: Run tests
         run: npm test
 
+      - name: Build
+        # The client Firebase SDK is imported by the app shell during static prerendering.
+        # CI uses a format-valid, non-production key so builds do not require production secrets.
+        env:
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ vars.NEXT_PUBLIC_FIREBASE_API_KEY || 'AIzaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' }}
+        run: npm run build
+
       - name: Run lint
         run: npm run lint
-
-      - name: Build
-        run: npm run build

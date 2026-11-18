@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     const lockRef = gameRef.collection('locks').doc('dayResolution');
     const roleRef = gameRef.collection('playerRoles').doc(tokenUid);
 
-    await db.runTransaction(async tx => {
+    const prediction = await db.runTransaction(async tx => {
       const [gameSnap, lockSnap, roleSnap] = await Promise.all([
         tx.get(gameRef),
         tx.get(lockRef),
@@ -75,11 +75,13 @@ export async function POST(req: NextRequest) {
         bansheePredictionRound: currentRound,
         bansheePredictionSubmittedAt: Date.now(),
       });
+
+      return { round: currentRound, targetUid };
     });
 
-    return NextResponse.json({ ok: true });
-  } catch (err: any) {
-    const code = err?.message;
+    return NextResponse.json({ ok: true, ...prediction });
+  } catch (err) {
+    const code = err instanceof Error ? err.message : 'INTERNAL';
     const statuses: Record<string, [number, string]> = {
       GAME_NOT_FOUND: [404, 'Partida no encontrada'],
       PHASE_CLOSED: [409, 'La predicción ya no está disponible'],

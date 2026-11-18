@@ -61,8 +61,8 @@ export function EmoteBar({ gameId, userId, userName }: Props) {
       collection(db, 'games', gameId, 'emotes'),
       limit(30)
     );
-    const unsub = onSnapshot(q, (snap: any) => {
-      snap.docChanges().forEach((change: any) => {
+    const unsub = onSnapshot(q, (snap) => {
+      snap.docChanges().forEach((change) => {
         if (change.type !== 'added') return;
         const data = change.doc.data();
         const ts: number = data.createdAt?.toMillis?.() ?? Date.now();
