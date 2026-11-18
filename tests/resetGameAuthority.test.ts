@@ -28,6 +28,9 @@ describe('rematch reset authority', () => {
     expect(route).toContain('principeUsed: false');
     expect(route).toContain("await tx.get(gameRef.collection('nightResolutions'))");
     expect(route).toContain('tx.delete(resolutionDoc.ref)');
+    expect(route).toContain("gameRef.collection('locks').doc('dayResolution')");
+    expect(route).toContain('oldDayResolutionLock.exists');
+    expect(route).toContain('tx.delete(oldDayResolutionLock.ref)');
     expect(route).toContain("'wolfChat'");
     expect(route).toContain("'twinChat'");
     expect(route).toContain("'hermanosChat'");
