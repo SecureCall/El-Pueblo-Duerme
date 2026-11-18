@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { initAdminApp } from '@/lib/firebase/admin';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { isAuthorizedServerRequest } from '@/lib/server/auth';
-import { getFirestore, type DocumentReference } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore, type DocumentReference } from 'firebase-admin/firestore';
 import { readNightRoleSnapshot } from '@/lib/server/nightRoleSnapshot';
 import { createDayResolutionInput } from '@/lib/server/dayResolutionInput';
 import { resolveDay } from '@/lib/server/dayResolutionEngine';
@@ -134,6 +134,9 @@ export async function POST(req: NextRequest) {
         players: sanitizedPlayers,
         currentEvent: nextNightEvent,
         eventRound: nextNightEvent ? Number(result.roundNumber) + 1 : null,
+        // Remove legacy public role maps from games created by older versions.
+        roles: FieldValue.delete(),
+        wolfTeam: FieldValue.delete(),
       } as Record<string, unknown>;
 
       tx.update(gr, patch);
