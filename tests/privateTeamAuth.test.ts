@@ -6,7 +6,7 @@ const client = readFileSync(resolve(process.cwd(), 'components/game/play/RoleRev
 const route = readFileSync(resolve(process.cwd(), 'app/api/private-team/route.ts'), 'utf8');
 
 describe('private wolf teammate lookup authentication', () => {
-  it('sends the current Firebase user's ID token to the private-team endpoint', () => {
+  it("sends the current Firebase user ID token to the private-team endpoint", () => {
     expect(client).toContain("import { getAuth } from 'firebase/auth'");
     expect(client).toMatch(/currentUser\?\.uid === userId/);
     expect(client).toMatch(/currentUser\.getIdToken\(\)/);
