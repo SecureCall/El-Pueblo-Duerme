@@ -10,7 +10,7 @@
     "lint": "next lint",
     "test": "vitest run --exclude tests/firestoreFriendsRules.emulator.test.ts",
     "test:watch": "vitest",
-    "test:firestore": "vitest run tests/firestoreFriendsRules.emulator.test.ts"
+    "test:firestore": "vitest run tests/firestoreFriendsRules.emulator.test.ts lib/server/friendships.emulator.test.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
