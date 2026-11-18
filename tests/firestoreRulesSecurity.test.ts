@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 
 const rules = readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8');
 const friendsApi = readFileSync(resolve(process.cwd(), 'app/api/friends/route.ts'), 'utf8');
+const friendshipsService = readFileSync(resolve(process.cwd(), 'lib/server/friendships.ts'), 'utf8');
 const friendsClient = readFileSync(resolve(process.cwd(), 'lib/firebase/friends.ts'), 'utf8');
 
 describe('Firestore security rules — regression guards', () => {
@@ -50,9 +51,10 @@ describe('Firestore security rules — regression guards', () => {
   it('routes friendship mutations through an authenticated atomic server transaction', () => {
     expect(rules).toContain("!affectedAre(['friends'])");
     expect(friendsApi).toContain('verifyAuthToken(req)');
-    expect(friendsApi).toContain('db.runTransaction(async tx =>');
-    expect(friendsApi).toContain("case 'accept':");
-    expect(friendsApi).toContain("case 'remove':");
+    expect(friendsApi).toContain('applyFriendAction(getFirestore(), uid, otherUid, action as FriendAction)');
+    expect(friendshipsService).toContain('db.runTransaction(async tx =>');
+    expect(friendshipsService).toContain("case 'accept':");
+    expect(friendshipsService).toContain("case 'remove':");
     expect(friendsClient).toContain("fetch('/api/friends'");
     expect(friendsClient).not.toContain('updateDoc(');
   });
