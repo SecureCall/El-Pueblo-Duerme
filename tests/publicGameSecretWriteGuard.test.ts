@@ -21,4 +21,15 @@ describe('public game secret write guards', () => {
     expect(source).toMatch(/key !== ['"]role['"]/);
     expect(source).toContain("tx.set(gr.collection('playerRoles').doc(uid)");
   });
+
+  it('removes legacy public role maps when starting or resolving legacy games', () => {
+    const start = read('app/api/game-start/route.ts');
+    const night = read('app/api/resolve-night/route.ts');
+    const day = read('app/api/day-resolve/route.ts');
+
+    for (const source of [start, night, day]) {
+      expect(source).toContain('roles: FieldValue.delete()');
+      expect(source).toContain('wolfTeam: FieldValue.delete()');
+    }
+  });
 });
