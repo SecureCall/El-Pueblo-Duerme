@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { getSdks } from '@/lib/server/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { verifyAuthToken } from '@/lib/firebase/verifyAuth';
 import { assignRoles } from '@/lib/server/roleCatalog';
 import { BOT_NAMES, assignBotType } from '@/lib/bots/botSystem';
@@ -132,6 +133,9 @@ export async function POST(req: NextRequest) {
         players: nextPlayers,
         playerCount: nextPlayers.length,
         startedAt: now,
+        // Remove legacy public role maps left by pre-private-role game versions.
+        roles: FieldValue.delete(),
+        wolfTeam: FieldValue.delete(),
       });
 
       result = { playerCount: nextPlayers.length, wolves: scaledWolves };
